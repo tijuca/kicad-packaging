@@ -57,12 +57,28 @@ public:
     virtual COLOR4D GetGridColor() override;
 
     /**
+     * redraws the message panel.
+     * display the current footprint info, or
+     * clear the message panel if nothing is loaded
+     */
+    void UpdateMsgPanel() override;
+
+    /**
      * Function ReCreateLibraryList
      *
      * Creates or recreates the list of current loaded libraries.
      * This list is sorted, with the library cache always at end of the list
      */
     void ReCreateLibraryList();
+
+    /**
+     * Function ShowModal
+     *
+     * Runs the Footprint Viewer as a modal dialog.
+     * @param aFootprint an optional FPID string to initialize the viewer with and to
+     *                   return a selected footprint through.
+     */
+    bool ShowModal( wxString* aFootprint, wxWindow* aResultantFocusWindow ) override;
 
 private:
 

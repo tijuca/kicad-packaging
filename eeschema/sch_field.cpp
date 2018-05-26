@@ -50,6 +50,7 @@
 #include <sch_component.h>
 #include <sch_field.h>
 #include <kicad_string.h>
+#include <trace_helpers.h>
 
 
 SCH_FIELD::SCH_FIELD( const wxPoint& aPos, int aFieldId, SCH_COMPONENT* aParent, const wxString& aName ) :
@@ -364,6 +365,19 @@ bool SCH_FIELD::Matches( wxFindReplaceData& aSearchData, void* aAuxData, wxPoint
     }
 
     return false;
+}
+
+
+bool SCH_FIELD::IsReplaceable() const
+{
+    if( m_id != VALUE )
+        return true;
+
+    SCH_COMPONENT* component = dynamic_cast<SCH_COMPONENT*>( GetParent() );
+    LIB_PART*      part = component ? component->GetPartRef().lock().get() : nullptr;
+    bool           isPower = part ? part->IsPower() : false;
+
+    return !isPower;
 }
 
 

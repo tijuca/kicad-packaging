@@ -38,6 +38,7 @@
 #include <project.h>
 #include <3d_viewer.h>      // for KISYS3DMOD
 #include <dialog_fp_lib_table_base.h>
+#include <lib_id.h>
 #include <fp_lib_table.h>
 #include <lib_table_lexer.h>
 #include <invoke_pcb_dialog.h>
@@ -208,8 +209,8 @@ public:
             g->SetColAttr( COL_TYPE, attr );
 
             attr = new wxGridCellAttr;
-            attr->SetEditor( new wxGridCellBoolEditor() );
             attr->SetRenderer( new wxGridCellBoolRenderer() );
+            attr->SetReadOnly();    // not really; we delegate interactivity to GRID_TRICKS
             g->SetColAttr( COL_ENABLED, attr );
 
             // all but COL_OPTIONS, which is edited with Option Editor anyways.
@@ -244,6 +245,7 @@ public:
         m_cur_grid->SetFocus();
 
         SetSizeInDU( 450, 380 );
+        Center();
 
         // On some windows manager (Unity, XFCE), this dialog is
         // not always raised, depending on this dialog is run.
@@ -290,6 +292,7 @@ private:
             {
                 wxString nick = model.GetValue( r, COL_NICKNAME ).Trim( false ).Trim();
                 wxString uri  = model.GetValue( r, COL_URI ).Trim( false ).Trim();
+                unsigned illegalCh = 0;
 
                 if( !nick || !uri )
                 {
@@ -299,11 +302,11 @@ private:
                     // button.
                     model.DeleteRows( r, 1 );
                 }
-                else if( nick.find( ':' ) != size_t( -1 ) )
+            else if( ( illegalCh = LIB_ID::FindIllegalChar( nick, LIB_ID::ID_PCB ) ) )
                 {
                     wxString msg = wxString::Format(
-                        _( "Illegal character \"%s\" found in Nickname: \"%s\" in row %d" ),
-                        ":", GetChars( nick ), r );
+                        _( "Illegal character \"%c\" found in Nickname: \"%s\" in row %d" ),
+                        illegalCh, GetChars( nick ), r );
 
                     // show the tabbed panel holding the grid we have flunked:
                     if( &model != cur_model() )
@@ -582,7 +585,7 @@ private:
         int dialogRet = 0;
 
         // stuff any pending cell editor text into the table.
-        m_cur_grid->SaveEditControlValue();
+        m_cur_grid->DisableCellEditControl();
 
         if( verifyTables() )
         {
@@ -614,51 +617,36 @@ private:
     /// by examining all the full_uri columns.
     void populateEnvironReadOnlyTable()
     {
-        wxRegEx re( ".*?\\$\\{(.+?)\\}.*?", wxRE_ADVANCED );
+        wxRegEx re( ".*?(\\$\\{(.+?)\\})|(\\$\\((.+?)\\)).*?", wxRE_ADVANCED );
         wxASSERT( re.IsValid() );   // wxRE_ADVANCED is required.
 
-        std::set< wxString >        unique;
-        typedef std::set<wxString>::const_iterator      SET_CITER;
+        std::set< wxString > unique;
 
         // clear the table
         m_path_subs_grid->DeleteRows( 0, m_path_subs_grid->GetNumberRows() );
 
-        FP_LIB_TABLE_GRID*   gbl = global_model();
-        FP_LIB_TABLE_GRID*   prj = project_model();
-
-        int gblRowCount = gbl->GetNumberRows();
-        int prjRowCount = prj->GetNumberRows();
-        int row;
-
-        for( row = 0;  row < gblRowCount;  ++row )
+        for( int i = 0; i < 2; ++i )
         {
-            wxString uri = gbl->GetValue( row, COL_URI );
+            FP_LIB_TABLE_GRID* tbl = i == 0 ? global_model() : project_model();
 
-            while( re.Matches( uri ) )
+            for( int row = 0; row < tbl->GetNumberRows(); ++row )
             {
-                wxString envvar = re.GetMatch( uri, 1 );
+                wxString uri = tbl->GetValue( row, COL_URI );
 
-                // ignore duplicates
-                unique.insert( envvar );
+                while( re.Matches( uri ) )
+                {
+                    wxString envvar = re.GetMatch( uri, 2 );
 
-                // delete the last match and search again
-                uri.Replace( re.GetMatch( uri, 0 ), wxEmptyString );
-            }
-        }
+                    // if not ${...} form then must be $(...)
+                    if( envvar.IsEmpty() )
+                        envvar = re.GetMatch( uri, 4 );
 
-        for( row = 0;  row < prjRowCount;  ++row )
-        {
-            wxString uri = prj->GetValue( row, COL_URI );
+                    // ignore duplicates
+                    unique.insert( envvar );
 
-            while( re.Matches( uri ) )
-            {
-                wxString envvar = re.GetMatch( uri, 1 );
-
-                // ignore duplicates
-                unique.insert( envvar );
-
-                // delete the last match and search again
-                uri.Replace( re.GetMatch( uri, 0 ), wxEmptyString );
+                    // delete the last match and search again
+                    uri.Replace( re.GetMatch( uri, 0 ), wxEmptyString );
+                }
             }
         }
 
@@ -672,9 +660,9 @@ private:
 
         m_path_subs_grid->AppendRows( unique.size() );
 
-        row = 0;
+        int row = 0;
 
-        for( SET_CITER it = unique.begin();  it != unique.end();  ++it, ++row )
+        for( auto it = unique.begin();  it != unique.end();  ++it, ++row )
         {
             wxString    evName = *it;
             wxString    evValue;
@@ -728,6 +716,7 @@ void DIALOG_FP_LIB_TABLE::OnClickLibraryWizard( wxCommandEvent& event )
     bool global_scope = dlg.GetLibScope() == WIZARD_FPLIB_TABLE::GLOBAL;
     wxGrid* libgrid = global_scope ? m_global_grid : m_project_grid;
     FP_LIB_TABLE_GRID* tbl = (FP_LIB_TABLE_GRID*) libgrid->GetTable();
+    bool skipRemainingDuplicates = false;
 
     for( std::vector<WIZARD_FPLIB_TABLE::LIBRARY>::const_iterator it = libs.begin();
             it != libs.end(); ++it )
@@ -735,12 +724,35 @@ void DIALOG_FP_LIB_TABLE::OnClickLibraryWizard( wxCommandEvent& event )
         if( it->GetStatus() == WIZARD_FPLIB_TABLE::LIBRARY::INVALID )
             continue;
 
+        wxString nickname = LIB_ID::FixIllegalChars( it->GetDescription(), LIB_ID::ID_PCB );
+
+        if( tbl->ContainsNickname( nickname ) )
+        {
+            if( skipRemainingDuplicates )
+                continue;
+
+            int ret = YesNoCancelDialog( this,
+                    _( "Warning: Duplicate Nickname" ),
+                    wxString::Format( _( "A library nicknamed \"%s\" already exists." ), nickname ),
+                    _( "Skip" ),
+                    _( "Skip All Remaining Duplicates" ),
+                    _( "Add Anyway" ) );
+
+            if( ret == wxID_YES )
+                continue;
+            else if ( ret == wxID_NO )
+            {
+                skipRemainingDuplicates = true;
+                continue;
+            }
+        }
+
         if( libgrid->AppendRows( 1 ) )
         {
             int last_row = libgrid->GetNumberRows() - 1;
 
             // Add the nickname: currently make it from filename
-            tbl->SetValue( last_row, COL_NICKNAME, it->GetDescription() );
+            tbl->SetValue( last_row, COL_NICKNAME, nickname );
 
             // Add the path:
             tbl->SetValue( last_row, COL_URI, it->GetAutoPath( dlg.GetLibScope() ) );

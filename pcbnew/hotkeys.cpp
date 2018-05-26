@@ -105,6 +105,8 @@ static EDA_HOTKEY HkRouteTuneDiffPair( _HKI( "Tune Differential Pair Length (Mod
                                        HK_ROUTE_TUNE_DIFF_PAIR, '8' );
 static EDA_HOTKEY HkRouteTuneSkew( _HKI( "Tune Differential Pair Skew (Modern Toolset only)" ),
                                    HK_ROUTE_TUNE_SKEW, '9' );
+static EDA_HOTKEY HkRouteTuneSettings( _HKI( "Length Tuning Settings (Modern Toolset only)" ),
+                                       HK_ROUTE_TUNE_SETTINGS, 'L' );
 
 static EDA_HOTKEY HkAddThroughVia( _HKI( "Add Through Via" ), HK_ADD_THROUGH_VIA, 'V' );
 static EDA_HOTKEY HkSelLayerAndAddThroughVia( _HKI( "Select Layer and Add Through Via" ),
@@ -194,11 +196,11 @@ static EDA_HOTKEY HkZoomOut( _HKI( "Zoom Out" ), HK_ZOOM_OUT, GR_KB_CTRL + '-' )
 #endif
 
 static EDA_HOTKEY HkZoomSelection( _HKI( "Zoom to Selection" ), HK_ZOOM_SELECTION,
-                                   '@', ID_ZOOM_SELECTION );
+                                   GR_KB_CTRL + WXK_F5, ID_ZOOM_SELECTION );
 
 static EDA_HOTKEY Hk3DViewer( _HKI( "3D Viewer" ), HK_3D_VIEWER, GR_KB_ALT + '3' );
 
-static EDA_HOTKEY HkHelp( _HKI( "Help (this window)" ), HK_HELP, '?' );
+static EDA_HOTKEY HkHelp( _HKI( "Help (this window)" ), HK_HELP, GR_KB_CTRL + WXK_F1 );
 
 static EDA_HOTKEY HkSwitchTrackWidthToNext( _HKI( "Switch Track Width To Next" ),
                                             HK_SWITCH_TRACK_WIDTH_TO_NEXT, 'W' );
@@ -251,6 +253,9 @@ static EDA_HOTKEY HkDpDimension( _HKI( "Differential Pair Dimensions" ), HK_DP_D
 static EDA_HOTKEY HkViaSizeInc( _HKI( "Increase Via Size" ), HK_VIA_SIZE_INC, '\'' );
 
 static EDA_HOTKEY HkViaSizeDec( _HKI( "Decrease Via Size" ), HK_VIA_SIZE_DEC, '\\' );
+
+static EDA_HOTKEY HkHighlightNetSelection( _HKI( "Toggle Highlight of Selected Net (Modern Toolset only)" ),
+                                           HK_HIGHLIGHT_NET_SELECTION, '`' );
 
 // Common: hotkeys_basic.h
 static EDA_HOTKEY HkNew( _HKI( "New" ), HK_NEW, GR_KB_CTRL + 'N', (int) wxID_NEW );
@@ -343,6 +348,7 @@ EDA_HOTKEY* board_edit_Hotkey_List[] =
     &HkSelectConnection,       &HkSelectCopper,
     &HkRoutingOptions,         &HkCustomTrackWidth,          &HkDpDimension,
     &HkViaSizeInc,             &HkViaSizeDec,
+    &HkHighlightNetSelection,
     NULL
 };
 

@@ -76,8 +76,12 @@ option( KICAD_SCRIPTING_ACTION_MENU
     )
 
 option( KICAD_USE_OCE
-    "Build tools and plugins related to OpenCascade Community Edition (default OFF)"
+    "Build tools and plugins related to OpenCascade Community Edition (default ON)"
     ON )
+
+option( KICAD_USE_OCC
+    "Build tools and plugins related to OpenCascade Technology (overrides KICAD_USE_OCE, default OFF)"
+    OFF )
 
 option( KICAD_INSTALL_DEMOS
     "Install kicad demos and examples (default ON)"
@@ -211,6 +215,44 @@ if( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
     endif()
 endif()
 
+
+#================================================
+# Provide access to CCACHE
+#================================================
+if (USE_CCACHE)
+  find_program(CCACHE_FOUND ccache)
+  if(CCACHE_FOUND)
+    get_property(RULE_LAUNCH_COMPILE GLOBAL PROPERTY RULE_LAUNCH_COMPILE)
+    set(RULE_LAUNCH_COMPILE "${RULE_LAUNCH_COMPILE} ${CCACHE_FOUND}")
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${RULE_LAUNCH_COMPILE})
+
+    get_property(RULE_LAUNCH_LINK GLOBAL PROPERTY RULE_LAUNCH_LINK)
+    set(RULE_LAUNCH_LINK "${RULE_LAUNCH_LINK} ${CCACHE_FOUND}")
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ${RULE_LAUNCH_LINK})
+
+    message(STATUS "Used ${CCACHE_FOUND} for compilation.")
+  else(CCACHE_FOUND)
+    message(STATUS "CCache was requested but not found.")
+  endif(CCACHE_FOUND)
+endif(USE_CCACHE)
+
+
+#================================================
+# Provide access to CCACHE
+#================================================
+if (USE_DISTCC)
+  find_program(DISTCC_FOUND distcc)
+  if(DISTCC_FOUND)
+    get_property(RULE_LAUNCH_COMPILE GLOBAL PROPERTY RULE_LAUNCH_COMPILE)
+    set(RULE_LAUNCH_COMPILE "${RULE_LAUNCH_COMPILE} ${DISTCC_FOUND}")
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${RULE_LAUNCH_COMPILE})
+    message(STATUS "Using ${DISTCC_FOUND} for distributed build.")
+  else(DISTCC_FOUND)
+    message(INFO "Distcc was requested but not found.")
+  endif(DISTCC_FOUND)
+endif(USE_DISTCC)
+
+
 #================================================
 # Set flags for GCC, or treat llvm as GCC
 #================================================
@@ -325,6 +367,12 @@ endif()
 
 if( KICAD_USE_OCE )
     add_definitions( -DKICAD_USE_OCE )
+endif()
+
+if( KICAD_USE_OCC )
+    add_definitions( -DKICAD_USE_OCC )
+    remove_definitions( -DKICAD_USE_OCE )
+    unset( KICAD_USE_OCE )
 endif()
 
 if( KICAD_USE_CUSTOM_PADS )
@@ -545,6 +593,8 @@ endif()
 #
 find_package( GLM 0.9.5.1 REQUIRED )
 
+add_definitions( -DGLM_FORCE_CTOR_INIT )
+
 #
 # Find CURL library, required for github plugin
 #
@@ -578,9 +628,24 @@ endif()
 
 # Find OpenCascade Community Edition, required for STEP plugin and tools
 if( KICAD_USE_OCE )
-    set( LIBS_OCE TKBinXCAF TKPCAF TKSTEP TKXDESTEP TKIGES TKXDEIGES )
+    set( OCC_LIBRARIES TKBinXCAF TKPCAF TKSTEP TKXDESTEP TKIGES TKXDEIGES )
 
-    find_package( OCE 0.16 REQUIRED ${LIBS_OCE} )
+    find_package( OCE 0.16 REQUIRED ${OCC_LIBRARIES} )
+
+elseif( KICAD_USE_OCC )
+    find_package(OpenCASCADE)
+    if( NOT OCC_FOUND )
+        MESSAGE( FATAL_ERROR "================================================================\n"
+                             " KICAD_USE_OCC=True but OpenCASCADE was no found!\n"
+                             "================================================================\n")
+    endif()
+    if( OCC_VERSION_STRING VERSION_LESS 6.8.0 )
+        MESSAGE( FATAL_ERROR "================================================================\n"
+                             "OpenCASCADE version ${OCC_VERSION_STRING} was found.\n"
+                             "  KiCad requires a minimum version of 6.8.0\n"
+                             "================================================================\n")
+    endif()
+    include_directories( SYSTEM ${OCC_INCLUDE_DIR} )
 endif()
 
 # Assist with header file searching optimization:
@@ -799,7 +864,7 @@ add_custom_target( uninstall
 ###
 # Install scripts
 ###
-if( UNIX )
+if( UNIX AND NOT APPLE )
     install( DIRECTORY scripts
         DESTINATION ${KICAD_DOCS}
         COMPONENT resources
@@ -821,25 +886,25 @@ if( UNIX AND NOT APPLE )
 
     # Install Mime directory
     install( DIRECTORY ${UNIX_ICON_FILES}
-        DESTINATION ${CMAKE_INSTALL_PREFIX}/share
+        DESTINATION share
         COMPONENT resources
         )
 
     # Install Icons
     install( DIRECTORY ${UNIX_MIME_FILES}
-        DESTINATION ${CMAKE_INSTALL_PREFIX}/share
+        DESTINATION share
         COMPONENT resources
         )
 
     # Install Applications directory (.desktop files)
     install( DIRECTORY ${UNIX_APPLICATIONS_FILES}
-        DESTINATION ${CMAKE_INSTALL_PREFIX}/share
+        DESTINATION share
         COMPONENT resources
         )
 
     # Install AppStream directory (app store entry)
     install( DIRECTORY ${UNIX_APPDATA_FILES}
-        DESTINATION ${CMAKE_INSTALL_PREFIX}/share
+        DESTINATION share
         COMPONENT resources
         )
 endif()

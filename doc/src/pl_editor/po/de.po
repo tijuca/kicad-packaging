@@ -969,20 +969,20 @@ msgstr ""
 #: pl_editor.adoc:398
 #, no-wrap
 msgid ""
-"|image:images/icons/pagelayout_new.png[]\n"
+"|image:images/icons/new_page_layout.png[]\n"
 "|Select the net list file to be processed.\n"
 msgstr ""
-"|image:images/icons/pagelayout_new.png[]\n"
+"|image:images/icons/new_page_layout.png[]\n"
 "|Erstellt ein neues Design für ein Seitenlayout.\n"
 
 #. type: delimited block |
 #: pl_editor.adoc:401
 #, no-wrap
 msgid ""
-"|image:images/icons/pagelayout_load.png[]\n"
+"|image:images/icons/open_page_layout.png[]\n"
 "|Load a page layout description file.\n"
 msgstr ""
-"|image:images/icons/pagelayout_load.png[]\n"
+"|image:images/icons/open_page_layout.png[]\n"
 "|Öffnet ein vorhandenes Seitenlayout aus einer Datei.\n"
 
 #. type: delimited block |

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1992-2011 jean-pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
  * Copyright (C) 1992-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2015 KiCad Developers, see authors.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see authors.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -138,6 +138,22 @@ public:
     const char* GetRefStr() const
     {
         return m_Ref.c_str();
+    }
+
+    wxString GetRefNumber() const
+    {
+        wxString ref;
+
+        if( m_NumRef < 0 )
+            return wxT( "?" );
+
+        // To avoid a risk of duplicate, for power components
+        // the ref number is 0nnn instead of nnn.
+        // Just because sometimes only power components are annotated
+        if( GetLibPart() && GetLibPart()->IsPower() )
+            ref = wxT( "0" );
+
+        return ref << m_NumRef;
     }
 
     int CompareValue( const SCH_REFERENCE& item ) const
@@ -403,7 +419,6 @@ public:
     }
 
     /**
-     * Function GetUnit
      * searches the sorted list of components for a another component with the same
      * reference and a given part unit.  Use this method to manage components with
      * multiple parts per package.
@@ -452,6 +467,15 @@ public:
         }
     }
 #endif
+
+    /**
+     * Function Shorthand
+     * Returns a shorthand string representing all the references in the list.  For instance,
+     * "R1, R2, R4 - R7, U1"
+     * @param aList
+     */
+    static wxString Shorthand( std::vector<SCH_REFERENCE> aList );
+
 
 private:
     /* sort functions used to sort componentFlatList

@@ -43,19 +43,11 @@
  */
 void LIB_EDIT_FRAME::ReCreateMenuBar()
 {
-    // Create and try to get the current menubar
+    // wxWidgets handles the Mac Application menu behind the scenes, but that means
+    // we always have to start from scratch with a new wxMenuBar.
+    wxMenuBar* oldMenuBar = GetMenuBar();
+    wxMenuBar* menuBar = new wxMenuBar();
     wxString   text;
-    wxMenuBar* menuBar = GetMenuBar();
-
-    if( !menuBar )
-        menuBar = new wxMenuBar();
-
-    // Delete all existing menus so they can be rebuilt.
-    // This allows language changes of the menu text on the fly.
-    menuBar->Freeze();
-
-    while( menuBar->GetMenuCount() )
-        delete menuBar->Remove( 0 );
 
     // Recreate all menus:
 
@@ -82,7 +74,7 @@ void LIB_EDIT_FRAME::ReCreateMenuBar()
     AddMenuItem( fileMenu,
                  ID_LIBEDIT_SAVE_LIBRARY,
                  _( "&Save Library" ),
-                 _( "Save the current active library" ),
+                 _( "Save the current library" ),
                  KiBitmap( save_library_xpm ) );
 
     AddMenuItem( fileMenu,
@@ -170,6 +162,10 @@ void LIB_EDIT_FRAME::ReCreateMenuBar()
     text = AddHotkeyName( _( "&Zoom to Fit" ), g_Libedit_Hokeys_Descr, HK_ZOOM_AUTO );
     AddMenuItem( viewMenu, ID_ZOOM_PAGE, text, _( "Zoom to fit symbol" ),
                  KiBitmap( zoom_fit_in_page_xpm ) );
+
+    text = AddHotkeyName( _( "Zoom to Selection" ),
+                          g_Schematic_Hokeys_Descr, HK_ZOOM_SELECTION );
+    AddMenuItem( viewMenu, ID_MENU_ZOOM_SELECTION, text, KiBitmap( zoom_area_xpm ) );
 
     // Redraw
     text = AddHotkeyName( _( "&Redraw" ), g_Libedit_Hokeys_Descr, HK_ZOOM_REDRAW );
@@ -289,12 +285,21 @@ void LIB_EDIT_FRAME::ReCreateMenuBar()
     // Menu Preferences:
     wxMenu* preferencesMenu = new wxMenu;
 
+    // Environment varialbes
+    AddMenuItem( preferencesMenu,
+                 ID_PREFERENCES_CONFIGURE_PATHS,
+                 _( "Configure Pa&ths..." ),
+                 _( "Edit path configuration environment variables" ),
+                 KiBitmap( path_xpm ) );
+
     // Library list
     AddMenuItem( preferencesMenu,
                  ID_EDIT_SYM_LIB_TABLE,
                  _( "Manage Symbol Libraries..." ),
                  _( "Edit the global and project symbol library tables." ),
                  KiBitmap( library_table_xpm ) );
+
+    preferencesMenu->AppendSeparator();
 
     // Default values and options
     AddMenuItem( preferencesMenu,
@@ -356,11 +361,6 @@ void LIB_EDIT_FRAME::ReCreateMenuBar()
     menuBar->Append( preferencesMenu, _( "P&references" ) );
     menuBar->Append( helpMenu, _( "&Help" ) );
 
-    menuBar->Thaw();
-
-    // Associate the menu bar with the frame, if no previous menubar
-    if( GetMenuBar() == NULL )
-        SetMenuBar( menuBar );
-    else
-        menuBar->Refresh();
+    SetMenuBar( menuBar );
+    delete oldMenuBar;
 }

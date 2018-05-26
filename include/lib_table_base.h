@@ -356,9 +356,10 @@ public:
     /**
      * Test for the existence of \a aNickname in the library table.
      *
+     * @param aCheckEnabled if true will only return true for enabled libraries
      * @return true if a library \a aNickname exists in the table.
      */
-    bool HasLibrary( const wxString& aNickname ) const;
+    bool HasLibrary( const wxString& aNickname, bool aCheckEnabled = false ) const;
 
     /**
      * Return the logical library names, all of them that are pertinent to
@@ -407,18 +408,6 @@ public:
      * @param aFileName is the name of the file to write to.
      */
     void Save( const wxString& aFileName ) const;
-
-    /**
-     * Search the paths all of the #LIB_TABLE_ROWS of the #LIB_TABLE and add all of the
-     * environment variable substitutions to \a aEnvVars.
-     *
-     * This will only add unique environment variables to the list.  Duplicates are ignored.
-     *
-     * @param aEnvVars is the array to load the environment variables.
-     *
-     * @return the number of unique environment variables found in the table.
-     */
-    size_t GetEnvVars( wxArrayString& aEnvVars ) const;
 
     /**
      * Parses \a aOptionsList and places the result into a #PROPERTIES object which is

@@ -663,6 +663,25 @@ void PCB_EDIT_FRAME::ArchiveModulesOnBoard( bool aStoreInNewLib, const wxString&
 }
 
 
+class LIBRARY_NAME_CLEARER
+{
+    MODULE*  m_module;
+    LIB_ID   m_savedFPID;
+
+public:
+    LIBRARY_NAME_CLEARER( MODULE* aModule )
+    {
+        m_module = aModule;
+        m_savedFPID = aModule->GetFPID();
+        m_module->SetFPID( LIB_ID( m_savedFPID.GetLibItemName() ) );
+    }
+    ~LIBRARY_NAME_CLEARER()
+    {
+        m_module->SetFPID( m_savedFPID );
+    }
+};
+
+
 bool FOOTPRINT_EDIT_FRAME::SaveFootprintInLibrary( wxString activeLibrary, MODULE* aModule )
 {
     if( aModule == NULL )
@@ -755,7 +774,7 @@ bool FOOTPRINT_EDIT_FRAME::SaveFootprintInLibrary( wxString activeLibrary, MODUL
         return false;
     }
 
-    aModule->SetFPID( LIB_ID( footprintName ) );
+    aModule->SetFPID( LIB_ID( libraryName, footprintName ) );
 
     // Legacy libraries are readable, but modifying legacy format is not allowed
     // So prompt the user if he try to add/replace a footprint in a legacy lib
@@ -776,6 +795,8 @@ bool FOOTPRINT_EDIT_FRAME::SaveFootprintInLibrary( wxString activeLibrary, MODUL
 
         module_exists = m != nullptr;
         delete m;
+
+        LIBRARY_NAME_CLEARER temp( aModule );
 
         // this always overwrites any existing footprint, but should yell on its
         // own if the library or footprint is not writable.
@@ -829,8 +850,6 @@ MODULE* PCB_BASE_FRAME::CreateNewModule( const wxString& aModuleName )
 
     // Creates the new module and add it to the head of the linked list of modules
     MODULE* module = new MODULE( GetBoard() );
-
-    GetBoard()->Add( module );
 
     // Update parameters: timestamp ...
     module->SetLastEditTime();

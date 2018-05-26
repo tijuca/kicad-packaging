@@ -394,10 +394,10 @@ class CINFO3D_VISU
 
     /**
      * @brief GetNrSegmentsCircle
-     * @param aDiameterBUI: diameter in board unities
+     * @param aDiameterBIU: diameter in board internal units
      * @return number of sides that should be used in that circle
      */
-    unsigned int GetNrSegmentsCircle( int aDiameterBUI ) const;
+    unsigned int GetNrSegmentsCircle( int aDiameterBIU ) const;
 
     /**
      * @brief GetCircleCorrectionFactor - computes a angle correction
@@ -427,11 +427,11 @@ class CINFO3D_VISU
 
     void createNewPad( const D_PAD* aPad,
                        CGENERICCONTAINER2D *aDstContainer,
-                       const wxSize &aInflateValue ) const;
+                       wxSize aInflateValue ) const;
 
     void createNewPadWithClearance( const D_PAD *aPad,
                                     CGENERICCONTAINER2D *aDstContainer,
-                                    int aClearanceValue ) const;
+                                    wxSize aClearanceValue ) const;
 
     COBJECT2D *createNewPadDrill( const D_PAD* aPad, int aInflateValue );
 

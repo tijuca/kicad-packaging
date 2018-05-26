@@ -46,6 +46,7 @@
 #include <bitmaps.h>
 
 #include <class_module.h>
+#include <env_paths.h>
 
 #ifdef BUILD_GITHUB_PLUGIN
 #include <../github/github_getliblist.h>
@@ -53,7 +54,7 @@
 
 // a key to store the default Kicad Github libs URL
 #define KICAD_FPLIBS_URL_KEY wxT( "kicad_fplib_url" )
-#define KICAD_FPLIBS_LAST_DOWNLOAD_DIR wxT( "kicad_fplib_last_download_dir" )
+#define KICAD_FPLIBS_LAST_DIR wxT( "kicad_fplib_last_download_dir" )
 
 // Filters for the file picker
 static const int FILTER_COUNT = 4;
@@ -222,17 +223,14 @@ wxString WIZARD_FPLIB_TABLE::LIBRARY::GetRelativePath( const wxString& aBase, co
 
 wxString WIZARD_FPLIB_TABLE::LIBRARY::GetAutoPath( LIB_SCOPE aScope ) const
 {
-    const wxString& global_env = FP_LIB_TABLE::GlobalPathEnvVariableName();
     const wxString& project_env = PROJECT_VAR_NAME;
     const wxString& github_env( "KIGITHUB" );
 
     wxString rel_path;
 
-    // KISYSMOD check
-    rel_path = replaceEnv( global_env );
-
-    if( !rel_path.IsEmpty() )
-        return rel_path;
+    // The extra KIGITHUB and KIPRJCHECKS are still here since Pgm.GetLocalVariables() does not
+    // contain the KIPRJMOD env var, and the KIGITHUB does not pass the IsAbsolutePath check
+    // that happens in NormalizePath(...) since it starts with https://
 
     // KIGITHUB check
     rel_path = replaceEnv( github_env, false );
@@ -249,8 +247,13 @@ wxString WIZARD_FPLIB_TABLE::LIBRARY::GetAutoPath( LIB_SCOPE aScope ) const
             return rel_path;
     }
 
-    // Return the full path
-    return m_path;
+    rel_path = NormalizePath( wxFileName( m_path ), &Pgm().GetLocalEnvVariables(), project_env );
+
+    // If normalizePath failed, then rel_path will be empty, m_path is the full path.
+    if( rel_path.IsEmpty() )
+      return m_path;
+
+    return rel_path;
 }
 
 
@@ -300,7 +303,7 @@ WIZARD_FPLIB_TABLE::WIZARD_FPLIB_TABLE( wxWindow* aParent ) :
 
     wxConfigBase* cfg = Pgm().CommonSettings();
     cfg->Read( KICAD_FPLIBS_URL_KEY, &githubUrl );
-    cfg->Read( KICAD_FPLIBS_LAST_DOWNLOAD_DIR, &m_lastGithubDownloadDirectory );
+    cfg->Read( KICAD_FPLIBS_LAST_DIR, &m_lastGithubDownloadDirectory );
 
 
     if( !m_lastGithubDownloadDirectory.IsEmpty() )
@@ -538,7 +541,7 @@ void WIZARD_FPLIB_TABLE::OnBrowseButtonClick( wxCommandEvent& aEvent )
         setDownloadDir( path );
 
         wxConfigBase* cfg = Pgm().CommonSettings();
-        cfg->Write( KICAD_FPLIBS_LAST_DOWNLOAD_DIR, path );
+        cfg->Write( KICAD_FPLIBS_LAST_DIR, path );
 
         updateGithubControls();
     }
@@ -572,6 +575,9 @@ bool WIZARD_FPLIB_TABLE::checkFiles() const
             return false;
     }
 
+    wxConfigBase* cfg = Pgm().CommonSettings();
+    cfg->Write( KICAD_FPLIBS_LAST_DIR, candidates[0] );
+
     return true;
 }
 
@@ -603,7 +609,13 @@ bool WIZARD_FPLIB_TABLE::downloadGithubLibsFromList( wxArrayString& aUrlList,
                                                      wxString* aErrorMessage )
 {
     // Display a progress bar to show the downlaod state
-    wxProgressDialog pdlg( _( "Downloading libraries" ), wxEmptyString, aUrlList.GetCount() );
+    // for OSX do not enable wPD_APP_MODAL, keep wxPD_AUTO_HIDE
+    wxProgressDialog pdlg( _( "Downloading libraries" ), wxEmptyString, aUrlList.GetCount(),
+                           this,
+#ifndef __WXMAC__
+                           wxPD_APP_MODAL |
+#endif
+                           wxPD_CAN_ABORT | wxPD_AUTO_HIDE );
 
     // Download libs:
     for( unsigned ii = 0; ii < aUrlList.GetCount(); ii++ )
@@ -786,9 +798,13 @@ void WIZARD_FPLIB_TABLE::setupReview()
     int libTotalCount = m_libraries.size();
     int libCount = 0;
     bool validate = true;
+    // for OSX do not enable wPD_APP_MODAL, keep wxPD_AUTO_HIDE
     wxProgressDialog progressDlg( _( "Please wait..." ), _( "Validating libraries" ),
                                   libTotalCount, this,
-                                  wxPD_APP_MODAL | wxPD_CAN_ABORT | wxPD_AUTO_HIDE );
+#ifndef __WXMAC__
+                                  wxPD_APP_MODAL |
+#endif
+                                  wxPD_CAN_ABORT | wxPD_AUTO_HIDE );
 
     m_dvLibName->SetWidth( 280 );
 

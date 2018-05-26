@@ -102,7 +102,7 @@ public:
     void ReCreateHToolbar() override;
 
     void ReCreateVToolbar() override;
-    void ReCreateOptToolbar();
+    void ReCreateOptToolbar() override;
     void ReCreateAuxiliaryToolbar() override;
     void OnLeftClick( wxDC* DC, const wxPoint& MousePos ) override;
 
@@ -478,6 +478,15 @@ public:
     bool OpenProjectFiles( const std::vector<wxString>& aFileSet, int aCtl = 0 ) override;
 
     int GetIconScale() override;
+
+    /**
+     * redraws the message panel.
+     * If a item is currently selected, displays the item info.
+     * If nothing selected, display the current footprint info, or
+     * clear the message panel if nothing is edited
+     */
+    void UpdateMsgPanel() override;
+
 
     DECLARE_EVENT_TABLE()
 

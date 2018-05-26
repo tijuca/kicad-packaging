@@ -49,6 +49,8 @@ include::eeschema_main_top_menu.adoc[po4a]
 
 include::eeschema_general_top_toolbar.adoc[po4a]
 
+include::eeschema_symbol_library_table.adoc[po4a]
+
 include::eeschema_schematic_creation_and_editing.adoc[po4a]
 
 include::eeschema_hierarchical_schematics.adoc[po4a]
@@ -61,10 +63,12 @@ include::eeschema_create_a_netlist.adoc[po4a]
 
 include::eeschema_plot_and_print.adoc[po4a]
 
-include::eeschema_component_library_editor.adoc[po4a]
+include::eeschema_library_editor.adoc[po4a]
 
-include::eeschema_libedit_components.adoc[po4a]
+include::eeschema_libedit.adoc[po4a]
 
 include::eeschema_viewlib.adoc[po4a]
 
 include::eeschema_creating_customized_netlists_and_bom_files.adoc[po4a]
+
+include::eeschema_simulator.adoc[po4a]

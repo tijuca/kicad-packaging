@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
 <wxFormBuilder_Project>
     <FileVersion major="1" minor="13" />
-    <object class="Project" expanded="0">
+    <object class="Project" expanded="1">
         <property name="class_decoration">; </property>
         <property name="code_generation">C++</property>
         <property name="disconnect_events">1</property>
@@ -26,7 +26,7 @@
         <property name="ui_table">UI</property>
         <property name="use_enum">0</property>
         <property name="use_microsoft_bom">0</property>
-        <object class="Dialog" expanded="0">
+        <object class="Dialog" expanded="1">
             <property name="aui_managed">0</property>
             <property name="aui_manager_style">wxAUI_MGR_DEFAULT</property>
             <property name="bg"></property>
@@ -88,16 +88,16 @@
             <event name="OnSetFocus"></event>
             <event name="OnSize"></event>
             <event name="OnUpdateUI"></event>
-            <object class="wxBoxSizer" expanded="0">
+            <object class="wxBoxSizer" expanded="1">
                 <property name="minimum_size"></property>
                 <property name="name">mainSizer</property>
                 <property name="orient">wxVERTICAL</property>
                 <property name="permission">none</property>
-                <object class="sizeritem" expanded="0">
+                <object class="sizeritem" expanded="1">
                     <property name="border">5</property>
                     <property name="flag">wxEXPAND</property>
                     <property name="proportion">1</property>
-                    <object class="wxBoxSizer" expanded="0">
+                    <object class="wxBoxSizer" expanded="1">
                         <property name="minimum_size"></property>
                         <property name="name">bSizerFieldsSetup</property>
                         <property name="orient">wxHORIZONTAL</property>
@@ -212,7 +212,7 @@
                                         <event name="OnRightDown"></event>
                                         <event name="OnRightUp"></event>
                                         <event name="OnSetFocus"></event>
-                                        <event name="OnSize"></event>
+                                        <event name="OnSize">OnSizeFieldsList</event>
                                         <event name="OnUpdateUI"></event>
                                     </object>
                                 </object>
@@ -750,7 +750,7 @@
                                                 <property name="gripper">0</property>
                                                 <property name="hidden">0</property>
                                                 <property name="id">wxID_ANY</property>
-                                                <property name="label">Horiz. Justify</property>
+                                                <property name="label">Horizontal Align:</property>
                                                 <property name="majorDimension">1</property>
                                                 <property name="max_size"></property>
                                                 <property name="maximize_button">0</property>
@@ -840,7 +840,7 @@
                                                 <property name="gripper">0</property>
                                                 <property name="hidden">0</property>
                                                 <property name="id">wxID_ANY</property>
-                                                <property name="label">Vert. Justify</property>
+                                                <property name="label">Vertical Align:</property>
                                                 <property name="majorDimension">1</property>
                                                 <property name="max_size"></property>
                                                 <property name="maximize_button">0</property>
@@ -914,7 +914,7 @@
                                             <property name="proportion">1</property>
                                             <object class="wxStaticBoxSizer" expanded="1">
                                                 <property name="id">wxID_ANY</property>
-                                                <property name="label">Visibility</property>
+                                                <property name="label">Visibility:</property>
                                                 <property name="minimum_size"></property>
                                                 <property name="name">visibilitySizer</property>
                                                 <property name="orient">wxVERTICAL</property>
@@ -1132,7 +1132,7 @@
                                                 <property name="gripper">0</property>
                                                 <property name="hidden">0</property>
                                                 <property name="id">wxID_ANY</property>
-                                                <property name="label">Style</property>
+                                                <property name="label">Style:</property>
                                                 <property name="majorDimension">1</property>
                                                 <property name="max_size"></property>
                                                 <property name="maximize_button">0</property>
@@ -1232,7 +1232,7 @@
                                                 <property name="gripper">0</property>
                                                 <property name="hidden">0</property>
                                                 <property name="id">wxID_ANY</property>
-                                                <property name="label">Field Name</property>
+                                                <property name="label">Field Name:</property>
                                                 <property name="max_size"></property>
                                                 <property name="maximize_button">0</property>
                                                 <property name="maximum_size"></property>
@@ -1406,7 +1406,7 @@
                                                 <property name="gripper">0</property>
                                                 <property name="hidden">0</property>
                                                 <property name="id">wxID_ANY</property>
-                                                <property name="label">Field Value</property>
+                                                <property name="label">Field Value:</property>
                                                 <property name="max_size"></property>
                                                 <property name="maximize_button">0</property>
                                                 <property name="maximum_size"></property>
@@ -1686,7 +1686,7 @@
                                                 <property name="gripper">0</property>
                                                 <property name="hidden">0</property>
                                                 <property name="id">wxID_ANY</property>
-                                                <property name="label">Size</property>
+                                                <property name="label">Size:</property>
                                                 <property name="max_size"></property>
                                                 <property name="maximize_button">0</property>
                                                 <property name="maximum_size"></property>
@@ -1943,7 +1943,7 @@
                                                 <property name="gripper">0</property>
                                                 <property name="hidden">0</property>
                                                 <property name="id">wxID_ANY</property>
-                                                <property name="label">X Position</property>
+                                                <property name="label">X Position:</property>
                                                 <property name="max_size"></property>
                                                 <property name="maximize_button">0</property>
                                                 <property name="maximum_size"></property>
@@ -2200,7 +2200,7 @@
                                                 <property name="gripper">0</property>
                                                 <property name="hidden">0</property>
                                                 <property name="id">wxID_ANY</property>
-                                                <property name="label">Y Position</property>
+                                                <property name="label">Y Position:</property>
                                                 <property name="max_size"></property>
                                                 <property name="maximize_button">0</property>
                                                 <property name="maximum_size"></property>

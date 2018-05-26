@@ -30,6 +30,7 @@
 #include <gr_basic.h>
 #include <common.h>
 #include <trigo.h>
+#include <bitmaps.h>
 #include <class_drawpanel.h>
 #include <msgpanel.h>
 #include <gerbview_frame.h>
@@ -320,37 +321,49 @@ const EDA_RECT GERBER_DRAW_ITEM::GetBoundingBox() const
 
     case GBR_SPOT_CIRCLE:
     {
-        int radius = code->m_Size.x >> 1;
-        bbox.Inflate( radius, radius );
+        if( code )
+        {
+            int radius = code->m_Size.x >> 1;
+            bbox.Inflate( radius, radius );
+        }
         break;
     }
 
     case GBR_SPOT_RECT:
     {
-        bbox.Inflate( code->m_Size.x / 2, code->m_Size.y / 2 );
+        if( code )
+            bbox.Inflate( code->m_Size.x / 2, code->m_Size.y / 2 );
         break;
     }
 
     case GBR_SPOT_OVAL:
     {
-        bbox.Inflate( code->m_Size.x, code->m_Size.y );
+        if( code )
+            bbox.Inflate( code->m_Size.x, code->m_Size.y );
         break;
     }
 
     case GBR_SPOT_POLY:
     {
-        if( code->m_Polygon.OutlineCount() == 0 )
-            code->ConvertShapeToPolygon();
+        if( code )
+        {
+            if( code->m_Polygon.OutlineCount() == 0 )
+                code->ConvertShapeToPolygon();
 
-        bbox.Inflate( code->m_Polygon.BBox().GetWidth() / 2, code->m_Polygon.BBox().GetHeight() / 2 );
+            bbox.Inflate( code->m_Polygon.BBox().GetWidth() / 2,
+                          code->m_Polygon.BBox().GetHeight() / 2 );
+        }
         break;
     }
     case GBR_SPOT_MACRO:
     {
-        // Update the shape drawings and the bounding box coordiantes:
-        code->GetMacro()->GetApertureMacroShape( this, m_Start );
-        // now the bounding box is valid:
-        bbox = code->GetMacro()->GetBoundingBox();
+        if( code )
+        {
+            // Update the shape drawings and the bounding box coordiantes:
+            code->GetMacro()->GetApertureMacroShape( this, m_Start );
+            // now the bounding box is valid:
+            bbox = code->GetMacro()->GetBoundingBox();
+        }
         break;
     }
 
@@ -750,8 +763,39 @@ void GERBER_DRAW_ITEM::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 }
 
 
+BITMAP_DEF GERBER_DRAW_ITEM::GetMenuImage() const
+{
+    if( m_Flashed )
+        return pad_xpm;
+
+    switch( m_Shape )
+    {
+    case GBR_SEGMENT:
+    case GBR_ARC:
+    case GBR_CIRCLE:
+        return add_line_xpm;
+
+    case GBR_SPOT_OVAL:
+    case GBR_SPOT_CIRCLE:
+    case GBR_SPOT_RECT:
+    case GBR_SPOT_POLY:
+    case GBR_SPOT_MACRO:
+        // should be handles by m_Flashed == true
+        return pad_xpm;
+
+    case GBR_POLYGON:
+        return add_graphical_polygon_xpm;
+    }
+
+    return info_xpm;
+}
+
+
 bool GERBER_DRAW_ITEM::HitTest( const wxPoint& aRefPos ) const
 {
+    // In case the item has a very tiny width defined, allow it to be selected
+    const int MIN_HIT_TEST_RADIUS = Millimeter2iu( 0.01 );
+
     // calculate aRefPos in XY gerber axis:
     wxPoint ref_pos = GetXYPosition( aRefPos );
 
@@ -776,8 +820,11 @@ bool GERBER_DRAW_ITEM::HitTest( const wxPoint& aRefPos ) const
             double radius = GetLineLength( m_Start, m_ArcCentre );
             VECTOR2D test_radius = VECTOR2D( ref_pos ) - VECTOR2D( m_ArcCentre );
 
-            // Are we within m_Size.x of the radius?
-            bool radius_hit = ( std::fabs( test_radius.EuclideanNorm() - radius) < m_Size.x );
+            int size = ( ( m_Size.x < MIN_HIT_TEST_RADIUS ) ? MIN_HIT_TEST_RADIUS
+                                                            : m_Size.x );
+
+            // Are we close enough to the radius?
+            bool radius_hit = ( std::fabs( test_radius.EuclideanNorm() - radius) < size );
 
             if( radius_hit )
             {
@@ -820,6 +867,9 @@ bool GERBER_DRAW_ITEM::HitTest( const wxPoint& aRefPos ) const
 
     // TODO: a better analyze of the shape (perhaps create a D_CODE::HitTest for flashed items)
     int radius = std::min( m_Size.x, m_Size.y ) >> 1;
+
+    if( radius < MIN_HIT_TEST_RADIUS )
+        radius = MIN_HIT_TEST_RADIUS;
 
     if( m_Flashed )
         return HitTestPoints( m_Start, ref_pos, radius );

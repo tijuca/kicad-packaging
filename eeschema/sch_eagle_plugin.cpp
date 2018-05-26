@@ -25,6 +25,7 @@
 
 #include <wx/filename.h>
 #include <memory>
+#include <algorithm>
 
 #include <sch_junction.h>
 #include <sch_sheet.h>
@@ -87,6 +88,32 @@ static int countChildren( wxXmlNode* aCurrentNode, const wxString& aName )
 }
 
 
+///> Computes a bounding box for all items in a schematic sheet
+static EDA_RECT getSheetBbox( SCH_SHEET* aSheet )
+{
+    EDA_RECT bbox;
+
+    SCH_ITEM* item = aSheet->GetScreen()->GetDrawItems();
+    bbox = item->GetBoundingBox();
+    item = item->Next();
+
+    while( item )
+    {
+        bbox.Merge( item->GetBoundingBox() );
+        item = item->Next();
+    }
+
+    return bbox;
+}
+
+
+///> Extracts the net name part from a pin name (e.g. return 'GND' for pin named 'GND@2')
+static inline wxString extractNetName( const wxString& aPinName )
+{
+    return aPinName.BeforeFirst( '@' );
+}
+
+
 wxString SCH_EAGLE_PLUGIN::getLibName()
 {
     if( m_libName.IsEmpty() )
@@ -104,7 +131,8 @@ wxString SCH_EAGLE_PLUGIN::getLibName()
             m_libName = "noname";
 
         m_libName += "-eagle-import";
-        m_libName = LIB_ID::FixIllegalChars( m_libName );
+        // use ID_SCH as it is more restrictive
+        m_libName = LIB_ID::FixIllegalChars( m_libName, LIB_ID::ID_SCH );
     }
 
     return m_libName;
@@ -515,6 +543,8 @@ void SCH_EAGLE_PLUGIN::loadSchematic( wxXmlNode* aSchematicNode )
         libraryNode = libraryNode->GetNext();
     }
 
+    m_pi->SaveLibrary( getLibFileName().GetFullPath() );
+
     // find all nets and count how many sheets they appear on.
     // local labels will be used for nets found only on that sheet.
     countNets( aSchematicNode );
@@ -524,7 +554,7 @@ void SCH_EAGLE_PLUGIN::loadSchematic( wxXmlNode* aSchematicNode )
 
     int sheet_count = countChildren( schematicChildren["sheets"], "sheet" );
 
-    // If eagle schematic has multiple sheets.
+    // If eagle schematic has multiple sheets then create corresponding subsheets on the root sheet
     if( sheet_count > 1 )
     {
         int x, y, i;
@@ -568,6 +598,57 @@ void SCH_EAGLE_PLUGIN::loadSchematic( wxXmlNode* aSchematicNode )
             sheetNode = sheetNode->GetNext();
         }
     }
+
+
+    // Handle the missing component units that need to be instantiated
+    // to create the missing implicit connections
+
+    // Calculate the already placed items bounding box and the page size to determine
+    // placement for the new components
+    wxSize pageSizeIU = m_rootSheet->GetScreen()->GetPageSettings().GetSizeIU();
+    EDA_RECT sheetBbox = getSheetBbox( m_rootSheet );
+    wxPoint newCmpPosition( sheetBbox.GetLeft(), sheetBbox.GetBottom() );
+    int maxY = sheetBbox.GetY();
+
+    SCH_SHEET_PATH sheetpath;
+    m_rootSheet->LocatePathOfScreen( m_rootSheet->GetScreen(), &sheetpath );
+
+    for( auto& cmp : m_missingCmps )
+    {
+        const SCH_COMPONENT* origCmp = cmp.second.cmp;
+
+        for( auto unitEntry : cmp.second.units )
+        {
+            if( unitEntry.second == false )
+                continue;     // unit has been already processed
+
+            // Instantiate the missing component unit
+            int unit = unitEntry.first;
+            const wxString& reference = origCmp->GetField( REFERENCE )->GetText();
+            std::unique_ptr<SCH_COMPONENT> component( new SCH_COMPONENT( *origCmp ) );
+            component->SetUnitSelection( &sheetpath, unit );
+            component->SetUnit( unit );
+            component->SetTimeStamp( EagleModuleTstamp( reference, origCmp->GetField( VALUE )->GetText(), unit ) );
+            component->SetOrientation( 0 );
+            component->AddHierarchicalReference( sheetpath.Path(), reference, unit );
+
+            // Calculate the placement position
+            EDA_RECT cmpBbox = component->GetBoundingBox();
+            int posY = newCmpPosition.y + cmpBbox.GetHeight();
+            component->SetPosition( wxPoint( newCmpPosition.x, posY ) );
+            newCmpPosition.x += cmpBbox.GetWidth();
+            maxY = std::max( maxY, posY );
+
+            if( newCmpPosition.x >= pageSizeIU.GetWidth() )             // reached the page boundary?
+                newCmpPosition = wxPoint( sheetBbox.GetLeft(), maxY );  // then start a new row
+
+            // Add the global net labels to recreate the implicit connections
+            addImplicitConnections( component.get(), m_rootSheet->GetScreen(), false );
+            m_rootSheet->GetScreen()->Append( component.release() );
+        }
+    }
+
+    m_missingCmps.clear();
 }
 
 
@@ -637,6 +718,7 @@ void SCH_EAGLE_PLUGIN::loadSheet( wxXmlNode* aSheetNode, int aSheetIndex )
         netNode = netNode->GetNext();
     }
 
+    adjustNetLabels();        // needs to be called before addBusEntries()
     addBusEntries();
 
     // Loop through all instances
@@ -678,21 +760,8 @@ void SCH_EAGLE_PLUGIN::loadSheet( wxXmlNode* aSheetNode, int aSheetIndex )
         plainNode = plainNode->GetNext();
     }
 
-    // Find the bounding box of the imported items.
-    EDA_RECT sheetBoundingBox;
-
-    SCH_ITEM* item = m_currentSheet->GetScreen()->GetDrawItems();
-    sheetBoundingBox = item->GetBoundingBox();
-    item = item->Next();
-
-    while( item )
-    {
-        sheetBoundingBox.Merge( item->GetBoundingBox() );
-        item = item->Next();
-    }
-
     // Calculate the new sheet size.
-
+    EDA_RECT sheetBoundingBox = getSheetBbox( m_currentSheet );
     wxSize targetSheetSize = sheetBoundingBox.GetSize();
     targetSheetSize.IncBy( 1500, 1500 );
 
@@ -719,14 +788,22 @@ void SCH_EAGLE_PLUGIN::loadSheet( wxXmlNode* aSheetNode, int aSheetIndex )
     translation.x   = translation.x - translation.x % 100;
     translation.y   = translation.y - translation.y % 100;
 
-    // Translate the items.
-    item = m_currentSheet->GetScreen()->GetDrawItems();
+    // Add global net labels for the named power input pins in this sheet
+    for( SCH_ITEM* item = m_currentSheet->GetScreen()->GetDrawItems(); item; item = item->Next() )
+    {
+        if( item->Type() != SCH_COMPONENT_T )
+            continue;
 
-    while( item )
+        addImplicitConnections( static_cast<SCH_COMPONENT*>( item ), m_currentSheet->GetScreen(), true );
+    }
+
+    m_connPoints.clear();
+
+    // Translate the items.
+    for( SCH_ITEM* item = m_currentSheet->GetScreen()->GetDrawItems(); item; item = item->Next() )
     {
         item->SetPosition( item->GetPosition() + translation );
         item->ClearFlags();
-        item = item->Next();
     }
 }
 
@@ -745,21 +822,41 @@ void SCH_EAGLE_PLUGIN::loadSegments( wxXmlNode* aSegmentsNode, const wxString& n
     {
         bool labelled = false;    // has a label been added to this continously connected segment
         NODE_MAP segmentChildren = MapChildren( currentSegment );
+        SCH_LINE* firstWire = nullptr;
+        m_segments.emplace_back();
+        SEG_DESC& segDesc = m_segments.back();
 
         // Loop through all segment children
         wxXmlNode* segmentAttribute = currentSegment->GetChildren();
-
-        // load wire nodes first
-        // label positions will then be tested for an underlying wire, since eagle labels can be seperated from the wire
-
-        DLIST<SCH_LINE> segmentWires;
-        segmentWires.SetOwnership( false );
 
         while( segmentAttribute )
         {
             if( segmentAttribute->GetName() == "wire" )
             {
-                segmentWires.Append( loadWire( segmentAttribute ) );
+                SCH_LINE* wire = loadWire( segmentAttribute );
+
+                if( !firstWire )
+                    firstWire = wire;
+
+                // Test for intersections with other wires
+                SEG thisWire( wire->GetStartPoint(), wire->GetEndPoint() );
+
+                for( auto& desc : m_segments )
+                {
+                    if( !desc.labels.empty() && desc.labels.front()->GetText() == netName )
+                        continue;   // no point in saving intersections of the same net
+
+                    for( const auto& seg : desc.segs )
+                    {
+                        auto intersection = thisWire.Intersect( seg, true );
+
+                        if( intersection )
+                            m_wireIntersections.push_back( *intersection );
+                    }
+                }
+
+                segDesc.segs.push_back( thisWire );
+                screen->Append( wire );
             }
 
             segmentAttribute = segmentAttribute->GetNext();
@@ -777,7 +874,10 @@ void SCH_EAGLE_PLUGIN::loadSegments( wxXmlNode* aSegmentsNode, const wxString& n
             }
             else if( nodeName == "label" )
             {
-                screen->Append( loadLabel( segmentAttribute, netName, segmentWires ) );
+                SCH_TEXT* label = loadLabel( segmentAttribute, netName );
+                screen->Append( label );
+                wxASSERT( segDesc.labels.empty() || segDesc.labels.front()->GetText() == label->GetText() );
+                segDesc.labels.push_back( label );
                 labelled = true;
             }
             else if( nodeName == "pinref" )
@@ -799,43 +899,26 @@ void SCH_EAGLE_PLUGIN::loadSegments( wxXmlNode* aSegmentsNode, const wxString& n
             segmentAttribute = segmentAttribute->GetNext();
         }
 
-        SCH_LINE* wire = segmentWires.begin();
-
         // Add a small label to the net segment if it hasn't been labelled already
         // this preserves the named net feature of Eagle schematics.
-        if( labelled == false && wire != NULL )
+        if( !labelled && firstWire )
         {
-            wxString netname = escapeName( netName );
+            std::unique_ptr<SCH_TEXT> label;
 
             // Add a global label if the net appears on more than one Eagle sheet
             if( m_netCounts[netName.ToStdString()] > 1 )
-            {
-                std::unique_ptr<SCH_GLOBALLABEL> glabel( new SCH_GLOBALLABEL );
-                glabel->SetPosition( wire->GetStartPoint() );
-                glabel->SetText( netname );
-                glabel->SetTextSize( wxSize( 10, 10 ) );
-                glabel->SetLabelSpinStyle( 0 );
-                screen->Append( glabel.release() );
-            }
+                label.reset( new SCH_GLOBALLABEL );
             else if( segmentCount > 1 )
+                label.reset( new SCH_LABEL );
+
+            if( label )
             {
-                std::unique_ptr<SCH_LABEL> label( new SCH_LABEL );
-                label->SetPosition( wire->GetStartPoint() );
-                label->SetText( netname );
+                label->SetPosition( firstWire->GetStartPoint() );
+                label->SetText( escapeName( netName ) );
                 label->SetTextSize( wxSize( 10, 10 ) );
                 label->SetLabelSpinStyle( 0 );
                 screen->Append( label.release() );
             }
-        }
-
-
-        SCH_LINE* next_wire;
-
-        while( wire != NULL )
-        {
-            next_wire = wire->Next();
-            screen->Append( wire );
-            wire = next_wire;
         }
 
         currentSegment = currentSegment->GetNext();
@@ -861,6 +944,9 @@ SCH_LINE* SCH_EAGLE_PLUGIN::loadWire( wxXmlNode* aWireNode )
     wire->SetStartPoint( begin );
     wire->SetEndPoint( end );
 
+    m_connPoints[begin].emplace( wire.get() );
+    m_connPoints[end].emplace( wire.get() );
+
     return wire.release();
 }
 
@@ -872,168 +958,89 @@ SCH_JUNCTION* SCH_EAGLE_PLUGIN::loadJunction( wxXmlNode* aJunction )
     auto ejunction = EJUNCTION( aJunction );
     wxPoint pos( ejunction.x.ToSchUnits(), -ejunction.y.ToSchUnits() );
 
-    junction->SetPosition( pos  );
+    junction->SetPosition( pos );
 
     return junction.release();
 }
 
 
-SCH_TEXT* SCH_EAGLE_PLUGIN::loadLabel( wxXmlNode* aLabelNode,
-        const wxString& aNetName,
-        const DLIST<SCH_LINE>& segmentWires )
+SCH_TEXT* SCH_EAGLE_PLUGIN::loadLabel( wxXmlNode* aLabelNode, const wxString& aNetName )
 {
     auto elabel = ELABEL( aLabelNode, aNetName );
-
     wxPoint elabelpos( elabel.x.ToSchUnits(), -elabel.y.ToSchUnits() );
 
-    wxString netname = escapeName( elabel.netname );
+    // Determine if the label is local or global depending on
+    // the number of sheets the net appears in
+    bool global = m_netCounts[aNetName] > 1;
+    std::unique_ptr<SCH_TEXT> label;
 
-
-    // Determine if the Label is a local and global label based on the number of sheets the net appears on.
-    if( m_netCounts[aNetName] > 1 )
-    {
-        std::unique_ptr<SCH_GLOBALLABEL> glabel( new SCH_GLOBALLABEL );
-        glabel->SetPosition( elabelpos );
-        glabel->SetText( netname );
-        glabel->SetTextSize( wxSize( elabel.size.ToSchUnits(), elabel.size.ToSchUnits() ) );
-        glabel->SetLabelSpinStyle( 2 );
-
-        if( elabel.rot )
-        {
-            glabel->SetLabelSpinStyle( ( int( elabel.rot->degrees ) / 90 + 2 ) % 4 );
-
-            if( elabel.rot->mirror
-                && ( glabel->GetLabelSpinStyle() == 0 || glabel->GetLabelSpinStyle() == 2 ) )
-                glabel->SetLabelSpinStyle( glabel->GetLabelSpinStyle() % 4 );
-        }
-
-        SCH_LINE*   wire;
-        SCH_LINE*   next_wire;
-
-        bool    labelOnWire = false;
-        auto    glabelPosition = glabel->GetPosition();
-
-        // determine if the segment has been labelled.
-        for( wire = segmentWires.begin(); wire; wire = next_wire )
-        {
-            next_wire = wire->Next();
-
-            if( wire->HitTest( glabelPosition, 0 ) )
-            {
-                labelOnWire = true;
-                break;
-            }
-        }
-
-        wire = segmentWires.begin();
-
-        // Reposition label if necessary
-        if( labelOnWire == false )
-        {
-            wxPoint newLabelPos = findNearestLinePoint( elabelpos, segmentWires );
-
-            if( wire )
-            {
-                glabel->SetPosition( newLabelPos );
-            }
-        }
-
-        return glabel.release();
-    }
+    if( global )
+        label.reset( new SCH_GLOBALLABEL );
     else
+        label.reset( new SCH_LABEL );
+
+    label->SetPosition( elabelpos );
+    label->SetText( escapeName( elabel.netname ) );
+    label->SetTextSize( wxSize( elabel.size.ToSchUnits(), elabel.size.ToSchUnits() ) );
+    label->SetLabelSpinStyle( global ? 2 : 0 );
+
+    if( elabel.rot )
     {
-        std::unique_ptr<SCH_LABEL> label( new SCH_LABEL );
-        label->SetPosition( elabelpos );
-        label->SetText( netname );
-        label->SetTextSize( wxSize( elabel.size.ToSchUnits(), elabel.size.ToSchUnits() ) );
+        int offset = global ? 2 : 0;
+        label->SetLabelSpinStyle( int( elabel.rot->degrees / 90 + offset ) % 4 );
 
-        label->SetLabelSpinStyle( 0 );
-
-        if( elabel.rot )
-        {
-            label->SetLabelSpinStyle( int(elabel.rot->degrees / 90) % 4 );
-
-            if( elabel.rot->mirror
-                && ( label->GetLabelSpinStyle() == 0 || label->GetLabelSpinStyle() == 2 ) )
-                label->SetLabelSpinStyle( (label->GetLabelSpinStyle() + 2) % 4 );
-        }
-
-        SCH_LINE*   wire;
-        SCH_LINE*   next_wire;
-
-        bool    labelOnWire = false;
-        auto    labelPosition = label->GetPosition();
-
-        for( wire = segmentWires.begin(); wire; wire = next_wire )
-        {
-            next_wire = wire->Next();
-
-            if( wire->HitTest( labelPosition, 0 ) )
-            {
-                labelOnWire = true;
-                break;
-            }
-        }
-
-        wire = segmentWires.begin();
-
-        // Reposition label if necessary
-        if( labelOnWire == false )
-        {
-            if( wire )
-            {
-                wxPoint newLabelPos = findNearestLinePoint( elabelpos, segmentWires );
-                label->SetPosition( newLabelPos );
-            }
-        }
-
-        return label.release();
+        if( elabel.rot->mirror
+            && ( label->GetLabelSpinStyle() == 0 || label->GetLabelSpinStyle() == 2 ) )
+            label->SetLabelSpinStyle( (label->GetLabelSpinStyle() + 2 ) % 4 );
     }
+
+    return label.release();
 }
 
 
-wxPoint SCH_EAGLE_PLUGIN::findNearestLinePoint( const wxPoint& aPoint, const DLIST<SCH_LINE>& aLines )
+std::pair<VECTOR2I, const SEG*> SCH_EAGLE_PLUGIN::findNearestLinePoint( const wxPoint& aPoint,
+        const std::vector<SEG>& aLines ) const
 {
-    wxPoint nearestPoint;
+    VECTOR2I nearestPoint;
+    const SEG* nearestLine = nullptr;
 
-    float   mindistance = std::numeric_limits<float>::max();
-    float   d;
-    SCH_LINE* line = aLines.begin();
+    float d, mindistance = std::numeric_limits<float>::max();
 
     // Find the nearest start, middle or end of a line from the list of lines.
-    while( line != NULL )
+    for( const SEG& line : aLines )
     {
-        auto testpoint = line->GetStartPoint();
+        auto testpoint = line.A;
         d = sqrt( abs( ( (aPoint.x - testpoint.x) ^ 2 ) + ( (aPoint.y - testpoint.y) ^ 2 ) ) );
 
         if( d < mindistance )
         {
             mindistance     = d;
             nearestPoint    = testpoint;
+            nearestLine     = &line;
         }
 
-        testpoint = line->MidPoint();
+        testpoint = line.Center();
         d = sqrt( abs( ( (aPoint.x - testpoint.x) ^ 2 ) + ( (aPoint.y - testpoint.y) ^ 2 ) ) );
 
         if( d < mindistance )
         {
             mindistance     = d;
             nearestPoint    = testpoint;
+            nearestLine     = &line;
         }
 
-        testpoint = line->GetEndPoint();
+        testpoint = line.B;
         d = sqrt( abs( ( (aPoint.x - testpoint.x) ^ 2 ) + ( (aPoint.y - testpoint.y) ^ 2 ) ) );
 
         if( d < mindistance )
         {
             mindistance     = d;
             nearestPoint    = testpoint;
+            nearestLine     = &line;
         }
-
-        line = line->Next();
     }
 
-    return nearestPoint;
+    return std::make_pair( nearestPoint, nearestLine );
 }
 
 
@@ -1067,7 +1074,7 @@ void SCH_EAGLE_PLUGIN::loadInstance( wxXmlNode* aInstanceNode )
         package = p->second;
     }
 
-    wxString kisymbolname = LIB_ID::FixIllegalChars( symbolname );
+    wxString kisymbolname = LIB_ID::FixIllegalChars( symbolname, LIB_ID::ID_SCH );
 
     LIB_ALIAS* alias = m_pi->LoadSymbol( getLibFileName().GetFullPath(), kisymbolname,
                                          m_properties.get() );
@@ -1106,7 +1113,9 @@ void SCH_EAGLE_PLUGIN::loadInstance( wxXmlNode* aInstanceNode )
                 component->GetPosition() + field.GetTextPos() );
     }
 
-    component->GetField( REFERENCE )->SetText( einstance.part );
+    // If there is no footprint assigned, then prepend the reference value
+    // with a hash character to mute netlist updater complaints
+    wxString reference = package.IsEmpty() ? '#' + einstance.part : einstance.part;
 
     SCH_SHEET_PATH sheetpath;
     m_rootSheet->LocatePathOfScreen( screen, &sheetpath );
@@ -1116,7 +1125,8 @@ void SCH_EAGLE_PLUGIN::loadInstance( wxXmlNode* aInstanceNode )
     tstamp.Printf( "%8.8lX", (unsigned long) component->GetTimeStamp() );
     current_sheetpath += tstamp;
 
-    component->AddHierarchicalReference( current_sheetpath, wxString( einstance.part ), unit );
+    component->GetField( REFERENCE )->SetText( reference );
+    component->AddHierarchicalReference( current_sheetpath, reference, unit );
 
     if( epart->value )
         component->GetField( VALUE )->SetText( *epart->value );
@@ -1142,9 +1152,9 @@ void SCH_EAGLE_PLUGIN::loadInstance( wxXmlNode* aInstanceNode )
 
             SCH_FIELD* field;
 
-            if( attr.name == "name" || attr.name == "value" )
+            if( attr.name.Lower() == "name" || attr.name.Lower() == "value" )
             {
-                if( attr.name == "name" )
+                if( attr.name.Lower() == "name" )
                 {
                     field = component->GetField( REFERENCE );
                     nameAttributeFound = true;
@@ -1165,7 +1175,7 @@ void SCH_EAGLE_PLUGIN::loadInstance( wxXmlNode* aInstanceNode )
 
                 bool spin = attr.rot ? attr.rot->spin : false;
 
-                if( attr.display == EATTR::Off )
+                if( attr.display == EATTR::Off || attr.display == EATTR::NAME )
                     field->SetVisible( false );
 
                 int rotation = einstance.rot ? einstance.rot->degrees : 0;
@@ -1188,6 +1198,18 @@ void SCH_EAGLE_PLUGIN::loadInstance( wxXmlNode* aInstanceNode )
         if( !nameAttributeFound )
             component->GetField( REFERENCE )->SetVisible( false );
     }
+
+
+    // Save the pin positions
+    auto& schLibTable = *m_kiway->Prj().SchSymbolLibTable();
+    wxCHECK( component->Resolve( schLibTable ), /*void*/ );
+    component->UpdatePinCache();
+    std::vector<LIB_PIN*> pins;
+    component->GetPins( pins );
+
+    for( const auto& pin : pins )
+        m_connPoints[component->GetPinPhysicalPosition( pin )].emplace( pin );
+
 
     component->ClearFlags();
 
@@ -1244,13 +1266,16 @@ EAGLE_LIBRARY* SCH_EAGLE_PLUGIN::loadLibrary( wxXmlNode* aLibraryNode,
             wxXmlNode* gateNode = getChildrenNodes( aDeviceSetChildren, "gates" );
             int gates_count = countChildren( aDeviceSetChildren["gates"], "gate" );
             kpart->SetUnitCount( gates_count );
+            kpart->LockUnits( true );
 
             LIB_FIELD* reference = kpart->GetField( REFERENCE );
 
             if( prefix.length() == 0 )
                 reference->SetVisible( false );
             else
-                reference->SetText( prefix );
+                // If there is no footprint assigned, then prepend the reference value
+                // with a hash character to mute netlist updater complaints
+                reference->SetText( edevice.package ? prefix : '#' + prefix );
 
             int gateindex = 1;
             bool ispower = false;
@@ -1273,7 +1298,7 @@ EAGLE_LIBRARY* SCH_EAGLE_PLUGIN::loadLibrary( wxXmlNode* aLibraryNode,
             if( gates_count == 1 && ispower )
                 kpart->SetPower();
 
-            wxString name = LIB_ID::FixIllegalChars( kpart->GetName() );
+            wxString name = LIB_ID::FixIllegalChars( kpart->GetName(), LIB_ID::ID_SCH );
             kpart->SetName( name );
             m_pi->SaveSymbol( getLibFileName().GetFullPath(), new LIB_PART( *kpart.get() ),
                               m_properties.get() );
@@ -1318,42 +1343,28 @@ bool SCH_EAGLE_PLUGIN::loadSymbol( wxXmlNode* aSymbolNode, std::unique_ptr<LIB_P
 
             if( ePin.direction )
             {
-                if( wxString( *ePin.direction ).Lower()== "sup" )
+                const std::map<wxString, ELECTRICAL_PINTYPE> pinDirectionsMap =
                 {
-                    ispower = true;
-                    pin->SetType( PIN_POWER_IN );
-                }
-                else if( wxString( *ePin.direction ).Lower()== "pas" )
+                    { "sup", PIN_POWER_IN },        { "pas", PIN_PASSIVE },
+                    { "out", PIN_OUTPUT },          { "in", PIN_INPUT },
+                    { "nc",  PIN_NC },              { "io", PIN_BIDI },
+                    { "oc",  PIN_OPENCOLLECTOR },   { "hiz", PIN_TRISTATE },
+                    { "pwr", PIN_POWER_IN },
+                };
+
+                pin->SetType( PIN_UNSPECIFIED );
+
+                for( const auto& pinDir : pinDirectionsMap )
                 {
-                    pin->SetType( PIN_PASSIVE );
-                }
-                else if( wxString( *ePin.direction ).Lower()== "out" )
-                {
-                    pin->SetType( PIN_OUTPUT );
-                }
-                else if( wxString( *ePin.direction ).Lower()== "in" )
-                {
-                    pin->SetType( PIN_INPUT );
-                }
-                else if( wxString( *ePin.direction ).Lower()== "nc" )
-                {
-                    pin->SetType( PIN_NC );
-                }
-                else if( wxString( *ePin.direction ).Lower()== "io" )
-                {
-                    pin->SetType( PIN_BIDI );
-                }
-                else if( wxString( *ePin.direction ).Lower()== "oc" )
-                {
-                    pin->SetType( PIN_OPENEMITTER );
-                }
-                else if( wxString( *ePin.direction ).Lower()== "hiz" )
-                {
-                    pin->SetType( PIN_TRISTATE );
-                }
-                else
-                {
-                    pin->SetType( PIN_UNSPECIFIED );
+                    if( ePin.direction->Lower() == pinDir.first )
+                    {
+                        pin->SetType( pinDir.second );
+
+                        if( pinDir.first == "sup" )         // power supply symbol
+                            ispower = true;
+
+                        break;
+                    }
                 }
             }
 
@@ -1777,6 +1788,80 @@ void SCH_EAGLE_PLUGIN::loadFieldAttributes( LIB_FIELD* aField, const LIB_TEXT* a
     aField->SetVertJustify( aText->GetVertJustify() );
     aField->SetHorizJustify( aText->GetHorizJustify() );
     aField->SetVisible( true );
+}
+
+
+void SCH_EAGLE_PLUGIN::adjustNetLabels()
+{
+    // Eagle supports detached labels, so a label does not need to be placed on a wire
+    // to be associated with it. KiCad needs to move them, so the labels actually touch the
+    // corresponding wires.
+
+    // Sort the intersection points to speed up the search process
+    std::sort( m_wireIntersections.begin(), m_wireIntersections.end() );
+
+    auto onIntersection = [&]( const VECTOR2I& aPos )
+    {
+        return std::binary_search( m_wireIntersections.begin(), m_wireIntersections.end(), aPos );
+    };
+
+    for( auto& segDesc : m_segments )
+    {
+        for( SCH_TEXT* label : segDesc.labels )
+        {
+            VECTOR2I labelPos( label->GetPosition() );
+            const SEG* segAttached = segDesc.LabelAttached( label );
+
+            if( segAttached && !onIntersection( labelPos ) )
+                continue;       // label is placed correctly
+
+
+            // Move the label to the nearest wire
+            if( !segAttached )
+            {
+                std::tie( labelPos, segAttached ) = findNearestLinePoint( label->GetPosition(), segDesc.segs );
+
+                if( !segAttached )     // we cannot do anything
+                    continue;
+            }
+
+
+            // Create a vector pointing in the direction of the wire, 50 mils long
+            VECTOR2I wireDirection( segAttached->B - segAttached->A );
+            wireDirection = wireDirection.Resize( 50 );
+            const VECTOR2I origPos( labelPos );
+
+            // Flags determining the search direction
+            bool checkPositive = true, checkNegative = true, move = false;
+            int trial = 0;
+
+            // Be sure the label is not placed on a wire intersection
+            while( ( !move || onIntersection( labelPos ) ) && ( checkPositive || checkNegative ) )
+            {
+                move = false;
+
+                // Move along the attached wire to find the new label position
+                if( trial % 2 == 1 )
+                {
+                    labelPos = wxPoint( origPos + wireDirection * trial / 2 );
+                    move = checkPositive = segAttached->Contains( labelPos );
+                }
+                else
+                {
+                    labelPos = wxPoint( origPos - wireDirection * trial / 2 );
+                    move = checkNegative = segAttached->Contains( labelPos );
+                }
+
+                ++trial;
+            }
+
+            if( move )
+                label->SetPosition( wxPoint( labelPos ) );
+        }
+    }
+
+    m_segments.clear();
+    m_wireIntersections.clear();
 }
 
 
@@ -2226,6 +2311,7 @@ void SCH_EAGLE_PLUGIN::addBusEntries()
                                 if( p == lineend )    // wire is overlapped by bus entry symbol
                                 {
                                     m_currentSheet->GetScreen()->DeleteItem( line );
+                                    line = nullptr;
                                 }
                                 else
                                 {
@@ -2241,9 +2327,10 @@ void SCH_EAGLE_PLUGIN::addBusEntries()
 
                                 moveLabels( line, p );
 
-                                if( p== lineend )    // wire is overlapped by bus entry symbol
+                                if( p == lineend )    // wire is overlapped by bus entry symbol
                                 {
                                     m_currentSheet->GetScreen()->DeleteItem( line );
+                                    line = nullptr;
                                 }
                                 else
                                 {
@@ -2265,6 +2352,7 @@ void SCH_EAGLE_PLUGIN::addBusEntries()
                                 if( linestart + wxPoint( 100, -100 )== lineend )    // wire is overlapped by bus entry symbol
                                 {
                                     m_currentSheet->GetScreen()->DeleteItem( line );
+                                    line = nullptr;
                                 }
                                 else
                                 {
@@ -2283,6 +2371,7 @@ void SCH_EAGLE_PLUGIN::addBusEntries()
                                 if( linestart + wxPoint( 100, 100 )== lineend )    // wire is overlapped by bus entry symbol
                                 {
                                     m_currentSheet->GetScreen()->DeleteItem( line );
+                                    line = nullptr;
                                 }
                                 else
                                 {
@@ -2293,7 +2382,7 @@ void SCH_EAGLE_PLUGIN::addBusEntries()
                         }
                     }
 
-                    if( TestSegmentHit( lineend, busstart, busend, 0 ) )
+                    if( line && TestSegmentHit( lineend, busstart, busend, 0 ) )
                     {
                         wxPoint wirevector = linestart - lineend;
 
@@ -2382,4 +2471,102 @@ void SCH_EAGLE_PLUGIN::addBusEntries()
             }
         }   // for ( line ..
     }       // for ( bus ..
+}
+
+
+const SEG* SCH_EAGLE_PLUGIN::SEG_DESC::LabelAttached( const SCH_TEXT* aLabel ) const
+{
+    VECTOR2I labelPos( aLabel->GetPosition() );
+
+    for( const auto& seg : segs )
+    {
+        if( seg.Contains( labelPos ) )
+            return &seg;
+    }
+
+    return nullptr;
+}
+
+
+// TODO could be used to place junctions, instead of IsJunctionNeeded() (see SCH_EDIT_FRAME::importFile())
+bool SCH_EAGLE_PLUGIN::checkConnections( const SCH_COMPONENT* aComponent, const LIB_PIN* aPin ) const
+{
+    wxPoint pinPosition = aComponent->GetPinPhysicalPosition( aPin );
+    auto pointIt = m_connPoints.find( pinPosition );
+
+    if( pointIt == m_connPoints.end() )
+        return false;
+
+    const auto& items = pointIt->second;
+    wxASSERT( items.find( aPin ) != items.end() );
+    return items.size() > 1;
+}
+
+
+void SCH_EAGLE_PLUGIN::addImplicitConnections( SCH_COMPONENT* aComponent,
+        SCH_SCREEN* aScreen, bool aUpdateSet )
+{
+    aComponent->UpdatePinCache();
+    auto partRef = aComponent->GetPartRef().lock();
+    wxCHECK( partRef, /*void*/ );
+
+    // Normally power parts also have power input pins,
+    // but they already force net names on the attached wires
+    if( partRef->IsPower() )
+        return;
+
+    int unit = aComponent->GetUnit();
+    const wxString& reference = aComponent->GetField( REFERENCE )->GetText();
+    std::vector<LIB_PIN*> pins;
+    partRef->GetPins( pins );
+    std::set<int> missingUnits;
+
+    // Search all units for pins creating implicit connections
+    for( const auto& pin : pins )
+    {
+        if( pin->GetType() == PIN_POWER_IN )
+        {
+            bool pinInUnit = !unit || pin->GetUnit() == unit;   // pin belongs to the tested unit
+
+            // Create a global net label only if there are no other wires/pins attached
+            if( pinInUnit && !checkConnections( aComponent, pin ) )
+            {
+                // Create a net label to force the net name on the pin
+                SCH_GLOBALLABEL* netLabel = new SCH_GLOBALLABEL;
+                netLabel->SetPosition( aComponent->GetPinPhysicalPosition( pin ) );
+                netLabel->SetText( extractNetName( pin->GetName() ) );
+                netLabel->SetTextSize( wxSize( 10, 10 ) );
+                netLabel->SetLabelSpinStyle( 0 );
+                aScreen->Append( netLabel );
+            }
+
+            else if( !pinInUnit && aUpdateSet )
+            {
+                // Found a pin creating implicit connection information in another unit.
+                // Such units will be instantiated if they do not appear in another sheet and
+                // processed later.
+                wxASSERT( pin->GetUnit() );
+                missingUnits.insert( pin->GetUnit() );
+            }
+        }
+    }
+
+    if( aUpdateSet )
+    {
+        auto cmpIt = m_missingCmps.find( reference );
+
+        // Set the flag indicating this unit has been processed
+        if( cmpIt != m_missingCmps.end() )
+            cmpIt->second.units[unit] = false;
+
+        // Save the units that need later processing
+        else if( !missingUnits.empty() )
+        {
+            EAGLE_MISSING_CMP& entry = m_missingCmps[reference];
+            entry.cmp = aComponent;
+
+            for( int i : missingUnits )
+                entry.units.emplace( i, true );
+        }
+    }
 }

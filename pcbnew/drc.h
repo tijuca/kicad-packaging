@@ -174,6 +174,7 @@ private:
     bool     m_doFootprintOverlapping;
     bool     m_doNoCourtyardDefined;
     bool     m_refillZones;
+    bool     m_reportAllTrackErrors;
 
     wxString m_rptFilename;
 
@@ -310,10 +311,12 @@ private:
      *
      * The pad list must be sorted by x coordinate.
      *
-     * @param aRefPad The pad to test
-     * @param aStart The start of the pad list to test against
-     * @param aEnd Marks the end of the list and is not included
-     * @param x_limit is used to stop the test (when the any pad's X coord exceeds this)
+     * @param aRefPad is the pad to test
+     * @param aStart is the first pad of the list to test against aRefPad
+     * @param aEnd is the end of the list and is not included
+     * @param x_limit is used to stop the test
+     * (i.e. when the current pad pos X in list exceeds this limit, because the list
+     * is sorted by X coordinate)
      */
     bool doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_limit );
 
@@ -321,7 +324,7 @@ private:
      * Test the current segment.
      *
      * @param aRefSeg The segment to test
-     * @param aStart The head of a list of tracks to test against (usually BOARD::m_Track)
+     * @param aStart the first item of track list to test against (usually BOARD::m_Track)
      * @param doPads true if should do pads test
      * @return bool - true if no problems, else false and m_currentMarker is
      *          filled in with the problem information.
@@ -471,11 +474,11 @@ public:
      * created if it is not already in existence.
      *
      * @param aParent is the parent window for wxWidgets. Usually the PCB editor frame
-     * but can be an other dialog
+     * but can be another dialog
      * if aParent == NULL (default), the parent will be the PCB editor frame
      * and the dialog will be not modal (just float on parent
      * if aParent is specified, the dialog will be modal.
-     * The modal mode is mandatory if the dialog is created from an other dialog, not
+     * The modal mode is mandatory if the dialog is created from another dialog, not
      * from the PCB editor frame
      */
     void ShowDRCDialog( wxWindow* aParent = NULL );
@@ -501,12 +504,14 @@ public:
      * @param aKeepoutTest Tells whether to test keepout areas.
      * @param aCourtyardTest Tells whether to test footprint courtyard overlap.
      * @param aCourtyardMissingTest Tells whether to test missing courtyard definition in footprint.
+     * @param aReportAllTrackErrors Tells whether or not to stop checking track connections after the first error.
      * @param aReportName A string telling the disk file report name entered.
      * @param aSaveReport A boolean telling whether to generate disk file report.
      */
     void SetSettings( bool aPad2PadTest, bool aUnconnectedTest,
                       bool aZonesTest, bool aKeepoutTest, bool aRefillZones,
                       bool aCourtyardTest, bool aCourtyardMissingTest,
+                      bool aReportAllTrackErrors,
                       const wxString& aReportName, bool aSaveReport )
     {
         m_doPad2PadTest         = aPad2PadTest;
@@ -518,6 +523,7 @@ public:
         m_doFootprintOverlapping = aCourtyardTest;
         m_doNoCourtyardDefined  = aCourtyardMissingTest;
         m_refillZones           = aRefillZones;
+        m_reportAllTrackErrors  = aReportAllTrackErrors;
     }
 
 

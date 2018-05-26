@@ -137,7 +137,6 @@ void RESCUE_CASE_CANDIDATE::FindRescues( RESCUER& aRescuer,
 {
     typedef std::map<wxString, RESCUE_CASE_CANDIDATE> candidate_map_t;
     candidate_map_t candidate_map;
-
     // Remember the list of components is sorted by part name.
     // So a search in libraries is made only once by group
     LIB_ALIAS* case_sensitive_match = nullptr;
@@ -260,11 +259,11 @@ void RESCUE_CACHE_CANDIDATE::FindRescues( RESCUER& aRescuer,
             // and the symbol name does not have any illegal characters.
             if( ( ( cache_match && lib_match
                   && !cache_match->PinsConflictWith( *lib_match, true, true, true, true, false ) )
-                || (!cache_match && lib_match ) ) && !LIB_ID::HasIllegalChars( part_name ) )
+                || (!cache_match && lib_match ) ) && !LIB_ID::HasIllegalChars( part_name, LIB_ID::ID_SCH ) )
                 continue;
 
             // Check if the symbol has already been rescued.
-            wxString new_name = LIB_ID::FixIllegalChars( part_name );
+            wxString new_name = LIB_ID::FixIllegalChars( part_name, LIB_ID::ID_SCH );
 
             RESCUE_CACHE_CANDIDATE candidate( part_name, new_name, cache_match, lib_match );
 
@@ -380,15 +379,17 @@ void RESCUE_SYMBOL_LIB_TABLE_CANDIDATE::FindRescues(
 
             // Test whether there is a conflict or if the symbol can only be found in the cache.
             if( ( ( cache_match && lib_match
-                  && !cache_match->PinsConflictWith( *lib_match, true, true, true, true, false ) )
-                || (!cache_match && lib_match ) )
-              && !LIB_ID::HasIllegalChars( part_id.GetLibItemName() ) )
+                    && !cache_match->PinsConflictWith( *lib_match, true, true, true, true, false ) )
+                  || (!cache_match && lib_match ) )
+                && !LIB_ID::HasIllegalChars( part_id.GetLibItemName(), LIB_ID::ID_SCH ) )
+            {
                 continue;
+            }
 
             // Fix illegal LIB_ID name characters.
-            wxString new_name = LIB_ID::FixIllegalChars( part_id.GetLibItemName() );
+            wxString new_name = LIB_ID::FixIllegalChars( part_id.GetLibItemName(), LIB_ID::ID_SCH );
 
-            // Differentiate symbol name in the resue library by appending the symbol library
+            // Differentiate symbol name in the rescue library by appending the symbol library
             // table nickname to the symbol name to prevent name clashes in the rescue library.
             wxString libNickname = GetRescueLibraryFileName().GetName();
 

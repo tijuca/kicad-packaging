@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2011-2016 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2016 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2011 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 2004-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,6 +27,7 @@
  */
 
 #include <macros.h>
+#include <trace_helpers.h>
 
 #include <sch_sheet_path.h>
 #include <transform.h>
@@ -375,18 +376,27 @@ SCH_ITEM* SCH_FIND_COLLECTOR::GetItem( int ndx ) const
     // treat it as a weak reference and search the sheets for an item with the same
     // pointer value.
 
-    void* weakRef = m_List[ ndx ];
+    void*     weakRef = m_List[ ndx ];
+    SCH_ITEM* item    = &g_DeletedSchItem;
+
+    INSPECTOR_FUNC inspector = [&] ( EDA_ITEM* candidate, void* testData )
+    {
+        if( (void*) candidate == weakRef )
+        {
+            item = (SCH_ITEM*) candidate;
+            return SEARCH_QUIT;
+        }
+
+        return SEARCH_CONTINUE;
+    };
 
     for( unsigned i = 0; i < m_sheetPaths.size(); i++ )
     {
-        for( EDA_ITEM* item = m_sheetPaths[ i ].LastDrawList(); item; item = item->Next() )
-        {
-            if( (void*) item == weakRef )
-                return (SCH_ITEM*) item;
-        }
+        EDA_ITEM::IterateForward( m_sheetPaths[ i ].LastDrawList(),
+                                  inspector, nullptr, SCH_COLLECTOR::AllItems );
     }
 
-    return &g_DeletedSchItem;
+    return item;
 }
 
 

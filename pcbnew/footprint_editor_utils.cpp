@@ -128,7 +128,7 @@ BOARD_ITEM* FOOTPRINT_EDIT_FRAME::ModeditLocateAndDisplay( int aHotKeyCode )
     {
         wxMenu      itemMenu;
 
-        // Give a title to the selection menu. It also allow to close the popup menu without any action
+        // Give a title to the selection menu. It also allows one to close the popup menu without any action
         AddMenuItem( &itemMenu, wxID_NONE, _( "Clarify Selection" ),
                      KiBitmap( info_xpm ) );
         itemMenu.AppendSeparator();
@@ -186,10 +186,7 @@ void FOOTPRINT_EDIT_FRAME::LoadModuleFromBoard( wxCommandEvent& event )
     GetScreen()->ClearUndoRedoList();
     GetScreen()->ClrModify();
 
-    EDA_3D_VIEWER* draw3DFrame = Get3DViewerFrame();
-
-    if( draw3DFrame )
-        draw3DFrame->NewDisplay( true );
+    Update3DView();
 }
 
 
@@ -300,15 +297,21 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
 
     case ID_MODEDIT_NEW_MODULE:
         {
-            if( !Clear_Pcb( true ) )
-                break;
-
-            SetCrossHairPosition( wxPoint( 0, 0 ) );
+            if( GetScreen()->IsModify() && !GetBoard()->IsEmpty() )
+            {
+                if( !IsOK( this, _( "Current Footprint will be lost and this operation cannot be undone. Continue ?" ) ) )
+                    break;
+            }
 
             MODULE* module = CreateNewModule( wxEmptyString );
 
             if( module )        // i.e. if create module command not aborted
             {
+                Clear_Pcb( false );
+
+                SetCrossHairPosition( wxPoint( 0, 0 ) );
+                AddModuleToBoard( module );
+
                 // Initialize data relative to nets and netclasses (for a new
                 // module the defaults are used)
                 // This is mandatory to handle and draw pads
@@ -366,10 +369,7 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
                 updateView();
                 m_canvas->Refresh();
 
-                EDA_3D_VIEWER* draw3DFrame = Get3DViewerFrame();
-
-                if( draw3DFrame )
-                    draw3DFrame->NewDisplay( true );
+                Update3DView();
 
                 GetScreen()->ClrModify();
             }
@@ -489,12 +489,7 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         GetScreen()->ClrModify();
         Zoom_Automatique( false );
         m_canvas->Refresh();
-        {
-        EDA_3D_VIEWER* draw3DFrame = Get3DViewerFrame();
-
-        if( draw3DFrame )
-            draw3DFrame->NewDisplay( true );
-        }
+        Update3DView();
 
         break;
 
@@ -517,16 +512,26 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_MODEDIT_LOAD_MODULE:
+    {
         wxLogDebug( wxT( "Loading module from library " ) + getLibPath() );
 
-        if( ! Clear_Pcb( true ) )
+        if( GetScreen()->IsModify() && !GetBoard()->IsEmpty() )
+        {
+            if( !IsOK( this, _( "Current Footprint will be lost and this operation cannot be undone. Continue ?" ) ) )
+                break;
+        }
+
+        MODULE* module = LoadModuleFromLibrary( GetCurrentLib() );
+
+        if( !module )
             break;
 
+        Clear_Pcb( false );
+
         SetCrossHairPosition( wxPoint( 0, 0 ) );
+        AddModuleToBoard( module );
 
-        LoadModuleFromLibrary( GetCurrentLib(), Prj().PcbFootprintLibs(), true );
-
-        if( GetBoard() && GetBoard()->m_Modules )
+        if( GetBoard()->m_Modules )
         {
             GetBoard()->m_Modules->ClearFlags();
 
@@ -551,18 +556,13 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
 
         Zoom_Automatique( false );
 
-        {
-        EDA_3D_VIEWER* draw3DFrame = Get3DViewerFrame();
-
-        if( draw3DFrame )
-            draw3DFrame->NewDisplay( true );
-        }
+        Update3DView();
 
         GetScreen()->ClrModify();
 
         updateView();
         m_canvas->Refresh();
-
+    }
         break;
 
     case ID_MODEDIT_PAD_SETTINGS:

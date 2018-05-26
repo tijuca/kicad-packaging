@@ -38,7 +38,7 @@
 
 #include <invoke_sch_dialog.h>
 #include <dialog_print_using_printer_base.h>
-
+#include <enabler.h>
 
 
 /**
@@ -274,7 +274,7 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintPreview( wxCommandEvent& event )
 
     // We use here wxPreviewFrame_WindowModal option to make the wxPrintPreview frame
     // modal for its caller only.
-    // An other reason is the fact when closing the frame without this option,
+    // another reason is the fact when closing the frame without this option,
     // all top level frames are reenabled.
     // With this option, only the parent is reenabled.
     // Reenabling all top level frames should be made by the parent dialog.
@@ -299,6 +299,10 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintButtonClick( wxCommandEvent& event )
 
     wxPrinter printer( &printDialogData );
     SCH_PRINTOUT printout( parent, _( "Print Schematic" ) );
+
+    // Disable 'Print' button to prevent issuing another print
+    // command before the previous one is finished (causes problems on Windows)
+    ENABLER printBtnDisable( *m_buttonPrint, false );
 
     if( !printer.Print( this, &printout, true ) )
     {
@@ -435,7 +439,7 @@ void SCH_PRINTOUT::DrawPage( SCH_SCREEN* aScreen )
 
     // For an obscure reason, OffsetLogicalOrigin creates issues,
     // under some circumstances, when yoffset is not always null
-    // and changes from a page to an other page
+    // and changes from a page to another page
     // This is only a workaround, not a fix
     // see https://bugs.launchpad.net/kicad/+bug/1464773
     // xoffset does not create issues.

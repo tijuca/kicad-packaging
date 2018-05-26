@@ -115,8 +115,6 @@ PCB_BASE_FRAME::PCB_BASE_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrame
     m_FastGrid1           = 0;
     m_FastGrid2           = 0;
 
-    m_auxiliaryToolBar    = NULL;
-
     m_zoomLevelCoeff      = 11.0 * IU_PER_MILS;  // Adjusted to roughly displays zoom level = 1
                                         // when the screen shows a 1:1 image
                                         // obviously depends on the monitor,
@@ -136,6 +134,30 @@ EDA_3D_VIEWER* PCB_BASE_FRAME::Get3DViewerFrame()
     // return the 3D viewer frame, when exists, or NULL
     return static_cast<EDA_3D_VIEWER*>
         ( wxWindow::FindWindowByName( VIEWER3D_FRAMENAME ) );
+}
+
+
+bool PCB_BASE_FRAME::Update3DView( const wxString* aTitle )
+{
+    // Update the 3D view only if the viewer is opened by this frame
+    EDA_3D_VIEWER* draw3DFrame = Get3DViewerFrame();
+
+    if( draw3DFrame == NULL )
+        return false;
+
+    // Ensure the viewer was created by me, and not by an other editor:
+    PCB_BASE_FRAME* owner = draw3DFrame->Parent();
+
+    // if I am not the owner, do not use the current viewer instance
+    if( this != owner )
+        return false;
+
+    if( aTitle )
+        draw3DFrame->SetTitle( *aTitle );
+
+    draw3DFrame->NewDisplay( true );
+
+    return true;
 }
 
 
@@ -386,9 +408,67 @@ void PCB_BASE_FRAME::ReCreateMenuBar( void )
 }
 
 
+void PCB_BASE_FRAME::ShowChangedLanguage()
+{
+    // call my base class
+    EDA_DRAW_FRAME::ShowChangedLanguage();
+
+    // tooltips in toolbars
+    ReCreateHToolbar();
+    ReCreateAuxiliaryToolbar();
+    ReCreateVToolbar();
+    ReCreateOptToolbar();
+
+    // status bar
+    UpdateMsgPanel();
+}
+
+
 // Virtual functions: Do nothing for PCB_BASE_FRAME window
 void PCB_BASE_FRAME::Show3D_Frame( wxCommandEvent& event )
 {
+}
+
+
+bool PCB_BASE_FRAME::CreateAndShow3D_Frame( bool aForceRecreateIfNotOwner )
+{
+    EDA_3D_VIEWER* draw3DFrame = Get3DViewerFrame();
+
+    // Ensure the viewer was created by me, and not by an other editor:
+    PCB_BASE_FRAME* owner = draw3DFrame ? draw3DFrame->Parent() : nullptr;
+
+    // if I am not the owner, do not use the current viewer instance
+    if( draw3DFrame && this != owner )
+    {
+        if( aForceRecreateIfNotOwner )
+        {
+            draw3DFrame->Destroy();
+            draw3DFrame = nullptr;
+        }
+        else
+            return false;
+    }
+
+    if( !draw3DFrame )
+    {
+        draw3DFrame = new EDA_3D_VIEWER( &Kiway(), this, _( "3D Viewer" ) );
+        draw3DFrame->Raise();     // Needed with some Window Managers
+        draw3DFrame->Show( true );
+        return true;
+    }
+
+    // Raising the window does not show the window on Windows if iconized.
+    // This should work on any platform.
+    if( draw3DFrame->IsIconized() )
+         draw3DFrame->Iconize( false );
+
+    draw3DFrame->Raise();
+
+    // Raising the window does not set the focus on Linux.  This should work on any platform.
+    if( wxWindow::FindFocus() != draw3DFrame )
+        draw3DFrame->SetFocus();
+
+    return true;
 }
 
 
@@ -753,15 +833,15 @@ void PCB_BASE_FRAME::UpdateStatusBar()
         switch( g_UserUnit )
         {
         case INCHES:
-            formatter = wxT( "Ro %.6f  Th %.1f" );
+            formatter = wxT( "r %.6f  theta %.1f" );
             break;
 
         case MILLIMETRES:
-            formatter = wxT( "Ro %.6f  Th %.1f" );
+            formatter = wxT( "r %.6f  theta %.1f" );
             break;
 
         case UNSCALED_UNITS:
-            formatter = wxT( "Ro %f  Th %f" );
+            formatter = wxT( "r %f  theta %f" );
             break;
 
         case DEGREES:

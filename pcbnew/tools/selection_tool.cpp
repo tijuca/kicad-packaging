@@ -4,7 +4,7 @@
  * Copyright (C) 2013-2017 CERN
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  * @author Maciej Suminski <maciej.suminski@cern.ch>
- * Copyright (C) 2017 KiCad Developers, see CHANGELOG.TXT for contributors.
+ * Copyright (C) 2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -93,11 +93,11 @@ TOOL_ACTION PCB_ACTIONS::selectionClear( "pcbnew.InteractiveSelection.Clear",
 
 TOOL_ACTION PCB_ACTIONS::selectConnection( "pcbnew.InteractiveSelection.SelectConnection",
         AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_SEL_TRIVIAL_CONNECTION ),
-        _( "Trivial Connection" ), _( "Selects a connection between two junctions." ) );
+        _( "Trivial Connection" ), _( "Selects a connection between two junctions." ), add_tracks_xpm );
 
 TOOL_ACTION PCB_ACTIONS::selectCopper( "pcbnew.InteractiveSelection.SelectCopper",
         AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_SEL_COPPER_CONNECTION ),
-        _( "Copper Connection" ), _( "Selects whole copper connection." ) );
+        _( "Copper Connection" ), _( "Selects whole copper connection." ), net_highlight_xpm );
 
 TOOL_ACTION PCB_ACTIONS::expandSelectedConnection( "pcbnew.InteractiveSelection.ExpandConnection",
         AS_GLOBAL, 0,
@@ -106,16 +106,16 @@ TOOL_ACTION PCB_ACTIONS::expandSelectedConnection( "pcbnew.InteractiveSelection.
 
 TOOL_ACTION PCB_ACTIONS::selectNet( "pcbnew.InteractiveSelection.SelectNet",
         AS_GLOBAL, 0,
-        _( "Whole Net" ), _( "Selects all tracks & vias belonging to the same net." ) );
+        _( "Whole Net" ), _( "Selects all tracks & vias belonging to the same net." ), mode_track_xpm );
 
 TOOL_ACTION PCB_ACTIONS::selectOnSheetFromEeschema( "pcbnew.InteractiveSelection.SelectOnSheet",
         AS_GLOBAL,  0,
-        _( "Sheet" ), _( "Selects all modules and tracks in the schematic sheet" ) );
+        _( "Sheet" ), _( "Selects all modules and tracks in the schematic sheet" ), select_same_sheet_xpm );
 
 TOOL_ACTION PCB_ACTIONS::selectSameSheet( "pcbnew.InteractiveSelection.SelectSameSheet",
         AS_GLOBAL,  0,
         _( "Items in Same Hierarchical Sheet" ),
-        _( "Selects all modules and tracks in the same schematic sheet" ) );
+        _( "Selects all modules and tracks in the same schematic sheet" ), select_same_sheet_xpm );
 
 TOOL_ACTION PCB_ACTIONS::find( "pcbnew.InteractiveSelection.Find",
         AS_GLOBAL, 0, //TOOL_ACTION::LegacyHotKey( HK_FIND_ITEM ), // handled by wxWidgets
@@ -124,12 +124,13 @@ TOOL_ACTION PCB_ACTIONS::find( "pcbnew.InteractiveSelection.Find",
 TOOL_ACTION PCB_ACTIONS::findMove( "pcbnew.InteractiveSelection.FindMove",
         AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_GET_AND_MOVE_FOOTPRINT ),
         _( "Get and Move Footprint" ),
-        _( "Selects a footprint by reference and places it under the cursor for moving"));
+        _( "Selects a footprint by reference and places it under the cursor for moving"),
+        move_xpm );
 
 TOOL_ACTION PCB_ACTIONS::filterSelection( "pcbnew.InteractiveSelection.FilterSelection",
         AS_GLOBAL, 0,
         _( "Filter Selection..." ), _( "Filter the types of items in the selection" ),
-        nullptr );
+        options_generic_xpm );
 
 class SELECT_MENU: public CONTEXT_MENU
 {
@@ -137,6 +138,7 @@ public:
     SELECT_MENU()
     {
         SetTitle( _( "Select" ) );
+        SetIcon( options_generic_xpm );
 
         Add( PCB_ACTIONS::filterSelection );
 
@@ -368,17 +370,19 @@ SELECTION& SELECTION_TOOL::GetSelection()
 
 SELECTION& SELECTION_TOOL::RequestSelection( int aFlags, CLIENT_SELECTION_FILTER aClientFilter )
 {
-    if( m_selection.Empty() )
+    bool selectionEmpty = m_selection.Empty();
+    m_selection.SetIsHover( selectionEmpty );
+
+    if( selectionEmpty )
     {
         if( aFlags & SELECTION_FORCE_UNLOCK )
             m_locked = false;
+
         m_toolMgr->RunAction( PCB_ACTIONS::selectionCursor, true, aClientFilter );
-        m_selection.SetIsHover( true );
         m_selection.ClearReferencePoint();
     }
 
-    // Be careful with iterators: items can be removed from list
-    // that invalidate iterators.
+    // Be careful with iterators: items can be removed from list that invalidate iterators.
     for( unsigned ii = 0; ii < m_selection.GetSize(); ii++ )
     {
         EDA_ITEM* item = m_selection[ii];
@@ -386,6 +390,9 @@ SELECTION& SELECTION_TOOL::RequestSelection( int aFlags, CLIENT_SELECTION_FILTER
         if( ( aFlags & SELECTION_EDITABLE ) && item->Type() == PCB_MARKER_T )
         {
             unselect( static_cast<BOARD_ITEM *>( item ) );
+
+            // unselect() removed the item from list.  Back up to catch the following item.
+            ii--;
         }
     }
 
@@ -587,6 +594,15 @@ bool SELECTION_TOOL::selectMultiple()
             int width = area.GetEnd().x - area.GetOrigin().x;
             int height = area.GetEnd().y - area.GetOrigin().y;
 
+            /* Selection mode depends on direction of drag-selection:
+             * Left > Right : Select objects that are fully enclosed by selection
+             * Right > Left : Select objects that are crossed by selection
+             */
+            bool windowSelection = width >= 0 ? true : false;
+
+            if( view->IsMirroredX() )
+                windowSelection = !windowSelection;
+
             // Construct an EDA_RECT to determine BOARD_ITEM selection
             EDA_RECT selectionRect( wxPoint( area.GetOrigin().x, area.GetOrigin().y ),
                                     wxSize( width, height ) );
@@ -600,12 +616,7 @@ bool SELECTION_TOOL::selectMultiple()
                 if( !item || !selectable( item ) )
                     continue;
 
-                /* Selection mode depends on direction of drag-selection:
-                 * Left > Right : Select objects that are fully enclosed by selection
-                 * Right > Left : Select objects that are crossed by selection
-                 */
-
-                if( width >= 0 )
+                if( windowSelection )
                 {
                     if( selectionBox.Contains( item->ViewBBox() ) )
                     {
@@ -1234,20 +1245,20 @@ int SELECTION_TOOL::findMove( const TOOL_EVENT& aEvent )
  */
 static bool itemIsIncludedByFilter( const BOARD_ITEM& aItem,
                                     const BOARD& aBoard,
-                                    const LSET& aTechnlLayerMask,
                                     const DIALOG_BLOCK_OPTIONS::OPTIONS& aBlockOpts )
 {
     bool include = true;
     const PCB_LAYER_ID layer = aItem.GetLayer();
 
     // can skip without even checking item type
+    // fixme: selecting items on invisible layers does not work in GAL
     if( !aBlockOpts.includeItemsOnInvisibleLayers
         && !aBoard.IsLayerVisible( layer ) )
     {
         include = false;
     }
 
-    // if the item needsto be checked agains the options
+    // if the item needs to be checked against the options
     if( include )
     {
         switch( aItem.Type() )
@@ -1270,6 +1281,11 @@ static bool itemIsIncludedByFilter( const BOARD_ITEM& aItem,
             include = aBlockOpts.includeTracks;
             break;
         }
+        case PCB_VIA_T:
+        {
+            include = aBlockOpts.includeVias;
+            break;
+        }
         case PCB_ZONE_AREA_T:
         {
             include = aBlockOpts.includeZones;
@@ -1279,42 +1295,26 @@ static bool itemIsIncludedByFilter( const BOARD_ITEM& aItem,
         case PCB_TARGET_T:
         case PCB_DIMENSION_T:
         {
-            include = aTechnlLayerMask[layer];
+            if( layer == Edge_Cuts )
+                include = aBlockOpts.includeBoardOutlineLayer;
+            else
+                include = aBlockOpts.includeItemsOnTechLayers;
             break;
         }
         case PCB_TEXT_T:
         {
-            include = aBlockOpts.includePcbTexts
-                        && aTechnlLayerMask[layer];
+            include = aBlockOpts.includePcbTexts;
             break;
         }
         default:
         {
-            // no filterering, just select it
+            // no filtering, just select it
             break;
         }
         }
     }
 
     return include;
-}
-
-
-/**
- * Gets the technical layers that are part of the given selection opts
- */
-static LSET getFilteredLayerSet(
-        const DIALOG_BLOCK_OPTIONS::OPTIONS& blockOpts )
-{
-    LSET layerMask( Edge_Cuts );
-
-    if( blockOpts.includeItemsOnTechLayers )
-        layerMask.set();
-
-    if( !blockOpts.includeBoardOutlineLayer )
-        layerMask.set( Edge_Cuts, false );
-
-    return layerMask;
 }
 
 
@@ -1329,7 +1329,6 @@ int SELECTION_TOOL::filterSelection( const TOOL_EVENT& aEvent )
         return 0;
 
     const auto& board = *getModel<BOARD>();
-    const auto layerMask = getFilteredLayerSet( opts );
 
     // copy current selection
     auto selection = m_selection.GetItems();
@@ -1342,7 +1341,7 @@ int SELECTION_TOOL::filterSelection( const TOOL_EVENT& aEvent )
     for( auto i : selection )
     {
         auto item = static_cast<BOARD_ITEM*>( i );
-        bool include = itemIsIncludedByFilter( *item, board, layerMask, opts );
+        bool include = itemIsIncludedByFilter( *item, board, opts );
 
         if( include )
         {
@@ -1588,10 +1587,7 @@ bool SELECTION_TOOL::selectable( const BOARD_ITEM* aItem ) const
             }
 
             // For vias it is enough if only one of its layers is visible
-            PCB_LAYER_ID top, bottom;
-            via->LayerPair( &top, &bottom );
-
-            return board()->IsLayerVisible( top ) || board()->IsLayerVisible( bottom );
+            return ( board()->GetVisibleLayers() & via->GetLayerSet() ).any();
         }
         break;
 
@@ -1665,11 +1661,43 @@ bool SELECTION_TOOL::selectable( const BOARD_ITEM* aItem ) const
         // When editing modules, it's allowed to select them, even when
         // locked, since you already have to explicitly activate the
         // module editor to get to this stage
-        if ( !m_editModules )
+        if( !m_editModules )
         {
             MODULE* mod = static_cast<const D_PAD*>( aItem )->GetParent();
             if( mod && mod->IsLocked() )
                 return false;
+        }
+        else if( aItem->Type() == PCB_PAD_T )
+        {
+            // In editor, pads are selectable if any draw layer is visible
+
+            auto pad = static_cast<const D_PAD*>( aItem );
+
+            // Shortcut: check copper layer visibility
+            if( board()->IsLayerVisible( F_Cu ) && pad->IsOnLayer( F_Cu ) )
+                return true;
+
+            if( board()->IsLayerVisible( B_Cu ) && pad->IsOnLayer( B_Cu ) )
+                return true;
+
+            // Now check the non-copper layers
+
+            bool draw_layer_visible = false;
+
+            int pad_layers[KIGFX::VIEW::VIEW_MAX_LAYERS], pad_layers_count;
+            pad->ViewGetLayers( pad_layers, pad_layers_count );
+
+            for( int i = 0; i < pad_layers_count; ++i )
+            {
+                // NOTE: Only checking the regular layers (not GAL meta-layers)
+                if( ( ( pad_layers[i] < PCB_LAYER_ID_COUNT ) &&
+                      board()->IsLayerVisible( static_cast<PCB_LAYER_ID>( pad_layers[i] ) ) ) )
+                {
+                    draw_layer_visible = true;
+                }
+            }
+
+            return draw_layer_visible;
         }
 
         break;
@@ -1882,7 +1910,19 @@ double calcRatio( double a, double b )
 }
 
 
-// todo: explain the selection heuristics
+// The general idea here is that if the user clicks directly on a small item inside a larger
+// one, then they want the small item.  The quintessential case of this is clicking on a pad
+// within a footprint, but we also apply it for text within a footprint, footprints within
+// larger footprints, and vias within either larger pads or longer tracks.
+//
+// These "guesses" presume there is area within the larger item to click in to select it.  If
+// an item is mostly covered by smaller items within it, then the guesses are inappropriate as
+// there might not be any area left to click to select the larger item.  In this case we must
+// leave the items in the collector and bring up a Selection Clarification menu.
+//
+// We currently check for pads and text mostly covering a footprint, but we don’t check for
+// smaller footprints mostly covering a larger footprint.
+//
 void SELECTION_TOOL::guessSelectionCandidates( GENERAL_COLLECTOR& aCollector ) const
 {
     std::set<BOARD_ITEM*> rejected;

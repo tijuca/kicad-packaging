@@ -55,7 +55,7 @@ using namespace std::placeholders;
 #include <footprint_edit_frame.h>
 #include <footprint_info.h>
 #include <footprint_info_impl.h>
-#include <dialog_get_component.h>
+#include <dialog_get_footprint.h>
 #include <footprint_viewer_frame.h>
 #include <wildcards_and_files_ext.h>
 #include <widgets/progress_reporter.h>
@@ -160,29 +160,25 @@ wxString PCB_BASE_FRAME::SelectFootprintFromLibBrowser()
 }
 
 
-MODULE* PCB_BASE_FRAME::LoadModuleFromLibrary( const wxString& aLibrary,
-                                               FP_LIB_TABLE*   aTable,
-                                               bool            aUseFootprintViewer,
-                                               wxDC*           aDC )
+MODULE* PCB_BASE_FRAME::LoadModuleFromLibrary( const wxString& aLibrary, bool aUseFootprintViewer )
 {
+    FP_LIB_TABLE*   fpTable = Prj().PcbFootprintLibs();
     MODULE*         module = NULL;
-    wxPoint         curspos = GetCrossHairPosition();
     wxString        moduleName, keys;
     const wxString& libName = aLibrary;
     bool            allowWildSeach = true;
 
-    static wxArrayString HistoryList;
-    static wxString      lastComponentName;
+    static wxString lastComponentName;
 
     // Ask for a component name or key words
-    DIALOG_GET_COMPONENT dlg( this, HistoryList, _( "Load Footprint" ), aUseFootprintViewer );
+    DIALOG_GET_FOOTPRINT dlg( this, aUseFootprintViewer );
 
     dlg.SetComponentName( lastComponentName );
 
     if( dlg.ShowModal() == wxID_CANCEL )
         return NULL;
 
-    if( dlg.m_GetExtraFunction )
+    if( dlg.SelectByBrowser() )
     {
         // SelectFootprintFromLibBrowser() returns the "full" footprint name, i.e.
         // <lib_name>/<footprint name> or LIB_ID format "lib_name:fp_name:rev#"
@@ -207,7 +203,7 @@ MODULE* PCB_BASE_FRAME::LoadModuleFromLibrary( const wxString& aLibrary,
         // If the footprints are already in the cache, ReadFootprintFiles() will return
         // immediately.
         WX_PROGRESS_REPORTER progressReporter( this, _( "Loading Footprint Libraries" ), 2 );
-        MList.ReadFootprintFiles( aTable, libName.length() ? &libName : NULL, &progressReporter );
+        MList.ReadFootprintFiles( fpTable, libName.length() ? &libName : NULL, &progressReporter );
         progressReporter.Show( false );
 
         if( MList.GetErrorCount() )
@@ -217,7 +213,7 @@ MODULE* PCB_BASE_FRAME::LoadModuleFromLibrary( const wxString& aLibrary,
         {
             allowWildSeach = false;
             keys = moduleName;
-            moduleName = SelectFootprint( this, libName, wxEmptyString, keys, aTable );
+            moduleName = SelectFootprint( this, libName, wxEmptyString, keys, fpTable );
 
             if( moduleName.IsEmpty() )  // Cancel command
             {
@@ -228,7 +224,7 @@ MODULE* PCB_BASE_FRAME::LoadModuleFromLibrary( const wxString& aLibrary,
         else                        // Selection wild card
         {
             allowWildSeach = false;
-            moduleName     = SelectFootprint( this, libName, moduleName, wxEmptyString, aTable );
+            moduleName     = SelectFootprint( this, libName, moduleName, wxEmptyString, fpTable );
 
             if( moduleName.IsEmpty() )
             {
@@ -261,7 +257,7 @@ MODULE* PCB_BASE_FRAME::LoadModuleFromLibrary( const wxString& aLibrary,
         wxString wildname = wxChar( '*' ) + moduleName + wxChar( '*' );
         moduleName = wildname;
 
-        moduleName = SelectFootprint( this, libName, moduleName, wxEmptyString, aTable );
+        moduleName = SelectFootprint( this, libName, moduleName, wxEmptyString, fpTable );
 
         if( moduleName.IsEmpty() )
         {
@@ -286,15 +282,21 @@ MODULE* PCB_BASE_FRAME::LoadModuleFromLibrary( const wxString& aLibrary,
         }
     }
 
-    SetCrossHairPosition( curspos );
-    m_canvas->MoveCursorToCrossHair();
+    if( module )
+    {
+        lastComponentName = moduleName;
+        AddHistoryComponentName( moduleName );
+    }
 
+    return module;
+}
+
+
+void PCB_BASE_FRAME::AddModuleToBoard( MODULE* module, wxDC* aDC )
+{
     if( module )
     {
         GetBoard()->Add( module, ADD_APPEND );
-
-        lastComponentName = moduleName;
-        AddHistoryComponentName( HistoryList, moduleName );
 
         module->SetFlags( IS_NEW );
         module->SetLink( 0 );
@@ -302,7 +304,7 @@ MODULE* PCB_BASE_FRAME::LoadModuleFromLibrary( const wxString& aLibrary,
         if( IsGalCanvasActive() )
             module->SetPosition( wxPoint( 0, 0 ) ); // cursor in GAL may not be initialized at the moment
         else
-            module->SetPosition( curspos );
+            module->SetPosition( GetCrossHairPosition() );
 
         module->SetTimeStamp( GetNewTimeStamp() );
         GetBoard()->m_Status_Pcb = 0;
@@ -322,8 +324,6 @@ MODULE* PCB_BASE_FRAME::LoadModuleFromLibrary( const wxString& aLibrary,
         if( aDC )
             module->Draw( m_canvas, aDC, GR_OR );
     }
-
-    return module;
 }
 
 
@@ -342,6 +342,26 @@ MODULE* PCB_BASE_FRAME::LoadFootprint( const LIB_ID& aFootprintId )
     }
 
     return module;
+}
+
+
+bool PCB_BASE_FRAME::CheckFootprint( const LIB_ID& aFootprintId )
+{
+    const wxString& libNickname = aFootprintId.GetLibNickname();
+    const wxString& fpName = aFootprintId.GetLibItemName();
+    FP_LIB_TABLE*   fpTable = Prj().PcbFootprintLibs();
+
+    try
+    {
+        const FP_LIB_TABLE_ROW* fpTableRow = fpTable->FindRow( aFootprintId.GetLibNickname() );
+
+        if( fpTableRow && fpTableRow->GetIsEnabled() )
+            return fpTable->FootprintLoad( libNickname, fpName ) != nullptr;
+    }
+    catch( ... )
+    { }
+
+    return false;
 }
 
 
@@ -410,9 +430,11 @@ wxString PCB_BASE_FRAME::SelectFootprint( EDA_DRAW_FRAME* aWindow,
 
     if( !aKeyWord.IsEmpty() )       // Create a list of modules found by keyword.
     {
+        wxString keyword = aKeyWord.Upper();
+
         for( unsigned ii = 0; ii < MList.GetCount(); ii++ )
         {
-            if( KeyWordOk( aKeyWord, MList.GetItem( ii ).GetKeywords() ) )
+            if( KeywordMatch( keyword, MList.GetItem( ii ).GetKeywords().Upper() ) )
             {
                 wxArrayString   cols;
                 cols.Add( MList.GetItem( ii ).GetFootprintName() );

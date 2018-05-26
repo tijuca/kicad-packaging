@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct 17 2016)
+// C++ code generated with wxFormBuilder (version Jul  2 2017)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -16,16 +16,16 @@ class TEXT_CTRL_EVAL;
 
 #include "dialog_shim.h"
 #include <wx/string.h>
-#include <wx/checkbox.h>
+#include <wx/stattext.h>
 #include <wx/gdicmn.h>
 #include <wx/font.h>
 #include <wx/colour.h>
 #include <wx/settings.h>
-#include <wx/stattext.h>
+#include <wx/statline.h>
+#include <wx/checkbox.h>
 #include <wx/textctrl.h>
 #include <wx/button.h>
 #include <wx/sizer.h>
-#include <wx/statline.h>
 #include <wx/dialog.h>
 
 ///////////////////////////////////////////////////////////////////////////
@@ -39,6 +39,8 @@ class DIALOG_POSITION_RELATIVE_BASE : public DIALOG_SHIM
 	private:
 	
 	protected:
+		wxStaticText* m_staticTextHelp;
+		wxStaticLine* m_staticline2;
 		wxCheckBox* m_polarCoords;
 		wxStaticText* m_xLabel;
 		TEXT_CTRL_EVAL* m_xEntry;

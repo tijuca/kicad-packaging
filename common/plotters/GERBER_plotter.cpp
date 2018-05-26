@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,8 +23,8 @@
  */
 
 /**
- * @file GERBER_gerber.cpp
- * @brief Kicad: specialized plotter for GERBER files format
+ * @file GERBER_plotter.cpp
+ * @brief specialized plotter for GERBER files format
  */
 
 #include <fctsys.h>
@@ -40,7 +40,7 @@
 
 #include <build_version.h>
 
-#include <plot_auxiliary_data.h>
+#include <gbr_metadata.h>
 
 
 GERBER_PLOTTER::GERBER_PLOTTER()
@@ -113,7 +113,10 @@ void GERBER_PLOTTER::clearNetAttribute()
         return;
 
     // Remove all net attributes from object attributes dictionnary
-    fputs( "%TD*%\n", outputFile );
+    if( m_useX2Attributes )
+        fputs( "%TD*%\n", outputFile );
+    else
+        fputs( "G04 #@! TD*\n", outputFile );
 
     m_objectAttributesDictionnary.clear();
 }
@@ -138,14 +141,21 @@ void GERBER_PLOTTER::formatNetAttribute( GBR_NETLIST_METADATA* aData )
     // print a Gerber net attribute record.
     // it is added to the object attributes dictionnary
     // On file, only modified or new attributes are printed.
-    if( aData == NULL  || !m_useX2Attributes || !m_useNetAttributes )
+    if( aData == NULL )
+        return;
+
+    bool useX1StructuredComment = false;
+
+    if( !m_useX2Attributes )
+        useX1StructuredComment = true;
+    else if( !m_useNetAttributes )
         return;
 
     bool clearDict;
     std::string short_attribute_string;
 
     if( !FormatNetAttribute( short_attribute_string, m_objectAttributesDictionnary,
-                        aData, clearDict ) )
+                        aData, clearDict, useX1StructuredComment ) )
         return;
 
     if( clearDict )
@@ -290,7 +300,8 @@ std::vector<APERTURE>::iterator GERBER_PLOTTER::getAperture( const wxSize& aSize
     {
         last_D_code = tool->m_DCode;
 
-        if( (tool->m_Type == aType) && (tool->m_Size == aSize) && (tool->m_ApertureAttribute == aApertureAttribute) )
+        if( (tool->m_Type == aType) && (tool->m_Size == aSize) &&
+            (tool->m_ApertureAttribute == aApertureAttribute) )
             return tool;
 
         ++tool;
@@ -317,7 +328,7 @@ void GERBER_PLOTTER::selectAperture( const wxSize&           aSize,
                   ( currentAperture->m_Type != aType ) ||
                   ( currentAperture->m_Size != aSize );
 
-    if( !m_useX2Attributes || !m_useNetAttributes )
+    if( m_useX2Attributes && !m_useNetAttributes )
         aApertureAttribute = 0;
     else
         change = change || ( currentAperture->m_ApertureAttribute != aApertureAttribute );
@@ -336,6 +347,11 @@ void GERBER_PLOTTER::writeApertureList()
     wxASSERT( outputFile );
     char cbuf[1024];
 
+    bool useX1StructuredComment = false;
+
+    if( !m_useX2Attributes )
+        useX1StructuredComment = true;
+
     // Init
     for( std::vector<APERTURE>::iterator tool = apertures.begin();
          tool != apertures.end(); ++tool )
@@ -350,8 +366,11 @@ void GERBER_PLOTTER::writeApertureList()
         int attribute = tool->m_ApertureAttribute;
 
         if( attribute != m_apertureAttribute )
+        {
             fputs( GBR_APERTURE_METADATA::FormatAttribute(
-                    (GBR_APERTURE_METADATA::GBR_APERTURE_ATTRIB) attribute ).c_str(), outputFile );
+                    (GBR_APERTURE_METADATA::GBR_APERTURE_ATTRIB) attribute,
+                            useX1StructuredComment ).c_str(), outputFile );
+        }
 
         char* text = cbuf + sprintf( cbuf, "%%ADD%d", tool->m_DCode );
 
@@ -393,7 +412,11 @@ void GERBER_PLOTTER::writeApertureList()
         // is to store the last attribute
         if( attribute )
         {
-            fputs( "%TD*%\n", outputFile );
+            if( m_useX2Attributes )
+                fputs( "%TD*%\n", outputFile );
+            else
+                fputs( "G04 #@! TD*\n", outputFile );
+
             m_apertureAttribute = 0;
         }
 
@@ -649,7 +672,6 @@ void GERBER_PLOTTER::FlashPadOval( const wxPoint& pos, const wxSize& aSize, doub
                                    EDA_DRAW_MODE_T trace_mode, void* aData )
 {
     wxASSERT( outputFile );
-    int x0, y0, x1, y1, delta;
     wxSize size( aSize );
     GBR_METADATA* gbr_metadata = static_cast<GBR_METADATA*>( aData );
 
@@ -684,18 +706,17 @@ void GERBER_PLOTTER::FlashPadOval( const wxPoint& pos, const wxSize& aSize, doub
         if( trace_mode == FILLED )
         {
             // TODO: use an aperture macro to declare the rotated pad
-            //
 
             // Flash a pad anchor, if a netlist attribute is set
             if( aData )
                 FlashPadCircle( pos, size.x, trace_mode, aData );
 
             // The pad is reduced to an segment with dy > dx
-            delta = size.y - size.x;
-            x0    = 0;
-            y0    = -delta / 2;
-            x1    = 0;
-            y1    = delta / 2;
+            int delta = size.y - size.x;
+            int x0    = 0;
+            int y0    = -delta / 2;
+            int x1    = 0;
+            int y1    = delta / 2;
             RotatePoint( &x0, &y0, orient );
             RotatePoint( &x1, &y1, orient );
             GBR_METADATA metadata;
@@ -740,8 +761,7 @@ void GERBER_PLOTTER::FlashPadRect( const wxPoint& pos, const wxSize& aSize,
     case 900:
     case 2700:        // rotation of 90 degrees or 270 swaps sizes
         std::swap( size.x, size.y );
-
-	// Pass through
+        // Pass through
     case 0:
     case 1800:
         if( trace_mode == SKETCH )
@@ -755,7 +775,7 @@ void GERBER_PLOTTER::FlashPadRect( const wxPoint& pos, const wxSize& aSize,
                            pos.y - (size.y - currentPenWidth) / 2 ),
                   wxPoint( pos.x + (size.x - currentPenWidth) / 2,
                            pos.y + (size.y - currentPenWidth) / 2 ),
-                  NO_FILL );
+                  NO_FILL, GetCurrentLineWidth() );
         }
         else
         {
@@ -800,24 +820,6 @@ void GERBER_PLOTTER::FlashPadRoundRect( const wxPoint& aPadPos, const wxSize& aS
                                      EDA_DRAW_MODE_T aTraceMode, void* aData )
 
 {
-    // Currently, a Pad RoundRect is plotted as polygon.
-    // TODO: use Aperture macro and flash it
-    SHAPE_POLY_SET outline;
-    const int segmentToCircleCount = 64;
-    TransformRoundRectToPolygon( outline, aPadPos, aSize, aOrient,
-                                 aCornerRadius, segmentToCircleCount );
-
-    std::vector< wxPoint > cornerList;
-    cornerList.reserve( segmentToCircleCount + 5 );
-    // TransformRoundRectToPolygon creates only one convex polygon
-    SHAPE_LINE_CHAIN& poly = outline.Outline( 0 );
-
-    for( int ii = 0; ii < poly.PointCount(); ++ii )
-        cornerList.push_back( wxPoint( poly.Point( ii ).x, poly.Point( ii ).y ) );
-
-    // Close polygon
-    cornerList.push_back( cornerList[0] );
-
     GBR_METADATA gbr_metadata;
 
     if( aData )
@@ -832,7 +834,32 @@ void GERBER_PLOTTER::FlashPadRoundRect( const wxPoint& aPadPos, const wxSize& aS
         gbr_metadata.m_NetlistMetadata.ClearAttribute( &attrname );   // not allowed on inner layers
     }
 
-    PlotPoly( cornerList, ( aTraceMode == FILLED ) ? FILLED_SHAPE : NO_FILL, USE_DEFAULT_LINE_WIDTH, &gbr_metadata );
+    if( aTraceMode != FILLED )
+        SetCurrentLineWidth( USE_DEFAULT_LINE_WIDTH, &gbr_metadata );
+
+    // Currently, a Pad RoundRect is plotted as polygon.
+    // TODO: use Aperture macro and flash it
+    SHAPE_POLY_SET outline;
+    const int segmentToCircleCount = 64;
+    TransformRoundRectToPolygon( outline, aPadPos, aSize, aOrient,
+                                 aCornerRadius, segmentToCircleCount );
+
+    if( aTraceMode != FILLED )
+        outline.Inflate( -GetCurrentLineWidth()/2, 16 );
+
+    std::vector< wxPoint > cornerList;
+    // TransformRoundRectToPolygon creates only one convex polygon
+    SHAPE_LINE_CHAIN& poly = outline.Outline( 0 );
+    cornerList.reserve( poly.PointCount() + 1 );
+
+    for( int ii = 0; ii < poly.PointCount(); ++ii )
+        cornerList.push_back( wxPoint( poly.Point( ii ).x, poly.Point( ii ).y ) );
+
+    // Close polygon
+    cornerList.push_back( cornerList[0] );
+
+    PlotPoly( cornerList, aTraceMode == FILLED ? FILLED_SHAPE : NO_FILL,
+              aTraceMode == FILLED ? 0 : GetCurrentLineWidth(), &gbr_metadata );
 
     // Now, flash a pad anchor, if a netlist attribute is set
     // (remove me when a Aperture macro will be used)
@@ -854,7 +881,9 @@ void GERBER_PLOTTER::FlashPadCustom( const wxPoint& aPadPos, const wxSize& aSize
     // However, because the anchor pad can be circle or rect, we use only
     // a circle not bigger than the rect.
     // the main purpose is to print a flashed DCode as pad anchor
-    FlashPadCircle( aPadPos, std::min( aSize.x, aSize.y ), aTraceMode, aData );
+    if( aTraceMode == FILLED )
+        FlashPadCircle( aPadPos, std::min( aSize.x, aSize.y ), aTraceMode, aData );
+
     GBR_METADATA gbr_metadata;
 
     if( aData )
@@ -869,11 +898,20 @@ void GERBER_PLOTTER::FlashPadCustom( const wxPoint& aPadPos, const wxSize& aSize
         gbr_metadata.m_NetlistMetadata.ClearAttribute( &attrname );   // not allowed on inner layers
     }
 
+    SHAPE_POLY_SET polyshape = *aPolygons;
+
+    if( aTraceMode != FILLED )
+    {
+        SetCurrentLineWidth( USE_DEFAULT_LINE_WIDTH, &gbr_metadata );
+        polyshape.Inflate( -GetCurrentLineWidth()/2, 16 );
+    }
+
     std::vector< wxPoint > cornerList;
 
-    for( int cnt = 0; cnt < aPolygons->OutlineCount(); ++cnt )
+    for( int cnt = 0; cnt < polyshape.OutlineCount(); ++cnt )
     {
-        SHAPE_LINE_CHAIN& poly = aPolygons->Outline( cnt );
+        SHAPE_LINE_CHAIN& poly = polyshape.Outline( cnt );
+
         cornerList.clear();
 
         for( int ii = 0; ii < poly.PointCount(); ++ii )
@@ -882,7 +920,9 @@ void GERBER_PLOTTER::FlashPadCustom( const wxPoint& aPadPos, const wxSize& aSize
         // Close polygon
         cornerList.push_back( cornerList[0] );
 
-        PlotPoly( cornerList, ( aTraceMode == FILLED ) ? FILLED_SHAPE : NO_FILL, USE_DEFAULT_LINE_WIDTH, &gbr_metadata );
+        PlotPoly( cornerList,
+                  aTraceMode == FILLED ? FILLED_SHAPE : NO_FILL,
+                  aTraceMode == FILLED ? 0 : GetCurrentLineWidth(), &gbr_metadata );
     }
 }
 
@@ -902,7 +942,7 @@ void GERBER_PLOTTER::FlashPadTrapez( const wxPoint& aPadPos,  const wxPoint* aCo
 
     // Now, flash a pad anchor, if a netlist attribute is set
     // (remove me when a Aperture macro will be used)
-    if( aData && (aTrace_Mode==FILLED) )
+    if( aData && ( aTrace_Mode == FILLED ) )
     {
         // Calculate the radius of the circle inside the shape
         // It is the smaller dist from shape pos to edges
@@ -945,7 +985,9 @@ void GERBER_PLOTTER::FlashPadTrapez( const wxPoint& aPadPos,  const wxPoint* aCo
     }
 
     SetCurrentLineWidth( USE_DEFAULT_LINE_WIDTH, &metadata );
-    PlotPoly( cornerList, aTrace_Mode==FILLED ? FILLED_SHAPE : NO_FILL, USE_DEFAULT_LINE_WIDTH, &metadata );
+    PlotPoly( cornerList, aTrace_Mode == FILLED ? FILLED_SHAPE : NO_FILL,
+              aTrace_Mode == FILLED ? 0 : GetCurrentLineWidth(),
+              &metadata );
 }
 
 

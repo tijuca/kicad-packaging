@@ -57,6 +57,8 @@
 
 #include <eeschema_id.h>    // for MAX_UNIT_COUNT_PER_PACKAGE definition
 
+#include <trace_helpers.h>
+
 #define NULL_STRING "_NONAME_"
 
 /**
@@ -338,7 +340,7 @@ bool SCH_COMPONENT::Resolve( SYMBOL_LIB_TABLE& aLibTable, PART_LIB* aCacheLib )
             return true;
         }
     }
-    catch( const IO_ERROR& ioe )
+    catch( const IO_ERROR& )
     {
         wxLogDebug( "Cannot resolve library symbol %s", m_lib_id.Format().wx_str() );
     }
@@ -1029,7 +1031,11 @@ LIB_PIN* SCH_COMPONENT::GetPin( const wxString& number )
 
 void SCH_COMPONENT::GetPins( std::vector<LIB_PIN*>& aPinsList )
 {
-    if( PART_SPTR part = m_part.lock() )
+    if( m_part.expired() )
+    {
+        // no pins; nothing to get
+    }
+    else if( PART_SPTR part = m_part.lock() )
     {
         part->GetPins( aPinsList, m_unit, m_convert );
     }
@@ -1050,6 +1056,9 @@ void SCH_COMPONENT::SwapData( SCH_ITEM* aItem )
     std::swap( m_Pos, component->m_Pos );
     std::swap( m_unit, component->m_unit );
     std::swap( m_convert, component->m_convert );
+
+    std::swap( m_Pins, component->m_Pins );
+    std::swap( m_isDangling, component->m_isDangling );
 
     TRANSFORM tmp = m_transform;
 
@@ -1660,7 +1669,7 @@ bool SCH_COMPONENT::IsDangling() const
 }
 
 
-wxPoint SCH_COMPONENT::GetPinPhysicalPosition( LIB_PIN* Pin )
+wxPoint SCH_COMPONENT::GetPinPhysicalPosition( const LIB_PIN* Pin ) const
 {
     wxCHECK_MSG( Pin != NULL && Pin->Type() == LIB_PIN_T, wxPoint( 0, 0 ),
                  wxT( "Cannot get physical position of pin." ) );

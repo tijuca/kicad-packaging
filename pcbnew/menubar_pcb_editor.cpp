@@ -83,18 +83,11 @@ static void prepareHelpMenu( wxMenu* aParentMenu );
 
 void PCB_EDIT_FRAME::ReCreateMenuBar()
 {
-    wxString    text;
-    wxMenuBar*  menuBar = GetMenuBar();
-
-    if( !menuBar )
-        menuBar = new wxMenuBar();
-
-    // Delete all existing menus so they can be rebuilt.
-    // This allows language changes of the menu text on the fly.
-    menuBar->Freeze();
-
-    while( menuBar->GetMenuCount() )
-        delete menuBar->Remove( 0 );
+    // wxWidgets handles the Mac Application menu behind the scenes, but that means
+    // we always have to start from scratch with a new wxMenuBar.
+    wxMenuBar* oldMenuBar = GetMenuBar();
+    wxMenuBar* menuBar = new wxMenuBar();
+    wxString   text;
 
     // Recreate all menus:
 
@@ -153,13 +146,8 @@ void PCB_EDIT_FRAME::ReCreateMenuBar()
     menuBar->Append( configmenu, _( "P&references" ) );
     menuBar->Append( helpMenu, _( "&Help" ) );
 
-    menuBar->Thaw();
-
-    // Associate the menu bar with the frame, if no previous menubar
-    if( GetMenuBar() == NULL )
-        SetMenuBar( menuBar );
-    else
-        menuBar->Refresh();
+    SetMenuBar( menuBar );
+    delete oldMenuBar;
 
 #if defined(KICAD_SCRIPTING) && defined(KICAD_SCRIPTING_ACTION_MENU)
     // Populate the Action Plugin sub-menu
@@ -254,13 +242,13 @@ void preparePreferencesMenu( PCB_EDIT_FRAME* aFrame, wxMenu* aParentMenu )
     aParentMenu->AppendSeparator();
 
     AddMenuItem( aParentMenu, ID_CONFIG_SAVE,
-                 _( "&Save Preferences..." ),
-                 _( "Save application preferences" ),
+                 _( "&Save Project File..." ),
+                 _( "Save project preferences into a project file" ),
                  KiBitmap( save_setup_xpm ) );
 
     AddMenuItem( aParentMenu, ID_CONFIG_READ,
-                 _( "Load Prefe&rences..." ),
-                 _( "Load application preferences" ),
+                 _( "Load P&roject File..." ),
+                 _( "Load project preferences from a project file" ),
                  KiBitmap( read_setup_xpm ) );
 }
 
@@ -332,27 +320,26 @@ void prepareInspectMenu( wxMenu* aParentMenu )
 // Build the library management menu
 void prepareLibraryMenu( wxMenu* aParentMenu )
 {
-    AddMenuItem( aParentMenu, ID_PCB_LIB_WIZARD,
-                _( "&Footprint Library Wizard..." ),
-                _( "Add footprint library using wizard" ),
-                KiBitmap( wizard_add_fplib_small_xpm ) );
-
-    AddMenuItem( aParentMenu, ID_PCB_LIB_TABLE_EDIT,
-                _( "Footprint Li&brary Table..." ),
-                _( "Configure footprint library table" ),
-                KiBitmap( library_table_xpm ) );
-
-    // Path configuration edit dialog.
     AddMenuItem( aParentMenu,
                  ID_PREFERENCES_CONFIGURE_PATHS,
                  _( "Configure Pa&ths..." ),
                  _( "Edit path configuration environment variables" ),
                  KiBitmap( path_xpm ) );
 
+    AddMenuItem( aParentMenu, ID_PCB_LIB_WIZARD,
+                _( "&Add Footprint Libraries Wizard..." ),
+                _( "Add footprint libraries using wizard" ),
+                KiBitmap( wizard_add_fplib_small_xpm ) );
+
+    AddMenuItem( aParentMenu, ID_PCB_LIB_TABLE_EDIT,
+                _( "Manage Footprint Li&braries..." ),
+                _( "Edit the global and project footprint library lists" ),
+                KiBitmap( library_table_xpm ) );
+
 #ifdef BUILD_GITHUB_PLUGIN
     AddMenuItem( aParentMenu, ID_PCB_3DSHAPELIB_WIZARD,
-                 _( "&3D Shape Downloader..." ),
-                 _( "Download from Github 3D shape libraries using wizard" ),
+                 _( "Add &3D Shapes Libraries Wizard..." ),
+                 _( "Download 3D shape libraries from GitHub" ),
                  KiBitmap( import3d_xpm ) );
 #endif
 }
@@ -573,14 +560,14 @@ void prepareEditMenu( wxMenu* aParentMenu, bool aUseGal )
                  KiBitmap( exchange_xpm ) );
 
     AddMenuItem( aParentMenu, ID_MENU_PCB_SWAP_LAYERS,
-                 _( "&Swap Layers..." ),
-                 _( "Swap tracks on copper layers or drawings on other layers" ),
+                 _( "&Move and Swap Layers..." ),
+                 _( "Move tracks or drawings from a layer to an other layer" ),
                  KiBitmap( swap_layer_xpm ) );
 
     aParentMenu->AppendSeparator();
     AddMenuItem( aParentMenu, ID_PCB_GLOBAL_DELETE,
                  _( "&Global Deletions..." ),
-                 _( "Delete tracks, footprints and texts on board" ),
+                 _( "Delete tracks, footprints and graphic items from board" ),
                  KiBitmap( general_deletions_xpm ) );
 
     AddMenuItem( aParentMenu, ID_MENU_PCB_CLEAN,
@@ -636,10 +623,14 @@ void prepareViewMenu( wxMenu* aParentMenu, bool aUseGal )
                           HK_ZOOM_OUT, IS_ACCELERATOR );
     AddMenuItem( aParentMenu, ID_ZOOM_OUT, text, HELP_ZOOM_OUT, KiBitmap( zoom_out_xpm ) );
 
-    text = AddHotkeyName( _( "&Fit on Screen" ), g_Pcbnew_Editor_Hotkeys_Descr,
+    text = AddHotkeyName( _( "Zoom to &Fit" ), g_Pcbnew_Editor_Hotkeys_Descr,
                           HK_ZOOM_AUTO  );
     AddMenuItem( aParentMenu, ID_ZOOM_PAGE, text, HELP_ZOOM_FIT,
                  KiBitmap( zoom_fit_in_page_xpm ) );
+
+    text = AddHotkeyName( _( "Zoom to Selection" ), g_Pcbnew_Editor_Hotkeys_Descr,
+                          HK_ZOOM_SELECTION );
+    AddMenuItem( aParentMenu, ID_ZOOM_SELECTION, text, KiBitmap( zoom_area_xpm ), wxITEM_CHECK );
 
     text = AddHotkeyName( _( "&Redraw" ), g_Pcbnew_Editor_Hotkeys_Descr, HK_ZOOM_REDRAW );
     AddMenuItem( aParentMenu, ID_ZOOM_REDRAW, text,

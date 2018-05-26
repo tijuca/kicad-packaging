@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Nov 22 2017)
+// C++ code generated with wxFormBuilder (version Dec 30 2017)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -61,11 +61,11 @@ class DIALOG_PNS_LENGTH_TUNING_SETTINGS_BASE : public DIALOG_SHIM
 		wxStaticText* m_staticText11;
 		TEXT_CTRL_EVAL* m_spacingText;
 		wxStaticText* m_spacingUnit;
+		wxStaticText* m_staticText14;
+		wxChoice* m_miterStyle;
 		wxStaticText* m_staticText13;
 		TEXT_CTRL_EVAL* m_radiusText;
 		wxStaticText* m_radiusUnit;
-		wxStaticText* m_staticText14;
-		wxChoice* m_miterStyle;
 		wxStdDialogButtonSizer* m_stdButtons;
 		wxButton* m_stdButtonsOK;
 		wxButton* m_stdButtonsCancel;

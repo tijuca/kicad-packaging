@@ -141,24 +141,17 @@ BEGIN_EVENT_TABLE( EDA_3D_VIEWER, EDA_BASE_FRAME )
 END_EVENT_TABLE()
 
 
-EDA_3D_VIEWER::EDA_3D_VIEWER( KIWAY *aKiway,
-                              PCB_BASE_FRAME *aParent,
-                              const wxString &aTitle,
-                              long style ) :
+EDA_3D_VIEWER::EDA_3D_VIEWER( KIWAY *aKiway, PCB_BASE_FRAME *aParent,
+                              const wxString &aTitle, long style ) :
 
-                KIWAY_PLAYER( aKiway,
-                              aParent,
-                              FRAME_PCB_DISPLAY3D,
-                              aTitle,
-                              wxDefaultPosition,
-                              wxDefaultSize,
-                              style,
-                              VIEWER3D_FRAMENAME )
+                KIWAY_PLAYER( aKiway, aParent,
+                              FRAME_PCB_DISPLAY3D, aTitle,
+                              wxDefaultPosition, wxDefaultSize,
+                              style, VIEWER3D_FRAMENAME )
 {
     wxLogTrace( m_logTrace, wxT( "EDA_3D_VIEWER::EDA_3D_VIEWER %s" ), aTitle );
 
     m_canvas = NULL;
-    m_defaultFileName = "";
 
     // Give it an icon
     wxIcon icon;
@@ -203,6 +196,8 @@ EDA_3D_VIEWER::EDA_3D_VIEWER( KIWAY *aKiway,
     m_mainToolBar->EnableTool( ID_RENDER_CURRENT_VIEW,
                                (m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY) );
 
+    m_mainToolBar->Connect( wxEVT_KEY_DOWN, wxKeyEventHandler( EDA_3D_VIEWER::OnKeyEvent ), NULL, this );
+
     // Fixes bug in Windows (XP and possibly others) where the canvas requires the focus
     // in order to receive mouse events.  Otherwise, the user has to click somewhere on
     // the canvas before it will respond to mouse wheel events.
@@ -213,6 +208,8 @@ EDA_3D_VIEWER::EDA_3D_VIEWER( KIWAY *aKiway,
 
 EDA_3D_VIEWER::~EDA_3D_VIEWER()
 {
+    m_mainToolBar->Disconnect( wxEVT_KEY_DOWN, wxKeyEventHandler( EDA_3D_VIEWER::OnKeyEvent ), NULL, this );
+
     m_auimgr.UnInit();
 
     // m_canvas delete will be called by wxWidget manager
@@ -284,8 +281,7 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
         break;
 
     case ID_RELOAD3D_BOARD:
-        ReloadRequest();
-        m_canvas->Request_refresh();
+        NewDisplay( true );
         break;
 
     case ID_ROTATE3D_X_POS:
@@ -351,7 +347,7 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
             if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
                 m_canvas->Request_refresh();
             else
-                ReloadRequest();
+                NewDisplay( true );
         }
         return;
 
@@ -361,7 +357,7 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
             if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
                 m_canvas->Request_refresh();
             else
-                ReloadRequest();
+                NewDisplay( true );
         }
         return;
 
@@ -392,27 +388,27 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
     case ID_MENU3D_REALISTIC_MODE:
         m_settings.SetFlag( FL_USE_REALISTIC_MODE, isChecked );
         SetMenuBarOptionsState();
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_FL_RENDER_MATERIAL_MODE_NORMAL:
         m_settings.MaterialModeSet( MATERIAL_MODE_NORMAL );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_FL_RENDER_MATERIAL_MODE_DIFFUSE_ONLY:
         m_settings.MaterialModeSet( MATERIAL_MODE_DIFFUSE_ONLY );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_FL_RENDER_MATERIAL_MODE_CAD_MODE:
         m_settings.MaterialModeSet( MATERIAL_MODE_CAD_MODE );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_FL_OPENGL_RENDER_COPPER_THICKNESS:
         m_settings.SetFlag( FL_RENDER_OPENGL_COPPER_THICKNESS, isChecked );
-        ReloadRequest();
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_FL_OPENGL_RENDER_SHOW_MODEL_BBOX:
@@ -427,12 +423,12 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
 
     case ID_MENU3D_FL_RAYTRACING_PROCEDURAL_TEXTURES:
         m_settings.SetFlag( FL_RENDER_RAYTRACING_PROCEDURAL_TEXTURES, isChecked );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_FL_RAYTRACING_BACKFLOOR:
         m_settings.SetFlag( FL_RENDER_RAYTRACING_BACKFLOOR, isChecked );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_FL_RAYTRACING_REFRACTIONS:
@@ -447,7 +443,7 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
 
     case ID_MENU3D_FL_RAYTRACING_POST_PROCESSING:
         m_settings.SetFlag( FL_RENDER_RAYTRACING_POST_PROCESSING, isChecked );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_FL_RAYTRACING_ANTI_ALIASING:
@@ -457,7 +453,7 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
 
     case ID_MENU3D_SHOW_BOARD_BODY:
         m_settings.SetFlag( FL_SHOW_BOARD_BODY, isChecked );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_AXIS_ONOFF:
@@ -467,52 +463,52 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
 
     case ID_MENU3D_MODULE_ONOFF_ATTRIBUTES_NORMAL:
         m_settings.SetFlag( FL_MODULE_ATTRIBUTES_NORMAL, isChecked );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_MODULE_ONOFF_ATTRIBUTES_NORMAL_INSERT:
         m_settings.SetFlag( FL_MODULE_ATTRIBUTES_NORMAL_INSERT, isChecked );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_MODULE_ONOFF_ATTRIBUTES_VIRTUAL:
         m_settings.SetFlag( FL_MODULE_ATTRIBUTES_VIRTUAL, isChecked );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_ZONE_ONOFF:
         m_settings.SetFlag( FL_ZONE, isChecked );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_ADHESIVE_ONOFF:
         m_settings.SetFlag( FL_ADHESIVE, isChecked );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_SILKSCREEN_ONOFF:
         m_settings.SetFlag( FL_SILKSCREEN, isChecked );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_SOLDER_MASK_ONOFF:
         m_settings.SetFlag( FL_SOLDERMASK, isChecked );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_SOLDER_PASTE_ONOFF:
         m_settings.SetFlag( FL_SOLDERPASTE, isChecked );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_COMMENTS_ONOFF:
         m_settings.SetFlag( FL_COMMENTS, isChecked );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_ECO_ONOFF:
         m_settings.SetFlag( FL_ECO, isChecked );
-        ReloadRequest( );
+        NewDisplay( true );
         return;
 
     case ID_MENU3D_RESET_DEFAULTS:
@@ -525,10 +521,10 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
         // Refresh menu option state
         SetMenuBarOptionsState();
 
-        // Tell canvas that we (may) changed the render engine
+        // Tell canvas that we (may have) changed the render engine
         RenderEngineChanged();
 
-        ReloadRequest();
+        NewDisplay( true );
     }
         return;
 
@@ -905,6 +901,15 @@ void EDA_3D_VIEWER::OnRightClick( const wxPoint &MousePos, wxMenu *PopMenu )
 }
 
 
+void EDA_3D_VIEWER::OnKeyEvent( wxKeyEvent& event )
+{
+    if( m_canvas )
+        return m_canvas->OnKeyEvent( event );
+
+    event.Skip();
+}
+
+
 void EDA_3D_VIEWER::RedrawActiveWindow( wxDC *DC, bool EraseBg )
 {
     wxLogTrace( m_logTrace, wxT( "EDA_3D_VIEWER::RedrawActiveWindow" ) );
@@ -934,7 +939,7 @@ void EDA_3D_VIEWER::takeScreenshot( wxCommandEvent& event )
         fn.SetExt( file_ext );
 
         fullFileName = EDA_FILE_SELECTOR( _( "3D Image File Name:" ), fn.GetPath(),
-                                          m_defaultFileName, file_ext, mask, this,
+                                          m_defaultSaveScreenshotFileName, file_ext, mask, this,
                                           wxFD_SAVE | wxFD_OVERWRITE_PROMPT, true );
 
         if( fullFileName.IsEmpty() )
@@ -1050,7 +1055,7 @@ bool EDA_3D_VIEWER::Set3DSilkScreenColorFromUser()
                                       &definedColors );
 
     if( change )
-        NewDisplay();
+        NewDisplay( true );
 
     return change;
 }
@@ -1086,7 +1091,7 @@ bool EDA_3D_VIEWER::Set3DSolderMaskColorFromUser()
                                       &definedColors );
 
     if( change )
-        NewDisplay();
+        NewDisplay( true );
 
     return change;
 }
@@ -1112,7 +1117,7 @@ bool EDA_3D_VIEWER::Set3DCopperColorFromUser()
                                       &definedColors );
 
     if( change )
-        NewDisplay();
+        NewDisplay( true );
 
     return change;
 }
@@ -1142,7 +1147,7 @@ bool EDA_3D_VIEWER::Set3DBoardBodyColorFromUser()
                                       &definedColors );
 
     if( change )
-        NewDisplay();
+        NewDisplay( true );
 
     return change;
 }
@@ -1167,74 +1172,7 @@ bool EDA_3D_VIEWER::Set3DSolderPasteColorFromUser()
                                       &definedColors );
 
     if( change )
-        NewDisplay();
+        NewDisplay( true );
 
     return change;
-}
-
-
-// Define 3D Viewer Hotkeys
-static EDA_HOTKEY Hk3D_PivotCenter( _HKI( "Center pivot rotation (Middle mouse click)" ), 0, WXK_SPACE );
-static EDA_HOTKEY Hk3D_MoveLeft( _HKI( "Move board Left" ), ID_POPUP_MOVE3D_LEFT, WXK_LEFT );
-static EDA_HOTKEY Hk3D_MoveRight( _HKI( "Move board Right" ), ID_POPUP_MOVE3D_RIGHT, WXK_RIGHT );
-static EDA_HOTKEY Hk3D_MoveUp( _HKI( "Move board Up" ), ID_POPUP_MOVE3D_UP, WXK_UP );
-static EDA_HOTKEY Hk3D_MoveDown( _HKI( "Move board Down" ), ID_POPUP_MOVE3D_DOWN, WXK_DOWN );
-static EDA_HOTKEY Hk3D_HomeView( _HKI( "Home view" ), 0, WXK_HOME );
-static EDA_HOTKEY Hk3D_ResetView( _HKI( "Reset view" ), 0, 'R' );
-
-static EDA_HOTKEY Hk3D_ViewFront( _HKI( "View Front" ), ID_POPUP_VIEW_YPOS, 'Y' );
-static EDA_HOTKEY Hk3D_ViewBack( _HKI( "View Back" ), ID_POPUP_VIEW_YNEG, GR_KB_SHIFT + 'Y' );
-static EDA_HOTKEY Hk3D_ViewLeft( _HKI( "View Left" ), ID_POPUP_VIEW_XNEG, GR_KB_SHIFT + 'X' );
-static EDA_HOTKEY Hk3D_ViewRight( _HKI( "View Right" ), ID_POPUP_VIEW_XPOS, 'X' );
-static EDA_HOTKEY Hk3D_ViewTop( _HKI( "View Top" ), ID_POPUP_VIEW_ZPOS, 'Z' );
-static EDA_HOTKEY Hk3D_ViewBot( _HKI( "View Bot" ), ID_POPUP_VIEW_ZNEG, GR_KB_SHIFT + 'Z' );
-
-static EDA_HOTKEY Hk3D_Rotate45axisZ( _HKI( "Rotate 45 degrees over Z axis" ), 0, WXK_TAB );
-static EDA_HOTKEY Hk3D_ZoomIn( _HKI( "Zoom in " ), ID_POPUP_ZOOMIN, WXK_F1 );
-static EDA_HOTKEY Hk3D_ZoomOut( _HKI( "Zoom out" ), ID_POPUP_ZOOMOUT, WXK_F2 );
-static EDA_HOTKEY Hk3D_AttributesTHT( _HKI( "Toggle 3D models with type Through Hole" ), 0, 'T' );
-static EDA_HOTKEY Hk3D_AttributesSMD( _HKI( "Toggle 3D models with type Surface Mount" ), 0, 'S' );
-static EDA_HOTKEY Hk3D_AttributesVirtual( _HKI( "Toggle 3D models with type Virtual" ), 0, 'V' );
-
-static wxString viewer3DSectionTitle( _HKI( "Viewer 3D" ) );
-
-// List of hotkey descriptors for the 3D Viewer only
-// !TODO: this is used just for help menu, the structured are not used yet in the viewer
-static EDA_HOTKEY* viewer3d_Hotkey_List[] =
-{
-    &Hk3D_PivotCenter,
-    &Hk3D_MoveLeft,
-    &Hk3D_MoveRight,
-    &Hk3D_MoveUp,
-    &Hk3D_MoveDown,
-    &Hk3D_HomeView,
-    &Hk3D_ResetView,
-    &Hk3D_ViewFront,
-    &Hk3D_ViewBack,
-    &Hk3D_ViewLeft,
-    &Hk3D_ViewRight,
-    &Hk3D_ViewTop,
-    &Hk3D_ViewBot,
-    &Hk3D_Rotate45axisZ,
-    &Hk3D_ZoomIn,
-    &Hk3D_ZoomOut,
-    &Hk3D_AttributesTHT,
-    &Hk3D_AttributesSMD,
-    &Hk3D_AttributesVirtual,
-    NULL
-};
-
-
-// list of sections and corresponding hotkey list for the 3D Viewer
-// (used to list current hotkeys)
-struct EDA_HOTKEY_CONFIG g_3DViewer_Hokeys_Descr[] =
-{
-    { &g_CommonSectionTag, viewer3d_Hotkey_List, &viewer3DSectionTitle },
-    { NULL,                NULL,                 NULL }
-};
-
-
-void EDA_3D_VIEWER::DisplayHotKeys()
-{
-    DisplayHotkeyList( this, g_3DViewer_Hokeys_Descr );
 }

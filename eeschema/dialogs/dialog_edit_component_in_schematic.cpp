@@ -44,7 +44,7 @@
 
 #include <bitmaps.h>
 
-#include <dialog_edit_component_in_schematic_fbp.h>
+#include <dialog_edit_component_in_schematic_base.h>
 #include <invoke_sch_dialog.h>
 
 #ifdef KICAD_SPICE
@@ -60,10 +60,10 @@
 /**
  * Dialog used to edit #SCH_COMPONENT objects in a schematic.
  *
- * This is derived from DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_FBP which is maintained by
+ * This is derived from DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_BASE which is maintained by
  * wxFormBuilder.  Do not auto-generate this class or file, it is hand coded.
  */
-class DIALOG_EDIT_COMPONENT_IN_SCHEMATIC : public DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_FBP
+class DIALOG_EDIT_COMPONENT_IN_SCHEMATIC : public DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_BASE
 {
 public:
     DIALOG_EDIT_COMPONENT_IN_SCHEMATIC( SCH_EDIT_FRAME* aParent );
@@ -206,7 +206,7 @@ void SCH_EDIT_FRAME::EditComponent( SCH_COMPONENT* aComponent )
 
 
 DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::DIALOG_EDIT_COMPONENT_IN_SCHEMATIC( SCH_EDIT_FRAME* aParent ) :
-    DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_FBP( aParent )
+    DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_BASE( aParent )
 {
 #ifndef KICAD_SPICE
     spiceFieldsButton->Hide();
@@ -300,6 +300,19 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::OnSelectChipName( wxCommandEvent& event
         return;
 
     chipnameTextCtrl->SetValue( sel.LibId.Format() );
+
+    // Update the value field for Power symbols
+    LIB_PART* entry = GetParent()->GetLibPart( sel.LibId );
+
+    if( entry && entry->IsPower() )
+    {
+        m_FieldsBuf[VALUE].SetText( sel.LibId.GetLibItemName() );
+        setRowItem( VALUE, m_FieldsBuf[VALUE] );
+
+        if( s_SelectedRow == VALUE )
+            copySelectedFieldToPanel();
+    }
+
 }
 
 
@@ -391,7 +404,7 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::copyPanelToOptions()
     }
 
     //Set the part selection in multiple part per package
-    if( m_cmp->GetUnit() )
+    if( m_cmp->GetUnitCount() > 1 )
     {
         int unit_selection = unitChoice->GetCurrentSelection() + 1;
 
@@ -542,6 +555,8 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::OnOKButtonClick( wxCommandEvent& event 
         }
     }
 
+    m_cmp->UpdatePinCache();
+
     GetParent()->OnModify();
     GetParent()->GetScreen()->TestDanglingEnds();
 
@@ -613,7 +628,7 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::showButtonHandler( wxCommandEvent& even
     else if( fieldNdx == FOOTPRINT )
     {
         // pick a footprint using the footprint picker.
-        wxString fpid;
+        wxString fpid = fieldValueTextCtrl->GetValue();
 
         KIWAY_PLAYER* frame = Kiway().Player( FRAME_PCB_MODULE_VIEWER_MODAL, true, this );
 

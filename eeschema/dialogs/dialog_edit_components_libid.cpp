@@ -24,7 +24,7 @@
 
 /**
  * @file eeschema/dialogs/dialog_edit_components_libid.cpp
- * @brief Dialog to remap library id of components to an other library id
+ * @brief Dialog to remap library id of components to another library id
  */
 
 
@@ -66,7 +66,7 @@ public:
     // Returns a string like mylib:symbol_name from the LIB_ID of the component
     wxString GetStringLibId()
     {
-        return wxString( m_Component->GetLibId().Format().c_str() );
+        return m_Component->GetLibId().GetUniStringLibId();
     }
 
     // Returns a string containing the reference of the component
@@ -81,9 +81,9 @@ public:
  * DIALOG_EDIT_COMPONENTS_LIBID is a dialog to globally edit the LIB_ID of groups if components
  * having the same initial LIB_ID.
  * this is useful when you want:
- *  to move a symbol from a symbol library to an other symbol library
+ *  to move a symbol from a symbol library to another symbol library
  *  to change the nickname of a library
- *  globally replace the symbol used by a group of components by an other symbol.
+ *  globally replace the symbol used by a group of components by another symbol.
  */
 class DIALOG_EDIT_COMPONENTS_LIBID : public DIALOG_EDIT_COMPONENTS_LIBID_BASE
 {
@@ -174,8 +174,8 @@ DIALOG_EDIT_COMPONENTS_LIBID::DIALOG_EDIT_COMPONENTS_LIBID( SCH_EDIT_FRAME* aPar
     int minwidth = 30   // a margin
                    + m_grid->GetRowLabelSize() + m_grid->GetColSize( COL_REFS )
                    + m_grid->GetColSize( COL_CURR_LIBID ) + m_grid->GetColSize( COL_NEW_LIBID );
-    m_panelGrid->SetMinSize( wxSize( minwidth, -1) );
-    Layout();
+
+    SetMinClientSize( wxSize( minwidth, VertPixelsFromDU( 250 ) ) );
 
     SetSizeInDU( 500, 400 );
     Center();
@@ -447,7 +447,7 @@ void DIALOG_EDIT_COMPONENTS_LIBID::onClickOrphansButton( wxCommandEvent& event )
             {
                 Prj().SchSymbolLibTable()->EnumerateSymbolLib( lib, aliasNames );
             }
-            catch( const IO_ERROR& e ) {}   // ignore, it is handled below
+            catch( const IO_ERROR& ) {}   // ignore, it is handled below
 
             if( aliasNames.IsEmpty() )
                 continue;

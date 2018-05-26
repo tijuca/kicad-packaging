@@ -157,6 +157,10 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
     case ID_POPUP_PCB_MOVE_MODULE_REQUEST:
     case ID_POPUP_PCB_MOVE_TEXTMODULE_REQUEST:
     case ID_POPUP_PCB_MOVE_PCB_TARGET_REQUEST:
+    case ID_POPUP_PCB_AUTOPLACE_FIXE_ALL_MODULES:
+    case ID_POPUP_PCB_AUTOPLACE_FIXE_MODULE:
+    case ID_POPUP_PCB_AUTOPLACE_FREE_ALL_MODULES:
+    case ID_POPUP_PCB_AUTOPLACE_FREE_MODULE:
         break;
 
     case ID_POPUP_CANCEL_CURRENT_COMMAND:
@@ -658,7 +662,8 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_PCB_REMOVE_FILLED_AREAS_IN_ALL_ZONES: // Remove all zones :
-        GetBoard()->m_Zone.DeleteAll();                 // remove zone segments used to fill zones.
+        GetBoard()->m_SegZoneDeprecated.DeleteAll();    // remove deprecated zone segments used
+                                                        // to fill zones in very old boards.
 
         for( int ii = 0; ii < GetBoard()->GetAreaCount(); ii++ )
         {
@@ -1277,6 +1282,44 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
     case ID_GEN_IMPORT_DXF_FILE:
         InvokeDXFDialogBoardImport( this );
         m_canvas->Refresh();
+        break;
+
+    case ID_POPUP_PCB_SPREAD_ALL_MODULES:
+        if( !IsOK( this,
+                   _("Not locked footprints inside the board will be moved. OK?") ) )
+            break;
+        // Fall through
+    case ID_POPUP_PCB_SPREAD_NEW_MODULES:
+        if( GetBoard()->m_Modules == NULL )
+        {
+            DisplayError( this, _( "No footprint found!" ) );
+            return;
+        }
+        else
+        {
+            MODULE* footprint = GetBoard()->m_Modules;
+            std::vector<MODULE*> footprintList;
+            for( ; footprint != NULL; footprint = footprint->Next() )
+                footprintList.push_back( footprint );
+
+            SpreadFootprints( &footprintList, id == ID_POPUP_PCB_SPREAD_NEW_MODULES,
+                              true, GetCrossHairPosition() );
+        }
+        break;
+    case ID_POPUP_PCB_AUTOPLACE_FIXE_MODULE:
+        LockModule( (MODULE*) GetScreen()->GetCurItem(), true );
+        break;
+
+    case ID_POPUP_PCB_AUTOPLACE_FREE_MODULE:
+        LockModule( (MODULE*) GetScreen()->GetCurItem(), false );
+        break;
+
+    case ID_POPUP_PCB_AUTOPLACE_FREE_ALL_MODULES:
+        LockModule( NULL, false );
+        break;
+
+    case ID_POPUP_PCB_AUTOPLACE_FIXE_ALL_MODULES:
+        LockModule( NULL, true );
         break;
 
     default:

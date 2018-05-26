@@ -124,9 +124,6 @@ END_EVENT_TABLE()
 #define MODAL_MODE_EXTRASTYLE wxFRAME_FLOAT_ON_PARENT
 #endif
 
-#define FOOTPRINT_VIEWER_FRAME_NAME         "ModViewFrame"
-#define FOOTPRINT_VIEWER_FRAME_NAME_MODAL   "ModViewFrameModal"
-
 
 FOOTPRINT_VIEWER_FRAME::FOOTPRINT_VIEWER_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrameType ) :
     PCB_BASE_FRAME( aKiway, aParent, aFrameType, _( "Footprint Library Browser" ),
@@ -314,12 +311,7 @@ FOOTPRINT_VIEWER_FRAME::FOOTPRINT_VIEWER_FRAME( KIWAY* aKiway, wxWindow* aParent
 
 FOOTPRINT_VIEWER_FRAME::~FOOTPRINT_VIEWER_FRAME()
 {
-    EDA_3D_VIEWER* draw3DFrame = Get3DViewerFrame();
-
-    if( draw3DFrame )
-        draw3DFrame->Destroy();
 }
-
 
 
 void FOOTPRINT_VIEWER_FRAME::OnCloseWindow( wxCloseEvent& Event )
@@ -405,7 +397,7 @@ void FOOTPRINT_VIEWER_FRAME::ReCreateFootprintList()
         return;
     }
 
-    auto fp_info_list( FOOTPRINT_LIST::GetInstance( Kiway() ) );
+    auto fp_info_list = FOOTPRINT_LIST::GetInstance( Kiway() );
 
     wxString nickname = getCurNickname();
 
@@ -622,6 +614,33 @@ void FOOTPRINT_VIEWER_FRAME::OnActivate( wxActivateEvent& event )
 }
 
 
+bool FOOTPRINT_VIEWER_FRAME::ShowModal( wxString* aFootprint, wxWindow* aResultantFocusWindow )
+{
+    if( aFootprint && !aFootprint->IsEmpty() )
+    {
+        try
+        {
+            LIB_ID fpid( *aFootprint );
+
+            if( fpid.IsValid() )
+            {
+                setCurNickname( fpid.GetLibNickname() );
+                setCurFootprintName( fpid.GetLibItemName() );
+                ReCreateFootprintList();
+                SelectAndViewFootprint( NEW_PART );
+            }
+        }
+        catch( ... )
+        {
+            // LIB_ID's constructor throws on some invalid footprint IDs.  It'd be nicer
+            // if it just set it to !IsValid(), but it is what it is.
+        }
+    }
+
+    return KIWAY_PLAYER::ShowModal( aFootprint, aResultantFocusWindow );
+}
+
+
 bool FOOTPRINT_VIEWER_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, EDA_KEY aHotKey )
 {
     bool eventHandled = true;
@@ -679,21 +698,10 @@ void FOOTPRINT_VIEWER_FRAME::Show3D_Frame( wxCommandEvent& event )
 
 void FOOTPRINT_VIEWER_FRAME::Update3D_Frame( bool aForceReloadFootprint )
 {
-    EDA_3D_VIEWER* draw3DFrame = Get3DViewerFrame();
-
-    if( draw3DFrame == NULL )
-        return;
-
     wxString title = wxString::Format( _( "3D Viewer" ) + wxT( " \u2014 %s" ),
                                        getCurFootprintName() );
 
-    draw3DFrame->SetTitle( title );
-
-    if( aForceReloadFootprint )
-    {
-        // Force 3D screen refresh immediately
-        draw3DFrame->NewDisplay( true );
-    }
+    Update3DView( &title );
 }
 
 
@@ -780,18 +788,19 @@ void FOOTPRINT_VIEWER_FRAME::SelectCurrentFootprint( wxCommandEvent& event )
 {
     wxString curr_nickname = getCurNickname();
     MODULE*  oldmodule = GetBoard()->m_Modules;
-    MODULE*  module = LoadModuleFromLibrary( curr_nickname, Prj().PcbFootprintLibs(), false );
+    MODULE*  module = LoadModuleFromLibrary( curr_nickname, false );
 
     if( module )
     {
-        module->SetPosition( wxPoint( 0, 0 ) );
-
         // Only one footprint allowed: remove the previous footprint (if exists)
         if( oldmodule )
         {
             GetBoard()->Remove( oldmodule );
             delete oldmodule;
         }
+
+        SetCrossHairPosition( wxPoint( 0, 0 ) );
+        AddModuleToBoard( module );
 
         setCurFootprintName( module->GetFPID().GetLibItemName() );
 
@@ -873,14 +882,25 @@ void FOOTPRINT_VIEWER_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
     m_canvas->DrawBackGround( DC );
     GetBoard()->Draw( m_canvas, DC, GR_COPY );
 
-    MODULE* module = GetBoard()->m_Modules;
-
     m_canvas->DrawCrossHair( DC );
 
-    ClearMsgPanel();
+    UpdateMsgPanel();
+}
 
-    if( module )
-        SetMsgPanel( module );
+
+void FOOTPRINT_VIEWER_FRAME::UpdateMsgPanel()
+{
+    BOARD_ITEM* footprint = GetBoard()->m_Modules;
+
+    if( footprint )
+    {
+        MSG_PANEL_ITEMS items;
+
+        footprint->GetMsgPanelInfo( items );
+        SetMsgPanel( items );
+    }
+    else
+        ClearMsgPanel();
 }
 
 
@@ -893,6 +913,7 @@ void FOOTPRINT_VIEWER_FRAME::updateView()
         dp->DisplayBoard( GetBoard() );
         m_toolManager->ResetTools( TOOL_BASE::MODEL_RELOAD );
         m_toolManager->RunAction( ACTIONS::zoomFitScreen, true );
+        UpdateMsgPanel();
     }
 }
 

@@ -17,6 +17,8 @@ include_directories(
     ../pcbnew
     ../polygon
     ${INC_AFTER}
+    ${OCE_INCLUDE_DIRS}
+    ${OCC_INCLUDE_DIR}
     )
 
 
@@ -155,8 +157,6 @@ set( COMMON_DLG_SRCS
     dialogs/dialog_env_var_config.cpp
     dialogs/dialog_env_var_config_base.cpp
     dialogs/dialog_exit_base.cpp
-    dialogs/dialog_get_component.cpp
-    dialogs/dialog_get_component_base.cpp
     dialogs/dialog_hotkeys_editor.cpp
     dialogs/dialog_hotkeys_editor_base.cpp
     dialogs/dialog_image_editor.cpp
@@ -298,6 +298,7 @@ set( COMMON_SRCS
     settings.cpp
     status_popup.cpp
     systemdirsappend.cpp
+    trace_helpers.cpp
     trigo.cpp
     undo_redo_container.cpp
     utf8.cpp

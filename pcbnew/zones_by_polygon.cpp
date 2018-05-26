@@ -129,8 +129,8 @@ void PCB_EDIT_FRAME::duplicateZone( wxDC* aDC, ZONE_CONTAINER* aZone )
     else
         success = InvokeNonCopperZonesEditor( this, aZone, &zoneSettings );
 
-    // If the new zone is on the same layer as the the initial zone,
-    // do nothing
+    // If the new zone is on the same layer as the the initial zone we'll end up combining
+    // them which will result in a no-op.  Might as well exit here.
     if( success )
     {
         if( aZone->GetIsKeepout() && ( aZone->GetLayerSet() == zoneSettings.m_Layers ) )
@@ -697,7 +697,7 @@ int PCB_EDIT_FRAME::Begin_Zone( wxDC* DC )
             // PCB_EDIT_FRAME::SetCurItem() calls DisplayInfo().
             GetScreen()->SetCurItem( NULL );
             DisplayErrorMessage( this,
-                          _( "DRC error: this start point is inside or too close an other area" ) );
+                          _( "DRC error: this start point is inside or too close another area" ) );
             return 0;
         }
 
@@ -762,7 +762,7 @@ bool PCB_EDIT_FRAME::End_Zone( wxDC* DC )
         if( Settings().m_legacyDrcOn && m_drc->Drc( zone, icorner ) == BAD_DRC )      // we can't validate the closing edge
         {
             DisplayErrorMessage( this,
-                          _( "DRC error: closing this area creates a DRC error with an other area" ) );
+                          _( "DRC error: closing this area creates a DRC error with another area" ) );
             m_canvas->MoveCursorToCrossHair();
             return false;
         }

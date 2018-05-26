@@ -104,10 +104,10 @@ void fillLineGBRITEM(  GERBER_DRAW_ITEM* aGbrItem,
                               wxSize            aPenSize,
                               bool              aLayerNegative  );
 
-// Getber X2 files have a file attribute which specify the type of image
+// Gerber X2 files have a file attribute which specify the type of image
 // (copper, solder paste ... and sides tpo, bottom or inner copper layers)
 // Excellon drill files do not have attributes, so, just to identify the image
-// In gerbview, we add this attribute, like a Gerber drill file
+// In gerbview, we add this attribute, similat to a Gerber drill file
 static const char file_attribute[] = ".FileFunction,Other,Drill*";
 
 static EXCELLON_CMD excellonHeaderCmdList[] =
@@ -119,8 +119,8 @@ static EXCELLON_CMD excellonHeaderCmdList[] =
     { "M45",    DRILL_M_LONGMESSAGE,         -1 },  // Long Operator message (use more than one line)
     { "M48",    DRILL_M_HEADER,              0  },  // beginning of a header
     { "M95",    DRILL_M_ENDHEADER,           0  },  // End of the header
-    { "METRIC", DRILL_METRICHEADER,          1  },
-    { "INCH",   DRILL_IMPERIALHEADER,        1  },
+    { "METRIC", DRILL_METRIC_HEADER,          1  },
+    { "INCH",   DRILL_IMPERIAL_HEADER,        1  },
     { "M71",    DRILL_M_METRIC,              1  },
     { "M72",    DRILL_M_IMPERIAL,            1  },
     { "M25",    DRILL_M_BEGINPATTERN,        0  },  // Beginning of Pattern
@@ -314,7 +314,7 @@ bool EXCELLON_IMAGE::LoadFile( const wxString & aFullFileName )
     X2_ATTRIBUTE dummy;
     char* text = (char*)file_attribute;
     int dummyline = 0;
-    dummy.ParseAttribCmd( m_Current_File, NULL, 0, text, dummyline );
+    dummy.ParseAttribCmd( NULL, NULL, 0, text, dummyline );
     delete m_FileFunction;
     m_FileFunction = new X2_ATTRIBUTE_FILEFUNCTION( dummy );
 
@@ -392,31 +392,20 @@ bool EXCELLON_IMAGE::Execute_HEADER_Command( char*& text )
         SelectUnits( true );
         break;
 
-    case DRILL_METRICHEADER:    // command like METRIC,TZ or METRIC,LZ
-        SelectUnits( true );
+    case DRILL_IMPERIAL_HEADER:  // command like INCH,TZ or INCH,LZ
+    case DRILL_METRIC_HEADER:    // command like METRIC,TZ or METRIC,LZ
+        SelectUnits( cmd->m_Code == DRILL_METRIC_HEADER ? true : false );
+
         if( *text != ',' )
         {
-            AddMessageToList( _( "METRIC command has no parameter" ) );
-            break;
-        }
-        text++;     // skip separator
-        if( *text == 'T' )
+            // No TZ or LZ specified. Can be a decimal format
+            // I am not sure this is incorrect and must be reported.
+            // AddMessageToList( _( "METRIC or INCH command has no parameter" ) );
+            // use default TZ setting, for now
             m_NoTrailingZeros = false;
-        else
-            m_NoTrailingZeros = true;
-        break;
-
-    case DRILL_M_IMPERIAL:
-        SelectUnits( false );
-        break;
-
-    case DRILL_IMPERIALHEADER:  // command like INCH,TZ or INCH,LZ
-        SelectUnits( false );
-        if( *text != ',' )
-        {
-            AddMessageToList( _( "INCH command has no parameter" ) );
             break;
         }
+
         text++;     // skip separator
         if( *text == 'T' )
             m_NoTrailingZeros = false;
@@ -559,6 +548,13 @@ bool EXCELLON_IMAGE::Execute_Drill_Command( char*& text )
 
                     while( IsNumber( *read ) )
                     {
+                        if( *read == '.' )
+                        {
+                            integer = nbdigits;
+                            read++;
+                            continue;
+                        }
+
                         if( ( *read >= '0' ) && ( *read <='9' ) )
                             nbdigits++;
 
@@ -566,6 +562,10 @@ bool EXCELLON_IMAGE::Execute_Drill_Command( char*& text )
                     }
 
                     mantissa = nbdigits - integer;
+
+                    // Enforce minimum mantissa of 3 for metric
+                    if( m_GerbMetric && mantissa < 3 )
+                        mantissa = 3;
 
                     m_FmtScale.x = m_FmtScale.y = mantissa;
                     m_FmtLen.x = m_FmtLen.y = integer + mantissa;

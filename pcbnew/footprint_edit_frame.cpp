@@ -75,7 +75,7 @@
 ///@{
 /// \ingroup config
 
-static const wxString IconScaleEntry =          "ModIconScale";
+static const wxString IconScaleEntry =          "PcbIconScale";
 
 ///@}
 
@@ -214,7 +214,6 @@ BEGIN_EVENT_TABLE( FOOTPRINT_EDIT_FRAME, PCB_BASE_FRAME )
 
 END_EVENT_TABLE()
 
-#define FOOTPRINT_EDIT_FRAME_NAME wxT( "ModEditFrame" )
 
 FOOTPRINT_EDIT_FRAME::FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     PCB_BASE_EDIT_FRAME( aKiway, aParent, FRAME_PCB_MODULE_EDITOR, wxEmptyString,
@@ -267,8 +266,7 @@ FOOTPRINT_EDIT_FRAME::FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     // no net in footprint editor: make it non visible
     GetBoard()->SetElementVisibility( LAYER_NO_CONNECTS, false );
 
-    wxFont font = wxSystemSettings::GetFont( wxSYS_DEFAULT_GUI_FONT );
-    m_Layers = new PCB_LAYER_WIDGET( this, GetCanvas(), font.GetPointSize(), true );
+    m_Layers = new PCB_LAYER_WIDGET( this, GetCanvas(), true );
 
     // LoadSettings() *after* creating m_LayersManager, because LoadSettings()
     // initialize parameters in m_LayersManager
@@ -527,9 +525,9 @@ double FOOTPRINT_EDIT_FRAME::BestZoom()
 
 void FOOTPRINT_EDIT_FRAME::OnCloseWindow( wxCloseEvent& Event )
 {
-    if( GetScreen()->IsModify() )
+    if( GetScreen()->IsModify() && GetBoard()->m_Modules )
     {
-        int ii = DisplayExitDialog( this, _( "Save the changes to the footprint before closing?" ) );
+        int ii = DisplayExitDialog( this, _( "Save changes to footprint before closing?" ) );
 
         switch( ii )
         {
@@ -537,18 +535,12 @@ void FOOTPRINT_EDIT_FRAME::OnCloseWindow( wxCloseEvent& Event )
             break;
 
         case wxID_YES:
-            // code from FOOTPRINT_EDIT_FRAME::Process_Special_Functions,
-            // at case ID_MODEDIT_SAVE_LIBMODULE
-            if( GetBoard()->m_Modules )
+            if( !SaveFootprintInLibrary( GetCurrentLib(), GetBoard()->m_Modules ) )
             {
-                if( SaveFootprintInLibrary( GetCurrentLib(), GetBoard()->m_Modules ) )
-                {
-                    // save was correct
-                    GetScreen()->ClrModify();
-                    break;
-                }
+                Event.Veto();
+                return;
             }
-            // fall through: cancel the close because of an error
+            break;
 
         case wxID_CANCEL:
             Event.Veto();
@@ -572,7 +564,8 @@ void FOOTPRINT_EDIT_FRAME::CloseModuleEditor( wxCommandEvent& Event )
 
 void FOOTPRINT_EDIT_FRAME::OnUpdateSelectTool( wxUpdateUIEvent& aEvent )
 {
-    aEvent.Check( GetToolId() == aEvent.GetId() );
+    if( aEvent.GetEventObject() == m_drawToolBar || aEvent.GetEventObject() == m_mainToolBar )
+        aEvent.Check( GetToolId() == aEvent.GetId() );
 }
 
 
@@ -692,27 +685,8 @@ void FOOTPRINT_EDIT_FRAME::OnUpdateSelectCurrentLib( wxUpdateUIEvent& aEvent )
 
 void FOOTPRINT_EDIT_FRAME::Show3D_Frame( wxCommandEvent& event )
 {
-    EDA_3D_VIEWER* draw3DFrame = Get3DViewerFrame();
-
-    if( draw3DFrame )
-    {
-        // Raising the window does not show the window on Windows if iconized.
-        // This should work on any platform.
-        if( draw3DFrame->IsIconized() )
-             draw3DFrame->Iconize( false );
-
-        draw3DFrame->Raise();
-
-        // Raising the window does not set the focus on Linux.  This should work on any platform.
-        if( wxWindow::FindFocus() != draw3DFrame )
-            draw3DFrame->SetFocus();
-
-        return;
-    }
-
-    draw3DFrame = new EDA_3D_VIEWER( &Kiway(), this, _( "3D Viewer" ) );
-    draw3DFrame->Raise();     // Needed with some Window Managers
-    draw3DFrame->Show( true );
+    bool forceRecreateIfNotOwner = true;
+    CreateAndShow3D_Frame( forceRecreateIfNotOwner );
 }
 
 
@@ -754,13 +728,7 @@ bool FOOTPRINT_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, 
 void FOOTPRINT_EDIT_FRAME::OnModify()
 {
     PCB_BASE_FRAME::OnModify();
-
-    EDA_3D_VIEWER* draw3DFrame = Get3DViewerFrame();
-
-    if( draw3DFrame )
-    {
-        draw3DFrame->NewDisplay( true );
-    }
+    Update3DView();
 }
 
 
@@ -864,7 +832,7 @@ void FOOTPRINT_EDIT_FRAME::ProcessPreferences( wxCommandEvent& event )
         break;
 
     case ID_PREFERENCES_HOTKEY_SHOW_EDITOR:
-        InstallHotkeyFrame( this, g_Module_Editor_Hotkeys_Descr );
+        InstallHotkeyFrame( this, g_Pcbnew_Editor_Hotkeys_Descr, g_Module_Editor_Hotkeys_Descr );
         break;
 
     case ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST:
@@ -1004,19 +972,29 @@ void FOOTPRINT_EDIT_FRAME::UseGalCanvas( bool aEnable )
 
 int FOOTPRINT_EDIT_FRAME::GetIconScale()
 {
-    // All environmental settings will move to app for 6.0, so just inherit from pcbnew
-    // for now.
-    if( m_iconScale == -1 )
-    {
-        bool isBoardEditorRunning = Kiway().Player( FRAME_PCB, false ) != nullptr;
-        PCB_BASE_FRAME* pcbFrame = static_cast<PCB_BASE_FRAME*>( Kiway().Player( FRAME_PCB, true ) );
-        m_iconScale = pcbFrame->GetIconScale();
-
-        if( !isBoardEditorRunning )
-            pcbFrame->Destroy();
-    }
-
-    return m_iconScale;
+    int scale = 0;
+    Kiface().KifaceSettings()->Read( IconScaleEntry, &scale, 0 );
+    return scale;
 }
 
+
+void FOOTPRINT_EDIT_FRAME::UpdateMsgPanel()
+{
+    // If a item is currently selected, displays the item info.
+    // If nothing selected, display the current footprint info
+    BOARD_ITEM* item = GetScreen()->GetCurItem();
+
+    if( !item )
+        item = GetBoard()->m_Modules;
+
+    MSG_PANEL_ITEMS items;
+
+    if( item )
+    {
+        item->GetMsgPanelInfo( items );
+        SetMsgPanel( items );
+    }
+    else
+        ClearMsgPanel();
+}
 

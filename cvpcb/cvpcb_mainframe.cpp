@@ -32,13 +32,11 @@
 #include <kiway_express.h>
 #include <pgm_base.h>
 #include <kiface_i.h>
+#include <kiface_ids.h>
 #include <macros.h>
 #include <confirm.h>
-#include <eda_doc.h>
 #include <eda_dde.h>
-#include <gestfich.h>
 #include <html_messagebox.h>
-#include <wildcards_and_files_ext.h>
 #include <fp_lib_table.h>
 #include <netlist_reader.h>
 #include <bitmaps.h>
@@ -51,15 +49,11 @@
 #include <display_footprints_frame.h>
 #include <cvpcb_id.h>
 
-
 wxSize const FRAME_MIN_SIZE_DU( 350, 250 );
 wxSize const FRAME_DEFAULT_SIZE_DU( 450, 300 );
 
 ///@{
 /// \ingroup config
-
-/// Nonzero if cvpcb should be kept open after saving association in schematic
-static const wxString KeepCvpcbOpenEntry = "KeepCvpcbOpen";
 
 static const wxString FilterFootprintEntry = "FilterFootprint";
 ///@}
@@ -67,17 +61,14 @@ static const wxString FilterFootprintEntry = "FilterFootprint";
 BEGIN_EVENT_TABLE( CVPCB_MAINFRAME, KIWAY_PLAYER )
 
     // Menu events
-    EVT_MENU( wxID_SAVE, CVPCB_MAINFRAME::SaveQuitCvpcb )
+    EVT_MENU( wxID_SAVE, CVPCB_MAINFRAME::OnSaveAndContinue )
     EVT_MENU( wxID_EXIT, CVPCB_MAINFRAME::OnQuit )
     EVT_MENU( wxID_HELP, CVPCB_MAINFRAME::GetKicadHelp )
     EVT_MENU( wxID_ABOUT, CVPCB_MAINFRAME::GetKicadAbout )
     EVT_MENU( ID_PREFERENCES_CONFIGURE_PATHS, CVPCB_MAINFRAME::OnConfigurePaths )
-    EVT_MENU( ID_CVPCB_CONFIG_KEEP_OPEN_ON_SAVE, CVPCB_MAINFRAME::OnKeepOpenOnSave )
     EVT_MENU( ID_CVPCB_EQUFILES_LIST_EDIT, CVPCB_MAINFRAME::OnEditEquFilesList )
 
     // Toolbar events
-    EVT_TOOL( ID_CVPCB_QUIT, CVPCB_MAINFRAME::OnQuit )
-
     EVT_TOOL( ID_CVPCB_LIB_TABLE_EDIT, CVPCB_MAINFRAME::OnEditFootprintLibraryTable )
     EVT_TOOL( ID_CVPCB_CREATE_SCREENCMP, CVPCB_MAINFRAME::DisplayModule )
     EVT_TOOL( ID_CVPCB_GOTO_FIRSTNA, CVPCB_MAINFRAME::ToFirstNA )
@@ -94,12 +85,15 @@ BEGIN_EVENT_TABLE( CVPCB_MAINFRAME, KIWAY_PLAYER )
               CVPCB_MAINFRAME::OnSelectFilteringFootprint )
     EVT_TEXT( ID_CVPCB_FILTER_TEXT_EDIT, CVPCB_MAINFRAME::OnEnterFilteringText )
 
+    // Button events
+    EVT_BUTTON( wxID_OK, CVPCB_MAINFRAME::OnOK )
+    EVT_BUTTON( wxID_CANCEL, CVPCB_MAINFRAME::OnCancel )
+
     // Frame events
     EVT_CLOSE( CVPCB_MAINFRAME::OnCloseWindow )
     EVT_SIZE( CVPCB_MAINFRAME::OnSize )
 
     // UI event handlers
-    EVT_UPDATE_UI( ID_CVPCB_CONFIG_KEEP_OPEN_ON_SAVE, CVPCB_MAINFRAME::OnUpdateKeepOpenOnSave )
     EVT_UPDATE_UI( ID_CVPCB_FOOTPRINT_DISPLAY_FILTERED_LIST, CVPCB_MAINFRAME::OnFilterFPbyKeywords)
     EVT_UPDATE_UI( ID_CVPCB_FOOTPRINT_DISPLAY_PIN_FILTERED_LIST, CVPCB_MAINFRAME::OnFilterFPbyPinCount )
     EVT_UPDATE_UI( ID_CVPCB_FOOTPRINT_DISPLAY_BY_LIBRARY_LIST, CVPCB_MAINFRAME::OnFilterFPbyLibrary )
@@ -112,7 +106,7 @@ END_EVENT_TABLE()
 
 
 CVPCB_MAINFRAME::CVPCB_MAINFRAME( KIWAY* aKiway, wxWindow* aParent ) :
-    KIWAY_PLAYER( aKiway, aParent, FRAME_CVPCB, wxT( "CvPCB" ), wxDefaultPosition,
+    KIWAY_PLAYER( aKiway, aParent, FRAME_CVPCB, _( "Assign Footprints" ), wxDefaultPosition,
         wxDefaultSize, KICAD_DEFAULT_DRAWFRAME_STYLE, CVPCB_MAINFRAME_NAME )
 {
     m_compListBox           = NULL;
@@ -120,12 +114,11 @@ CVPCB_MAINFRAME::CVPCB_MAINFRAME( KIWAY* aKiway, wxWindow* aParent ) :
     m_libListBox            = NULL;
     m_mainToolBar           = NULL;
     m_modified              = false;
-    m_keepCvpcbOpen         = false;
-    m_undefinedComponentCnt = 0;
     m_skipComponentSelect   = false;
     m_filteringOptions      = 0;
     m_tcFilterString        = NULL;
     m_FootprintsList        = FOOTPRINT_LIST::GetInstance( Kiway() );
+    m_initialized           = false;
 
     // Give an icon
     wxIcon icon;
@@ -143,12 +136,6 @@ CVPCB_MAINFRAME::CVPCB_MAINFRAME( KIWAY* aKiway, wxWindow* aParent ) :
     // Frame size and position
     SetSize( m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y );
 
-    // create the status bar
-    static const int dims[3] = { -1, -1, 250 };
-
-    CreateStatusBar( 3 );
-    SetStatusWidths( 3, dims );
-
     ReCreateMenuBar();
     ReCreateHToolbar();
 
@@ -159,14 +146,11 @@ CVPCB_MAINFRAME::CVPCB_MAINFRAME( KIWAY* aKiway, wxWindow* aParent ) :
 
     m_auimgr.SetManagedWindow( this );
 
-    UpdateTitle();
-
     EDA_PANEINFO horiz;
     horiz.HorizontalToolbarPane();
 
     EDA_PANEINFO info;
     info.InfoToolbarPane();
-
 
     if( m_mainToolBar )
         m_auimgr.AddPane( m_mainToolBar,
@@ -186,12 +170,57 @@ CVPCB_MAINFRAME::CVPCB_MAINFRAME( KIWAY* aKiway, wxWindow* aParent ) :
                           wxAuiPaneInfo( info ).Name( wxT( "m_footprintListBox" ) ).
                           Right().BestSize( (int) ( m_FrameSize.x * 0.30 ), m_FrameSize.y ) );
 
+    // Build the bottom panel, to display 2 status texts and the buttons:
+    auto bottomPanel = new wxPanel( this );
+    auto panelSizer = new wxBoxSizer( wxVERTICAL );
+    wxFont statusFont = wxSystemSettings::GetFont( wxSYS_DEFAULT_GUI_FONT );
+    statusFont.SetSymbolicSize( wxFONTSIZE_SMALL );
+
+    m_statusLine1 = new wxStaticText( bottomPanel, wxID_ANY, wxEmptyString );
+    m_statusLine1->SetFont( statusFont );
+    panelSizer->Add( m_statusLine1, 0, wxTOP, 4 );
+
+    m_statusLine2 = new wxStaticText( bottomPanel, wxID_ANY, wxEmptyString );
+    m_statusLine2->SetFont( statusFont );
+    panelSizer->Add( m_statusLine2, 0, 0, 4 );
+
+    // Add buttons:
+    auto buttonsSizer = new wxBoxSizer( wxHORIZONTAL );
+    auto sdbSizer = new wxStdDialogButtonSizer();
+
+    m_saveAndContinue = new wxButton( bottomPanel, wxID_SAVE,
+                                      _( "Apply, Save Schematic && Continue" ) );
+    buttonsSizer->Add( m_saveAndContinue, 0, wxALIGN_BOTTOM | wxBOTTOM | wxRIGHT, 10 );
+
+    auto sdbSizerOK = new wxButton( bottomPanel, wxID_OK );
+    sdbSizer->AddButton( sdbSizerOK );
+    auto sdbSizerCancel = new wxButton( bottomPanel, wxID_CANCEL );
+    sdbSizer->AddButton( sdbSizerCancel );
+    sdbSizer->Realize();
+
+    buttonsSizer->Add( sdbSizer, 0, 0, 5 );
+    panelSizer->Add( buttonsSizer, 0, wxALIGN_RIGHT, 5 );
+
+    bottomPanel->SetSizer( panelSizer );
+    bottomPanel->Fit();
+
+    sdbSizerOK->SetDefault();
+
+    m_auimgr.AddPane( bottomPanel, wxAuiPaneInfo( horiz ).Name( wxT( "buttons" ) ).Bottom() );
+
     m_auimgr.Update();
+    m_initialized = true;
+
+    // Connect Events
+    m_saveAndContinue->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( CVPCB_MAINFRAME::OnSaveAndContinue ), NULL, this );
 }
 
 
 CVPCB_MAINFRAME::~CVPCB_MAINFRAME()
 {
+    // Disconnect Events
+    m_saveAndContinue->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( CVPCB_MAINFRAME::OnSaveAndContinue ), NULL, this );
+
     m_auimgr.UnInit();
 }
 
@@ -205,7 +234,6 @@ void CVPCB_MAINFRAME::LoadSettings( wxConfigBase* aCfg )
     if( m_FrameSize == wxDefaultSize )
         m_FrameSize = frame_default;
 
-    aCfg->Read( KeepCvpcbOpenEntry, &m_keepCvpcbOpen, true );
     aCfg->Read( FilterFootprintEntry, &m_filteringOptions, FOOTPRINTS_LISTBOX::UNFILTERED_FP_LIST );
 }
 
@@ -214,7 +242,6 @@ void CVPCB_MAINFRAME::SaveSettings( wxConfigBase* aCfg )
 {
     EDA_BASE_FRAME::SaveSettings( aCfg );
 
-    aCfg->Write( KeepCvpcbOpenEntry, m_keepCvpcbOpen );
     aCfg->Write( FilterFootprintEntry, m_filteringOptions );
 }
 
@@ -225,17 +252,11 @@ void CVPCB_MAINFRAME::OnSize( wxSizeEvent& event )
 }
 
 
-void CVPCB_MAINFRAME::OnQuit( wxCommandEvent& event )
-{
-    Close( false );
-}
-
-
 void CVPCB_MAINFRAME::OnCloseWindow( wxCloseEvent& Event )
 {
     if( m_modified )
     {
-        wxString msg = _( "Component to Footprint links modified.\nSave before exit ?" );
+        wxString msg = _( "Component to Footprint links modified.\nSave before exit?" );
         int ii = DisplayExitDialog( this, msg );
 
         switch( ii )
@@ -248,7 +269,7 @@ void CVPCB_MAINFRAME::OnCloseWindow( wxCloseEvent& Event )
             break;
 
         case wxID_YES:
-            SaveFootprintAssociation();
+            SaveFootprintAssociation( false );
             break;
         }
     }
@@ -260,7 +281,6 @@ void CVPCB_MAINFRAME::OnCloseWindow( wxCloseEvent& Event )
     m_modified = false;
 
     Destroy();
-    return;
 }
 
 
@@ -294,14 +314,14 @@ void CVPCB_MAINFRAME::ToFirstNA( wxCommandEvent& event )
     if( m_netlist.IsEmpty() )
         return;
 
-    long first_selected = m_compListBox->GetFirstSelected();
+    int first_selected = m_compListBox->GetFirstSelected();
 
     if( first_selected < 0 )
         first_selected = -1;     // We will start to 0 for the first search , if no item selected
 
     int candidate = -1;
 
-    for( unsigned jj = first_selected+1; jj < m_netlist.GetCount(); jj++ )
+    for( int jj = first_selected+1; jj < (int)m_netlist.GetCount(); jj++ )
     {
         if( m_netlist.GetComponent( jj )->GetFPID().empty() )
         {
@@ -349,14 +369,36 @@ void CVPCB_MAINFRAME::ToPreviousNA( wxCommandEvent& event )
 }
 
 
-void CVPCB_MAINFRAME::SaveQuitCvpcb( wxCommandEvent& aEvent )
+void CVPCB_MAINFRAME::OnOK( wxCommandEvent& aEvent )
 {
-    SaveFootprintAssociation();
+    SaveFootprintAssociation( false );
 
     m_modified = false;
 
-    if( !m_keepCvpcbOpen )
-        Close( true );
+    Close( true );
+}
+
+
+void CVPCB_MAINFRAME::OnSaveAndContinue( wxCommandEvent& aEvent )
+{
+    SaveFootprintAssociation( true );
+
+    m_modified = false;
+}
+
+
+void CVPCB_MAINFRAME::OnCancel( wxCommandEvent& event )
+{
+    // Throw away modifications on a Cancel
+    m_modified = false;
+
+    Close( false );
+}
+
+
+void CVPCB_MAINFRAME::OnQuit( wxCommandEvent& event )
+{
+    Close( false );
 }
 
 
@@ -382,7 +424,6 @@ void CVPCB_MAINFRAME::DelAssociations( wxCommandEvent& event )
 
         m_skipComponentSelect = false;
         m_compListBox->SetSelection( 0 );
-        m_undefinedComponentCnt = m_netlist.GetCount();
     }
 
     DisplayStatus();
@@ -397,8 +438,16 @@ bool CVPCB_MAINFRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, i
 
 void CVPCB_MAINFRAME::OnEditFootprintLibraryTable( wxCommandEvent& aEvent )
 {
-    bool    tableChanged = false;
-    int     r = InvokePcbLibTableEditor( this, &GFootprintTable, Prj().PcbFootprintLibs( Kiway() ) );
+    FP_LIB_TABLE* globalTable;
+    bool          tableChanged = false;
+    KIFACE*       kiface = Kiway().KiFACE( KIWAY::FACE_PCB );
+
+    if( kiface )
+        globalTable = (FP_LIB_TABLE*) kiface->IfaceOrAddress( KIFACE_GLOBAL_FOOTPRINT_TABLE );
+    else
+        globalTable = &GFootprintTable; // Shouldn't happen now that Cvpcb is integrated
+
+    int r = InvokePcbLibTableEditor( this, globalTable, Prj().PcbFootprintLibs( Kiway() ) );
 
     if( r & 1 )
     {
@@ -406,7 +455,7 @@ void CVPCB_MAINFRAME::OnEditFootprintLibraryTable( wxCommandEvent& aEvent )
 
         try
         {
-            GFootprintTable.Save( fileName );
+            globalTable->Save( fileName );
             tableChanged = true;
         }
         catch( const IO_ERROR& ioe )
@@ -449,12 +498,6 @@ void CVPCB_MAINFRAME::OnEditFootprintLibraryTable( wxCommandEvent& aEvent )
 }
 
 
-void CVPCB_MAINFRAME::OnKeepOpenOnSave( wxCommandEvent& event )
-{
-    m_keepCvpcbOpen = event.IsChecked();
-}
-
-
 void CVPCB_MAINFRAME::DisplayModule( wxCommandEvent& event )
 {
     CreateScreenCmp();
@@ -486,7 +529,10 @@ void CVPCB_MAINFRAME::refreshAfterComponentSearch( COMPONENT* component )
         m_auimgr.Update();
 
     if( component == NULL )
+    {
+        DisplayStatus();
         return;
+    }
 
     // Preview of the already assigned footprint.
     // Find the footprint that was already chosen for this component and select it,
@@ -567,12 +613,6 @@ void CVPCB_MAINFRAME::OnSelectFilteringFootprint( wxCommandEvent& event )
 }
 
 
-void CVPCB_MAINFRAME::OnUpdateKeepOpenOnSave( wxUpdateUIEvent& event )
-{
-    event.Check( m_keepCvpcbOpen );
-}
-
-
 void CVPCB_MAINFRAME::OnFilterFPbyKeywords( wxUpdateUIEvent& event )
 {
     event.Check( m_filteringOptions & FOOTPRINTS_LISTBOX::FILTERING_BY_COMPONENT_KEYWORD );
@@ -614,18 +654,15 @@ void CVPCB_MAINFRAME::OnEnterFilteringText( wxCommandEvent& aEvent )
 
 void CVPCB_MAINFRAME::DisplayStatus()
 {
-    wxString   msg;
-    COMPONENT* component;
+    if( !m_initialized )
+        return;
 
-    if( wxWindow::FindFocus() == m_compListBox || wxWindow::FindFocus() == m_libListBox )
+    wxString   filters, msg;
+    COMPONENT* component = GetSelectedComponent();
+
+    if( ( m_filteringOptions & FOOTPRINTS_LISTBOX::FILTERING_BY_COMPONENT_KEYWORD ) )
     {
-        msg.Printf( _( "Components: %d, unassigned: %d" ), (int) m_netlist.GetCount(),
-                    m_undefinedComponentCnt );
-        SetStatusText( msg, 0 );
-
         msg.Empty();
-
-        component = GetSelectedComponent();
 
         if( component )
         {
@@ -636,69 +673,65 @@ void CVPCB_MAINFRAME::DisplayStatus()
                 else
                     msg += wxT( ", " ) + component->GetFootprintFilters()[ii];
             }
-
-            msg = _( "Filter list: " ) + msg;
         }
 
-        SetStatusText( msg, 1 );
+        filters += _( "key words" ) + wxString::Format( wxT( " (%s)" ), msg );
     }
-    else
+
+    if( ( m_filteringOptions & FOOTPRINTS_LISTBOX::FILTERING_BY_PIN_COUNT ) )
     {
-        wxString footprintName = GetSelectedFootprint();
+        msg.Empty();
 
-        FOOTPRINT_INFO* module = m_FootprintsList->GetModuleInfo( footprintName );
+        if( component )
+            msg = wxString::Format( wxT( "%i" ), component->GetPinCount() );
 
-        if( module )    // can be NULL if no netlist loaded
-        {
-            msg = _( "Description: " ) + module->GetDoc();
-            SetStatusText( msg, 0 );
+        if( !filters.IsEmpty() )
+            filters += wxT( ", " );
 
-            msg  = _( "Key words: " ) + module->GetKeywords();
-            SetStatusText( msg, 1 );
-        }
+        filters += _( "pin count" ) + wxString::Format( wxT( " (%s)" ), msg );
     }
+
+    if( ( m_filteringOptions & FOOTPRINTS_LISTBOX::FILTERING_BY_LIBRARY ) )
+    {
+        msg = m_libListBox->GetSelectedLibrary();
+
+        if( !filters.IsEmpty() )
+            filters += wxT( ", " );
+
+        filters += _( "library" ) + wxString::Format( wxT( " (%s)" ), msg );
+    }
+
+    if( ( m_filteringOptions & FOOTPRINTS_LISTBOX::FILTERING_BY_NAME ) )
+    {
+        if( !filters.IsEmpty() )
+            filters += wxT( ", " );
+
+        filters += _( "search text" );
+    }
+
+    if( filters.IsEmpty() )
+        msg = _( "No filtering" );
+    else
+        msg.Printf( _( "Filtered by %s" ), GetChars( filters ) );
+
+    msg << wxT( ": " ) << m_footprintListBox->GetCount();
+
+    SetStatusText( msg );
+
 
     msg.Empty();
-    wxString filters;
+    wxString footprintName = GetSelectedFootprint();
 
-    if( m_footprintListBox )
+    FOOTPRINT_INFO* module = m_FootprintsList->GetModuleInfo( footprintName );
+
+    if( module )    // can be NULL if no netlist loaded
     {
-        if( ( m_filteringOptions & FOOTPRINTS_LISTBOX::FILTERING_BY_COMPONENT_KEYWORD ) )
-            filters = _( "key words" );
-
-        if( ( m_filteringOptions & FOOTPRINTS_LISTBOX::FILTERING_BY_PIN_COUNT ) )
-        {
-            if( !filters.IsEmpty() )
-                filters += wxT( "+" );
-
-            filters += _( "pin count" );
-        }
-
-        if( ( m_filteringOptions & FOOTPRINTS_LISTBOX::FILTERING_BY_LIBRARY ) )
-        {
-            if( !filters.IsEmpty() )
-                filters += wxT( "+" );
-
-            filters += _( "library" );
-        }
-
-        if( ( m_filteringOptions & FOOTPRINTS_LISTBOX::FILTERING_BY_NAME ) )
-        {
-            if( !filters.IsEmpty() )
-                filters += wxT( "+" );
-
-            filters += _( "name" );
-        }
-
-        if( filters.IsEmpty() )
-            msg = _( "No filtering" );
-        else
-            msg.Printf( _( "Filtered by %s" ), GetChars( filters ) );
-
-        msg << wxT( ": " ) << m_footprintListBox->GetCount();
-
-        SetStatusText( msg, 2 );
+        msg = wxString::Format( _( "Description: %s;  Key words: %s" ),
+                                module->GetDoc(),
+                                module->GetKeywords() );
     }
+
+    SetStatusText( msg, 1 );
 }
 
 
@@ -724,27 +757,6 @@ bool CVPCB_MAINFRAME::LoadFootprintFiles()
     }
 
     return true;
-}
-
-
-void CVPCB_MAINFRAME::UpdateTitle()
-{
-    wxString    title;
-    PROJECT&    prj = Prj();
-    wxFileName fn = prj.GetProjectFullName();
-
-    if( fn.IsOk() && !prj.GetProjectFullName().IsEmpty() && fn.FileExists() )
-    {
-        title.Printf( _( "Cvpcb" ) + wxT( " \u2014 %s%s" ),
-                      fn.GetFullPath(),
-                      fn.IsFileWritable() ? wxString( wxEmptyString ) : _( " [Read Only]" ) );
-    }
-    else
-    {
-        title = "Cvpcb";
-    }
-
-    SetTitle( title );
 }
 
 
@@ -785,8 +797,8 @@ int CVPCB_MAINFRAME::ReadSchematicNetlist( const std::string& aNetlist )
     }
     catch( const IO_ERROR& ioe )
     {
-        wxString msg = wxString::Format( _( "Error loading netlist.\n%s" ), ioe.What().GetData() );
-        wxMessageBox( msg, _( "Netlist Load Error" ), wxOK | wxICON_ERROR );
+        wxString msg = wxString::Format( _( "Error loading schematic.\n%s" ), ioe.What().GetData() );
+        wxMessageBox( msg, _( "Load Error" ), wxOK | wxICON_ERROR );
         return 1;
     }
 
@@ -940,7 +952,8 @@ DISPLAY_FOOTPRINTS_FRAME* CVPCB_MAINFRAME::GetFootprintViewerFrame()
             ( wxWindow::FindWindowByName( FOOTPRINTVIEWER_FRAME_NAME ) );
 }
 
-const wxString CVPCB_MAINFRAME::GetSelectedFootprint()
+
+wxString CVPCB_MAINFRAME::GetSelectedFootprint()
 {
     // returns the LIB_ID of the selected footprint in footprint listview
     // or a empty string
@@ -948,9 +961,28 @@ const wxString CVPCB_MAINFRAME::GetSelectedFootprint()
 }
 
 
+void CVPCB_MAINFRAME::SetStatusText( const wxString& aText, int aNumber )
+{
+    wxASSERT( aNumber < 2 );
+
+    if( aNumber == 1 )
+        m_statusLine2->SetLabel( aText );
+    else
+        m_statusLine1->SetLabel( aText );
+}
+
+
 void CVPCB_MAINFRAME::OnConfigurePaths( wxCommandEvent& aEvent )
 {
     Pgm().ConfigurePaths( this );
+}
+
+
+void CVPCB_MAINFRAME::ShowChangedLanguage()
+{
+    EDA_BASE_FRAME::ShowChangedLanguage();
+    ReCreateHToolbar();
+    DisplayStatus();
 }
 
 
@@ -967,6 +999,10 @@ void CVPCB_MAINFRAME::KiwayMailIn( KIWAY_EXPRESS& mail )
         /* @todo
         Go into SCH_EDIT_FRAME::OnOpenCvpcb( wxCommandEvent& event ) and trim GNL_ALL down.
         */
+        break;
+
+    case MAIL_STATUS:
+        SetStatusText( payload, 1 );
         break;
 
     default:

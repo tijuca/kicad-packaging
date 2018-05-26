@@ -89,6 +89,7 @@ wxString    g_DocModulesFileName = wxT( "footprints_doc/footprints.pdf" );
 DLIST<TRACK> g_CurrentTrackList;
 
 
+
 namespace PCB {
 
 static struct IFACE : public KIFACE_I
@@ -105,50 +106,42 @@ static struct IFACE : public KIFACE_I
 
     wxWindow* CreateWindow( wxWindow* aParent, int aClassId, KIWAY* aKiway, int aCtlBits = 0 ) override
     {
-        wxWindow* frame = NULL;
-
         switch( aClassId )
         {
         case FRAME_PCB:
-            frame = dynamic_cast< wxWindow* >( new PCB_EDIT_FRAME( aKiway, aParent ) );
+        {
+            auto frame = new PCB_EDIT_FRAME( aKiway, aParent );
 
 #if defined( KICAD_SCRIPTING )
             // give the scripting helpers access to our frame
-            ScriptingSetPcbEditFrame( (PCB_EDIT_FRAME*) frame );
+            ScriptingSetPcbEditFrame( frame );
 #endif
 
             if( Kiface().IsSingle() )
             {
                 // only run this under single_top, not under a project manager.
-                CreateServer( frame, KICAD_PCB_PORT_SERVICE_NUMBER );
+                frame->CreateServer( KICAD_PCB_PORT_SERVICE_NUMBER );
             }
 
-            break;
+            return frame;
+        }
 
         case FRAME_PCB_MODULE_EDITOR:
-            frame = dynamic_cast< wxWindow* >( new FOOTPRINT_EDIT_FRAME( aKiway, aParent ) );
-            break;
+            return new FOOTPRINT_EDIT_FRAME( aKiway, aParent );
 
         case FRAME_PCB_MODULE_VIEWER:
         case FRAME_PCB_MODULE_VIEWER_MODAL:
-            frame = dynamic_cast< wxWindow* >( new FOOTPRINT_VIEWER_FRAME( aKiway, aParent,
-                                                                           FRAME_T( aClassId ) ) );
-            break;
+            return new FOOTPRINT_VIEWER_FRAME( aKiway, aParent, FRAME_T( aClassId ) );
 
         case FRAME_PCB_FOOTPRINT_WIZARD_MODAL:
-            frame = dynamic_cast< wxWindow* >( new FOOTPRINT_WIZARD_FRAME( aKiway, aParent,
-                                                                           FRAME_T( aClassId ) ) );
-            break;
+            return new FOOTPRINT_WIZARD_FRAME( aKiway, aParent, FRAME_T( aClassId ) );
 
         case FRAME_PCB_FOOTPRINT_PREVIEW:
-            frame = dynamic_cast< wxWindow* >( FOOTPRINT_PREVIEW_PANEL::New( aKiway, aParent ) );
-            break;
+            return dynamic_cast< wxWindow* >( FOOTPRINT_PREVIEW_PANEL::New( aKiway, aParent ) );
 
         default:
-            break;
+            return nullptr;
         }
-
-        return frame;
     }
 
     /**
@@ -166,11 +159,17 @@ static struct IFACE : public KIFACE_I
     {
         switch( aDataId )
         {
-        case KIFACE_NEW_FOOTPRINT_LIST:
-            return (void*) static_cast<FOOTPRINT_LIST*>( new FOOTPRINT_LIST_IMPL() );
+        // Return a pointer to the global instance of the footprint list.
+        case KIFACE_FOOTPRINT_LIST:
+            return (void*) &GFootprintList;
 
-        case KIFACE_G_FOOTPRINT_TABLE:
+        // Return a new FP_LIB_TABLE with the global table installed as a fallback.
+        case KIFACE_NEW_FOOTPRINT_TABLE:
             return (void*) new FP_LIB_TABLE( &GFootprintTable );
+
+        // Return a pointer to the global instance of the global footprint table.
+        case KIFACE_GLOBAL_FOOTPRINT_TABLE:
+            return (void*) &GFootprintTable;
 
         default:
             return nullptr;
@@ -220,7 +219,7 @@ static bool scriptingSetup()
     kipython = fn.GetPath();
 
     // If our python install is existing inside kicad, use it
-    // Note: this is usefull only when an other python version is installed
+    // Note: this is usefull only when another python version is installed
     if( wxDirExists( kipython ) )
     {
         // clear any PYTHONPATH and PYTHONHOME env var definition: the default
@@ -309,7 +308,13 @@ void PythonPluginsReloadBase()
 /// The global footprint library table.  This is not dynamically allocated because
 /// in a multiple project environment we must keep its address constant (since it is
 /// the fallback table for multiple projects).
-FP_LIB_TABLE    GFootprintTable;
+FP_LIB_TABLE          GFootprintTable;
+
+/// The global footprint info table.  This is performance-intensive to build so we
+/// keep a hash-stamped global version.  Any deviation from the request vs. stored
+/// hash will result in it being rebuilt.
+FOOTPRINT_LIST_IMPL   GFootprintList;
+
 
 
 bool IFACE::OnKifaceStart( PGM_BASE* aProgram, int aCtlBits )

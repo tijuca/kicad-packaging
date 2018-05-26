@@ -29,6 +29,7 @@
 #include <sch_io_mgr.h>
 #include <eagle_parser.h>
 #include <lib_draw_item.h>
+#include <geometry/seg.h>
 #include <dlist.h>
 
 #include <boost/ptr_container/ptr_map.hpp>
@@ -149,12 +150,13 @@ private:
     /// Return the matching layer or return LAYER_NOTES
     SCH_LAYER_ID kiCadLayer( int aEagleLayer );
 
-    wxPoint findNearestLinePoint( const wxPoint& aPoint, const DLIST<SCH_LINE>& aLines );
+    std::pair<VECTOR2I, const SEG*> findNearestLinePoint( const wxPoint& aPoint,
+            const std::vector<SEG>& aLines ) const;
 
     void                loadSegments( wxXmlNode* aSegmentsNode, const wxString& aNetName,
                                       const wxString& aNetClass );
     SCH_LINE*           loadWire( wxXmlNode* aWireNode );
-    SCH_TEXT*           loadLabel( wxXmlNode* aLabelNode, const wxString& aNetName, const DLIST< SCH_LINE >& segmentWires);
+    SCH_TEXT*           loadLabel( wxXmlNode* aLabelNode, const wxString& aNetName );
     SCH_JUNCTION*       loadJunction( wxXmlNode* aJunction );
     SCH_TEXT*           loadPlainText( wxXmlNode* aSchText );
 
@@ -168,6 +170,9 @@ private:
 
     void            loadTextAttributes( EDA_TEXT* aText, const ETEXT& aAttribs ) const;
     void            loadFieldAttributes( LIB_FIELD* aField, const LIB_TEXT* aText ) const;
+
+    ///> Moves net labels that are detached from any wire to the nearest wire
+    void adjustNetLabels();
 
     wxString        getLibName();
     wxFileName      getLibFileName();
@@ -187,6 +192,64 @@ private:
 
     std::map<wxString, int> m_netCounts;
     std::map<int, SCH_LAYER_ID> m_layerMap;
+
+    ///> Wire intersection points, used for quick checks whether placing a net label in a particular
+    ///> place would short two nets.
+    std::vector<VECTOR2I> m_wireIntersections;
+
+    ///> Wires and labels of a single connection (segment in Eagle nomenclature)
+    typedef struct {
+        ///> Tests if a particular label is attached to any of the stored segments
+        const SEG* LabelAttached( const SCH_TEXT* aLabel ) const;
+
+        std::vector<SCH_TEXT*> labels;
+        std::vector<SEG> segs;
+    } SEG_DESC;
+
+    ///> Segments representing wires for intersection checking
+    std::vector<SEG_DESC> m_segments;
+
+    ///> Positions of pins and wire endings mapped to its parent
+    std::map<wxPoint, std::set<const EDA_ITEM*>> m_connPoints;
+
+    ///> Checks if there are other wires or pins at the position of the tested pin
+    bool checkConnections( const SCH_COMPONENT* aComponent, const LIB_PIN* aPin ) const;
+
+    // Structure describing missing units containing pins creating implicit connections
+    // (named power pins in Eagle).
+    struct EAGLE_MISSING_CMP
+    {
+        EAGLE_MISSING_CMP( const SCH_COMPONENT* aComponent = nullptr )
+            : cmp( aComponent )
+        {
+        }
+
+        ///> Link to the parent component
+        const SCH_COMPONENT* cmp;
+
+        /* Map of the component units: for each unit there is a flag saying
+         * whether the unit needs to be instantiated with appropriate net labels to
+         * emulate implicit connections as is done in Eagle.
+         */
+        std::map<int, bool> units;
+    };
+
+    ///> Map references to missing component units data
+    std::map<wxString, EAGLE_MISSING_CMP> m_missingCmps;
+
+    /**
+     * Creates net labels to emulate implicit connections in Eagle.
+     *
+     * Each named power input pin creates an implicit connection in Eagle. To emulate this behavior
+     * one needs to attach global net labels to the mentioned pins. This is is also expected for the
+     * units that are not instantiated in the schematics, therefore such units need to be stored
+     * in order to create them at later stage.
+     *
+     * @param aComponent is the component to process.
+     * @param aScreen is the screen where net labels should be added.
+     * @param aUpdateSet decides whether the missing units data should be updated.
+     */
+    void addImplicitConnections( SCH_COMPONENT* aComponent, SCH_SCREEN* aScreen, bool aUpdateSet );
 };
 
 #endif  // _SCH_EAGLE_PLUGIN_H_

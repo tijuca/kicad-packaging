@@ -52,6 +52,14 @@ DIALOG_PLOT::DIALOG_PLOT( PCB_EDIT_FRAME* aParent ) :
     m_plotOpts = aParent->GetPlotSettings();
     init_Dialog();
 
+    // We use a sdbSizer here to get the order right, which is platform-dependent
+    m_sdbSizer1OK->SetLabel( _( "Plot" ) );
+    m_sdbSizer1Apply->SetLabel( _( "Generate Drill Files..." ) );
+    m_sdbSizer1Cancel->SetLabel( _( "Close" ) );
+    m_sizerButtons->Layout();
+
+    m_sdbSizer1OK->SetDefault();
+
     GetSizer()->Fit( this );
     GetSizer()->SetSizeHints( this );
 }
@@ -65,6 +73,10 @@ void DIALOG_PLOT::init_Dialog()
 
     m_config->Read( OPTKEY_PLOT_X_FINESCALE_ADJ, &m_XScaleAdjust );
     m_config->Read( OPTKEY_PLOT_Y_FINESCALE_ADJ, &m_YScaleAdjust );
+
+    bool checkZones;
+    m_config->Read( OPTKEY_PLOT_CHECK_ZONES, &checkZones, true );
+    m_zoneFillCheck->SetValue( checkZones );
 
     m_browseButton->SetBitmap( KiBitmap( browse_files_xpm ) );
 
@@ -671,6 +683,8 @@ void DIALOG_PLOT::applyPlotSettings()
 
     ConfigBaseWriteDouble( m_config, OPTKEY_PLOT_Y_FINESCALE_ADJ, m_YScaleAdjust );
 
+    m_config->Write( OPTKEY_PLOT_CHECK_ZONES, m_zoneFillCheck->GetValue() );
+
     // PS Width correction
     msg = m_PSFineAdjustWidthOpt->GetValue();
     int itmp = ValueFromString( g_UserUnit, msg );
@@ -681,7 +695,7 @@ void DIALOG_PLOT::applyPlotSettings()
         m_PSFineAdjustWidthOpt->SetValue( msg );
         msg.Printf( _( "Width correction constrained. "
                        "The reasonable width correction value must be in a range of "
-                       " [%+f; %+f] (%s) for current design rules. " ),
+                       " [%+f; %+f] (%s) for current design rules." ),
                     To_User_Unit( g_UserUnit, m_widthAdjustMinValue ),
                     To_User_Unit( g_UserUnit, m_widthAdjustMaxValue ),
                     ( g_UserUnit == INCHES ) ? wxT( "\"" ) : wxT( "mm" ) );
@@ -781,6 +795,9 @@ void DIALOG_PLOT::Plot( wxCommandEvent& event )
         DisplayError( this, msg );
         return;
     }
+
+    if( m_zoneFillCheck->GetValue() )
+        m_parent->Check_All_Zones( this );
 
     m_plotOpts.SetAutoScale( false );
     m_plotOpts.SetScale( 1 );

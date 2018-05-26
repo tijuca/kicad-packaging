@@ -99,8 +99,8 @@ private:
                 points->AddBreak();
         }
 
-    // Lines have to be added after creating edit points,
-    // as they use EDIT_POINT references
+        // Lines have to be added after creating edit points,
+        // as they use EDIT_POINT references
         for( int i = 0; i < cornersCount - 1; ++i )
         {
             if( points->IsContourEnd( i ) )
@@ -117,7 +117,7 @@ private:
                             std::bind( &KIGFX::GAL::GetGridPoint, aGal, _1 ) ) );
         }
 
-    // The last missing line, connecting the last and the first polygon point
+        // The last missing line, connecting the last and the first polygon point
         points->AddLine( points->Point( cornersCount - 1 ),
                 points->Point( points->GetContourStartIdx( cornersCount - 1 ) ) );
 
@@ -164,6 +164,12 @@ public:
                 case S_CIRCLE:
                     points->AddPoint( segment->GetCenter() );
                     points->AddPoint( segment->GetEnd() );
+
+                    // Set constraints
+                    // Circle end is on the horizontal axis with the center
+                    points->Point( CIRC_END ).SetConstraint(
+                            new EC_HORIZONTAL( points->Point( CIRC_END ),
+                                               points->Point( CIRC_CENTER ) ) );
                     break;
 
                 case S_POLYGON:
@@ -219,13 +225,14 @@ private:
 
 POINT_EDITOR::POINT_EDITOR() :
     PCB_TOOL( "pcbnew.PointEditor" ), m_selectionTool( NULL ), m_editedPoint( NULL ),
-    m_original( VECTOR2I( 0, 0 ) ), m_altConstrainer( VECTOR2I( 0, 0 ) )
+    m_original( VECTOR2I( 0, 0 ) ), m_altConstrainer( VECTOR2I( 0, 0 ) ), m_refill( false )
 {
 }
 
 
 void POINT_EDITOR::Reset( RESET_REASON aReason )
 {
+    m_refill = false;
     m_editPoints.reset();
     m_altConstraint.reset();
     getViewControls()->SetAutoPan( false );
@@ -295,6 +302,7 @@ int POINT_EDITOR::OnSelectionChange( const TOOL_EVENT& aEvent )
 
     view->Add( m_editPoints.get() );
     setEditedPoint( nullptr );
+    m_refill = false;
     bool modified = false;
     bool revert = false;
 
@@ -352,8 +360,9 @@ int POINT_EDITOR::OnSelectionChange( const TOOL_EVENT& aEvent )
 
             if( modified )
             {
-                commit.Push( _( "Drag a line ending" ) );
+                commit.Push( _( "Drag a corner" ) );
                 modified = false;
+                m_refill = true;
             }
 
             m_toolMgr->PassEvent();
@@ -383,11 +392,12 @@ int POINT_EDITOR::OnSelectionChange( const TOOL_EVENT& aEvent )
 
         if( modified && revert )
             commit.Revert();
-        else
-            finishItem();
 
+        finishItem();
         m_editPoints.reset();
     }
+
+    frame()->SetMsgPanel( board() );
 
     return 0;
 }
@@ -561,6 +571,9 @@ void POINT_EDITOR::updateItem() const
     default:
         break;
     }
+
+    if( frame() )
+        frame()->SetMsgPanel( item );
 }
 
 
@@ -575,7 +588,7 @@ void POINT_EDITOR::finishItem()
     {
         auto zone = static_cast<ZONE_CONTAINER*>( item );
 
-        if( zone->IsFilled() )
+        if( zone->IsFilled() && m_refill )
         {
             ZONE_FILLER filler( board() );
             filler.Fill( { zone } );
@@ -667,6 +680,7 @@ void POINT_EDITOR::updatePoints()
         if( m_editPoints->PointsSize() != (unsigned) outline->TotalVertices() )
         {
             getView()->Remove( m_editPoints.get() );
+            m_editedPoint = nullptr;
             m_editPoints = EDIT_POINTS_FACTORY::Make( item, getView()->GetGAL() );
             getView()->Add( m_editPoints.get() );
         }
@@ -1063,6 +1077,7 @@ int POINT_EDITOR::removeCorner( const TOOL_EVENT& aEvent )
 
 int POINT_EDITOR::modifiedSelection( const TOOL_EVENT& aEvent )
 {
+    m_refill = true;  // zone has been modified outside the point editor tool
     updatePoints();
     return 0;
 }

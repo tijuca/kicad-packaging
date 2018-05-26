@@ -68,13 +68,21 @@ public:
             case COL_OPTIONS:   return r->GetOptions();
             case COL_DESCR:     return r->GetDescr();
             // Render a boolean value as its text equivalent
-            case COL_ENABLED:   return r->GetIsEnabled() ? "1" : "";
+            case COL_ENABLED:   return r->GetIsEnabled() ? wxT( "1" ) : wxT( "0" );
             default:
                 ;       // fall thru to wxEmptyString
             }
         }
 
         return wxEmptyString;
+    }
+
+    bool GetValueAsBool( int aRow, int aCol ) override
+    {
+        if( aRow < (int) size() && aCol == COL_ENABLED )
+            return at( (size_t) aRow )->GetIsEnabled();
+        else
+            return false;
     }
 
     void SetValue( int aRow, int aCol, const wxString &aValue ) override
@@ -91,11 +99,16 @@ public:
             case COL_OPTIONS:   r->SetOptions( aValue );     break;
             case COL_DESCR:     r->SetDescr( aValue );       break;
             case COL_ENABLED:
-                // Any non-empty string will set enabled to true
-                r->SetEnabled( !aValue.IsEmpty() );
+                r->SetEnabled( aValue == wxT( "1" ) );
                 break;
             }
         }
+    }
+
+    void SetValueAsBool( int aRow, int aCol, bool aValue ) override
+    {
+        if( aRow < (int) size() && aCol == COL_ENABLED )
+            at( (size_t) aRow )->SetEnabled( aValue );
     }
 
     bool IsEmptyCell( int aRow, int aCol ) override
@@ -155,7 +168,6 @@ public:
         {
             LIB_TABLE_ROWS_ITER start = begin() + aPos;
             erase( start, start + aNumRows );
-
             if( GetView() )
             {
                 wxGridTableMessage msg( this,
@@ -165,7 +177,6 @@ public:
 
                 GetView()->ProcessTableMessage( msg );
             }
-
             return true;
         }
 
@@ -187,6 +198,18 @@ public:
 
         default:            return wxEmptyString;
         }
+    }
+
+    bool ContainsNickname( const wxString& aNickname )
+    {
+        for( size_t i = 0; i < size(); ++i )
+        {
+            LIB_TABLE_ROW* row = at( i );
+
+            if( row->GetNickName() == aNickname )
+                return true;
+        }
+        return false;
     }
 
 protected:

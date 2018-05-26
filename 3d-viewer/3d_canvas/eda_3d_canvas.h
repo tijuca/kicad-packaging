@@ -100,9 +100,11 @@ class EDA_3D_CANVAS : public HIDPI_GL_CANVAS
 
     /**
      * @brief SetView3D - Helper function to call view commands
-     * @param keycode: ascii key commands
+     * @param aKeycode: ascii key commands
+     * @return true if the key code was handled,
+     *  false if no command found for this code.
      */
-    void SetView3D( int keycode );
+    bool SetView3D( int aKeycode );
 
     /**
      * @brief RenderEngineChanged - Notify that the render engine was changed
@@ -120,6 +122,8 @@ class EDA_3D_CANVAS : public HIDPI_GL_CANVAS
      * schedule a redraw, after a short timeout.
      */
     void Request_refresh( bool aRedrawImmediately = true );
+
+    void OnKeyEvent( wxKeyEvent& event );
 
  private:
 
@@ -148,8 +152,6 @@ class EDA_3D_CANVAS : public HIDPI_GL_CANVAS
     void OnPopUpMenu( wxCommandEvent &event );
 
     void OnCharHook( wxKeyEvent& event );
-
-    void OnKeyEvent( wxKeyEvent& event );
 
     void OnTimerTimeout_Editing( wxTimerEvent& event );
 

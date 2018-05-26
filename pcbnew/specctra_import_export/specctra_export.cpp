@@ -503,10 +503,10 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, D_PAD* aPad )
             /* calculates the coeff to compensate radius reduction of holes clearance
              * due to the segment approx.
              * For a circle the min radius is radius * cos( 2PI / s_CircleToSegmentsCount / 2)
-             * correctionFactor is 1 /cos( PI/s_CircleToSegmentsCount  )
+             * correctionFactor is cos( PI/s_CircleToSegmentsCount  )
              */
-            double correctionFactor = 1.0 / cos( M_PI / (double) circleToSegmentsCount );
-            int extra_clearance = KiROUND( rradius * (1.0 - correctionFactor ) ) + 1;
+            double correctionFactor = cos( M_PI / (double) circleToSegmentsCount );
+            int extra_clearance = KiROUND( rradius * (1.0 - correctionFactor ) );
             wxSize psize = aPad->GetSize();
             psize.x += extra_clearance*2;
             psize.y += extra_clearance*2;
@@ -767,8 +767,7 @@ IMAGE* SPECCTRA_DB::makeIMAGE( BOARD* aBoard, MODULE* aModule )
                 double radius = GetLineLength( graphic->GetStart(), graphic->GetEnd() );
 
                 // seg count to approximate circle by line segments
-                int err_max = Millimeter2iu( 0.05 );
-                int seg_per_circle = GetArcToSegmentCount( radius, err_max, 360.0 );
+                int seg_per_circle = GetArcToSegmentCount( radius, ARC_LOW_DEF, 360.0 );
 
                 for( int ii = 0; ii < seg_per_circle; ++ii )
                 {

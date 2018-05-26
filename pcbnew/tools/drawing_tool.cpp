@@ -48,6 +48,7 @@
 #include <hotkeys.h>
 #include <painter.h>
 #include <status_popup.h>
+#include "grid_helper.h"
 
 #include <preview_items/arc_assistant.h>
 
@@ -443,6 +444,7 @@ int DRAWING_TOOL::PlaceText( const TOOL_EVENT& aEvent )
             text->SetPosition( wxPoint( cursorPos.x, cursorPos.y ) );
             selection.SetReferencePoint( cursorPos );
             m_view->Update( &selection );
+            frame()->SetMsgPanel( text );
         }
 
         else if( text && evt->IsAction( &PCB_ACTIONS::properties ) )
@@ -452,7 +454,8 @@ int DRAWING_TOOL::PlaceText( const TOOL_EVENT& aEvent )
         }
     }
 
-    m_frame->SetNoToolSelected();
+    frame()->SetMsgPanel( board() );
+    frame()->SetNoToolSelected();
 
     return 0;
 }
@@ -513,6 +516,7 @@ int DRAWING_TOOL::DrawDimension( const TOOL_EVENT& aEvent )
             m_lineWidth += WIDTH_STEP;
             dimension->SetWidth( m_lineWidth );
             m_view->Update( &preview );
+            frame()->SetMsgPanel( dimension );
         }
         else if( evt->IsAction( &PCB_ACTIONS::decWidth ) && step != SET_ORIGIN )
         {
@@ -521,6 +525,7 @@ int DRAWING_TOOL::DrawDimension( const TOOL_EVENT& aEvent )
                 m_lineWidth -= WIDTH_STEP;
                 dimension->SetWidth( m_lineWidth );
                 m_view->Update( &preview );
+                frame()->SetMsgPanel( dimension );
             }
         }
         else if( evt->IsClick( BUT_RIGHT ) )
@@ -556,6 +561,7 @@ int DRAWING_TOOL::DrawDimension( const TOOL_EVENT& aEvent )
                 dimension->AdjustDimensionDetails();
 
                 preview.Add( dimension );
+                frame()->SetMsgPanel( dimension );
 
                 m_controls->SetAutoPan( true );
                 m_controls->CaptureCursor( true );
@@ -617,6 +623,10 @@ int DRAWING_TOOL::DrawDimension( const TOOL_EVENT& aEvent )
 
             // Show a preview of the item
             m_view->Update( &preview );
+            if( step )
+                frame()->SetMsgPanel( dimension );
+            else
+                frame()->SetMsgPanel( board() );
         }
     }
 
@@ -624,6 +634,7 @@ int DRAWING_TOOL::DrawDimension( const TOOL_EVENT& aEvent )
         delete dimension;
 
     m_view->Remove( &preview );
+    frame()->SetMsgPanel( board() );
     m_frame->SetNoToolSelected();
 
     return 0;
@@ -977,6 +988,7 @@ bool DRAWING_TOOL::drawSegment( int aShape, DRAWSEGMENT*& aGraphic,
             }
 
             m_view->Update( &preview );
+            frame()->SetMsgPanel( aGraphic );
         }
 
         if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) )
@@ -993,6 +1005,7 @@ bool DRAWING_TOOL::drawSegment( int aShape, DRAWSEGMENT*& aGraphic,
         {
             aGraphic->SetLayer( getDrawingLayer() );
             m_view->Update( &preview );
+            frame()->SetMsgPanel( aGraphic );
         }
         else if( evt->IsClick( BUT_RIGHT ) )
         {
@@ -1016,6 +1029,7 @@ bool DRAWING_TOOL::drawSegment( int aShape, DRAWSEGMENT*& aGraphic,
                     line45 = *aGraphic; // used only for direction 45 mode with lines
 
                 preview.Add( aGraphic );
+                frame()->SetMsgPanel( aGraphic );
                 m_controls->SetAutoPan( true );
                 m_controls->CaptureCursor( true );
 
@@ -1028,8 +1042,8 @@ bool DRAWING_TOOL::drawSegment( int aShape, DRAWSEGMENT*& aGraphic,
                 // User has clicked twice in the same spot
                 {
                     // a clear sign that the current drawing is finished
-                    // Now we have to add the helper line as well
-                    if( direction45 )
+                    // Now we have to add the helper line as well, unless it is zero-length
+                    if( direction45 && line45.GetStart() != aGraphic->GetStart() )
                     {
                         BOARD_ITEM_CONTAINER* parent = m_frame->GetModel();
                         DRAWSEGMENT* l = m_editModules ? new EDGE_MODULE( (MODULE*) parent )
@@ -1057,10 +1071,18 @@ bool DRAWING_TOOL::drawSegment( int aShape, DRAWSEGMENT*& aGraphic,
             // 45 degree lines
             if( direction45 && aShape == S_SEGMENT )
                 make45DegLine( aGraphic, &line45 );
+            else if( aShape == S_CIRCLE )
+                aGraphic->SetEnd( aGraphic->GetStart() + wxPoint(
+                        EuclideanNorm( wxPoint( cursorPos - aGraphic->GetStart() ) ), 0 ) );
             else
                 aGraphic->SetEnd( wxPoint( cursorPos.x, cursorPos.y ) );
 
             m_view->Update( &preview );
+
+            if( started )
+                frame()->SetMsgPanel( aGraphic );
+            else
+                frame()->SetMsgPanel( board() );
         }
         else if( evt->IsAction( &PCB_ACTIONS::incWidth ) )
         {
@@ -1068,6 +1090,7 @@ bool DRAWING_TOOL::drawSegment( int aShape, DRAWSEGMENT*& aGraphic,
             aGraphic->SetWidth( m_lineWidth );
             line45.SetWidth( m_lineWidth );
             m_view->Update( &preview );
+            frame()->SetMsgPanel( aGraphic );
         }
         else if( evt->IsAction( &PCB_ACTIONS::decWidth ) && ( m_lineWidth > WIDTH_STEP ) )
         {
@@ -1075,6 +1098,7 @@ bool DRAWING_TOOL::drawSegment( int aShape, DRAWSEGMENT*& aGraphic,
             aGraphic->SetWidth( m_lineWidth );
             line45.SetWidth( m_lineWidth );
             m_view->Update( &preview );
+            frame()->SetMsgPanel( aGraphic );
         }
         else if( evt->IsAction( &PCB_ACTIONS::resetCoords ) )
         {
@@ -1086,6 +1110,7 @@ bool DRAWING_TOOL::drawSegment( int aShape, DRAWSEGMENT*& aGraphic,
         m_frame->GetScreen()->m_O_Curseur = wxPoint( 0, 0 );
 
     m_view->Remove( &preview );
+    frame()->SetMsgPanel( board() );
     m_controls->SetAutoPan( false );
     m_controls->CaptureCursor( false );
 
@@ -1187,12 +1212,14 @@ bool DRAWING_TOOL::drawArc( DRAWSEGMENT*& aGraphic )
             m_lineWidth += WIDTH_STEP;
             aGraphic->SetWidth( m_lineWidth );
             m_view->Update( &preview );
+            frame()->SetMsgPanel( aGraphic );
         }
         else if( evt->IsAction( &PCB_ACTIONS::decWidth ) && m_lineWidth > WIDTH_STEP )
         {
             m_lineWidth -= WIDTH_STEP;
             aGraphic->SetWidth( m_lineWidth );
             m_view->Update( &preview );
+            frame()->SetMsgPanel( aGraphic );
         }
         else if( evt->IsAction( &PCB_ACTIONS::arcPosture ) )
         {
@@ -1208,12 +1235,18 @@ bool DRAWING_TOOL::drawArc( DRAWSEGMENT*& aGraphic )
             updateArcFromConstructionMgr( arcManager, *aGraphic );
             m_view->Update( &preview );
             m_view->Update( &arcAsst );
+
+            if(firstPoint)
+                frame()->SetMsgPanel( aGraphic );
+            else
+                frame()->SetMsgPanel( board() );
         }
     }
 
     preview.Remove( aGraphic );
     m_view->Remove( &arcAsst );
     m_view->Remove( &preview );
+    frame()->SetMsgPanel( board() );
     m_controls->SetAutoPan( false );
     m_controls->CaptureCursor( false );
 
@@ -1418,20 +1451,36 @@ int DRAWING_TOOL::DrawVia( const TOOL_EVENT& aEvent )
 {
     struct VIA_PLACER : public INTERACTIVE_PLACER_BASE
     {
+        GRID_HELPER m_gridHelper;
+
+        VIA_PLACER( PCB_EDIT_FRAME* aFrame ) : m_gridHelper( aFrame )
+        {}
+
+        TRACK* findTrack( VIA* aVia )
+        {
+            const LSET lset = aVia->GetLayerSet();
+
+            for( TRACK* track : m_board->Tracks() )
+            {
+                if( !(track->GetLayerSet() & lset ).any() )
+                    continue;
+
+                if( TestSegmentHit( aVia->GetPosition(), track->GetStart(), track->GetEnd(),
+                                    ( track->GetWidth() + aVia->GetWidth() ) / 2 ) )
+                    return track;
+            }
+
+            return nullptr;
+        }
+
         int findStitchedZoneNet( VIA* aVia )
         {
             const auto  pos     = aVia->GetPosition();
             const auto  lset    = aVia->GetLayerSet();
 
-            for( auto tv : m_board->Tracks() ) // fixme: move to BOARD class?
-            {
-                if( tv->HitTest( pos ) && ( tv->GetLayerSet() & lset ).any() )
-                    return -1;
-            }
-
             for( auto mod : m_board->Modules() )
             {
-                for( auto pad : mod->Pads() )
+                for( D_PAD* pad : mod->Pads() )
                 {
                     if( pad->HitTest( pos ) && ( pad->GetLayerSet() & lset ).any() )
                         return -1;
@@ -1470,15 +1519,60 @@ int DRAWING_TOOL::DrawVia( const TOOL_EVENT& aEvent )
             return -1;
         }
 
-        bool PlaceItem( BOARD_ITEM* aItem ) override
+        void SnapItem( BOARD_ITEM *aItem ) override
+        {
+            // If you place a Via on a track but not on its centerline, the current
+            // connectivity algorithm will require us to put a kink in the track when
+            // we break it (so that each of the two segments ends on the via center).
+            // That's not ideal, and is in fact probably worse than forcing snap in
+            // this situation.
+
+//          bool do_snap = ( m_frame->Settings().m_magneticTracks == CAPTURE_CURSOR_IN_TRACK_TOOL
+//                || m_frame->Settings().m_magneticTracks == CAPTURE_ALWAYS );
+            bool do_snap = true;
+
+            if( m_modifiers & MD_SHIFT )
+                do_snap = !do_snap;
+
+            if( do_snap )
+            {
+                auto    via = static_cast<VIA*>( aItem );
+                wxPoint pos = via->GetPosition();
+                TRACK*  track = findTrack( via );
+
+                if( track )
+                {
+                    SEG         trackSeg( track->GetStart(), track->GetEnd() );
+                    VECTOR2I    snap = m_gridHelper.AlignToSegment( pos, trackSeg );
+
+                    aItem->SetPosition( wxPoint( snap.x, snap.y ) );
+                }
+            }
+        }
+
+        void PlaceItem( BOARD_ITEM* aItem, BOARD_COMMIT& aCommit ) override
         {
             auto    via = static_cast<VIA*>( aItem );
-            int     newNet = findStitchedZoneNet( via );
+            int     newNet;
+            TRACK*  track = findTrack( via );
+
+            if( track )
+            {
+                aCommit.Modify( track );
+                TRACK* newTrack = dynamic_cast<TRACK*>( track->Clone() );
+                track->SetEnd( via->GetPosition() );
+                newTrack->SetStart( via->GetPosition() );
+                aCommit.Add( newTrack );
+
+                newNet = track->GetNetCode();
+            }
+            else
+                newNet = findStitchedZoneNet( via );
 
             if( newNet > 0 )
                 via->SetNetCode( newNet );
 
-            return false;
+            aCommit.Add( aItem );
         }
 
         std::unique_ptr<BOARD_ITEM> CreateItem() override
@@ -1550,7 +1644,7 @@ int DRAWING_TOOL::DrawVia( const TOOL_EVENT& aEvent )
         }
     };
 
-    VIA_PLACER placer;
+    VIA_PLACER placer( frame() );
 
     frame()->SetToolID( ID_PCB_DRAW_VIA_BUTT, wxCURSOR_PENCIL, _( "Add vias" ) );
 
