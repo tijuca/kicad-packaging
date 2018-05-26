@@ -67,7 +67,7 @@
 
 #include <netlist_exporter_kicad.h>
 #include <kiway.h>
-
+#include <dialogs/dialog_fields_editor_global.h>
 
 // non-member so it can be moved easily, and kept REALLY private.
 // Do NOT Clear() in here.
@@ -289,8 +289,11 @@ BEGIN_EVENT_TABLE( SCH_EDIT_FRAME, EDA_DRAW_FRAME )
     // Tools and buttons for vertical toolbar.
     EVT_TOOL( ID_NO_TOOL_SELECTED, SCH_EDIT_FRAME::OnSelectTool )
     EVT_TOOL( ID_HIGHLIGHT, SCH_EDIT_FRAME::OnSelectTool )
+    EVT_MENU( ID_MENU_ZOOM_SELECTION, SCH_EDIT_FRAME::OnSelectTool )
     EVT_TOOL( ID_ZOOM_SELECTION, SCH_EDIT_FRAME::OnSelectTool )
     EVT_TOOL_RANGE( ID_SCHEMATIC_VERTICAL_TOOLBAR_START, ID_SCHEMATIC_VERTICAL_TOOLBAR_END,
+                    SCH_EDIT_FRAME::OnSelectTool )
+    EVT_TOOL_RANGE( ID_SCHEMATIC_PLACE_MENU_START, ID_SCHEMATIC_PLACE_MENU_END,
                     SCH_EDIT_FRAME::OnSelectTool )
 
 #ifdef KICAD_SPICE
@@ -938,11 +941,8 @@ void SCH_EDIT_FRAME::OnCreateBillOfMaterials( wxCommandEvent& )
 
 void SCH_EDIT_FRAME::OnLaunchBomManager( wxCommandEvent& event )
 {
-    // First ensure that entire schematic is annotated
-    if( !prepareForNetlist() )
-        return;
-
-    InvokeDialogCreateBOMEditor( this );
+    DIALOG_FIELDS_EDITOR_GLOBAL dlg( this );
+    dlg.ShowQuasiModal();
 }
 
 
@@ -1168,7 +1168,7 @@ void SCH_EDIT_FRAME::OnOpenCvpcb( wxCommandEvent& event )
 
         player->Raise();
     }
-    catch( const IO_ERROR& e )
+    catch( const IO_ERROR& )
     {
         DisplayError( this, _( "Could not open CvPcb" ) );
     }
@@ -1283,7 +1283,7 @@ void SCH_EDIT_FRAME::OnRemapSymbols( wxCommandEvent& event )
 
 // This method is not the same as OnRemapSymbols.
 // It allows renaming the lib id of groups of components when a symbol
-// has moved from a library to an other library.
+// has moved from a library to another library.
 // For instance to rename libname1::mysymbol to libname2::mysymbol
 // or any other lib id name
 void SCH_EDIT_FRAME::OnEditComponentSymbolsId( wxCommandEvent& event )
@@ -1496,12 +1496,6 @@ void SCH_EDIT_FRAME::UpdateTitle()
     }
 
     SetTitle( title );
-}
-
-
-void SCH_EDIT_FRAME::OnConfigurePaths( wxCommandEvent& aEvent )
-{
-    Pgm().ConfigurePaths( this );
 }
 
 

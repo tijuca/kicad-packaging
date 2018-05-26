@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Nov 22 2017)
+// C++ code generated with wxFormBuilder (version Apr 19 2018)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -26,7 +26,7 @@ DIALOG_LAYER_SELECTION_BASE::DIALOG_LAYER_SELECTION_BASE( wxWindow* parent, wxWi
 	m_leftGridLayers->EnableEditing( false );
 	m_leftGridLayers->EnableGridLines( true );
 	m_leftGridLayers->EnableDragGridSize( false );
-	m_leftGridLayers->SetMargins( 0, 3 );
+	m_leftGridLayers->SetMargins( 5, 3 );
 	
 	// Columns
 	m_leftGridLayers->EnableDragColMove( false );
@@ -56,7 +56,7 @@ DIALOG_LAYER_SELECTION_BASE::DIALOG_LAYER_SELECTION_BASE( wxWindow* parent, wxWi
 	m_rightGridLayers->EnableEditing( false );
 	m_rightGridLayers->EnableGridLines( true );
 	m_rightGridLayers->EnableDragGridSize( false );
-	m_rightGridLayers->SetMargins( 0, 3 );
+	m_rightGridLayers->SetMargins( 5, 3 );
 	
 	// Columns
 	m_rightGridLayers->EnableDragColMove( false );
@@ -77,7 +77,7 @@ DIALOG_LAYER_SELECTION_BASE::DIALOG_LAYER_SELECTION_BASE( wxWindow* parent, wxWi
 	bSizerUpper->Add( m_rightGridLayers, 1, wxALL|wxEXPAND, 5 );
 	
 	
-	bSizerMain->Add( bSizerUpper, 1, wxEXPAND, 5 );
+	bSizerMain->Add( bSizerUpper, 1, wxEXPAND|wxALL, 5 );
 	
 	
 	this->SetSizer( bSizerMain );
@@ -116,7 +116,7 @@ DIALOG_COPPER_LAYER_PAIR_SELECTION_BASE::DIALOG_COPPER_LAYER_PAIR_SELECTION_BASE
 	wxBoxSizer* bSizerLeft;
 	bSizerLeft = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTextTopLayer = new wxStaticText( this, wxID_ANY, _("Top/Front layer"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextTopLayer = new wxStaticText( this, wxID_ANY, _("Top/Front layer:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextTopLayer->Wrap( -1 );
 	bSizerLeft->Add( m_staticTextTopLayer, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -154,7 +154,7 @@ DIALOG_COPPER_LAYER_PAIR_SELECTION_BASE::DIALOG_COPPER_LAYER_PAIR_SELECTION_BASE
 	wxBoxSizer* bSizerRight;
 	bSizerRight = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTextBottomLayer = new wxStaticText( this, wxID_ANY, _("Bottom/Back layer"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextBottomLayer = new wxStaticText( this, wxID_ANY, _("Bottom/Back layer:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextBottomLayer->Wrap( -1 );
 	bSizerRight->Add( m_staticTextBottomLayer, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	

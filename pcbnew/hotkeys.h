@@ -52,6 +52,7 @@ enum hotkey_id_commnand {
     HK_ROUTE_TUNE_SINGLE,
     HK_ROUTE_TUNE_DIFF_PAIR,
     HK_ROUTE_TUNE_SKEW,
+    HK_ROUTE_TUNE_SETTINGS,
     HK_ADD_THROUGH_VIA,
     HK_SEL_LAYER_AND_ADD_THROUGH_VIA,
     HK_ADD_BLIND_BURIED_VIA,
@@ -113,7 +114,8 @@ enum hotkey_id_commnand {
     HK_CUSTOM_TRACK_WIDTH,
     HK_DP_DIMENSIONS,
     HK_VIA_SIZE_INC,
-    HK_VIA_SIZE_DEC
+    HK_VIA_SIZE_DEC,
+    HK_HIGHLIGHT_NET_SELECTION
 };
 
 // Full list of hotkey descriptors for board editor and footprint editor

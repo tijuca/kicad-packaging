@@ -278,13 +278,13 @@ void EDA_DRAW_FRAME::AddMenuZoomAndGrid( wxMenu* MasterMenu )
     AddMenuItem( MasterMenu, ID_POPUP_ZOOM_OUT, msg, KiBitmap( zoom_out_xpm ) );
     msg = AddHotkeyName( _( "Redraw View" ), m_hotkeysDescrList, HK_ZOOM_REDRAW );
     AddMenuItem( MasterMenu, ID_POPUP_ZOOM_REDRAW, msg, KiBitmap( zoom_redraw_xpm ) );
-    msg = AddHotkeyName( _( "Zoom Auto" ), m_hotkeysDescrList, HK_ZOOM_AUTO );
+    msg = AddHotkeyName( _( "Zoom to Fit" ), m_hotkeysDescrList, HK_ZOOM_AUTO );
     AddMenuItem( MasterMenu, ID_POPUP_ZOOM_PAGE, msg, KiBitmap( zoom_fit_in_page_xpm ) );
 
 
     wxMenu* zoom_choice = new wxMenu;
     AddMenuItem( MasterMenu, zoom_choice,
-                 ID_POPUP_ZOOM_SELECT, _( "Zoom Select" ),
+                 ID_POPUP_ZOOM_SELECT, _( "Zoom" ),
                  KiBitmap( zoom_selection_xpm ) );
 
     zoom = screen->GetZoom();
@@ -308,7 +308,7 @@ void EDA_DRAW_FRAME::AddMenuZoomAndGrid( wxMenu* MasterMenu )
     {
         wxMenu* gridMenu = new wxMenu;
         AddMenuItem( MasterMenu, gridMenu, ID_POPUP_GRID_SELECT,
-                     _( "Grid Select" ), KiBitmap( grid_select_xpm ) );
+                     _( "Grid" ), KiBitmap( grid_select_xpm ) );
 
         wxArrayString gridsList;
         int icurr = screen->BuildGridsChoiceList( gridsList, g_UserUnit != INCHES );

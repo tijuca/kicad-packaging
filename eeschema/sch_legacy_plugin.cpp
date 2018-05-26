@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2016 CERN
- * Copyright (C) 2016-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2016-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * @author Wayne Stambaugh <stambaughw@gmail.com>
  *
@@ -33,6 +33,7 @@
 #include <richio.h>
 #include <core/typeinfo.h>
 #include <properties.h>
+#include <trace_helpers.h>
 
 #include <general.h>
 #include <sch_bitmap.h>
@@ -77,13 +78,6 @@ const char* delims = " \t\r\n";
 #define T_COLOR "rgb"          // cannot be modifed (used by wxWidgets)
 #define T_COLORA "rgba"        // cannot be modifed (used by wxWidgets)
 #define T_WIDTH "width"
-
-/**
- * @ingroup trace_env_vars
- *
- * Flag to enable legacy schematic plugin debug output.
- */
-const wxChar traceSchLegacyPlugin[] = wxT( "KICAD_TRACE_SCH_LEGACY_PLUGIN" );
 
 
 static bool is_eol( char c )
@@ -611,6 +605,9 @@ SCH_SHEET* SCH_LEGACY_PLUGIN::Load( const wxString& aFileName, KIWAY* aKiway,
                 m_path = aFileName.Left( aFileName.Length() - normedFn.GetFullPath().Length() );
         }
 
+        if( m_path.IsEmpty() )
+            m_path = aKiway->Prj().GetProjectPath();
+
         wxLogTrace( traceSchLegacyPlugin, "Normalized append path \"%s\".", m_path );
     }
     else
@@ -618,6 +615,7 @@ SCH_SHEET* SCH_LEGACY_PLUGIN::Load( const wxString& aFileName, KIWAY* aKiway,
         m_path = aKiway->Prj().GetProjectPath();
     }
 
+    m_currentPath.push( m_path );
     init( aKiway, aProperties );
 
     if( aAppendToMe == NULL )
@@ -639,6 +637,8 @@ SCH_SHEET* SCH_LEGACY_PLUGIN::Load( const wxString& aFileName, KIWAY* aKiway,
         loadHierarchy( sheet );
     }
 
+    wxASSERT( m_currentPath.size() == 1 );  // only the project path should remain
+
     return sheet;
 }
 
@@ -655,20 +655,17 @@ void SCH_LEGACY_PLUGIN::loadHierarchy( SCH_SHEET* aSheet )
         // stores the file name and extension.  Add the project path to the file name and
         // extension to compare when calling SCH_SHEET::SearchHierarchy().
         wxFileName fileName = aSheet->GetFileName();
-        size_t dirCount = 0;
 
         if( !fileName.IsAbsolute() )
-        {
-            dirCount = fileName.GetDirCount();
-            fileName.MakeAbsolute( m_path );
-        }
+            fileName.MakeAbsolute( m_currentPath.top() );
 
         // Save the current path so that it gets restored when decending and ascending the
         // sheet hierarchy which allows for sheet schematic files to be nested in folders
         // relative to the last path a schematic was loaded from.
-        m_path = fileName.GetPath();
-
-        wxLogTrace( traceSchLegacyPlugin, "Saving last path \"%s\"", m_path );
+        wxLogTrace( traceSchLegacyPlugin, "Saving path    \"%s\"", m_currentPath.top() );
+        m_currentPath.push( fileName.GetPath() );
+        wxLogTrace( traceSchLegacyPlugin, "Current path   \"%s\"", m_currentPath.top() );
+        wxLogTrace( traceSchLegacyPlugin, "Loading        \"%s\"", fileName.GetFullPath() );
 
         m_rootSheet->SearchHierarchy( fileName.GetFullPath(), &screen );
 
@@ -723,15 +720,8 @@ void SCH_LEGACY_PLUGIN::loadHierarchy( SCH_SHEET* aSheet )
             }
         }
 
-        // Back out any relative paths so the last sheet file path is correct.
-        while( dirCount )
-        {
-            fileName.RemoveLastDir();
-            dirCount--;
-        }
-
-        wxLogTrace( traceSchLegacyPlugin, "Restoring last path \"%s\"", fileName.GetPath() );
-        m_path = fileName.GetPath();
+        m_currentPath.pop();
+        wxLogTrace( traceSchLegacyPlugin, "Restoring path \"%s\"", m_currentPath.top() );
     }
 }
 
@@ -1696,6 +1686,8 @@ void SCH_LEGACY_PLUGIN::Save( const wxString& aFileName, SCH_SCREEN* aScreen, KI
     wxCHECK_RET( aScreen != NULL, "NULL SCH_SCREEN object." );
     wxCHECK_RET( !aFileName.IsEmpty(), "No schematic file name defined." );
 
+    LOCALE_IO   toggle;     // toggles on, then off, the C locale, to write floating point values.
+
     init( aKiway, aProperties );
 
     wxFileName fn = aFileName;
@@ -1757,32 +1749,32 @@ void SCH_LEGACY_PLUGIN::Format( SCH_SCREEN* aScreen )
         switch( item->Type() )
         {
         case SCH_COMPONENT_T:
-            saveComponent( dynamic_cast< SCH_COMPONENT* >( item ) );
+            saveComponent( static_cast< SCH_COMPONENT* >( item ) );
             break;
         case SCH_BITMAP_T:
-            saveBitmap( dynamic_cast< SCH_BITMAP* >( item ) );
+            saveBitmap( static_cast< SCH_BITMAP* >( item ) );
             break;
         case SCH_SHEET_T:
-            saveSheet( dynamic_cast< SCH_SHEET* >( item ) );
+            saveSheet( static_cast< SCH_SHEET* >( item ) );
             break;
         case SCH_JUNCTION_T:
-            saveJunction( dynamic_cast< SCH_JUNCTION* >( item ) );
+            saveJunction( static_cast< SCH_JUNCTION* >( item ) );
             break;
         case SCH_NO_CONNECT_T:
-            saveNoConnect( dynamic_cast< SCH_NO_CONNECT* >( item ) );
+            saveNoConnect( static_cast< SCH_NO_CONNECT* >( item ) );
             break;
         case SCH_BUS_WIRE_ENTRY_T:
         case SCH_BUS_BUS_ENTRY_T:
-            saveBusEntry( dynamic_cast< SCH_BUS_ENTRY_BASE* >( item ) );
+            saveBusEntry( static_cast< SCH_BUS_ENTRY_BASE* >( item ) );
             break;
         case SCH_LINE_T:
-            saveLine( dynamic_cast< SCH_LINE* >( item ) );
+            saveLine( static_cast< SCH_LINE* >( item ) );
             break;
         case SCH_TEXT_T:
         case SCH_LABEL_T:
         case SCH_GLOBAL_LABEL_T:
         case SCH_HIERARCHICAL_LABEL_T:
-            saveText( dynamic_cast< SCH_TEXT* >( item ) );
+            saveText( static_cast< SCH_TEXT* >( item ) );
             break;
         default:
             wxASSERT( "Unexpected schematic object type in SCH_LEGACY_PLUGIN::Format()" );
@@ -2425,7 +2417,7 @@ void SCH_LEGACY_PLUGIN_CACHE::loadDocs()
             SCH_PARSE_ERROR( "$CMP command expected", reader, line );
 
         parseUnquotedString( aliasName, reader, line, &line );    // Alias name.
-
+        LIB_ALIAS::ValidateName( aliasName );
         LIB_ALIAS_MAP::iterator it = m_aliases.find( aliasName );
 
         if( it == m_aliases.end() )
@@ -3084,13 +3076,17 @@ LIB_TEXT* SCH_LEGACY_PLUGIN_CACHE::loadText( std::unique_ptr< LIB_PART >& aPart,
     if( *line == '"' )
         parseQuotedString( str, aReader, line, &line );
     else
+    {
         parseUnquotedString( str, aReader, line, &line );
+
+        // In old libs, "spaces" are replaced by '~' in unquoted strings:
+        str.Replace( "~", " " );
+    }
 
     if( !str.IsEmpty() )
     {
         // convert two apostrophes back to double quote
         str.Replace( "''", "\"" );
-        str.Replace( wxT( "~" ), wxT( " " ) );
     }
 
     text->SetText( str );
@@ -3634,7 +3630,6 @@ void SCH_LEGACY_PLUGIN_CACHE::saveSymbol( LIB_PART* aSymbol,
                 saveBezier( (LIB_BEZIER*) &item, aFormatter );
                 break;
 
-
             case LIB_CIRCLE_T:
                 saveCircle( ( LIB_CIRCLE* ) &item, aFormatter );
                 break;
@@ -3696,7 +3691,7 @@ void SCH_LEGACY_PLUGIN_CACHE::saveBezier( LIB_BEZIER* aBezier,
 {
     wxCHECK_RET( aBezier && aBezier->Type() == LIB_BEZIER_T, "Invalid LIB_BEZIER object." );
 
-    aFormatter->Print( 0, "B %lu %d %d %d", (unsigned long)aBezier->GetCornerCount(),
+    aFormatter->Print( 0, "B %u %d %d %d", (unsigned)aBezier->GetPoints().size(),
                        aBezier->GetUnit(), aBezier->GetConvert(), aBezier->GetWidth() );
 
     for( const auto& pt : aBezier->GetPoints() )
@@ -3754,7 +3749,7 @@ void SCH_LEGACY_PLUGIN_CACHE::saveField( LIB_FIELD* aField,
     /* Save field name, if necessary
      * Field name is saved only if it is not the default name.
      * Just because default name depends on the language and can change from
-     * a country to an other
+     * a country to another
      */
     wxString defName = TEMPLATE_FIELDNAME::GetDefaultFieldName( id );
 
@@ -3925,17 +3920,11 @@ void SCH_LEGACY_PLUGIN_CACHE::saveText( LIB_TEXT* aText,
 
     wxString text = aText->GetText();
 
-    if( text.Contains( wxT( "~" ) ) || text.Contains( wxT( "\"" ) ) )
+    if( text.Contains( wxT( " " ) ) || text.Contains( wxT( "~" ) ) || text.Contains( wxT( "\"" ) ) )
     {
         // convert double quote to similar-looking two apostrophes
         text.Replace( wxT( "\"" ), wxT( "''" ) );
         text = wxT( "\"" ) + text + wxT( "\"" );
-    }
-    else
-    {
-        // Spaces are not allowed in text because it is not double quoted:
-        // changed to '~'
-        text.Replace( wxT( " " ), wxT( "~" ) );
     }
 
     aFormatter->Print( 0, "T %g %d %d %d %d %d %d %s", aText->GetTextAngle(),

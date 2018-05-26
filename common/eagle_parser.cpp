@@ -518,12 +518,12 @@ EATTR::EATTR( wxXmlNode* aTree )
     // (off | value | name | both)
     if( stemp == "off" )
         display = EATTR::Off;
-    else if( stemp == "value" )
-        display = EATTR::VALUE;
     else if( stemp == "name" )
         display = EATTR::NAME;
     else if( stemp == "both" )
         display = EATTR::BOTH;
+    else // "value" is the default
+        display = EATTR::VALUE;
 
     stemp = parseOptionalAttribute<wxString>( aTree, "align" );
 
@@ -749,6 +749,7 @@ EVERTEX::EVERTEX( wxXmlNode* aVertex )
 
     x = parseRequiredAttribute<ECOORD>( aVertex, "x" );
     y = parseRequiredAttribute<ECOORD>( aVertex, "y" );
+    curve = parseOptionalAttribute<double>( aVertex, "curve" );
 }
 
 

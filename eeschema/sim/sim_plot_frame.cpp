@@ -87,6 +87,10 @@ public:
             case SIM_RUNNING:
                 event = new wxCommandEvent( EVT_SIM_STARTED );
                 break;
+
+            default:
+                wxFAIL;
+                return;
         }
 
         wxQueueEvent( m_parent, event );
@@ -128,6 +132,9 @@ SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
     wxIcon icon;
     icon.CopyFromBitmap( KiBitmap( simulator_xpm ) );
     SetIcon( icon );
+
+    // Gives a minimal size
+    SetSizeHints( 500, 400, -1, -1, -1, -1 );
 
     // Get the previous size and position of windows:
     LoadSettings( config() );
@@ -198,8 +205,6 @@ SIM_PLOT_FRAME::SIM_PLOT_FRAME( KIWAY* aKiway, wxWindow* aParent )
     // on Windows: when open it, the simulator frame is sent to the background.
     // instead of being behind the dialog frame (as it does)
     m_settingsDlg = NULL;
-
-    SetSize( ConvertDialogToPixels( wxSize( 400, 300 ) ) );
 
     // resize the subwindows size. At least on Windows, calling wxSafeYield before
     // resizing the subwindows forces the wxSplitWindows size events automatically generated
@@ -399,6 +404,12 @@ SIM_PLOT_PANEL* SIM_PLOT_FRAME::CurrentPlot() const
     wxWindow* curPage = m_plotNotebook->GetCurrentPage();
 
     return ( curPage == m_welcomePanel ) ? nullptr : static_cast<SIM_PLOT_PANEL*>( curPage );
+}
+
+
+const NETLIST_EXPORTER_PSPICE_SIM* SIM_PLOT_FRAME::GetExporter() const
+{
+    return m_exporter.get();
 }
 
 
@@ -1097,34 +1108,33 @@ void SIM_PLOT_FRAME::onShowNetlist( wxCommandEvent& event )
                      wxDefaultPosition, wxSize(1500,900),
                      wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
         {
-            wxStyledTextCtrl* text = new wxStyledTextCtrl(this, wxID_ANY);
+            wxStyledTextCtrl* text = new wxStyledTextCtrl( this, wxID_ANY );
 
-            text->SetMarginWidth (MARGIN_LINE_NUMBERS, 50);
-            text->StyleSetForeground (wxSTC_STYLE_LINENUMBER, wxColour (75, 75, 75) );
-            text->StyleSetBackground (wxSTC_STYLE_LINENUMBER, wxColour (220, 220, 220));
-            text->SetMarginType (MARGIN_LINE_NUMBERS, wxSTC_MARGIN_NUMBER);
+            text->SetMarginWidth( MARGIN_LINE_NUMBERS, 50 );
+            text->StyleSetForeground( wxSTC_STYLE_LINENUMBER, wxColour( 75, 75, 75 ) );
+            text->StyleSetBackground( wxSTC_STYLE_LINENUMBER, wxColour( 220, 220, 220 ) );
+            text->SetMarginType( MARGIN_LINE_NUMBERS, wxSTC_MARGIN_NUMBER );
 
-            text->SetWrapMode (wxSTC_WRAP_WORD);
+            text->SetWrapMode( wxSTC_WRAP_WORD );
 
             text->SetText( source );
 
             text->StyleClearAll();
-            text->SetLexer(wxSTC_LEX_SPICE);
+            text->SetLexer( wxSTC_LEX_SPICE );
 
-            wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
-            sizer->Add(text, 1, wxEXPAND);
-            SetSizer(sizer);
+            wxBoxSizer* sizer = new wxBoxSizer( wxVERTICAL );
+            sizer->Add( text, 1, wxEXPAND );
+            SetSizer( sizer );
 
-            Connect(wxEVT_CLOSE_WINDOW, wxCloseEventHandler(NETLIST_VIEW_DIALOG::onClose), NULL, this);
+            Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( NETLIST_VIEW_DIALOG::onClose ), NULL,
+                    this );
         }
-
     };
 
     if( m_schematicFrame == NULL || m_simulator == NULL )
         return;
 
     NETLIST_VIEW_DIALOG dlg( this, m_simulator->GetNetlist() );
-
     dlg.ShowModal();
 }
 

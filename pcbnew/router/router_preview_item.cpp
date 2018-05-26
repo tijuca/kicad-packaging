@@ -24,13 +24,12 @@
 #include <view/view.h>
 
 #include <geometry/shape_rect.h>
-#include <geometry/shape_convex.h>
-
 #include "class_track.h"
 #include <pcb_painter.h>
 
 #include "router_preview_item.h"
 
+#include "../../include/geometry/shape_simple.h"
 #include "pns_line.h"
 #include "pns_segment.h"
 #include "pns_via.h"
@@ -245,9 +244,9 @@ void ROUTER_PREVIEW_ITEM::ViewDraw( int aLayer, KIGFX::VIEW* aView ) const
             break;
         }
 
-    case SH_CONVEX:
+    case SH_SIMPLE:
     {
-        const SHAPE_CONVEX* c = (const SHAPE_CONVEX*) m_shape;
+        const SHAPE_SIMPLE* c = (const SHAPE_SIMPLE*) m_shape;
         std::deque<VECTOR2D> polygon = std::deque<VECTOR2D>();
         for( int i = 0; i < c->PointCount(); i++ )
         {
@@ -279,7 +278,6 @@ void ROUTER_PREVIEW_ITEM::ViewDraw( int aLayer, KIGFX::VIEW* aView ) const
 
 void ROUTER_PREVIEW_ITEM::Line( const SHAPE_LINE_CHAIN& aLine, int aWidth, int aStyle )
 {
-    m_originLayer = m_layer = 0;
     m_width = aWidth;
     m_color = assignColor( aStyle );
     m_type = PR_SHAPE;

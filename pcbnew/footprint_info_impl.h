@@ -28,15 +28,14 @@
 
 #include <footprint_info.h>
 #include <sync_queue.h>
-#include <widgets/progress_reporter.h>
 
 class LOCALE_IO;
 
 class FOOTPRINT_INFO_IMPL : public FOOTPRINT_INFO
 {
 public:
-    FOOTPRINT_INFO_IMPL(
-            FOOTPRINT_LIST* aOwner, const wxString& aNickname, const wxString& aFootprintName )
+    FOOTPRINT_INFO_IMPL( FOOTPRINT_LIST* aOwner, const wxString& aNickname,
+                         const wxString& aFootprintName )
     {
         m_owner = aOwner;
         m_loaded = false;
@@ -58,12 +57,13 @@ protected:
 class FOOTPRINT_LIST_IMPL : public FOOTPRINT_LIST
 {
     FOOTPRINT_ASYNC_LOADER*  m_loader;
+    const wxString*          m_library;
     std::vector<std::thread> m_threads;
     SYNC_QUEUE<wxString>     m_queue_in;
     SYNC_QUEUE<wxString>     m_queue_out;
     std::atomic_size_t       m_count_finished;
     long long                m_list_timestamp;
-    WX_PROGRESS_REPORTER*    m_progress_reporter;
+    PROGRESS_REPORTER*       m_progress_reporter;
     std::atomic_bool         m_cancelled;
 
     /**
@@ -74,10 +74,9 @@ class FOOTPRINT_LIST_IMPL : public FOOTPRINT_LIST
     bool CatchErrors( const std::function<void()>& aFunc );
 
 protected:
-    virtual void StartWorkers( FP_LIB_TABLE* aTable, wxString const* aNickname,
-            FOOTPRINT_ASYNC_LOADER* aLoader, unsigned aNThreads ) override;
-    virtual bool   JoinWorkers() override;
-    virtual size_t CountFinished() override;
+    void StartWorkers( FP_LIB_TABLE* aTable, wxString const* aNickname,
+                       FOOTPRINT_ASYNC_LOADER* aLoader, unsigned aNThreads ) override;
+    bool JoinWorkers() override;
 
     /**
      * Function loader_job
@@ -89,8 +88,11 @@ public:
     FOOTPRINT_LIST_IMPL();
     virtual ~FOOTPRINT_LIST_IMPL();
 
-    virtual bool ReadFootprintFiles( FP_LIB_TABLE* aTable, const wxString* aNickname = nullptr,
-                                     WX_PROGRESS_REPORTER* aProgressReporter = nullptr ) override;
+    bool ReadFootprintFiles( FP_LIB_TABLE* aTable, const wxString* aNickname = nullptr,
+                             PROGRESS_REPORTER* aProgressReporter = nullptr ) override;
 };
+
+extern FOOTPRINT_LIST_IMPL GFootprintList;        // KIFACE scope.
+
 
 #endif // FOOTPRINT_INFO_IMPL_H

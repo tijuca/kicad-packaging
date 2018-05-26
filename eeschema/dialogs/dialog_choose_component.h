@@ -140,6 +140,8 @@ public:
         return m_external_browser_requested;
     }
 
+    static std::mutex g_Mutex;
+
 protected:
     static constexpr int DblClickDelay = 100; // milliseconds
 
@@ -147,7 +149,7 @@ protected:
 
     void OnInitDialog( wxInitDialogEvent& aEvent );
     void OnCloseTimer( wxTimerEvent& aEvent );
-    void OnProgressTimer( wxTimerEvent& aEvent );
+    void OnIdle( wxIdleEvent& aEvent );
 
     void OnSchViewDClick( wxMouseEvent& aEvent );
     void OnSchViewPaint( wxPaintEvent& aEvent );
@@ -205,12 +207,12 @@ protected:
     int                         m_deMorganConvert;
     bool                        m_allow_field_edits;
     bool                        m_show_footprints;
+    bool                        m_load_footprints;
     bool                        m_external_browser_requested;
     wxString                    m_fp_override;
 
-    static FOOTPRINT_ASYNC_LOADER          m_fp_loader;
-    static std::unique_ptr<FOOTPRINT_LIST> m_fp_list;
-    std::vector<std::pair<int, wxString>> m_field_edits;
+    FOOTPRINT_LIST*                        m_fp_list;
+    std::vector<std::pair<int, wxString>>  m_field_edits;
 
     // Remember the dialog size during a session
     static wxSize m_last_dlg_size;

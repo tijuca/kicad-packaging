@@ -72,9 +72,10 @@ void PCB_EDIT_FRAME::Delete_OldZone_Fill( SEGZONE* aZone, timestamp_t aTimestamp
     else
         TimeStamp = aZone->GetTimeStamp(); // Save reference time stamp (aZone will be deleted)
 
+    // SEGZONE is a deprecated item, only used for compatibility with very old boards
     SEGZONE* next;
 
-    for( SEGZONE* zone = GetBoard()->m_Zone; zone != NULL; zone = next )
+    for( SEGZONE* zone = GetBoard()->m_SegZoneDeprecated; zone != NULL; zone = next )
     {
         next = zone->Next();
 
@@ -100,4 +101,34 @@ int PCB_EDIT_FRAME::Fill_All_Zones( wxWindow* aActiveWindow )
     wxCHECK( toolMgr, 1 );
     toolMgr->RunAction( PCB_ACTIONS::zoneFillAll, true );
     return 0;
+}
+
+
+void PCB_EDIT_FRAME::Check_All_Zones( wxWindow* aActiveWindow )
+{
+    if( !m_ZoneFillsDirty )
+        return;
+
+    std::vector<ZONE_CONTAINER*> toFill;
+
+    for( auto zone : GetBoard()->Zones() )
+        toFill.push_back(zone);
+
+    BOARD_COMMIT commit( this );
+
+    std::unique_ptr<WX_PROGRESS_REPORTER> progressReporter(
+            new WX_PROGRESS_REPORTER( aActiveWindow, _( "Checking Zones" ), 3 ) );
+
+    ZONE_FILLER filler( GetBoard(), &commit );
+    filler.SetProgressReporter( progressReporter.get() );
+
+    if( filler.Fill( toFill, true ) )
+    {
+        m_ZoneFillsDirty = false;
+
+        if( IsGalCanvasActive() && GetGalCanvas() )
+            GetGalCanvas()->ForceRefresh();
+
+        GetCanvas()->Refresh();
+    }
 }

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2011 Jean-Pierre Charras, <jp.charras@wanadoo.fr>
  * Copyright (C) 2013-2016 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -116,10 +116,9 @@ void FOOTPRINT_LIST_IMPL::loader_job()
 
 
 bool FOOTPRINT_LIST_IMPL::ReadFootprintFiles( FP_LIB_TABLE* aTable, const wxString* aNickname,
-                                              WX_PROGRESS_REPORTER* aProgressReporter )
+                                              PROGRESS_REPORTER* aProgressReporter )
 {
-    long long libraryTimestamp = aTable->GenerateTimestamp( aNickname );
-    if( m_list_timestamp == libraryTimestamp )
+    if( m_list_timestamp == aTable->GenerateTimestamp( aNickname ) )
         return true;
 
     m_progress_reporter = aProgressReporter;
@@ -136,7 +135,7 @@ bool FOOTPRINT_LIST_IMPL::ReadFootprintFiles( FP_LIB_TABLE* aTable, const wxStri
         m_progress_reporter->Report( _( "Fetching Footprint Libraries" ) );
     }
 
-    while( !m_cancelled && loader.GetProgress() < 100 )
+    while( !m_cancelled && (int)m_count_finished.load() < m_loader->m_total_libs )
     {
         if( m_progress_reporter )
             m_cancelled = !m_progress_reporter->KeepRefreshing();
@@ -167,7 +166,6 @@ bool FOOTPRINT_LIST_IMPL::ReadFootprintFiles( FP_LIB_TABLE* aTable, const wxStri
                     ( _( "Loading incomplete; cancelled by user." ), nullptr, nullptr, 0 ) );
     }
 
-    m_list_timestamp = libraryTimestamp;
     m_progress_reporter = nullptr;
 
     return m_errors.empty();
@@ -179,6 +177,7 @@ void FOOTPRINT_LIST_IMPL::StartWorkers( FP_LIB_TABLE* aTable, wxString const* aN
 {
     m_loader = aLoader;
     m_lib_table = aTable;
+    m_library = aNickname;
 
     // Clear data before reading files
     m_count_finished.store( 0 );
@@ -273,7 +272,7 @@ bool FOOTPRINT_LIST_IMPL::JoinWorkers()
         } ) );
     }
 
-    while( !m_cancelled && m_count_finished.load() < total_count )
+    while( !m_cancelled && (size_t)m_count_finished.load() < total_count )
     {
         if( m_progress_reporter )
             m_cancelled = !m_progress_reporter->KeepRefreshing();
@@ -293,18 +292,18 @@ bool FOOTPRINT_LIST_IMPL::JoinWorkers()
             []( std::unique_ptr<FOOTPRINT_INFO> const&     lhs,
                     std::unique_ptr<FOOTPRINT_INFO> const& rhs ) -> bool { return *lhs < *rhs; } );
 
+    if( m_cancelled )
+        m_list_timestamp = 0;       // God knows what we got before we were cancelled
+    else
+        m_list_timestamp = m_lib_table->GenerateTimestamp( m_library );
+
     return m_errors.empty();
-}
-
-
-size_t FOOTPRINT_LIST_IMPL::CountFinished()
-{
-    return m_count_finished.load();
 }
 
 
 FOOTPRINT_LIST_IMPL::FOOTPRINT_LIST_IMPL() :
     m_loader( nullptr ),
+    m_library( nullptr ),
     m_count_finished( 0 ),
     m_list_timestamp( 0 ),
     m_progress_reporter( nullptr ),

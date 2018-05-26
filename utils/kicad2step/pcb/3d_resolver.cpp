@@ -388,22 +388,6 @@ wxString S3D_RESOLVER::ResolvePath( const wxString& aFileName )
         return tname;
     }
 
-    // if a path begins with ${ENV_VAR}/$(ENV_VAR) and is not resolved then the
-    // file either does not exist or the ENV_VAR is not defined
-    if( aFileName.StartsWith( "${" ) || aFileName.StartsWith( "$(" ) )
-    {
-        if( !( m_errflags & ERRFLG_ENVPATH ) )
-        {
-            m_errflags |= ERRFLG_ENVPATH;
-            wxString errmsg = "[3D File Resolver] No such path; ensure the environment var is defined";
-            errmsg.append( "\n" );
-            errmsg.append( tname );
-            wxLogMessage( "%s\n", errmsg.ToUTF8() );
-        }
-
-        return wxEmptyString;
-    }
-
     // at this point aFileName is:
     // a. an aliased shortened name or
     // b. cannot be determined
@@ -458,8 +442,7 @@ wxString S3D_RESOLVER::ResolvePath( const wxString& aFileName )
     }
 
     // ${ENV_VAR} paths have already been checked; skip them
-    while( sPL != ePL && ( sPL->m_alias.StartsWith( "${" )
-                           || sPL->m_alias.StartsWith( "$(" ) ) )
+    while( sPL != ePL && ( sPL->m_alias.StartsWith( "${" ) || sPL->m_alias.StartsWith( "$(" ) ) )
         ++sPL;
 
     // at this point the filename must contain an alias or else it is invalid
@@ -542,9 +525,8 @@ bool S3D_RESOLVER::addPath( const S3D_ALIAS& aPath )
 
     if( !path.DirExists() )
     {
-        // suppress the message if the missing pathvar is the
-        // legacy KISYS3DMOD variable
-        if( aPath.m_pathvar.compare( "${KISYS3DMOD}" ) )
+        // suppress the message if the missing pathvar is the legacy KISYS3DMOD variable
+        if( aPath.m_pathvar != "${KISYS3DMOD}" && aPath.m_pathvar != "$(KISYS3DMOD)" )
         {
             wxString msg = _( "The given path does not exist" );
             msg.append( "\n" );

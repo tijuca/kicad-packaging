@@ -71,6 +71,11 @@ using namespace std::placeholders;
 
 #include <board_commit.h>
 
+
+extern bool Magnetize( PCB_BASE_EDIT_FRAME* frame, int aCurrentTool,
+                       wxSize aGridSize, wxPoint on_grid, wxPoint* curpos );
+
+
 // Edit tool actions
 TOOL_ACTION PCB_ACTIONS::editFootprintInFpEditor( "pcbnew.InteractiveEdit.editFootprintInFpEditor",
         AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_EDIT_MODULE_WITH_MODEDIT ),
@@ -438,6 +443,8 @@ int EDIT_TOOL::Main( const TOOL_EVENT& aEvent )
                 {
                     static_cast<BOARD_ITEM*>( item )->Move( movement );
                 }
+
+                frame()->UpdateMsgPanel();
             }
             else if( !m_dragging )    // Prepare to start dragging
             {
@@ -844,6 +851,13 @@ int EDIT_TOOL::Flip( const TOOL_EVENT& aEvent )
 
 int EDIT_TOOL::Remove( const TOOL_EVENT& aEvent )
 {
+    ROUTER_TOOL* routerTool = static_cast<ROUTER_TOOL*>
+            ( m_toolMgr->FindTool( "pcbnew.InteractiveRouter" ) );
+
+    // Do not delete items while actively routing.
+    if( routerTool && routerTool->Router() && routerTool->Router()->RoutingInProgress() )
+        return 0;
+
     // get a copy instead of reference (as we're going to clear the selectio before removing items)
     auto selection = m_selectionTool->RequestSelection( SELECTION_DELETABLE | SELECTION_SANITIZE_PADS );
 
@@ -1133,11 +1147,10 @@ int EDIT_TOOL::MeasureTool( const TOOL_EVENT& aEvent )
 {
     auto& view = *getView();
     auto& controls = *getViewControls();
+    int   toolID = EditingModules() ? ID_MODEDIT_MEASUREMENT_TOOL : ID_PCB_MEASUREMENT_TOOL;
 
     Activate();
-    frame()->SetToolID( EditingModules() ? ID_MODEDIT_MEASUREMENT_TOOL
-                                         : ID_PCB_MEASUREMENT_TOOL,
-                        wxCURSOR_PENCIL, _( "Measure distance" ) );
+    frame()->SetToolID( toolID, wxCURSOR_PENCIL, _( "Measure distance" ) );
 
     KIGFX::PREVIEW::TWO_POINT_GEOMETRY_MANAGER twoPtMgr;
 
@@ -1154,6 +1167,20 @@ int EDIT_TOOL::MeasureTool( const TOOL_EVENT& aEvent )
 
     while( auto evt = Wait() )
     {
+        // TODO: magnetic pad & track processing needs to move to VIEW_CONTROLS.
+        wxPoint pos( controls.GetMousePosition().x, controls.GetMousePosition().y );
+        frame()->SetMousePosition( pos );
+
+        wxRealPoint gridSize = frame()->GetScreen()->GetGridSize();
+        wxSize igridsize;
+        igridsize.x = KiROUND( gridSize.x );
+        igridsize.y = KiROUND( gridSize.y );
+
+        if( Magnetize( frame(), toolID, igridsize, pos, &pos ) )
+            controls.ForceCursorPosition( true, pos );
+        else
+            controls.ForceCursorPosition( false );
+
         const VECTOR2I cursorPos = controls.GetCursorPosition();
 
         if( evt->IsCancel() || evt->IsActivate() )
@@ -1252,22 +1279,20 @@ void EDIT_TOOL::setTransitions()
 
 bool EDIT_TOOL::updateModificationPoint( SELECTION& aSelection )
 {
-    if( aSelection.HasReferencePoint() )
+    if( m_dragging && aSelection.HasReferencePoint() )
         return false;
 
+    // When there is only one item selected, the reference point is its position...
     if( aSelection.Size() == 1 )
     {
         auto item =  static_cast<BOARD_ITEM*>( aSelection.Front() );
         auto pos = item->GetPosition();
         aSelection.SetReferencePoint( VECTOR2I( pos.x, pos.y ) );
     }
+    // ...otherwise modify items with regard to the cursor position
     else
     {
-        // If EDIT_TOOL is not currently active then it means that the cursor position is not
-        // updated, so we have to fetch the latest value
-        if( m_toolMgr->GetCurrentToolId() != m_toolId )
-            m_cursor = getViewControls()->GetCursorPosition();
-
+        m_cursor = getViewControls()->GetCursorPosition();
         aSelection.SetReferencePoint( m_cursor );
     }
 
@@ -1342,17 +1367,17 @@ int EDIT_TOOL::copyToClipboard( const TOOL_EVENT& aEvent )
 
     std::vector<MSG_PANEL_ITEM> msgItems = { item1 };
 
-    SELECTION selection = m_selectionTool->RequestSelection();
+    SELECTION& selection = m_selectionTool->RequestSelection();
 
     if( selection.Empty() )
-        return 0;
+        return 1;
 
     frame()->SetMsgPanel( msgItems );
     bool rv = pickCopyReferencePoint( refPoint );
     frame()->SetMsgPanel( board() );
 
     if( !rv )
-        return 0;
+        return 1;
 
     selection.SetReferencePoint( refPoint );
     io.SetBoard( board() );
@@ -1364,7 +1389,8 @@ int EDIT_TOOL::copyToClipboard( const TOOL_EVENT& aEvent )
 
 int EDIT_TOOL::cutToClipboard( const TOOL_EVENT& aEvent )
 {
-    copyToClipboard( aEvent );
-    Remove( aEvent );
+    if( !copyToClipboard( aEvent ) )
+        Remove( aEvent );
+
     return 0;
 }

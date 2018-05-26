@@ -48,26 +48,27 @@ package.
 
 === Debian / Ubuntu
 
-To install the dependencies on Debian / Ubuntu  run the following (requires
+To install the dependencies on Debian / Ubuntu run the following (requires
 about 1.5GiB of space):
 
-    sudo apt-get install asciidoc cmake dblatex fonts-vlgothic \
-    fonts-freefont-ttf gettext git make pandoc po4a source-highlight \
-    texlive-lang-cyrillic texlive-lang-dutch texlive-lang-english \
+    sudo apt-get install asciidoc cmake dblatex fonts-freefont-ttf \
+    fonts-vlgothic gettext git make pandoc po4a source-highlight \
+    texlive-lang-cyrillic texlive-lang-english texlive-lang-european \
     texlive-lang-french texlive-lang-german texlive-lang-italian \
     texlive-lang-japanese texlive-lang-other texlive-lang-polish \
-    texlive-xetex
+    texlive-lang-spanish texlive-xetex
 
-NOTE: in Ubuntu 14:04 there is no texlive-lang-japanese. Install
+NOTE: Debian Jessie and Ubuntu 16.04 LTS has no package
+texlive-lang-european, install the package texlive-lang-dutch instead.
+
+NOTE: in Ubuntu 14.04 LTS there is no texlive-lang-japanese. Install
 texlive-lang-cjk instead.
-
-NOTE: in Debian Jessie the package texlive-lang-dutch is a transitional
-package, Install texlive-lang-european instead.
 
 or, if you do not have space problems:
 
-    sudo apt-get install git make cmake asciidoc pandoc gettext po4a dblatex \
-    texlive-xetex fonts-vlgothic source-highlight texlive-lang-all
+    sudo apt-get install asciidoc cmake dblatex fonts-freefont-ttf \
+    fonts-vlgothic gettext git make pandoc po4a source-highlight \
+    texlive-lang-all texlive-xetex
 
 === Fedora
 

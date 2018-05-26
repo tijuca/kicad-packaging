@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2009 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
  * Copyright (C) 2007 Wayne Stambaugh <stambaughw@gmail.com>
- * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -41,6 +41,7 @@
 #include <draw_frame.h>
 #include <view/view_controls.h>
 #include <gal/gal_display_options.h>
+#include <trace_helpers.h>
 
 #include <kicad_device_context.h>
 
@@ -65,14 +66,6 @@ static const int CURSOR_SIZE = 12; ///< Cursor size in pixels
 #define DEBUG_SHOW_CLIP_RECT       0  // Set to 1 to draw clipping rectangle.
 
 
-/**
- * @ingroup trace_env_vars
- *
- * Flag to enable draw panel coordinate debug tracing.
- */
-static const wxString kicadTraceCoords = wxT( "KICAD_TRACE_COORDS" );
-
-
 // Events used by EDA_DRAW_PANEL
 BEGIN_EVENT_TABLE( EDA_DRAW_PANEL, wxScrolledWindow )
     EVT_LEAVE_WINDOW( EDA_DRAW_PANEL::OnMouseLeaving )
@@ -83,7 +76,7 @@ BEGIN_EVENT_TABLE( EDA_DRAW_PANEL, wxScrolledWindow )
 #endif
     EVT_MOUSE_EVENTS( EDA_DRAW_PANEL::OnMouseEvent )
     EVT_CHAR( EDA_DRAW_PANEL::OnKeyEvent )
-    EVT_CHAR_HOOK( EDA_DRAW_PANEL::OnCharHook )
+    EVT_CHAR_HOOK( EDA_DRAW_PANEL::OnKeyEvent )
     EVT_PAINT( EDA_DRAW_PANEL::OnPaint )
     EVT_ERASE_BACKGROUND( EDA_DRAW_PANEL::OnEraseBackground )
     EVT_SCROLLWIN( EDA_DRAW_PANEL::OnScroll )
@@ -134,7 +127,7 @@ EDA_DRAW_PANEL::EDA_DRAW_PANEL( EDA_DRAW_FRAME* parent, int id,
     m_ignoreMouseEvents = false;
     // Be sure a mouse release button event will be ignored when creating the canvas
     // if the mouse click was not made inside the canvas (can happen sometimes, when
-    // launching an editor from a double click made in an other frame)
+    // launching a editor from a double click made in another frame)
     m_ignoreNextLeftButtonRelease = true;
 
     m_mouseCaptureCallback = NULL;
@@ -770,7 +763,7 @@ void EDA_DRAW_PANEL::DrawGrid( wxDC* aDC )
         org.y += KiROUND( gridSize.y );
 
     // Use a pixel based draw to display grid.  There are a lot of calls, so the cost is
-    // high and grid is slowly drawn on some platforms. An other way using blit transfert was used,
+    // high and grid is slowly drawn on some platforms. Another way using blit transfert was used,
     // a long time ago, but it did not give very good results.
     // The better way is highly dependent on the platform and the graphic card.
     int xpos;
@@ -1389,6 +1382,7 @@ void EDA_DRAW_PANEL::OnMouseEvent( wxMouseEvent& event )
 
 void EDA_DRAW_PANEL::OnCharHook( wxKeyEvent& event )
 {
+    wxLogTrace( kicadTraceKeyEvent, "EDA_DRAW_PANEL::OnCharHook %s", dump( event ) );
     event.Skip();
 }
 
@@ -1397,6 +1391,8 @@ void EDA_DRAW_PANEL::OnKeyEvent( wxKeyEvent& event )
 {
     int localkey;
     wxPoint pos;
+
+    wxLogTrace( kicadTraceKeyEvent, "EDA_DRAW_PANEL::OnKeyEvent %s", dump( event ) );
 
     localkey = event.GetKeyCode();
 

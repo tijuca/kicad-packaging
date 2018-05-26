@@ -296,6 +296,7 @@ void LIB_EDIT_FRAME::OnCreateNewPart( wxCommandEvent& event )
     }
 
     wxString name = dlg.GetName();
+    // Currently, symbol names cannot include a space, that breaks libraries:
     name.Replace( " ", "_" );
 
     // Test if there is a component with this name already.
@@ -372,7 +373,8 @@ void LIB_EDIT_FRAME::OnRemovePart( wxCommandEvent& aEvent )
 
     if( m_libMgr->IsPartModified( libId.GetLibItemName(), libId.GetLibNickname() )
         && !IsOK( this, _( wxString::Format( "Component %s has been modified\n"
-                        "Do you want to remove it from the library?", libId.GetLibItemName().c_str() ) ) ) )
+                        "Do you want to remove it from the library?",
+                        libId.GetUniStringLibItemName() ) ) ) )
     {
         return;
     }

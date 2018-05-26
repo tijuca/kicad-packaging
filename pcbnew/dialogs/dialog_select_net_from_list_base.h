@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Nov 22 2017)
+// C++ code generated with wxFormBuilder (version Apr 19 2018)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -47,8 +47,11 @@ class DIALOG_SELECT_NET_FROM_LIST_BASE : public DIALOG_SHIM
 		wxButton* m_sdbSizerCancel;
 		
 		// Virtual event handlers, overide them in your derived class
+		virtual void updateSize( wxSizeEvent& event ) { event.Skip(); }
 		virtual void onFilterChange( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onCellClick( wxGridEvent& event ) { event.Skip(); }
+		virtual void onColumnResize( wxGridSizeEvent& event ) { event.Skip(); }
+		virtual void onSelectCell( wxGridEvent& event ) { event.Skip(); }
 		
 	
 	public:

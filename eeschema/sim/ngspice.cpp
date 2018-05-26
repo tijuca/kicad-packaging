@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2016 CERN
+ * Copyright (C) 2016-2018 CERN
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
@@ -31,12 +31,15 @@
 #include <wx/dir.h>
 
 #include <sstream>
+#include <stdexcept>
 
 using namespace std;
 
+static const wxChar* const traceNgspice = wxT( "KICAD_NGSPICE" );
+
 NGSPICE::NGSPICE()
 {
-    init();
+    init_dll();
 }
 
 
@@ -55,7 +58,7 @@ vector<COMPLEX> NGSPICE::GetPlot( const string& aName, int aMaxLen )
 {
     LOCALE_IO c_locale;       // ngspice works correctly only with C locale
     vector<COMPLEX> data;
-    vector_info* vi = ngGet_Vec_Info( (char*) aName.c_str() );
+    vector_info* vi = m_ngGet_Vec_Info( (char*) aName.c_str() );
 
     if( vi )
     {
@@ -82,7 +85,7 @@ vector<double> NGSPICE::GetRealPlot( const string& aName, int aMaxLen )
 {
     LOCALE_IO c_locale;       // ngspice works correctly only with C locale
     vector<double> data;
-    vector_info* vi = ngGet_Vec_Info( (char*) aName.c_str() );
+    vector_info* vi = m_ngGet_Vec_Info( (char*) aName.c_str() );
 
     if( vi )
     {
@@ -114,7 +117,7 @@ vector<double> NGSPICE::GetImagPlot( const string& aName, int aMaxLen )
 {
     LOCALE_IO c_locale;       // ngspice works correctly only with C locale
     vector<double> data;
-    vector_info* vi = ngGet_Vec_Info( (char*) aName.c_str() );
+    vector_info* vi = m_ngGet_Vec_Info( (char*) aName.c_str() );
 
     if( vi )
     {
@@ -138,7 +141,7 @@ vector<double> NGSPICE::GetMagPlot( const string& aName, int aMaxLen )
 {
     LOCALE_IO c_locale;       // ngspice works correctly only with C locale
     vector<double> data;
-    vector_info* vi = ngGet_Vec_Info( (char*) aName.c_str() );
+    vector_info* vi = m_ngGet_Vec_Info( (char*) aName.c_str() );
 
     if( vi )
     {
@@ -165,7 +168,7 @@ vector<double> NGSPICE::GetPhasePlot( const string& aName, int aMaxLen )
 {
     LOCALE_IO c_locale;       // ngspice works correctly only with C locale
     vector<double> data;
-    vector_info* vi = ngGet_Vec_Info( (char*) aName.c_str() );
+    vector_info* vi = m_ngGet_Vec_Info( (char*) aName.c_str() );
 
     if( vi )
     {
@@ -204,9 +207,8 @@ bool NGSPICE::LoadNetlist( const string& aNetlist )
         m_netlist += std::string( line ) + std::string( "\n" );
     }
 
-    lines.push_back( nullptr );
-
-    ngSpice_Circ( lines.data() );
+    lines.push_back( nullptr ); // sentinel, as requested in ngSpice_Circ description
+    m_ngSpice_Circ( lines.data() );
 
     for( auto line : lines )
         free( line );
@@ -232,15 +234,15 @@ bool NGSPICE::Stop()
 bool NGSPICE::IsRunning()
 {
     LOCALE_IO c_locale;               // ngspice works correctly only with C locale
-    return ngSpice_running();
+    return m_ngSpice_Running();
 }
 
 
 bool NGSPICE::Command( const string& aCmd )
 {
     LOCALE_IO c_locale;               // ngspice works correctly only with C locale
-    ngSpice_Command( (char*) aCmd.c_str() );
-
+    validate();
+    m_ngSpice_Command( (char*) aCmd.c_str() );
     return true;
 }
 
@@ -270,19 +272,72 @@ string NGSPICE::GetXAxis( SIM_TYPE aType ) const
 }
 
 
-void NGSPICE::init()
+void NGSPICE::init_dll()
 {
     if( m_initialized )
         return;
 
     LOCALE_IO c_locale;               // ngspice works correctly only with C locale
-    ngSpice_Init( &cbSendChar, &cbSendStat, &cbControlledExit, NULL, NULL, &cbBGThreadRunning, this );
+    const wxStandardPaths& stdPaths = wxStandardPaths::Get();
+
+    if( m_dll.IsLoaded() )      // enable force reload
+        m_dll.Unload();
+
+// Extra effort to find libngspice
+#if defined(__WINDOWS__) || (__WXMAC__)
+#ifdef __WINDOWS__
+    wxFileName dllFile( "", "libngspice-0.dll" );
+    const vector<string> dllPaths = { "", "/mingw64/bin", "/mingw32/bin" };
+#endif /* __WINDOWS__ */
+#ifdef __WXMAC__
+    wxFileName dllFile( "", "libngspice.0.dylib" );
+    const vector<string> dllPaths = {
+        GetOSXKicadUserDataDir() + "/PlugIns/ngspice",
+        GetOSXKicadMachineDataDir() + "/PlugIns/ngspice",
+        // when running kicad.app
+        stdPaths.GetPluginsDir() + "/sim",
+        // when running eeschema.app
+        wxFileName( stdPaths.GetExecutablePath() ).GetPath() + "/../../../../../Contents/PlugIns/sim"
+    };
+#endif /* __WXMAC__ */
+
+    for( const auto& path : dllPaths )
+    {
+        dllFile.SetPath( path );
+        wxLogTrace( traceNgspice, "libngspice search path: %s", dllFile.GetFullPath() );
+        m_dll.Load( dllFile.GetFullPath(), wxDL_VERBATIM | wxDL_QUIET | wxDL_NOW );
+
+        if( m_dll.IsLoaded() )
+        {
+            wxLogTrace( traceNgspice, "libngspice path found in: %s", dllFile.GetFullPath() );
+            break;
+        }
+    }
+
+    if( !m_dll.IsLoaded() ) // try also the system libraries
+#endif /* __WINDOWS || __WXMAC__ */
+        m_dll.Load( wxDynamicLibrary::CanonicalizeName( "ngspice" ) );
+
+    if( !m_dll.IsLoaded() )
+        throw std::runtime_error( "Missing ngspice shared library" );
+
+    m_error = false;
+
+    // Obtain function pointers
+    m_ngSpice_Init = (ngSpice_Init) m_dll.GetSymbol( "ngSpice_Init" );
+    m_ngSpice_Circ = (ngSpice_Circ) m_dll.GetSymbol( "ngSpice_Circ" );
+    m_ngSpice_Command = (ngSpice_Command) m_dll.GetSymbol( "ngSpice_Command" );
+    m_ngGet_Vec_Info = (ngGet_Vec_Info) m_dll.GetSymbol( "ngGet_Vec_Info" );
+    m_ngSpice_AllPlots = (ngSpice_AllPlots) m_dll.GetSymbol( "ngSpice_AllPlots" );
+    m_ngSpice_AllVecs = (ngSpice_AllVecs) m_dll.GetSymbol( "ngSpice_AllVecs" );
+    m_ngSpice_Running = (ngSpice_Running) m_dll.GetSymbol( "ngSpice_running" ); // it is not a typo
+
+    m_ngSpice_Init( &cbSendChar, &cbSendStat, &cbControlledExit, NULL, NULL, &cbBGThreadRunning, this );
 
     // Load a custom spinit file, to fix the problem with loading .cm files
     // Switch to the executable directory, so the relative paths are correct
-    const wxStandardPaths& paths = wxStandardPaths::Get();
     wxString cwd( wxGetCwd() );
-    wxFileName exeDir( paths.GetExecutablePath() );
+    wxFileName exeDir( stdPaths.GetExecutablePath() );
     wxSetWorkingDirectory( exeDir.GetPath() );
 
     // Find *.cm files
@@ -296,6 +351,10 @@ void NGSPICE::init()
     const vector<string> spiceinitPaths =
     {
         ".",
+#ifdef __WXMAC__
+        stdPaths.GetPluginsDir() + "/sim/ngspice/scripts",
+        wxFileName( stdPaths.GetExecutablePath() ).GetPath() + "/../../../../../Contents/PlugIns/sim/ngspice/scripts"
+#endif /* __WXMAC__ */
         "../share/kicad",
         "../share",
         "../../share/kicad",
@@ -306,8 +365,11 @@ void NGSPICE::init()
 
     for( const auto& path : spiceinitPaths )
     {
+        wxLogTrace( traceNgspice, "ngspice init script search path: %s", path );
+
         if( loadSpinit( path + "/spiceinit" ) )
         {
+            wxLogTrace( traceNgspice, "ngspice path found in: %s", path );
             foundSpiceinit = true;
             break;
         }
@@ -321,8 +383,8 @@ void NGSPICE::init()
     // Restore the working directory
     wxSetWorkingDirectory( cwd );
 
-    // Workarounds to avoid hang ups on certain errors,
-    // they have to be called, no matter what is in the spinit file
+    // Workarounds to avoid hang ups on certain errors
+    // These commands have to be called, no matter what is in the spinit file
     Command( "unset interactive" );
     Command( "set noaskquit" );
     Command( "set nomoremode" );
@@ -352,9 +414,12 @@ string NGSPICE::findCmPath() const
 {
     const vector<string> cmPaths =
     {
-#ifdef __APPLE__
+#ifdef __WXMAC__
         "/Applications/ngspice/lib/ngspice",
-#endif /* __APPLE__ */
+        "Contents/Frameworks",
+        wxStandardPaths::Get().GetPluginsDir() + "/sim/ngspice",
+        wxFileName( wxStandardPaths::Get().GetExecutablePath() ).GetPath() + "/../../../../../Contents/PlugIns/sim/ngspice"
+#endif /* __WXMAC__ */
         "../lib/ngspice",
         "../../lib/ngspice"
         "lib/ngspice",
@@ -363,8 +428,13 @@ string NGSPICE::findCmPath() const
 
     for( const auto& path : cmPaths )
     {
-        if( wxFileName::DirExists( path ) )
+        wxLogTrace( traceNgspice, "ngspice code models search path: %s", path );
+
+        if( wxFileName::FileExists( path + "/spice2poly.cm" ) )
+        {
+            wxLogTrace( traceNgspice, "ngspice code models found in: %s", path );
             return path;
+        }
     }
 
     return string();
@@ -426,12 +496,22 @@ int NGSPICE::cbBGThreadRunning( bool is_running, int id, void* user )
 int NGSPICE::cbControlledExit( int status, bool immediate, bool exit_upon_quit, int id, void* user )
 {
     // Something went wrong, reload the dll
-    //NGSPICE* sim = reinterpret_cast<NGSPICE*>( user );
-    //sim->m_initialized = false;
-    //printf("stat %d immed %d quit %d\n", status, !!immediate, !!exit_upon_quit);
+    NGSPICE* sim = reinterpret_cast<NGSPICE*>( user );
+    sim->m_error = true;
 
     return 0;
 }
+
+
+void NGSPICE::validate()
+{
+    if( m_error )
+    {
+        m_initialized = false;
+        init_dll();
+    }
+}
+
 
 const std::string NGSPICE::GetNetlist() const
 {

@@ -35,7 +35,7 @@
 #include "../../3d_fastmath.h"
 #include <trigo.h>
 #include <project.h>
-#include <profile.h>        // To use GetRunningMicroSecs or an other profiling utility
+#include <profile.h>        // To use GetRunningMicroSecs or another profiling utility
 
 
 void C3D_RENDER_OGL_LEGACY::add_object_to_triangle_layer( const CFILLEDCIRCLE2D * aFilledCircle,
@@ -642,7 +642,7 @@ void C3D_RENDER_OGL_LEGACY::reload( REPORTER *aStatusTextReporter )
     if( aStatusTextReporter )
         aStatusTextReporter->Report( _( "Loading 3D models" ) );
 
-    load_3D_models();
+    load_3D_models( aStatusTextReporter );
 
 #ifdef PRINT_STATISTICS_3D_VIEWER
     unsigned stats_end_models_Load_Time = GetRunningMicroSecs();
@@ -768,9 +768,11 @@ void C3D_RENDER_OGL_LEGACY::generate_3D_Vias_and_Pads()
             {
                 const VIA *via = static_cast<const VIA*>(track);
 
-                const float holediameter = via->GetDrillValue() * m_settings.BiuTo3Dunits();
-                const float thickness = m_settings.GetCopperThickness3DU();
-                const float hole_inner_radius = ( holediameter / 2.0f );
+                const float  holediameter = via->GetDrillValue() * m_settings.BiuTo3Dunits();
+                const float  thickness = m_settings.GetCopperThickness3DU();
+                const int    nrSegments = m_settings.GetNrSegmentsCircle( via->GetDrillValue() );
+                const double correctionFactor = m_settings.GetCircleCorrectionFactor( nrSegments );
+                const float  hole_inner_radius = ( holediameter / 2.0f ) * correctionFactor;
 
                 const SFVEC2F via_center(  via->GetStart().x * m_settings.BiuTo3Dunits(),
                                           -via->GetStart().y * m_settings.BiuTo3Dunits() );
@@ -790,7 +792,7 @@ void C3D_RENDER_OGL_LEGACY::generate_3D_Vias_and_Pads()
                                    hole_inner_radius + thickness,
                                    ztop,
                                    zbot,
-                                   m_settings.GetNrSegmentsCircle( via->GetDrillValue() ),
+                                   nrSegments,
                                    layerTriangleVIA );
             }
         }
@@ -829,20 +831,20 @@ void C3D_RENDER_OGL_LEGACY::generate_3D_Vias_and_Pads()
 
                     // we use the hole diameter to calculate the seg count.
                     // for round holes, drillsize.x == drillsize.y
-                    // for oblong holes, the diameter is the smaller of
-                    // (drillsize.x, drillsize.y)
-                    const int diam = std::min( drillsize.x, drillsize.y ) +
-                                     m_settings.GetCopperThicknessBIU() * 2;
-
-                    const int segmentsPerCircle = m_settings.GetNrSegmentsCircle( diam );
+                    // for slots, the diameter is the smaller of (drillsize.x, drillsize.y)
+                    int    copperThickness = m_settings.GetCopperThicknessBIU();
+                    int    radius = std::min( drillsize.x, drillsize.y ) / 2 + copperThickness;
+                    int    nrSegments = m_settings.GetNrSegmentsCircle( radius * 2 );
+                    double correctionFactor = m_settings.GetCircleCorrectionFactor( nrSegments );
+                    int    correction = radius * ( correctionFactor - 1 );
 
                     pad->BuildPadDrillShapePolygon( tht_outer_holes_poly,
-                                                    m_settings.GetCopperThicknessBIU(),
-                                                    segmentsPerCircle );
+                                                    copperThickness + correction,
+                                                    nrSegments );
 
                     pad->BuildPadDrillShapePolygon( tht_inner_holes_poly,
-                                                    0,
-                                                    segmentsPerCircle );
+                                                    correction,
+                                                    nrSegments );
                 }
             }
         }
@@ -921,7 +923,7 @@ void C3D_RENDER_OGL_LEGACY::generate_3D_Vias_and_Pads()
  * cache for this render. (cache based on C_OGL_3DMODEL with associated
  * openGL lists in GPU memory)
  */
-void C3D_RENDER_OGL_LEGACY::load_3D_models()
+void C3D_RENDER_OGL_LEGACY::load_3D_models( REPORTER *aStatusTextReporter )
 {
     if( (!m_settings.GetFlag( FL_MODULE_ATTRIBUTES_NORMAL )) &&
         (!m_settings.GetFlag( FL_MODULE_ATTRIBUTES_NORMAL_INSERT )) &&
@@ -943,7 +945,18 @@ void C3D_RENDER_OGL_LEGACY::load_3D_models()
             {
                 if( !sM->m_Filename.empty() )
                 {
+                    if( aStatusTextReporter )
+                    {
+                        // Display the short filename of the 3D model loaded:
+                        // (the full name is usually too long to be displayed)
+                        wxFileName fn( sM->m_Filename );
+                        wxString msg;
+                        msg.Printf( _( "Loading %s" ), fn.GetFullName() );
+                        aStatusTextReporter->Report( msg );
+                    }
+
                     // Check if the model is not present in our cache map
+                    // (Not already loaded in memory)
                     if( m_3dmodel_map.find( sM->m_Filename ) == m_3dmodel_map.end() )
                     {
                         // It is not present, try get it from cache

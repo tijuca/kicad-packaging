@@ -2,8 +2,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2014-2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2008-2015 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2008 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -58,14 +58,6 @@ EDA_UNITS_T    g_UserUnit;
 COLOR4D        g_GhostColor;
 
 
-/* Class LOCALE_IO
- * is a class that can be instantiated within a scope in which you are expecting
- * exceptions to be thrown.  Its constructor sets a "C" locale, to read/print files
- * with fp numbers.
- * Its destructor insures that the default locale is restored if an exception
- * is thrown, or not.
- */
-
 std::atomic<unsigned int> LOCALE_IO::m_c_count(0);
 
 LOCALE_IO::LOCALE_IO()
@@ -79,6 +71,7 @@ LOCALE_IO::LOCALE_IO()
         setlocale( LC_ALL, "C" );
     }
 }
+
 
 LOCALE_IO::~LOCALE_IO()
 {
@@ -219,28 +212,35 @@ wxString GetKicadConfigPath()
 {
     wxFileName cfgpath;
 
-    // From the wxWidgets wxStandardPaths::GetUserConfigDir() help:
-    //      Unix: ~ (the home directory)
-    //      Windows: "C:\Documents and Settings\username\Application Data"
-    //      Mac: ~/Library/Preferences
+    // http://docs.wxwidgets.org/3.0/classwx_standard_paths.html#a7c7cf595d94d29147360d031647476b0
     cfgpath.AssignDir( wxStandardPaths::Get().GetUserConfigDir() );
 
-#if !defined( __WINDOWS__ ) && !defined( __WXMAC__ )
+    // GetUserConfigDir() does not default to ~/.config which is the current standard
+    // configuration file location on Linux.  This has been fixed in later versions of wxWidgets.
+#if !defined( __WXMSW__ ) && !defined( __WXMAC__ )
+    wxArrayString dirs = cfgpath.GetDirs();
+
+    if( dirs.Last() != ".config" )
+        cfgpath.AppendDir( ".config" );
+#endif
+
     wxString envstr;
 
-    if( !wxGetEnv( wxT( "XDG_CONFIG_HOME" ), &envstr ) || envstr.IsEmpty() )
-    {
-        // XDG_CONFIG_HOME is not set, so use the fallback
-        cfgpath.AppendDir( wxT( ".config" ) );
-    }
-    else
+    // This shouldn't cause any issues on Windows or MacOS.
+    if( wxGetEnv( wxT( "XDG_CONFIG_HOME" ), &envstr ) && !envstr.IsEmpty() )
     {
         // Override the assignment above with XDG_CONFIG_HOME
         cfgpath.AssignDir( envstr );
     }
-#endif
 
     cfgpath.AppendDir( wxT( "kicad" ) );
+
+    // Use KICAD_CONFIG_HOME to allow the user to force a specific configuration path.
+    if( wxGetEnv( wxT( "KICAD_CONFIG_HOME" ), &envstr ) && !envstr.IsEmpty() )
+    {
+        // Override the assignment above with KICAD_CONFIG_HOME
+        cfgpath.AssignDir( envstr );
+    }
 
     if( !cfgpath.DirExists() )
     {
@@ -384,5 +384,16 @@ wxString GetOSXKicadDataDir()
 size_t std::hash<wxString>::operator()( const wxString& s ) const
 {
     return std::hash<std::wstring>{}( s.ToStdWstring() );
+}
+#endif
+
+
+#ifdef USE_KICAD_WXPOINT_LESS
+bool std::less<wxPoint>::operator()( const wxPoint& aA, const wxPoint& aB ) const
+{
+    if( aA.x == aB.x )
+        return aA.y < aB.y;
+
+    return aA.x < aB.x;
 }
 #endif

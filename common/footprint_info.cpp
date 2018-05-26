@@ -109,7 +109,7 @@ void FOOTPRINT_LIST::DisplayErrors( wxTopLevelWindow* aWindow )
 }
 
 
-static std::unique_ptr<FOOTPRINT_LIST> get_instance_from_id( KIWAY& aKiway, int aId )
+static FOOTPRINT_LIST* get_instance_from_id( KIWAY& aKiway, int aId )
 {
     void* ptr = nullptr;
 
@@ -130,13 +130,13 @@ static std::unique_ptr<FOOTPRINT_LIST> get_instance_from_id( KIWAY& aKiway, int 
         return nullptr;
     }
 
-    return std::unique_ptr<FOOTPRINT_LIST>( (FOOTPRINT_LIST*) ( ptr ) );
+    return static_cast<FOOTPRINT_LIST*>( ptr );
 }
 
 
-std::unique_ptr<FOOTPRINT_LIST> FOOTPRINT_LIST::GetInstance( KIWAY& aKiway )
+FOOTPRINT_LIST* FOOTPRINT_LIST::GetInstance( KIWAY& aKiway )
 {
-    return get_instance_from_id( aKiway, KIFACE_NEW_FOOTPRINT_LIST );
+    return get_instance_from_id( aKiway, KIFACE_FOOTPRINT_LIST );
 }
 
 
@@ -178,29 +178,6 @@ bool FOOTPRINT_ASYNC_LOADER::Join()
     }
     else
         return true;
-}
-
-
-int FOOTPRINT_ASYNC_LOADER::GetProgress() const
-{
-    if( !m_started )
-        return 0;
-    else if( m_total_libs == 0 || !m_list )
-        return 100;
-    else
-    {
-        int loaded = m_list->CountFinished();
-        int prog = ( 100 * loaded ) / m_total_libs;
-
-        if( loaded == m_total_libs )
-            return 100;
-        else if( loaded < m_total_libs && prog >= 100 )
-            return 99;
-        else if( prog <= 0 )
-            return 1;
-        else
-            return prog;
-    }
 }
 
 

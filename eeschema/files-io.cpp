@@ -36,6 +36,7 @@
 #include <pgm_base.h>
 #include <kiface_i.h>
 #include <richio.h>
+#include <trace_helpers.h>
 
 #include <eeschema_id.h>
 #include <class_library.h>
@@ -249,8 +250,6 @@ bool SCH_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
     SetStatusText( wxEmptyString );
     ClearMsgPanel();
 
-    LoadProjectFile();
-
     // PROJECT::SetProjectFullName() is an impactful function.  It should only be
     // called under carefully considered circumstances.
 
@@ -273,6 +272,8 @@ bool SCH_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
         Prj().SetElem( PROJECT::ELEM_SCH_PART_LIBS, NULL );
         Prj().SchLibs();
     }
+
+    LoadProjectFile();
 
     // Load the symbol library table, this will be used forever more.
     Prj().SetElem( PROJECT::ELEM_SYMBOL_LIB_TABLE, NULL );
@@ -544,6 +545,12 @@ bool SCH_EDIT_FRAME::AppendSchematic()
                         newLib.SetFullName( uri.AfterLast( '}' ) );
                         uri = newLib.GetFullPath();
                     }
+                    else if( uri.Contains( "$(KIPRJMOD)" ) )
+                    {
+                        newLib.SetPath( fn.GetPath() );
+                        newLib.SetFullName( uri.AfterLast( ')' ) );
+                        uri = newLib.GetFullPath();
+                    }
                     else
                     {
                         uri = table.GetFullURI( libName );
@@ -615,10 +622,7 @@ bool SCH_EDIT_FRAME::AppendSchematic()
         renamedSheet->SetName( wxString::Format( "Sheet%8.8lX", (unsigned long) newtimestamp ) );
     }
 
-    // Clear all annotation in the imported schematic to prevent clashes with existing annotation.
-    newScreens.ClearAnnotation();
-
-    // It is finally save to add the imported schematic.
+    // It is finally safe to add the imported schematic.
     screen->Append( newScreen );
 
     SCH_SCREENS allScreens;
@@ -626,10 +630,13 @@ bool SCH_EDIT_FRAME::AppendSchematic()
 
     OnModify();
 
-    // redraw base screen (ROOT) if necessary
     SCH_SCREENS screens( GetCurrentSheet().Last() );
-
     screens.UpdateSymbolLinks( true );
+
+    // Clear all annotation in the imported schematic to prevent clashes with existing annotation.
+    // Must be done after updating the symbol links as we need to know about multi-unit parts.
+    screens.ClearAnnotation();
+
     GetScreen()->SetGrid( ID_POPUP_GRID_LEVEL_1000 + m_LastGridSizeId );
     Zoom_Automatique( false );
     SetSheetNumberAndCount();
@@ -798,9 +805,6 @@ bool SCH_EDIT_FRAME::importFile( const wxString& aFileName, int aFileType )
                     layoutfile.Close();
                 }
 
-                SaveProjectSettings( false );
-
-
                 projectpath = Kiway().Prj().GetProjectPath();
                 newfilename.SetPath( Prj().GetProjectPath() );
                 newfilename.SetName( Prj().GetProjectName() );
@@ -813,6 +817,7 @@ bool SCH_EDIT_FRAME::importFile( const wxString& aFileName, int aFileType )
                 g_RootSheet->SetFileName( newfilename.GetFullPath() );
                 GetScreen()->SetFileName( newfilename.GetFullPath() );
                 GetScreen()->SetModify();
+                SaveProjectSettings( false );
 
                 UpdateFileHistory( fullFileName );
                 SCH_SCREENS schematic;
@@ -824,7 +829,6 @@ bool SCH_EDIT_FRAME::importFile( const wxString& aFileName, int aFileType )
 
 
                 SCH_TYPE_COLLECTOR components;
-                auto& schLibTable = *Kiway().Prj().SchSymbolLibTable();
                 SCH_SCREENS allScreens;
                 for( SCH_SCREEN* screen = allScreens.GetFirst(); screen; screen = allScreens.GetNext() )
                 {
@@ -846,8 +850,6 @@ bool SCH_EDIT_FRAME::importFile( const wxString& aFileName, int aFileType )
                         }
 
                         // Add junction dots where necessary
-                        cmp->Resolve( schLibTable );
-                        cmp->UpdatePinCache();
                         cmp->GetConnectionPoints( pts );
 
                         for( auto i = pts.begin(); i != pts.end(); ++i )

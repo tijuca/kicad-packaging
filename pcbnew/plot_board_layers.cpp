@@ -34,6 +34,7 @@
 #include <plotter.h>
 #include <base_struct.h>
 #include <draw_graphic_text.h>
+#include <geometry/geometry_utils.h>
 #include <trigo.h>
 #include <pcb_base_frame.h>
 #include <macros.h>
@@ -50,7 +51,7 @@
 
 #include <pcbnew.h>
 #include <pcbplot.h>
-#include <plot_auxiliary_data.h>
+#include <gbr_metadata.h>
 
 // Local
 /* Plot a solder mask layer.
@@ -138,9 +139,9 @@ void PlotSilkScreen( BOARD *aBoard, PLOTTER* aPlotter, LSET aLayerMask,
 
     aPlotter->EndBlock( NULL );
 
-    // Plot segments used to fill zone areas (outdated, but here for old boards
+    // Plot segments used to fill zone areas (deprecated, but here for very old boards
     // compatibility):
-    for( SEGZONE* seg = aBoard->m_Zone; seg; seg = seg->Next() )
+    for( SEGZONE* seg = aBoard->m_SegZoneDeprecated; seg; seg = seg->Next() )
     {
         if( !aLayerMask[ seg->GetLayer() ] )
             continue;
@@ -367,7 +368,7 @@ void PlotStandardLayer( BOARD *aBoard, PLOTTER* aPlotter,
             }
 
             // Now offset the pad size by margin + width_adj
-            // this is easy for most shapes, but not for a trapezoid
+            // this is easy for most shapes, but not for a trapezoid or a custom shape
             wxSize padPlotsSize;
             wxSize extraSize = margin * 2;
             extraSize.x += width_adj;
@@ -424,23 +425,45 @@ void PlotStandardLayer( BOARD *aBoard, PLOTTER* aPlotter,
 
             // Temporary set the pad size to the required plot size:
             wxSize tmppadsize = pad->GetSize();
-            pad->SetSize( padPlotsSize );
 
             switch( pad->GetShape() )
             {
             case PAD_SHAPE_CIRCLE:
             case PAD_SHAPE_OVAL:
-                if( aPlotOpt.GetSkipPlotNPTH_Pads() &&
-                    (pad->GetSize() == pad->GetDrillSize()) &&
-                    (pad->GetAttribute() == PAD_ATTRIB_HOLE_NOT_PLATED) )
-                    break;
+                pad->SetSize( padPlotsSize );
 
+                if( aPlotOpt.GetSkipPlotNPTH_Pads() &&
+                    ( pad->GetSize() == pad->GetDrillSize() ) &&
+                    ( pad->GetAttribute() == PAD_ATTRIB_HOLE_NOT_PLATED ) )
+                    break;
                 // Fall through:
             case PAD_SHAPE_TRAPEZOID:
             case PAD_SHAPE_RECT:
             case PAD_SHAPE_ROUNDRECT:
-            default:
                 itemplotter.PlotPad( pad, color, plotMode );
+                break;
+
+            case PAD_SHAPE_CUSTOM:
+                // inflate/deflate a custom shape is a bit complex.
+                // so build a similar pad shape, and inflate/deflate the polygonal shape
+                {
+                // we expect margin.x = margin.y for custom pads
+                if( margin.x < 0 )
+                    // be sure the anchor pad is not bigger than the deflated shape
+                    // because this anchor will be added to the pad shape when plotting
+                    // the pad
+                    pad->SetSize( padPlotsSize );
+
+                D_PAD dummy( *pad );
+                SHAPE_POLY_SET shape;
+                pad->MergePrimitivesAsPolygon( &shape, 64 );
+                shape.Inflate( margin.x, 32 );
+                dummy.DeletePrimitivesList();
+                dummy.AddPrimitive( shape, 0 );
+                dummy.MergePrimitivesAsPolygon();
+
+                itemplotter.PlotPad( &dummy, color, plotMode );
+                }
                 break;
             }
 
@@ -545,8 +568,8 @@ void PlotStandardLayer( BOARD *aBoard, PLOTTER* aPlotter,
 
     aPlotter->EndBlock( NULL );
 
-    // Plot zones (outdated, for old boards compatibility):
-    for( TRACK* track = aBoard->m_Zone; track; track = track->Next() )
+    // Plot zones (deprecated, for very old boards compatibility):
+    for( TRACK* track = aBoard->m_SegZoneDeprecated; track; track = track->Next() )
     {
         if( !aLayerMask[track->GetLayer()] )
             continue;
@@ -791,7 +814,7 @@ void PlotSolderMaskLayer( BOARD *aBoard, PLOTTER* aPlotter,
      * due to the segment approx ( 1 /cos( PI/circleToSegmentsCount )
      */
     int circleToSegmentsCount = 32;
-    double correction = 1.0 / cos( M_PI / circleToSegmentsCount );
+    double correction = GetCircletoPolyCorrectionFactor( circleToSegmentsCount );
 
     // Plot pads
     for( MODULE* module = aBoard->m_Modules; module; module = module->Next() )
@@ -1046,7 +1069,7 @@ PLOTTER* StartPlotBoard( BOARD *aBoard, PCB_PLOT_PARAMS *aPlotOpts,
         HPGL_plotter = new HPGL_PLOTTER();
 
         /* HPGL options are a little more convoluted to compute, so
-           they're split in an other function */
+           they're split in another function */
         ConfigureHPGLPenSizes( HPGL_plotter, aPlotOpts );
         plotter = HPGL_plotter;
         break;

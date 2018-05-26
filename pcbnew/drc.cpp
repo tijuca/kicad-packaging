@@ -99,7 +99,7 @@ void DRC::addMarkerToPcb( MARKER_PCB* aMarker )
 {
     BOARD_COMMIT commit( m_pcbEditorFrame );
     commit.Add( aMarker );
-    commit.Push( wxEmptyString, false );
+    commit.Push( wxEmptyString, false, false );
 }
 
 
@@ -135,6 +135,7 @@ DRC::DRC( PCB_EDIT_FRAME* aPcbWindow )
     m_abortDRC = false;
     m_drcInProgress = false;
     m_refillZones = false;            // Only fill zones if requested by user.
+    m_reportAllTrackErrors = false;
     m_doCreateRptFile = false;
 
     // m_rptFilename set to empty by its constructor
@@ -165,9 +166,9 @@ int DRC::Drc( TRACK* aRefSegm, TRACK* aList )
 
     if( !doTrackDrc( aRefSegm, aList, true ) )
     {
-        wxASSERT( m_currentMarker );
+        if( m_currentMarker )
+            m_pcbEditorFrame->SetMsgPanel( m_currentMarker );
 
-        m_pcbEditorFrame->SetMsgPanel( m_currentMarker );
         return BAD_DRC;
     }
 
@@ -338,7 +339,7 @@ int DRC::TestZoneToZoneOutline( ZONE_CONTAINER* aZone, bool aCreateMarkers )
     }
 
     if( aCreateMarkers )
-        commit.Push( wxEmptyString, false );
+        commit.Push( wxEmptyString, false, false );
 
     return nerrors;
 }
@@ -403,27 +404,28 @@ void DRC::RunTests( wxTextCtrl* aMessages )
 
     testTracks( aMessages ? aMessages->GetParent() : m_pcbEditorFrame, true );
 
-    // Before testing segments and unconnected, refill all zones:
-    // this is a good caution, because filled areas can be outdated.
-    if( aMessages )
-    {
-        aMessages->AppendText( _( "Fill zones...\n" ) );
-        wxSafeYield();
-    }
-
     // caller (a wxTopLevelFrame) is the wxDialog or the Pcb Editor frame that call DRC:
     wxWindow* caller = aMessages ? aMessages->GetParent() : m_pcbEditorFrame;
 
     if( m_refillZones )
     {
-        aMessages->AppendText( _( "Refilling all zones...\n" ) );
+        if( aMessages )
+            aMessages->AppendText( _( "Refilling all zones...\n" ) );
+
         m_pcbEditorFrame->Fill_All_Zones( caller );
+    }
+    else
+    {
+        if( aMessages )
+            aMessages->AppendText( _( "Checking zone fills...\n" ) );
+
+        m_pcbEditorFrame->Check_All_Zones( caller );
     }
 
     // test zone clearances to other zones
     if( aMessages )
     {
-        aMessages->AppendText( _( "Test zones...\n" ) );
+        aMessages->AppendText( _( "Zone to zone clearances...\n" ) );
         wxSafeYield();
     }
 
@@ -631,6 +633,9 @@ void DRC::testPad2Pad()
 
     m_pcb->GetSortedPadListByXthenYCoord( sortedPads );
 
+    if( sortedPads.size() == 0 )
+        return;
+
     // find the max size of the pads (used to stop the test)
     int max_size = 0;
 
@@ -645,9 +650,10 @@ void DRC::testPad2Pad()
             max_size = radius;
     }
 
-    // Test the pads
-    D_PAD** listEnd = &sortedPads[ sortedPads.size() ];
+    // Upper limit of pad list (limit not included)
+    D_PAD** listEnd = &sortedPads[0] + sortedPads.size();
 
+    // Test the pads
     for( unsigned i = 0; i< sortedPads.size(); ++i )
     {
         D_PAD* pad = sortedPads[i];
@@ -711,9 +717,11 @@ void DRC::testTracks( wxWindow *aActiveWindow, bool aShowProgressBar )
 
         if( !doTrackDrc( segm, segm->Next(), true ) )
         {
-            wxASSERT( m_currentMarker );
-            addMarkerToPcb ( m_currentMarker );
-            m_currentMarker = nullptr;
+            if( m_currentMarker )
+            {
+                addMarkerToPcb ( m_currentMarker );
+                m_currentMarker = nullptr;
+            }
         }
     }
 

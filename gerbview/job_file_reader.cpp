@@ -37,23 +37,43 @@
 #include <gerber_file_image_list.h>
 #include <gerbview_frame.h>
 #include <reporter.h>
-#include <plot_auxiliary_data.h>
+#include <gbr_metadata.h>
 #include <html_messagebox.h>
 #include <view/view.h>
 
+#include "json11.hpp"   // A light JSON parser
 
 /**
  * this class read and parse a Gerber job file to extract useful info
  * for GerbView
  *
- * In a gerber job file, data lines start by
+ * In a gerber job file, old (deprecated) format, data lines start by
  * %TF.     (usual Gerber X2 info)
  * %TJ.B.   (board info)
  * %TJ.D.   (design info)
  * %TJ.L.   (layers info)
  * some others are not yet handled by Kicad
  * M02*     is the last line
+
+ * In a gerber job file, JSON format, first lines are
+ *   {
+ *    "Header":
+ * and the block ( a JSON array) containing the filename of files to load is
+ *    "FilesAttributes":
+ *    [
+ *      {
+ *        "Path":  "interf_u-Composant.gbr",
+ *        "FileFunction":  "Copper,L1,Top",
+ *        "FilePolarity":  "Positive"
+ *      },
+ *      {
+ *        "Path":  "interf_u-In1.Cu.gbr",
+ *        "FileFunction":  "Copper,L2,Inr",
+ *        "FilePolarity":  "Positive"
+ *      },
+ *    ],
  */
+
 class GERBER_JOBFILE_READER
 {
 public:
@@ -65,14 +85,8 @@ public:
 
     ~GERBER_JOBFILE_READER() {}
 
-    bool ReadGerberJobFile();       /// read the .gbj file
+    bool ReadGerberJobFile();       /// read a .gbrjob file
     wxArrayString& GetGerberFiles() { return m_GerberFiles; }
-
-private:
-    /** parse a string starting by "%TJ.L" (layer gerber filename)
-     * and add the filename in m_GerberFiles
-     */
-    bool parseTJLayerString( wxString& aText );
 
 private:
     REPORTER* m_reporter;
@@ -96,46 +110,46 @@ bool GERBER_JOBFILE_READER::ReadGerberJobFile()
     wxString msg;
     wxString data;
 
-    while( true )
+    // detect the file format: old (deprecated) gerber format of official JSON format
+    bool json_format = false;
+
+    char* line = jobfileReader.ReadLine();
+
+    if( !line )     // end of file
+        return false;
+
+    data = line;
+
+    if( data.Contains( "{" ) )
+        json_format = true;
+
+    if( json_format )
     {
-        char* line = jobfileReader.ReadLine();
+        while( ( line = jobfileReader.ReadLine() ) )
+            data << '\n' << line;
 
-        if( !line )     // end of file
-            break;
+        std::string err;
+        json11::Json json_parser = json11::Json::parse( TO_UTF8( data ), err );
 
-        wxString text( line );
-        text.Trim( true );
-        text.Trim( false );
+        if( !err.empty() )
+            return false;
 
-        // Search for lines starting by '%', others are not usefull
-        if( text.StartsWith( "%TJ.L.", &data )  // First job file syntax
-            || text.StartsWith( "%TJ.L_", &data )   // current job file syntax
-            )
+        for( auto& entry : json_parser["FilesAttributes"].array_items() )
         {
-            parseTJLayerString( data );
-            continue;
+            //wxLogMessage( entry.dump().c_str() );
+            std::string name = entry["Path"].string_value();
+            //wxLogMessage( name.c_str() );
+            m_GerberFiles.Add( FormatStringFromGerber( name ) );
         }
-
-        if( text.StartsWith( "M02" ) )  // End of file
-            break;
     }
+    else
+    {
+        if( m_reporter )
+            m_reporter->Report( _( "This job file uses an outdated format. Please, recreate it" ),
+                                REPORTER::RPT_WARNING );
 
-    return true;
-}
-
-
-bool GERBER_JOBFILE_READER::parseTJLayerString( wxString& aText )
-{
-    // Parse a line like:
-    // %TJ.L."Copper,L1,Top",Positive,kit-dev-coldfire-xilinx_5213-Top_layer.gbr*%
-    // and extract the .gbr filename
-
-    // The filename is between the last comma in string and the '*' char
-    // the filename cannot contain itself a comma:
-    // this is a not allowed char, that is transcoded in hexa sequence
-    // if found in filename
-    wxString name = aText.AfterLast( ',' ).BeforeFirst( '*' );
-    m_GerberFiles.Add( FormatStringFromGerber( name ) );
+        return false;
+    }
 
     return true;
 }

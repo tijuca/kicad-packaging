@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2016 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -68,7 +68,6 @@ GERBVIEW_FRAME::GERBVIEW_FRAME( KIWAY* aKiway, wxWindow* aParent ):
     EDA_DRAW_FRAME( aKiway, aParent, FRAME_GERBER, wxT( "GerbView" ),
         wxDefaultPosition, wxDefaultSize, KICAD_DEFAULT_DRAWFRAME_STYLE, GERBVIEW_FRAME_NAME )
 {
-    m_auxiliaryToolBar = NULL;
     m_colorsSettings = &g_ColorsSettings;
     m_gerberLayout = NULL;
     m_zoomLevelCoeff = ZOOM_FACTOR( 110 );   // Adjusted to roughly displays zoom level = 1
@@ -119,14 +118,7 @@ GERBVIEW_FRAME::GERBVIEW_FRAME( KIWAY* aKiway, wxWindow* aParent ):
     SetScreen( new GBR_SCREEN( GetPageSettings().GetSizeIU() ) );
 
     // Create the PCB_LAYER_WIDGET *after* SetLayout():
-    wxFont  font = wxSystemSettings::GetFont( wxSYS_DEFAULT_GUI_FONT );
-    int     pointSize       = font.GetPointSize();
-    int     screenHeight    = wxSystemSettings::GetMetric( wxSYS_SCREEN_Y );
-
-    if( screenHeight <= 900 )
-        pointSize = (pointSize * 8) / 10;
-
-    m_LayersManager = new GERBER_LAYER_WIDGET( this, m_canvas, pointSize );
+    m_LayersManager = new GERBER_LAYER_WIDGET( this, m_canvas );
 
     // LoadSettings() *after* creating m_LayersManager, because LoadSettings()
     // initialize parameters in m_LayersManager
@@ -284,6 +276,8 @@ GERBVIEW_FRAME::GERBVIEW_FRAME( KIWAY* aKiway, wxWindow* aParent ):
 
 GERBVIEW_FRAME::~GERBVIEW_FRAME()
 {
+    GetGalCanvas()->GetView()->Clear();
+
     GetGerberLayout()->GetImagesList()->DeleteAllImages();
     delete m_gerberLayout;
 }
@@ -291,17 +285,17 @@ GERBVIEW_FRAME::~GERBVIEW_FRAME()
 
 void GERBVIEW_FRAME::OnCloseWindow( wxCloseEvent& Event )
 {
+    GetGalCanvas()->GetView()->Clear();
+    GetGalCanvas()->StopDrawing();
+
     if( m_toolManager )
         m_toolManager->DeactivateTool();
 
     if( IsGalCanvasActive() )
     {
-        GetGalCanvas()->GetView()->Clear();
         // Be sure any OpenGL event cannot be fired after frame deletion:
         GetGalCanvas()->SetEvtHandlerEnabled( false );
     }
-
-    GetGalCanvas()->StopDrawing();
 
     Destroy();
 }
@@ -309,6 +303,12 @@ void GERBVIEW_FRAME::OnCloseWindow( wxCloseEvent& Event )
 
 bool GERBVIEW_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, int aCtl )
 {
+    // Ensure the frame is shown when opening the file(s), to avoid issues (crash) on GAL
+    // when trying to change the view if it is not fully initialized.
+    // It happens when starting Gerbview with a gerber job file to load
+    if( !IsShown() )
+        Show();
+
     // The current project path is also a valid command parameter.  Check if a single path
     // rather than a file name was passed to GerbView and use it as the initial MRU path.
     if( aFileSet.size() > 0 )
@@ -1108,15 +1108,15 @@ void GERBVIEW_FRAME::UpdateStatusBar()
         switch( g_UserUnit )
         {
         case INCHES:
-            formatter = wxT( "Ro %.6f Th %.1f" );
+            formatter = wxT( "r %.6f  theta %.1f" );
             break;
 
         case MILLIMETRES:
-            formatter = wxT( "Ro %.5f Th %.1f" );
+            formatter = wxT( "r %.5f  theta %.1f" );
             break;
 
         case UNSCALED_UNITS:
-            formatter = wxT( "Ro %f Th %f" );
+            formatter = wxT( "r %f  theta %f" );
             break;
 
         case DEGREES:

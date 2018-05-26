@@ -69,6 +69,7 @@ private:
     // Events handlers:
     void OnInitDialog( wxInitDialogEvent& event ) override;
     void OnCloseDialog( wxCloseEvent& event ) override;
+    void OnSizeFieldsList( wxSizeEvent& event ) override;
 
     void OnListItemDeselected( wxListEvent& event ) override;
     void OnListItemSelected( wxListEvent& event ) override;
@@ -157,6 +158,9 @@ void LIB_EDIT_FRAME::InstallFieldsEditorDialog( wxCommandEvent& event )
     m_canvas->EndMouseCapture( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor() );
 
     DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB dlg( this, GetCurPart() );
+
+    if( GetDrawItem() && GetDrawItem()->Type() == LIB_FIELD_T )
+        SetDrawItem( nullptr );     // selected LIB_FIELD might be deleted
 
     // This dialog itself subsequently can invoke a KIWAY_PLAYER as a quasimodal
     // frame. Therefore this dialog as a modal frame parent, MUST be run under
@@ -257,6 +261,14 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::OnCloseDialog( wxCloseEvent& event )
 }
 
 
+void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::OnSizeFieldsList( wxSizeEvent& event )
+{
+    int newWidth = event.GetSize().GetX();
+    fieldListCtrl->SetColumnWidth( COLUMN_TEXT, newWidth - fieldListCtrl->GetColumnWidth( 0 ) );
+    event.Skip();
+}
+
+
 void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::OnOKButtonClick( wxCommandEvent& event )
 {
     if( !copyPanelToSelectedField() )
@@ -348,7 +360,7 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::EditSpiceModel( wxCommandEvent& event )
     if( dialog.ShowModal() != wxID_OK )
         return;
 
-    // Transfert sch fields to the m_FieldsBuf fields buffer dialog:
+    // Transfer sch fields to the m_FieldsBuf fields buffer dialog:
     m_FieldsBuf.clear();
 
     for( unsigned ii = 0; ii < schfields.size(); ii++ )
@@ -357,6 +369,9 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::EditSpiceModel( wxCommandEvent& event )
         schfields[ii].ExportValues( libfield );
         m_FieldsBuf.push_back( libfield );
     }
+
+    // ... and to the panel:
+    copySelectedFieldToPanel();
 
     updateDisplay();
 #endif /* KICAD_SPICE */
@@ -702,8 +717,9 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::setRowItem( int aFieldNdx, const wxStri
     fieldListCtrl->SetItem( aFieldNdx, COLUMN_TEXT, aValue );
 
     // recompute the column widths here, after setting texts
+    int totalWidth = fieldListCtrl->GetSize().GetWidth();
     fieldListCtrl->SetColumnWidth( COLUMN_FIELD_NAME, wxLIST_AUTOSIZE );
-    fieldListCtrl->SetColumnWidth( COLUMN_TEXT, wxLIST_AUTOSIZE );
+    fieldListCtrl->SetColumnWidth( COLUMN_TEXT, totalWidth - fieldListCtrl->GetColumnWidth( 0 ) );
 }
 
 

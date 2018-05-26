@@ -100,6 +100,8 @@ set( PCBNEW_DIALOGS
     dialogs/dialog_gendrill_base.cpp
     dialogs/dialog_general_options.cpp
     dialogs/dialog_general_options_BoardEditor_base.cpp
+    dialogs/dialog_get_footprint.cpp
+    dialogs/dialog_get_footprint_base.cpp
     dialogs/dialog_get_footprint_by_name_base.cpp
     dialogs/dialog_global_deletion.cpp
     dialogs/dialog_global_deletion_base.cpp
@@ -127,7 +129,7 @@ set( PCBNEW_DIALOGS
     dialogs/dialog_move_exact.cpp
     dialogs/dialog_move_exact_base.cpp
     dialogs/dialog_netlist.cpp
-    dialogs/dialog_netlist_fbp.cpp
+    dialogs/dialog_netlist_base.cpp
     dialogs/dialog_non_copper_zones_properties.cpp
     dialogs/dialog_non_copper_zones_properties_base.cpp
     dialogs/dialog_pad_basicshapes_properties.cpp
@@ -746,10 +748,12 @@ if( KICAD_SCRIPTING )
     )
 
     # python shell
-    install( DIRECTORY ${PROJECT_SOURCE_DIR}/pcbnew/python/kicad_pyshell/
-        DESTINATION ${KICAD_DATA}/scripting/kicad_pyshell
-        FILE_PERMISSIONS OWNER_EXECUTE OWNER_READ OWNER_WRITE GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
-    )
+    if ( KICAD_SCRIPTING_WXPYTHON )
+        install( DIRECTORY ${PROJECT_SOURCE_DIR}/pcbnew/python/kicad_pyshell/
+            DESTINATION ${KICAD_DATA}/scripting/kicad_pyshell
+            FILE_PERMISSIONS OWNER_EXECUTE OWNER_READ OWNER_WRITE GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
+        )
+    endif()
 endif()
 
 

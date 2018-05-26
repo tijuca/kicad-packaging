@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Nov 22 2017)
+// C++ code generated with wxFormBuilder (version Apr 19 2018)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -66,13 +66,10 @@ class DIALOG_ERC_BASE : public DIALOG_SHIM
 		wxButton* m_buttonERC;
 		wxButton* m_buttonClose;
 		wxPanel* m_PanelERCOptions;
-		wxButton* m_ResetOptButton;
-		wxStaticText* m_staticText8;
-		wxPanel* m_matrixPanel;
-		wxStaticLine* m_staticline2;
-		wxStaticText* m_staticText9;
 		wxCheckBox* m_cbTestSimilarLabels;
 		wxCheckBox* m_cbTestUniqueGlbLabels;
+		wxPanel* m_matrixPanel;
+		wxButton* m_ResetOptButton;
 		
 		// Virtual event handlers, overide them in your derived class
 		virtual void OnCloseErcDialog( wxCloseEvent& event ) { event.Skip(); }

@@ -38,6 +38,7 @@
 #include <md5_hash.h>
 #include <map>
 
+#include <geometry/geometry_utils.h>
 #include <geometry/shape.h>
 #include <geometry/shape_line_chain.h>
 #include <geometry/shape_poly_set.h>
@@ -1228,6 +1229,37 @@ bool SHAPE_POLY_SET::PointOnEdge( const VECTOR2I& aP ) const
 }
 
 
+bool SHAPE_POLY_SET::Collide( const SEG& aSeg, int aClearance ) const
+{
+
+    SHAPE_POLY_SET polySet = SHAPE_POLY_SET( *this );
+
+    // Inflate the polygon if necessary.
+    if( aClearance > 0 )
+    {
+        // fixme: the number of arc segments should not be hardcoded
+        polySet.Inflate( aClearance, 8 );
+    }
+
+    // We are going to check to see if the segment crosses an external
+    // boundary.  However, if the full segment is inside the polyset, this
+    // will not be true.  So we first test to see if one of the points is
+    // inside.  If true, then we collide
+    if( polySet.Contains( aSeg.A ) )
+        return true;
+
+    for( SEGMENT_ITERATOR iterator = polySet.IterateSegmentsWithHoles(); iterator; iterator++ )
+    {
+        SEG polygonEdge = *iterator;
+
+        if( polygonEdge.Intersect( aSeg, true ) )
+            return true;
+    }
+
+    return false;
+}
+
+
 bool SHAPE_POLY_SET::Collide( const VECTOR2I& aP, int aClearance ) const
 {
     SHAPE_POLY_SET polySet = SHAPE_POLY_SET( *this );
@@ -1465,66 +1497,7 @@ bool SHAPE_POLY_SET::containsSingle( const VECTOR2I& aP, int aSubpolyIndex, bool
 
 bool SHAPE_POLY_SET::pointInPolygon( const VECTOR2I& aP, const SHAPE_LINE_CHAIN& aPath ) const
 {
-    int result = 0;
-    int cnt = aPath.PointCount();
-
-    if( !aPath.BBox().Contains( aP ) ) // test with bounding box first
-        return false;
-
-    if( cnt < 3 )
-        return false;
-
-    VECTOR2I ip = aPath.CPoint( 0 );
-
-    for( int i = 1; i <= cnt; ++i )
-    {
-        VECTOR2I ipNext = ( i == cnt ? aPath.CPoint( 0 ) : aPath.CPoint( i ) );
-
-        if( ipNext.y == aP.y )
-        {
-            if( ( ipNext.x == aP.x ) || ( ip.y == aP.y
-                                          && ( ( ipNext.x > aP.x ) == ( ip.x < aP.x ) ) ) )
-                return true;
-        }
-
-        if( ( ip.y < aP.y ) != ( ipNext.y < aP.y ) )
-        {
-            if( ip.x >= aP.x )
-            {
-                if( ipNext.x > aP.x )
-                    result = 1 - result;
-                else
-                {
-                    int64_t d = (int64_t) ( ip.x - aP.x ) * (int64_t) ( ipNext.y - aP.y ) -
-                                (int64_t) ( ipNext.x - aP.x ) * (int64_t) ( ip.y - aP.y );
-
-                    if( !d )
-                        return true;
-
-                    if( ( d > 0 ) == ( ipNext.y > ip.y ) )
-                        result = 1 - result;
-                }
-            }
-            else
-            {
-                if( ipNext.x > aP.x )
-                {
-                    int64_t d = (int64_t) ( ip.x - aP.x ) * (int64_t) ( ipNext.y - aP.y ) -
-                                (int64_t) ( ipNext.x - aP.x ) * (int64_t) ( ip.y - aP.y );
-
-                    if( !d )
-                        return true;
-
-                    if( ( d > 0 ) == ( ipNext.y > ip.y ) )
-                        result = 1 - result;
-                }
-            }
-        }
-
-        ip = ipNext;
-    }
-
-    return result ? true : false;
+    return aPath.PointInside( aP );
 }
 
 
@@ -1575,10 +1548,10 @@ SHAPE_POLY_SET::POLYGON SHAPE_POLY_SET::ChamferPolygon( unsigned int aDistance, 
 
 
 SHAPE_POLY_SET::POLYGON SHAPE_POLY_SET::FilletPolygon( unsigned int aRadius,
-        unsigned int aSegments,
+        int aErrorMax,
         int aIndex )
 {
-    return chamferFilletPolygon( CORNER_MODE::FILLETED, aRadius, aIndex, aSegments );
+    return chamferFilletPolygon( CORNER_MODE::FILLETED, aRadius, aIndex, aErrorMax );
 }
 
 
@@ -1703,12 +1676,12 @@ SHAPE_POLY_SET SHAPE_POLY_SET::Chamfer( int aDistance )
 }
 
 
-SHAPE_POLY_SET SHAPE_POLY_SET::Fillet( int aRadius, int aSegments )
+SHAPE_POLY_SET SHAPE_POLY_SET::Fillet( int aRadius, int aErrorMax )
 {
     SHAPE_POLY_SET filleted;
 
     for( size_t polygonIdx = 0; polygonIdx < m_polys.size(); polygonIdx++ )
-        filleted.m_polys.push_back( FilletPolygon( aRadius, aSegments, polygonIdx ) );
+        filleted.m_polys.push_back( FilletPolygon( aRadius, aErrorMax, polygonIdx ) );
 
     return filleted;
 }
@@ -1717,7 +1690,7 @@ SHAPE_POLY_SET SHAPE_POLY_SET::Fillet( int aRadius, int aSegments )
 SHAPE_POLY_SET::POLYGON SHAPE_POLY_SET::chamferFilletPolygon( CORNER_MODE aMode,
         unsigned int aDistance,
         int aIndex,
-        int aSegments )
+        int aErrorMax )
 {
     // Null segments create serious issues in calculations. Remove them:
     RemoveNullSegments();
@@ -1833,9 +1806,8 @@ SHAPE_POLY_SET::POLYGON SHAPE_POLY_SET::chamferFilletPolygon( CORNER_MODE aMode,
                     argument = 1;
 
                 double arcAngle = acos( argument );
-
-                // Calculate the number of segments
-                unsigned int segments = ceil( (double) aSegments * ( arcAngle / ( 2 * M_PI ) ) );
+                double arcAngleDegrees = arcAngle * 180.0 / M_PI;
+                int    segments = GetArcToSegmentCount( radius, aErrorMax, arcAngleDegrees );
 
                 double  deltaAngle  = arcAngle / segments;
                 double  startAngle  = atan2( -ys, xs );
@@ -1853,7 +1825,7 @@ SHAPE_POLY_SET::POLYGON SHAPE_POLY_SET::chamferFilletPolygon( CORNER_MODE aMode,
                 int prevX   = KiROUND( nx );
                 int prevY   = KiROUND( ny );
 
-                for( unsigned int j = 0; j < segments; j++ )
+                for( int j = 0; j < segments; j++ )
                 {
                     nx = xc + cos( startAngle + ( j + 1 ) * deltaAngle ) * radius;
                     ny = yc - sin( startAngle + ( j + 1 ) * deltaAngle ) * radius;
@@ -2048,6 +2020,15 @@ void SHAPE_POLY_SET::triangulateSingle( const POLYGON& aPoly,
     }
 
     ctx.Triangulate();
+}
+
+
+MD5_HASH SHAPE_POLY_SET::GetHash() const
+{
+    if( !m_hash.IsValid() )
+        return checksum();
+
+    return m_hash;
 }
 
 

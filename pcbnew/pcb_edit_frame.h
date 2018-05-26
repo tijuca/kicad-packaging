@@ -71,7 +71,6 @@ namespace PCB { struct IFACE; }     // KIFACE_I is in pcbnew.cpp
  *
  * See also class PCB_BASE_FRAME(): Basic class for Pcbnew and GerbView.
  */
-#define PCB_EDIT_FRAME_NAME wxT( "PcbFrame" )
 
 
 class PCB_EDIT_FRAME : public PCB_BASE_EDIT_FRAME
@@ -255,6 +254,8 @@ public:
 
     bool m_show_microwave_tools;
     bool m_show_layer_manager_tools;
+
+    bool m_ZoneFillsDirty;                  // Board has been modified since last zone fill.
 
     virtual ~PCB_EDIT_FRAME();
 
@@ -581,7 +582,7 @@ public:
     void ReCreateAuxiliaryToolbar() override;
     void ReCreateVToolbar() override;
     void ReCreateMicrowaveVToolbar();
-    void ReCreateOptToolbar();
+    void ReCreateOptToolbar() override;
     void ReCreateMenuBar() override;
 
     /**
@@ -1436,6 +1437,13 @@ public:
      */
     int Fill_All_Zones( wxWindow * aActiveWindow );
 
+    /**
+     * Function Check_All_Zones
+     *  Checks for out-of-date fills and fills them if requested by the user.
+     * @param aActiveWindow
+     */
+    void Check_All_Zones( wxWindow* aActiveWindow );
+
 
     /**
      * Function Add_Zone_Cutout
@@ -1637,20 +1645,6 @@ public:
                            wxPoint               aSpreadAreaPosition,
                            bool                  aPrepareUndoCommand = true );
 
-    /**
-     * Function AutoPlaceModule
-     * automatically places footprints within the confines of the PCB edges.
-     * The components with the FIXED status are not moved.  If the menu is
-     * calling the placement of 1 module, it will be replaced.
-     */
-    void AutoPlaceModule( MODULE* Module, int place_mode, wxDC* DC );
-
-    // Autorouting:
-    int Solve( AUTOROUTER_CONTEXT& aCtx, int aLayersCount );
-    void Reset_Noroutable( wxDC* DC );
-    void Autoroute( wxDC* DC, int mode );
-    void ReadAutoroutedTracks( wxDC* DC );
-    void GlobalRoute( wxDC* DC );
 
     /**
      * Function Show_1_Ratsnest

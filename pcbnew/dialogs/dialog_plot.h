@@ -74,6 +74,7 @@ private:
     void        init_Dialog();      // main initialization
     void        reInitDialog();     // initialization after calling drill dialog
     void        applyPlotSettings();
+    void        doPlot( bool aCheckZones );
     PlotFormat  getPlotFormat();
 
     void        setPlotModeChoiceSelection( EDA_DRAW_MODE_T aPlotMode )

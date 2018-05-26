@@ -497,7 +497,7 @@ bool LIB_VIEW_FRAME::ReCreateListCmp()
         Prj().SchSymbolLibTable()->EnumerateSymbolLib( m_libraryName, aliasNames,
                                                        m_listPowerCmpOnly );
     }
-    catch( const IO_ERROR& e ) {}   // ignore, it is handled below
+    catch( const IO_ERROR& ) {}   // ignore, it is handled below
 
     if( aliasNames.IsEmpty() )
     {
@@ -559,7 +559,7 @@ void LIB_VIEW_FRAME::SetSelectedLibrary( const wxString& aLibraryName )
 
     // Ensure the corresponding line in m_libList is selected
     // (which is not necessary the case if SetSelectedLibrary is called
-    // by an other caller than ClickOnLibList.
+    // by another caller than ClickOnLibList.
     m_libList->SetStringSelection( m_libraryName, true );
 }
 

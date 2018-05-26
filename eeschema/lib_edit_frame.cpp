@@ -132,6 +132,7 @@ BEGIN_EVENT_TABLE( LIB_EDIT_FRAME, EDA_DRAW_FRAME )
 
     // Right vertical toolbar.
     EVT_TOOL( ID_NO_TOOL_SELECTED, LIB_EDIT_FRAME::OnSelectTool )
+    EVT_MENU( ID_MENU_ZOOM_SELECTION, LIB_EDIT_FRAME::OnSelectTool )
     EVT_TOOL( ID_ZOOM_SELECTION, LIB_EDIT_FRAME::OnSelectTool )
     EVT_TOOL_RANGE( ID_LIBEDIT_PIN_BUTT, ID_LIBEDIT_DELETE_ITEM_BUTT,
                     LIB_EDIT_FRAME::OnSelectTool )
@@ -185,6 +186,7 @@ BEGIN_EVENT_TABLE( LIB_EDIT_FRAME, EDA_DRAW_FRAME )
     EVT_UPDATE_UI( wxID_REDO, LIB_EDIT_FRAME::OnUpdateRedo )
     EVT_UPDATE_UI( ID_LIBEDIT_SAVE_LIBRARY, LIB_EDIT_FRAME::OnUpdateSaveLib )
     EVT_UPDATE_UI( ID_LIBEDIT_SAVE_LIBRARY_AS, LIB_EDIT_FRAME::OnUpdateSaveLibAs )
+    EVT_UPDATE_UI( ID_LIBEDIT_SAVE_ALL_LIBS, LIB_EDIT_FRAME::OnUpdateSaveAll )
     EVT_UPDATE_UI( ID_LIBEDIT_VIEW_DOC, LIB_EDIT_FRAME::OnUpdateViewDoc )
     EVT_UPDATE_UI( ID_LIBEDIT_SYNC_PIN_EDIT, LIB_EDIT_FRAME::OnUpdateSyncPinEdit )
     EVT_UPDATE_UI( ID_LIBEDIT_EDIT_PIN_BY_TABLE, LIB_EDIT_FRAME::OnUpdatePinTable )
@@ -199,8 +201,6 @@ BEGIN_EVENT_TABLE( LIB_EDIT_FRAME, EDA_DRAW_FRAME )
     EVT_UPDATE_UI( ID_LIBEDIT_SHOW_ELECTRICAL_TYPE, LIB_EDIT_FRAME::OnUpdateElectricalType )
 
 END_EVENT_TABLE()
-
-#define LIB_EDIT_FRAME_NAME wxT( "LibeditFrame" )
 
 LIB_EDIT_FRAME::LIB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     SCH_BASE_FRAME( aKiway, aParent, FRAME_SCH_LIB_EDITOR, _( "Library Editor" ),
@@ -320,6 +320,9 @@ LIB_EDIT_FRAME::LIB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
 
     Raise();
     Show( true );
+
+    Bind( wxEVT_COMMAND_MENU_SELECTED, &LIB_EDIT_FRAME::OnConfigurePaths, this,
+          ID_PREFERENCES_CONFIGURE_PATHS );
 
     Bind( wxEVT_COMMAND_MENU_SELECTED, &LIB_EDIT_FRAME::OnEditSymbolLibTable, this,
           ID_EDIT_SYM_LIB_TABLE );
@@ -452,8 +455,12 @@ void LIB_EDIT_FRAME::OnToggleSearchTree( wxCommandEvent& event )
 
 void LIB_EDIT_FRAME::OnEditSymbolLibTable( wxCommandEvent& aEvent )
 {
+    m_libMgr->GetAdapter()->Freeze();
+
     SCH_BASE_FRAME::OnEditSymbolLibTable( aEvent );
     SyncLibraries( true );
+
+    m_libMgr->GetAdapter()->Thaw();
 }
 
 
@@ -471,7 +478,8 @@ void LIB_EDIT_FRAME::ClearSearchTreeSelection()
 
 void LIB_EDIT_FRAME::OnUpdateSelectTool( wxUpdateUIEvent& aEvent )
 {
-    aEvent.Check( GetToolId() == aEvent.GetId() );
+    if( aEvent.GetEventObject() == m_drawToolBar || aEvent.GetEventObject() == m_mainToolBar )
+        aEvent.Check( GetToolId() == aEvent.GetId() );
 }
 
 
@@ -562,6 +570,24 @@ void LIB_EDIT_FRAME::OnUpdateSaveLibAs( wxUpdateUIEvent& event )
     wxString lib = getTargetLib();
 
     event.Enable( m_libMgr->LibraryExists( lib ) );
+}
+
+
+void LIB_EDIT_FRAME::OnUpdateSaveAll( wxUpdateUIEvent& event )
+{
+    int modified = 0;
+
+    for( const auto& lib : m_libMgr->GetLibraryNames() )
+    {
+        if( m_libMgr->IsLibraryModified( lib ) )
+            modified++;
+
+        if( modified > 1 )
+            break;
+    }
+
+    event.SetText( modified > 1 ? _( "Save All &Libraries..." ) : _( "Save All &Libraries" ) );
+    event.Enable( modified > 0 );
 }
 
 
@@ -834,7 +860,7 @@ void LIB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
 
     case ID_POPUP_LIBEDIT_DELETE_ITEM:
         if( item )
-            deleteItem( &dc );
+            deleteItem( &dc, item );
 
         break;
 
@@ -843,9 +869,9 @@ void LIB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
             break;
 
         if( item->Type() == LIB_PIN_T )
-            StartMovePin( &dc );
+            StartMovePin( item );
         else
-            StartMoveDrawSymbol( &dc );
+            StartMoveDrawSymbol( &dc, item );
         break;
 
     case ID_POPUP_LIBEDIT_MODIFY_ITEM:
@@ -860,7 +886,7 @@ void LIB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
             || item->Type() == LIB_ARC_T
             )
         {
-            StartModifyDrawSymbol( &dc );
+            StartModifyDrawSymbol( &dc, item );
         }
 
         break;
@@ -1022,11 +1048,16 @@ wxString LIB_EDIT_FRAME::SetCurLib( const wxString& aLibNickname )
 
 void LIB_EDIT_FRAME::SetCurPart( LIB_PART* aPart )
 {
+	if( !aPart && !m_my_part )
+	    return;
+
     wxASSERT( m_my_part != aPart );
 
     if( m_my_part != aPart )
     {
-        delete m_my_part;
+        if( m_my_part )
+            delete m_my_part;
+
         m_my_part = aPart;
     }
 
@@ -1153,6 +1184,7 @@ void LIB_EDIT_FRAME::OnSelectTool( wxCommandEvent& aEvent )
         SetToolID( id, m_canvas->GetDefaultCursor(), wxEmptyString );
         break;
 
+    case ID_MENU_ZOOM_SELECTION:
     case ID_ZOOM_SELECTION:
         // This tool is located on the main toolbar: switch it on or off on click on it
         if( lastToolID != ID_ZOOM_SELECTION )
@@ -1264,21 +1296,36 @@ void LIB_EDIT_FRAME::OnOrient( wxCommandEvent& aEvent )
 {
     INSTALL_UNBUFFERED_DC( dc, m_canvas );
     SCH_SCREEN* screen = GetScreen();
+    BLOCK_SELECTOR& block = screen->m_BlockLocate;
+
+    // Change the current item to a block selection, if there were no items in the block selector
+    if( screen->GetCurItem() && block.GetState() == STATE_NO_BLOCK )
+    {
+        ITEM_PICKER picker( screen->GetCurItem() );
+        block.PushItem( picker );
+        block.SetState( STATE_BLOCK_INIT );
+
+        const wxPoint& cursorPos = GetCrossHairPosition();
+        block.SetLastCursorPosition( cursorPos );
+        block.SetOrigin( cursorPos );
+        block.SetEnd( cursorPos );
+    }
+
     // Allows block rotate operation on hot key.
-    if( screen->m_BlockLocate.GetState() != STATE_NO_BLOCK )
+    if( block.GetState() != STATE_NO_BLOCK )
     {
         if( aEvent.GetId() == ID_LIBEDIT_MIRROR_X )
         {
             m_canvas->MoveCursorToCrossHair();
-            screen->m_BlockLocate.SetMessageBlock( this );
-            screen->m_BlockLocate.SetCommand( BLOCK_MIRROR_X );
+            block.SetMessageBlock( this );
+            block.SetCommand( BLOCK_MIRROR_X );
             HandleBlockEnd( &dc );
         }
         else if( aEvent.GetId() == ID_LIBEDIT_MIRROR_Y )
         {
             m_canvas->MoveCursorToCrossHair();
-            screen->m_BlockLocate.SetMessageBlock( this );
-            screen->m_BlockLocate.SetCommand( BLOCK_MIRROR_Y );
+            block.SetMessageBlock( this );
+            block.SetCommand( BLOCK_MIRROR_Y );
             HandleBlockEnd( &dc );
         }
     }
@@ -1375,11 +1422,10 @@ LIB_ITEM* LIB_EDIT_FRAME::locateItem( const wxPoint& aPosition, const KICAD_T aF
 }
 
 
-void LIB_EDIT_FRAME::deleteItem( wxDC* aDC )
+void LIB_EDIT_FRAME::deleteItem( wxDC* aDC, LIB_ITEM* aItem )
 {
-    LIB_ITEM* item = GetDrawItem();
-
-    wxCHECK_RET( item != NULL, "No drawing item selected to delete." );
+    if( !aItem )
+        return;
 
     m_canvas->CrossHairOff( aDC );
 
@@ -1387,9 +1433,9 @@ void LIB_EDIT_FRAME::deleteItem( wxDC* aDC )
 
     SaveCopyInUndoList( part );
 
-    if( item->Type() == LIB_PIN_T )
+    if( aItem->Type() == LIB_PIN_T )
     {
-        LIB_PIN*    pin = static_cast<LIB_PIN*>( item );
+        LIB_PIN*    pin = static_cast<LIB_PIN*>( aItem );
         wxPoint     pos = pin->GetPosition();
 
         part->RemoveDrawItem( (LIB_ITEM*) pin, m_canvas, aDC );
@@ -1426,7 +1472,7 @@ void LIB_EDIT_FRAME::deleteItem( wxDC* aDC )
         }
         else
         {
-            part->RemoveDrawItem( item, m_canvas, aDC );
+            part->RemoveDrawItem( aItem, m_canvas, aDC );
             m_canvas->Refresh();
         }
     }
@@ -1586,27 +1632,19 @@ LIB_PART* LIB_EDIT_FRAME::getTargetPart() const
 
 LIB_ID LIB_EDIT_FRAME::getTargetLibId() const
 {
-    if( m_treePane->GetCmpTree()->IsMenuActive() )
-        return m_treePane->GetCmpTree()->GetSelectedLibId();
+    LIB_ID   id = m_treePane->GetCmpTree()->GetSelectedLibId();
+    wxString nickname = id.GetLibNickname();
 
-    if( LIB_PART* part = GetCurPart() )
-        return part->GetLibId();
+    if( nickname.IsEmpty() && GetCurPart() )
+        id = GetCurPart()->GetLibId();
 
-    return LIB_ID();
+    return id;
 }
 
 
 wxString LIB_EDIT_FRAME::getTargetLib() const
 {
-    if( m_treePane->GetCmpTree()->IsMenuActive() )
-    {
-        LIB_ID libId = m_treePane->GetCmpTree()->GetSelectedLibId();
-        return libId.GetLibNickname();
-    }
-    else
-    {
-        return GetCurLib();
-    }
+    return getTargetLibId().GetLibNickname();
 }
 
 

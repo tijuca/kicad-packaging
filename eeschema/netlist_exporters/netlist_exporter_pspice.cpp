@@ -39,6 +39,24 @@
 #include <wx/tokenzr.h>
 #include <wx/regex.h>
 
+
+wxString NETLIST_EXPORTER_PSPICE::GetSpiceDevice( const wxString& aComponent ) const
+{
+    const auto& spiceItems = GetSpiceItems();
+
+    auto it = std::find_if( spiceItems.begin(), spiceItems.end(), [&]( const SPICE_ITEM& item ) {
+        return item.m_refName == aComponent;
+    } );
+
+    if( it == spiceItems.end() )
+        return wxEmptyString;
+
+    // Prefix the device type if plain reference would result in a different device type
+    return it->m_primitive != it->m_refName[0] ?
+        wxString( it->m_primitive + it->m_refName ) : it->m_refName;
+}
+
+
 bool NETLIST_EXPORTER_PSPICE::WriteNetlist( const wxString& aOutFileName, unsigned aNetlistOptions )
 {
     FILE_OUTPUTFORMATTER outputFile( aOutFileName, wxT( "wt" ), '\'' );
@@ -92,13 +110,15 @@ bool NETLIST_EXPORTER_PSPICE::Format( OUTPUTFORMATTER* aFormatter, unsigned aCtl
         aFormatter->Print( 0, ".include \"%s\"\n", (const char*) full_path.c_str() );
     }
 
+    unsigned int NC_counter = 1;
+
     for( const auto& item : m_spiceItems )
     {
         if( !item.m_enabled )
             continue;
 
-        // Save the node order
-        aFormatter->Print( 0, "%c%s ", item.m_primitive, (const char*) item.m_refName.c_str() );
+        wxString device = GetSpiceDevice( item.m_refName );
+        aFormatter->Print( 0, "%s ", (const char*) device.c_str() );
 
         size_t pspiceNodes = item.m_pinSequence.empty() ? item.m_pins.size() : item.m_pinSequence.size();
 
@@ -130,8 +150,9 @@ bool NETLIST_EXPORTER_PSPICE::Format( OUTPUTFORMATTER* aFormatter, unsigned aCtl
                 // Replace parenthesis with underscore to prevent parse issues with simulators
                 ReplaceForbiddenChars( netName );
 
+                // Borrow LTSpice's nomenclature for unconnected nets
                 if( netName.IsEmpty() )
-                    netName = wxT( "?" );
+                    netName = wxString::Format( wxT( "NC_%.2u" ), NC_counter++ );
 
                 aFormatter->Print( 0, "%s ", TO_UTF8( netName ) );
             }
@@ -212,7 +233,9 @@ wxString NETLIST_EXPORTER_PSPICE::GetSpiceFieldDefVal( SPICE_FIELD aField,
         wxString nodeSeq;
         std::vector<LIB_PIN*> pins;
 
-        aComponent->GetPins( pins );
+        auto part = aComponent->GetPartRef().lock();
+        wxCHECK( part, wxString() );
+        part->GetPins( pins );
 
         for( auto pin : pins )
             nodeSeq += pin->GetNumber() + " ";

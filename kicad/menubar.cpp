@@ -158,7 +158,7 @@ static EDA_HOTKEY HkRunPleditor( _HKI( "Run PlEditor" ), HK_RUN_PLEDITOR, 'Y' + 
 static EDA_HOTKEY HkNewProject( _HKI( "New Project" ), HK_NEW, GR_KB_CTRL + 'N' );
 static EDA_HOTKEY HkOpenProject( _HKI( "Open Project" ), HK_OPEN, GR_KB_CTRL + 'O' );
 static EDA_HOTKEY HkSaveProject( _HKI( "Save Project" ), HK_SAVE, GR_KB_CTRL + 'S' );
-static EDA_HOTKEY HkHelp( _HKI( "Help (this window)" ), HK_HELP, '?' );
+static EDA_HOTKEY HkHelp( _HKI( "Help (this window)" ), HK_HELP, GR_KB_CTRL + WXK_F1 );
 
 // List of hotkey descriptors
 EDA_HOTKEY* common_Hotkey_List[] =
@@ -199,24 +199,15 @@ void KICAD_MANAGER_FRAME::ReCreateMenuBar()
 
     m_manager_Hokeys_Descr = kicad_Manager_Hokeys_Descr;
 
-    // Create and try to get the current  menubar
-    wxMenuBar*  menuBar = GetMenuBar();
-
-    if( !menuBar )
-        menuBar = new wxMenuBar();
-
-    // Delete all existing menus so they can be rebuilt.
-    // This allows language changes of the menu text on the fly.
-    menuBar->Freeze();
+    // wxWidgets handles the Mac Application menu behind the scenes, but that means
+    // we always have to start from scratch with a new wxMenuBar.
+    wxMenuBar*  oldMenuBar = GetMenuBar();
+    wxMenuBar*  menuBar = new wxMenuBar();
 
     // Before deleting, remove the menus managed by m_fileHistory
     // (the file history will be updated when adding/removing files in history)
     if( openRecentMenu )
         PgmTop().GetFileHistory().RemoveMenu( openRecentMenu );
-
-    // Delete all existing menus
-    while( menuBar->GetMenuCount() )
-        delete menuBar->Remove( 0 );
 
     // Recreate all menus:
 
@@ -486,13 +477,8 @@ void KICAD_MANAGER_FRAME::ReCreateMenuBar()
     menuBar->Append( preferencesMenu, _( "&Preferences" ) );
     menuBar->Append( helpMenu, _( "&Help" ) );
 
-    menuBar->Thaw();
-
-    // Associate the menu bar with the frame, if no previous menubar
-    if( GetMenuBar() == NULL )
-        SetMenuBar( menuBar );
-    else
-        menuBar->Refresh();
+    SetMenuBar( menuBar );
+    delete oldMenuBar;
 
     // Add the hotkey to the "show hotkey list" menu, because we do not have
     // a management of the keyboard keys in Kicad.

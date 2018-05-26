@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Feb  9 2018)
+// C++ code generated with wxFormBuilder (version Apr 19 2018)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -45,7 +45,7 @@ DIALOG_DRC_CONTROL_BASE::DIALOG_DRC_CONTROL_BASE( wxWindow* parent, wxWindowID i
 	fgMinValuesSizer->SetFlexibleDirection( wxHORIZONTAL );
 	fgMinValuesSizer->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
 	
-	m_ClearanceTitle = new wxStaticText( this, wxID_ANY, _("Clearance"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_ClearanceTitle = new wxStaticText( this, wxID_ANY, _("Clearance:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_ClearanceTitle->Wrap( -1 );
 	fgMinValuesSizer->Add( m_ClearanceTitle, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxLEFT, 5 );
 	
@@ -57,7 +57,7 @@ DIALOG_DRC_CONTROL_BASE::DIALOG_DRC_CONTROL_BASE( wxWindow* parent, wxWindowID i
 	
 	fgMinValuesSizer->Add( 0, 0, 0, 0, 5 );
 	
-	m_TrackMinWidthTitle = new wxStaticText( this, wxID_ANY, _("Minimum track width"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_TrackMinWidthTitle = new wxStaticText( this, wxID_ANY, _("Minimum track width:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_TrackMinWidthTitle->Wrap( -1 );
 	m_TrackMinWidthTitle->SetToolTip( _("Enter the minimum acceptable value for a track width") );
 	
@@ -72,7 +72,7 @@ DIALOG_DRC_CONTROL_BASE::DIALOG_DRC_CONTROL_BASE( wxWindow* parent, wxWindowID i
 	
 	fgMinValuesSizer->Add( m_TrackMinWidthUnit, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 5 );
 	
-	m_ViaMinTitle = new wxStaticText( this, wxID_ANY, _("Minimum via size"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_ViaMinTitle = new wxStaticText( this, wxID_ANY, _("Minimum via size:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_ViaMinTitle->Wrap( -1 );
 	m_ViaMinTitle->SetHelpText( _("Enter the minimum acceptable diameter for a standard via") );
 	
@@ -87,7 +87,7 @@ DIALOG_DRC_CONTROL_BASE::DIALOG_DRC_CONTROL_BASE( wxWindow* parent, wxWindowID i
 	
 	fgMinValuesSizer->Add( m_ViaMinUnit, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 5 );
 	
-	m_MicroViaMinTitle = new wxStaticText( this, wxID_ANY, _("Minimum uVia size"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_MicroViaMinTitle = new wxStaticText( this, wxID_ANY, _("Minimum uVia size:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_MicroViaMinTitle->Wrap( -1 );
 	m_MicroViaMinTitle->SetToolTip( _("Enter the minimum acceptable diameter for a micro via") );
 	
@@ -108,6 +108,11 @@ DIALOG_DRC_CONTROL_BASE::DIALOG_DRC_CONTROL_BASE( wxWindow* parent, wxWindowID i
 	m_cbRefillZones = new wxCheckBox( this, wxID_ANY, _("Refill all zones before performing DRC"), wxDefaultPosition, wxDefaultSize, 0 );
 	bSizerOptSettings->Add( m_cbRefillZones, 0, wxLEFT|wxRIGHT, 5 );
 	
+	m_cbReportAllTrackErrors = new wxCheckBox( this, wxID_ANY, _("Report all errors for tracks (slower)"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_cbReportAllTrackErrors->SetToolTip( _("If selected, all DRC violations for tracks will be reported.  This can be slow for complicated designs.\n\nIf unselected, only the first DRC violation will be reported for each track connection.") );
+	
+	bSizerOptSettings->Add( m_cbReportAllTrackErrors, 0, wxRIGHT|wxLEFT, 5 );
+	
 	m_cbCourtyardOverlap = new wxCheckBox( this, wxID_ANY, _("Check footprint courtyard overlap"), wxDefaultPosition, wxDefaultSize, 0 );
 	bSizerOptSettings->Add( m_cbCourtyardOverlap, 0, wxLEFT|wxRIGHT, 5 );
 	
@@ -123,7 +128,7 @@ DIALOG_DRC_CONTROL_BASE::DIALOG_DRC_CONTROL_BASE( wxWindow* parent, wxWindowID i
 	
 	bSizerOptions->Add( 10, 5, 0, 0, 5 );
 	
-	m_staticTextRpt = new wxStaticText( this, wxID_ANY, _("Create Report File"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextRpt = new wxStaticText( this, wxID_ANY, _("Create Report File:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextRpt->Wrap( -1 );
 	m_staticTextRpt->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD, false, wxEmptyString ) );
 	

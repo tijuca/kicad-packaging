@@ -27,7 +27,7 @@
 #include <sim/sim_plot_frame.h>
 #include <sch_component.h>
 #include <template_fieldnames.h>
-#include <netlist_exporters/netlist_exporter_pspice.h>
+#include <sim/netlist_exporter_pspice_sim.h>
 
 TUNER_SLIDER::TUNER_SLIDER( SIM_PLOT_FRAME* aFrame, wxWindow* aParent, SCH_COMPONENT* aComponent )
     : TUNER_SLIDER_BASE( aParent ), m_component( aComponent ),
@@ -37,10 +37,7 @@ TUNER_SLIDER::TUNER_SLIDER( SIM_PLOT_FRAME* aFrame, wxWindow* aParent, SCH_COMPO
     m_name->SetLabel( compName );
     m_value = SPICE_VALUE( aComponent->GetField( VALUE )->GetText() );
     m_changed = false;
-
-    // Generate Spice component name
-    char prim = NETLIST_EXPORTER_PSPICE::GetSpiceField( SF_PRIMITIVE, aComponent, 0 )[0];
-    m_spiceName = wxString( prim + compName ).Lower();
+    m_spiceName = aFrame->GetExporter()->GetSpiceDevice( compName ).Lower();
 
     // Call Set*() methods to update fields and slider
     m_max = SPICE_VALUE( 2.0 ) * m_value;
@@ -160,7 +157,7 @@ void TUNER_SLIDER::onMaxTextEnter( wxCommandEvent& event )
         SPICE_VALUE newMax( m_maxText->GetValue() );
         SetMax( newMax );
     }
-    catch( std::exception& e )
+    catch( std::exception& )
     {
         // Restore the previous value
         m_maxText->SetValue( m_max.ToOrigString() );
@@ -176,7 +173,7 @@ void TUNER_SLIDER::onValueTextEnter( wxCommandEvent& event )
         SetValue( newCur );
         m_changed = true;
     }
-    catch( std::exception& e )
+    catch( std::exception& )
     {
         // Restore the previous value
         m_valueText->SetValue( m_value.ToOrigString() );
@@ -191,7 +188,7 @@ void TUNER_SLIDER::onMinTextEnter( wxCommandEvent& event )
         SPICE_VALUE newMin( m_minText->GetValue() );
         SetMin( newMin );
     }
-    catch( std::exception& e )
+    catch( std::exception& )
     {
         // Restore the previous value
         m_minText->SetValue( m_min.ToOrigString() );

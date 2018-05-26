@@ -160,8 +160,8 @@ void PCB_DRAW_PANEL_GAL::DisplayBoard( BOARD* aBoard )
     for( MODULE* module = aBoard->m_Modules; module; module = module->Next() )
         m_view->Add( module );
 
-    // Segzones (equivalent of ZONE_CONTAINER for legacy boards)
-    for( SEGZONE* zone = aBoard->m_Zone; zone; zone = zone->Next() )
+    // Segzones (deprecated, equivalent of ZONE_CONTAINERfilled areas for very old boards)
+    for( SEGZONE* zone = aBoard->m_SegZoneDeprecated; zone; zone = zone->Next() )
         m_view->Add( zone );
 
     // DRC markers
@@ -346,7 +346,7 @@ void PCB_DRAW_PANEL_GAL::GetMsgPanelInfo( std::vector<MSG_PANEL_ITEM>& aList )
     aList.push_back( MSG_PANEL_ITEM( _( "Nets" ), txt, RED ) );
 
     txt.Printf( wxT( "%d" ), board->GetConnectivity()->GetUnconnectedCount() );
-    aList.push_back( MSG_PANEL_ITEM( _( "Unconnected" ), txt, BLUE ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Unrouted" ), txt, BLUE ) );
 }
 
 

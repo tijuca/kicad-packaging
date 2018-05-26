@@ -42,18 +42,10 @@
  */
 void CVPCB_MAINFRAME::ReCreateMenuBar()
 {
-    // Create the current menubar if it does not yet exist
-    wxMenuBar*  menuBar = GetMenuBar();
-
-    if( ! menuBar )     // Delete all menus
-        menuBar = new wxMenuBar();
-
-    // Delete all existing menus so they can be rebuilt.
-    // This allows language changes of the menu text on the fly.
-    menuBar->Freeze();
-
-    while( menuBar->GetMenuCount() )
-        delete menuBar->Remove( 0 );
+    // wxWidgets handles the Mac Application menu behind the scenes, but that means
+    // we always have to start from scratch with a new wxMenuBar.
+    wxMenuBar*  oldMenuBar = GetMenuBar();
+    wxMenuBar*  menuBar = new wxMenuBar();
 
     // Recreate all menus:
 
@@ -62,24 +54,12 @@ void CVPCB_MAINFRAME::ReCreateMenuBar()
 
     // Save the footprints back into eeschema
     AddMenuItem( filesMenu, wxID_SAVE,
-                 _( "&Save Footprint Associations\tCtrl+S" ),
+                 _( "&Save Schematic\tCtrl+S" ),
                  SAVE_HLP_MSG,
                  KiBitmap( save_xpm ) );
 
-    // Separator
-    filesMenu->AppendSeparator();
-
-    // Quit
-    AddMenuItem( filesMenu, wxID_EXIT,
-                 _( "&Close" ), _( "Close CvPcb" ),
-                 KiBitmap( exit_xpm ) );
-
     // Preferences Menu :
     wxMenu* preferencesMenu = new wxMenu;
-
-    AddMenuItem( preferencesMenu, ID_CVPCB_LIB_TABLE_EDIT,
-                 _( "Manage Footprint &Libraries..." ), _( "Manage footprint libraries" ),
-                 KiBitmap( library_table_xpm ) );
 
     // Path configuration edit dialog.
     AddMenuItem( preferencesMenu,
@@ -87,6 +67,10 @@ void CVPCB_MAINFRAME::ReCreateMenuBar()
                  _( "Configure &Paths..." ),
                  _( "Edit path configuration environment variables" ),
                  KiBitmap( editor_xpm ) );
+
+    AddMenuItem( preferencesMenu, ID_CVPCB_LIB_TABLE_EDIT,
+                 _( "Manage Footprint &Libraries..." ), _( "Manage footprint libraries" ),
+                 KiBitmap( library_table_xpm ) );
 
     preferencesMenu->AppendSeparator();
     AddMenuItem( preferencesMenu, ID_CVPCB_EQUFILES_LIST_EDIT,
@@ -99,14 +83,6 @@ void CVPCB_MAINFRAME::ReCreateMenuBar()
 
     // Language submenu
     Pgm().AddMenuLanguageList( preferencesMenu );
-
-    // Keep open on save data
-    preferencesMenu->AppendSeparator();
-    AddMenuItem( preferencesMenu, ID_CVPCB_CONFIG_KEEP_OPEN_ON_SAVE,
-                 _( "&Keep Open On Save" ),
-                 _( "Prevent CvPcb from exiting after saving netlist file" ),
-                 KiBitmap( exit_xpm ),
-                 wxITEM_CHECK );
 
     // Menu Help:
     wxMenu* helpMenu = new wxMenu;
@@ -129,15 +105,10 @@ void CVPCB_MAINFRAME::ReCreateMenuBar()
                  KiBitmap( about_xpm ) );
 
     // Create the menubar and append all submenus
-    menuBar->Append( filesMenu, _( "&Save" ) );
+    menuBar->Append( filesMenu, _( "&File" ) );
     menuBar->Append( preferencesMenu, _( "&Preferences" ) );
     menuBar->Append( helpMenu, _( "&Help" ) );
 
-    menuBar->Thaw();
-
-    // Associate the menu bar with the frame, if no previous menubar
-    if( GetMenuBar() == NULL )
-        SetMenuBar( menuBar );
-    else
-        menuBar->Refresh();
+    SetMenuBar( menuBar );
+    delete oldMenuBar;
 }

@@ -38,6 +38,7 @@
 #include <msgpanel.h>
 #include <fp_lib_table.h>
 #include <bitmaps.h>
+#include <trace_helpers.h>
 
 #include <pcbnew.h>
 #include <pcbnew_id.h>
@@ -70,6 +71,7 @@
 #include <tools/pcb_actions.h>
 
 #include <wildcards_and_files_ext.h>
+#include <kicad_string.h>
 
 #if defined(KICAD_SCRIPTING) || defined(KICAD_SCRIPTING_WXPYTHON)
 #include <python_scripting.h>
@@ -214,8 +216,6 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_COMBOBOX( ID_TOOLBARH_PCB_SELECT_LAYER, PCB_EDIT_FRAME::Process_Special_Functions )
     EVT_CHOICE( ID_AUX_TOOLBAR_PCB_TRACK_WIDTH, PCB_EDIT_FRAME::Tracks_and_Vias_Size_Event )
     EVT_CHOICE( ID_AUX_TOOLBAR_PCB_VIA_SIZE, PCB_EDIT_FRAME::Tracks_and_Vias_Size_Event )
-    EVT_TOOL( ID_TOOLBARH_PCB_MODE_MODULE, PCB_EDIT_FRAME::OnSelectAutoPlaceMode )
-    EVT_TOOL( ID_TOOLBARH_PCB_MODE_TRACKS, PCB_EDIT_FRAME::OnSelectAutoPlaceMode )
     EVT_TOOL( ID_TOOLBARH_PCB_FREEROUTE_ACCESS, PCB_EDIT_FRAME::Access_to_External_Tool )
 
 
@@ -273,6 +273,12 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_MENU( ID_POPUP_PCB_DELETE_TRACKSEG, PCB_EDIT_FRAME::Process_Special_Functions )
     EVT_MENU_RANGE( ID_POPUP_GENERAL_START_RANGE, ID_POPUP_GENERAL_END_RANGE,
                     PCB_EDIT_FRAME::Process_Special_Functions )
+    EVT_MENU( ID_POPUP_PCB_SPREAD_ALL_MODULES, PCB_EDIT_FRAME::Process_Special_Functions )
+    EVT_MENU( ID_POPUP_PCB_SPREAD_NEW_MODULES, PCB_EDIT_FRAME::Process_Special_Functions )
+    EVT_MENU( ID_POPUP_PCB_AUTOPLACE_FIXE_MODULE, PCB_EDIT_FRAME::Process_Special_Functions )
+    EVT_MENU( ID_POPUP_PCB_AUTOPLACE_FIXE_ALL_MODULES, PCB_EDIT_FRAME::Process_Special_Functions )
+    EVT_MENU( ID_POPUP_PCB_AUTOPLACE_FREE_ALL_MODULES, PCB_EDIT_FRAME::Process_Special_Functions )
+    EVT_MENU( ID_POPUP_PCB_AUTOPLACE_FREE_MODULE, PCB_EDIT_FRAME::Process_Special_Functions )
 
     // User interface update event handlers.
     EVT_UPDATE_UI( ID_SAVE_BOARD, PCB_EDIT_FRAME::OnUpdateSave )
@@ -297,8 +303,6 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_UPDATE_UI( ID_POPUP_PCB_SELECT_CUSTOM_WIDTH,
                    PCB_EDIT_FRAME::OnUpdateSelectCustomTrackWidth )
     EVT_UPDATE_UI( ID_AUX_TOOLBAR_PCB_VIA_SIZE, PCB_EDIT_FRAME::OnUpdateSelectViaSize )
-    EVT_UPDATE_UI( ID_TOOLBARH_PCB_MODE_MODULE, PCB_EDIT_FRAME::OnUpdateAutoPlaceModulesMode )
-    EVT_UPDATE_UI( ID_TOOLBARH_PCB_MODE_TRACKS, PCB_EDIT_FRAME::OnUpdateAutoPlaceTracksMode )
     EVT_UPDATE_UI_RANGE( ID_POPUP_PCB_SELECT_WIDTH1, ID_POPUP_PCB_SELECT_WIDTH8,
                          PCB_EDIT_FRAME::OnUpdateSelectTrackWidth )
     EVT_UPDATE_UI_RANGE( ID_POPUP_PCB_SELECT_VIASIZE1, ID_POPUP_PCB_SELECT_VIASIZE8,
@@ -330,6 +334,10 @@ PCB_EDIT_FRAME::PCB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     m_microWaveToolBar = NULL;
     m_Layers = nullptr;
 
+    // We don't know what state board was in when it was lasat saved, so we have to
+    // assume dirty
+    m_ZoneFillsDirty = true;
+
     m_rotationAngle = 900;
 
     // Create GAL canvas
@@ -343,17 +351,7 @@ PCB_EDIT_FRAME::PCB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     SetBoard( new BOARD() );
 
     // Create the PCB_LAYER_WIDGET *after* SetBoard():
-
-    wxFont font = wxSystemSettings::GetFont( wxSYS_DEFAULT_GUI_FONT );
-    int pointSize = font.GetPointSize();
-    int screenHeight = wxSystemSettings::GetMetric( wxSYS_SCREEN_Y );
-
-    // printf( "pointSize:%d  80%%:%d\n", pointSize, (pointSize*8)/10 );
-
-    if( screenHeight <= 900 )
-        pointSize = (pointSize * 8) / 10;
-
-    m_Layers = new PCB_LAYER_WIDGET( this, GetCanvas(), pointSize );
+    m_Layers = new PCB_LAYER_WIDGET( this, GetCanvas() );
 
     m_drc = new DRC( this );        // these 2 objects point to each other
     m_plotDialog = nullptr;
@@ -405,7 +403,7 @@ PCB_EDIT_FRAME::PCB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     lyrs.LayersToolbarPane();
     lyrs.MinSize( m_Layers->GetBestSize() );    // updated in ReFillLayerWidget
     lyrs.BestSize( m_Layers->GetBestSize() );
-    lyrs.Caption( _( "Visibles" ) );
+    lyrs.Caption( _( "Layers Manager" ) );
     lyrs.TopDockable( false ).BottomDockable( false );
 
     if( m_mainToolBar )    // The main horizontal toolbar
@@ -647,7 +645,7 @@ void PCB_EDIT_FRAME::OnCloseWindow( wxCloseEvent& Event )
 {
     m_canvas->SetAbortRequest( true );
 
-    if( GetScreen()->IsModify() )
+    if( GetScreen()->IsModify() && !GetBoard()->IsEmpty() )
     {
         wxString msg = wxString::Format( _(
                 "Save the changes in\n"
@@ -725,28 +723,8 @@ void PCB_EDIT_FRAME::OnCloseWindow( wxCloseEvent& Event )
 
 void PCB_EDIT_FRAME::Show3D_Frame( wxCommandEvent& event )
 {
-    EDA_3D_VIEWER* draw3DFrame = Get3DViewerFrame();
-
-    if( draw3DFrame )
-    {
-        // Raising the window does not show the window on Windows if iconized.
-        // This should work on any platform.
-        if( draw3DFrame->IsIconized() )
-             draw3DFrame->Iconize( false );
-
-        draw3DFrame->Raise();
-
-        // Raising the window does not set the focus on Linux.  This should work on any platform.
-        if( wxWindow::FindFocus() != draw3DFrame )
-            draw3DFrame->SetFocus();
-
-        return;
-    }
-
-    draw3DFrame = new EDA_3D_VIEWER( &Kiway(), this, _( "3D Viewer" ) );
-    draw3DFrame->SetDefaultFileName( GetBoard()->GetFileName() );
-    draw3DFrame->Raise();     // Needed with some Window Managers
-    draw3DFrame->Show( true );
+    bool forceRecreateIfNotOwner = true;
+    CreateAndShow3D_Frame( forceRecreateIfNotOwner );
 }
 
 
@@ -965,6 +943,8 @@ void PCB_EDIT_FRAME::onBoardLoaded()
     // Display the loaded board:
     Zoom_Automatique( false );
 
+    Refresh();
+
     SetMsgPanel( GetBoard() );
     SetStatusText( wxEmptyString );
 }
@@ -1032,13 +1012,26 @@ void PCB_EDIT_FRAME::ShowChangedLanguage()
     // call my base class
     PCB_BASE_FRAME::ShowChangedLanguage();
 
-    m_Layers->SetLayersManagerTabsText();
+    // update the layer manager
+    m_Layers->Freeze();
 
     wxAuiPaneInfo& pane_info = m_auimgr.GetPane( m_Layers );
-
     pane_info.Caption( _( "Visibles" ) );
     m_auimgr.Update();
+
+    m_Layers->SetLayersManagerTabsText();
     ReFillLayerWidget();
+    m_Layers->ReFillRender();
+
+    // upate the layer widget to match board visibility states, both layers and render columns.
+    syncLayerVisibilities();
+    syncLayerWidgetLayer();
+    syncRenderStates();
+
+    m_Layers->Thaw();
+
+    // pcbnew-specific toolbars
+    ReCreateMicrowaveVToolbar();
 }
 
 
@@ -1074,10 +1067,9 @@ void PCB_EDIT_FRAME::OnModify( )
 {
     PCB_BASE_FRAME::OnModify();
 
-    EDA_3D_VIEWER* draw3DFrame = Get3DViewerFrame();
+    Update3DView();
 
-    if( draw3DFrame )
-        draw3DFrame->ReloadRequest();
+    m_ZoneFillsDirty = true;
 }
 
 
@@ -1172,37 +1164,6 @@ void PCB_EDIT_FRAME::ScriptingConsoleEnableDisable( wxCommandEvent& aEvent )
 #endif
 
 
-void PCB_EDIT_FRAME::OnSelectAutoPlaceMode( wxCommandEvent& aEvent )
-{
-    // Automatic placement of modules and tracks is a mutually exclusive operation so
-    // clear the other tool if one of the two is selected.
-    // Be careful: this event function is called both by the
-    // ID_TOOLBARH_PCB_MODE_MODULE and the ID_TOOLBARH_PCB_MODE_TRACKS tool
-    // Therefore we should avoid a race condition when deselecting one of these tools
-    // inside this function (seems happen on some Linux/wxWidgets versions)
-    // when the other tool is selected
-
-    switch( aEvent.GetId() )
-    {
-    case ID_TOOLBARH_PCB_MODE_MODULE:
-        if( aEvent.IsChecked() &&
-            m_mainToolBar->GetToolToggled( ID_TOOLBARH_PCB_MODE_TRACKS ) )
-        {
-            m_mainToolBar->ToggleTool( ID_TOOLBARH_PCB_MODE_TRACKS, false );
-        }
-        break;
-
-    case ID_TOOLBARH_PCB_MODE_TRACKS:
-        if( aEvent.IsChecked() &&
-            m_mainToolBar->GetToolToggled( ID_TOOLBARH_PCB_MODE_MODULE ) )
-        {
-            m_mainToolBar->ToggleTool( ID_TOOLBARH_PCB_MODE_MODULE, false );
-        }
-        break;
-    }
-}
-
-
 void PCB_EDIT_FRAME::OnLayerColorChange( wxCommandEvent& aEvent )
 {
     ReCreateLayerBox();
@@ -1272,7 +1233,7 @@ void PCB_EDIT_FRAME::OnUpdatePCBFromSch( wxCommandEvent& event )
 
             frame->OpenProjectFiles( std::vector<wxString>( 1, schfn.GetFullPath() ) );
             // Because the schematic editor frame is not on screen, iconize it:
-            // However, an other valid option is to do not iconize the schematic editor frame
+            // However, another valid option is to do not iconize the schematic editor frame
             // and show it
             frame->Iconize( true );
             // we show the schematic editor frame, because do not show is seen as
@@ -1392,4 +1353,29 @@ void PCB_EDIT_FRAME::SetIconScale( int aScale )
     ReCreateMicrowaveVToolbar();
     Layout();
     SendSizeEvent();
+}
+
+
+void PCB_EDIT_FRAME::LockModule( MODULE* aModule, bool aLocked )
+{
+    const wxString ModulesMaskSelection = wxT( "*" );
+    if( aModule )
+    {
+        aModule->SetLocked( aLocked );
+        SetMsgPanel( aModule );
+        OnModify();
+    }
+    else
+    {
+        aModule = GetBoard()->m_Modules;
+
+        for( ; aModule != NULL; aModule = aModule->Next() )
+        {
+            if( WildCompareString( ModulesMaskSelection, aModule->GetReference() ) )
+            {
+                aModule->SetLocked( aLocked );
+                OnModify();
+            }
+        }
+    }
 }

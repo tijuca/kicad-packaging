@@ -110,8 +110,6 @@ enum SCH_SEARCH_T {
 };
 
 
-#define SCH_EDIT_FRAME_NAME wxT( "SchematicFrame" )
-
 /**
  * Schematic editor (Eeschema) main window.
  */
@@ -404,12 +402,14 @@ public:
      * @param aFilterList A list of #KICAD_T types to to filter.
      * @param aHotKeyCommandId A hot key command ID for performing additional tests when
      *                         multiple items are found at \a aPosition.
+     * @param aClarifySelectionMenuCancelled is a pointer to a bool to handle a cancel command
+     * from user when the user cancels the locate menu disambiguation (selection between located items)
      * @return A SCH_ITEM pointer of the item found or NULL if no item found
      */
     SCH_ITEM* LocateAndShowItem( const wxPoint& aPosition,
                                  const KICAD_T aFilterList[] = SCH_COLLECTOR::AllItems,
                                  int aHotKeyCommandId = 0,
-                                 bool* clarifySelectionMenuCancelled = nullptr );
+                                 bool* aClarifySelectionMenuCancelled = nullptr );
 
     /**
      * Check for items at \a aPosition matching the types in \a aFilterList.
@@ -900,10 +900,9 @@ private:
 
     // a helper function to run the dialog that allows to rename the symbol library Id of
     // groups of components, for instance after a symbol has moved from a library to
-    // an other library
+    // another library
     void OnEditComponentSymbolsId( wxCommandEvent& aEvent );
     void OnPreferencesOptions( wxCommandEvent& event );
-    void OnConfigurePaths( wxCommandEvent& aEvent );
     void OnCancelCurrentCommand( wxCommandEvent& aEvent );
 
     void OnSelectItem( wxCommandEvent& aEvent );
@@ -998,7 +997,7 @@ private:
     void ChangeTextOrient( SCH_TEXT* aTextItem );
 
     /**
-     * Command event handler to change a text type to an other one.
+     * Command event handler to change a text type to another one.
      *
      * The new text, label, hierarchical label, or global label is created from the old text
      * and the old text object is deleted.
@@ -1008,7 +1007,7 @@ private:
     /**
      * Creates a new segment ( WIRE, BUS ) or terminates the current segment in progress.
      *
-     * If the end of the current segment is on an other segment, place a junction if needed
+     * If the end of the current segment is on a different segment, place a junction if needed
      * and terminates the command.  If the end of the current segment is on a pin, terminate
      * the command.  In all other cases starts a new segment.
      */

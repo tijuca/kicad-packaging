@@ -45,6 +45,7 @@
 #include <geometry/shape_file_io.h>
 #include <geometry/convex_hull.h>
 #include <geometry/geometry_utils.h>
+#include <confirm.h>
 
 #include "zone_filler.h"
 
@@ -65,7 +66,8 @@ static double s_thermalRot = 450;    // angle of stubs in thermal reliefs for ro
 static const bool s_DumpZonesWhenFilling = false;
 
 ZONE_FILLER::ZONE_FILLER(  BOARD* aBoard, COMMIT* aCommit ) :
-    m_board( aBoard ), m_commit( aCommit ), m_progressReporter( nullptr ), m_count_done( 0 )
+    m_board( aBoard ), m_commit( aCommit ), m_progressReporter( nullptr ),
+    m_next( 0 ), m_count_done( 0 )
 {
 }
 
@@ -75,12 +77,12 @@ ZONE_FILLER::~ZONE_FILLER()
 }
 
 
-void ZONE_FILLER::SetProgressReporter( PROGRESS_REPORTER* aReporter )
+void ZONE_FILLER::SetProgressReporter( WX_PROGRESS_REPORTER* aReporter )
 {
     m_progressReporter = aReporter;
 }
 
-void ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones )
+bool ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones, bool aCheck )
 {
     int parallelThreadCount = std::max( ( int )std::thread::hardware_concurrency(), 2 );
 
@@ -88,10 +90,7 @@ void ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones )
     auto connectivity = m_board->GetConnectivity();
 
     if( !connectivity->TryLock() )
-        return;
-
-    // Remove segment zones
-    m_board->m_Zone.DeleteAll();
+        return false;
 
     for( auto zone : aZones )
     {
@@ -99,9 +98,7 @@ void ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones )
         if( zone->GetIsKeepout() )
             continue;
 
-        CN_ZONE_ISOLATED_ISLAND_LIST l;
-        l.m_zone = zone;
-        toFill.push_back( l );
+        toFill.emplace_back( CN_ZONE_ISOLATED_ISLAND_LIST(zone) );
     }
 
     for( unsigned i = 0; i < toFill.size(); i++ )
@@ -114,7 +111,7 @@ void ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones )
 
     if( m_progressReporter )
     {
-        m_progressReporter->Report( _( "Calculating zone fills..." ) );
+        m_progressReporter->Report( _( "Checking zone fills..." ) );
         m_progressReporter->SetMaxProgress( toFill.size() );
     }
 
@@ -130,12 +127,12 @@ void ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones )
             while( i < toFill.size() )
             {
                 SHAPE_POLY_SET rawPolys, finalPolys;
-                ZONE_SEGMENT_FILL segFill;
-                fillSingleZone( toFill[i].m_zone, rawPolys, finalPolys );
+                ZONE_CONTAINER* zone = toFill[i].m_zone;
+                fillSingleZone( zone, rawPolys, finalPolys );
 
-                toFill[i].m_zone->SetRawPolysList( rawPolys );
-                toFill[i].m_zone->SetFilledPolysList( finalPolys );
-                toFill[i].m_zone->SetIsFilled( true );
+                zone->SetRawPolysList( rawPolys );
+                zone->SetFilledPolysList( finalPolys );
+                zone->SetIsFilled( true );
 
                 if( m_progressReporter )
                     m_progressReporter->AdvanceProgress();
@@ -168,6 +165,8 @@ void ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones )
     connectivity->SetProgressReporter( m_progressReporter );
     connectivity->FindIsolatedCopperIslands( toFill );
 
+    bool outOfDate = false;
+
     for( auto& zone : toFill )
     {
         std::sort( zone.m_islands.begin(), zone.m_islands.end(), std::greater<int>() );
@@ -179,12 +178,41 @@ void ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones )
         }
 
         zone.m_zone->SetFilledPolysList( poly );
+
+        if( aCheck && zone.m_lastPolys.GetHash() != poly.GetHash() )
+            outOfDate = true;
     }
+
+    if( aCheck )
+    {
+        bool cancel = !outOfDate || !IsOK( nullptr, _( "Zone fills are out-of-date. Re-fill?" ) );
+
+        if( m_progressReporter )
+        {
+            // Sigh.  Patch another case of "fall behind" dialogs on Mac.
+            if( m_progressReporter->GetParent() )
+                m_progressReporter->GetParent()->Raise();
+            m_progressReporter->Raise();
+        }
+
+        if( cancel )
+        {
+            if( m_commit )
+                m_commit->Revert();
+
+            connectivity->SetProgressReporter( nullptr );
+            connectivity->Unlock();
+            return false;
+        }
+    }
+
+    // Remove deprecaded segment zones (only found in very old boards)
+    m_board->m_SegZoneDeprecated.DeleteAll();
 
     if( m_progressReporter )
     {
         m_progressReporter->AdvancePhase();
-        m_progressReporter->Report( _( "Caching polygon triangulations..." ) );
+        m_progressReporter->Report( _( "Performing polygon fills..." ) );
         m_progressReporter->SetMaxProgress( toFill.size() );
     }
 
@@ -236,7 +264,7 @@ void ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones )
         if( m_progressReporter )
         {
             m_progressReporter->AdvancePhase();
-            m_progressReporter->Report( _( "Fill with segments..." ) );
+            m_progressReporter->Report( _( "Performing segment fills..." ) );
             m_progressReporter->SetMaxProgress( zones_to_fill_count );
         }
 
@@ -283,6 +311,7 @@ void ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones )
     }
 
     connectivity->Unlock();
+    return true;
 }
 
 
@@ -293,7 +322,7 @@ void ZONE_FILLER::buildZoneFeatureHoleList( const ZONE_CONTAINER* aZone,
     double correctionFactor;
 
     // Set the number of segments in arc approximations
-    if( aZone->GetArcSegmentCount() == ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF  )
+    if( aZone->GetArcSegmentCount() > SEGMENT_COUNT_CROSSOVER  )
         segsPerCircle = ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF;
     else
         segsPerCircle = ARC_APPROX_SEGMENTS_COUNT_LOW_DEF;

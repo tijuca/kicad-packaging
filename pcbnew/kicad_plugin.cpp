@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 CERN
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,6 +29,7 @@
 #include <macros.h>
 #include <wildcards_and_files_ext.h>
 #include <base_units.h>
+#include <trace_helpers.h>
 
 #include <class_board.h>
 #include <class_module.h>
@@ -55,13 +56,6 @@ using namespace PCB_KEYS_T;
 
 #define FMT_IU     BOARD_ITEM::FormatInternalUnits
 #define FMT_ANGLE  BOARD_ITEM::FormatAngle
-
-/**
- * @ingroup trace_env_vars
- *
- * Flag to enable KiCad PCB plugin debug output.
- */
-static const wxString traceFootprintLibrary = wxT( "KICAD_TRACE_FP_PLUGIN" );
 
 
 ///> Removes empty nets (i.e. with node count equal zero) from net classes
@@ -132,14 +126,20 @@ public:
 
     wxString    GetPath() const { return m_lib_path.GetPath(); }
     bool        IsWritable() const { return m_lib_path.IsOk() && m_lib_path.IsDirWritable(); }
+    bool        Exists() const { return m_lib_path.IsOk() && m_lib_path.DirExists(); }
     MODULE_MAP& GetModules() { return m_modules; }
 
     // Most all functions in this class throw IO_ERROR exceptions.  There are no
     // error codes nor user interface calls from here, nor in any PLUGIN.
     // Catch these exceptions higher up please.
 
-    /// save the entire legacy library to m_lib_name;
-    void Save();
+    /**
+     * Function Save
+     * Save the footprint cache or a single module from it to disk
+     *
+     * @param aModule if set, save only this module, otherwise, save the full library
+     */
+    void Save( MODULE* aModule = NULL );
 
     void Load();
 
@@ -184,7 +184,7 @@ FP_CACHE::FP_CACHE( PCB_IO* aOwner, const wxString& aLibraryPath )
 }
 
 
-void FP_CACHE::Save()
+void FP_CACHE::Save( MODULE* aModule )
 {
     m_cache_timestamp = 0;
 
@@ -202,6 +202,9 @@ void FP_CACHE::Save()
 
     for( MODULE_ITER it = m_modules.begin();  it != m_modules.end();  ++it )
     {
+        if( aModule && aModule != it->second->GetModule() )
+            continue;
+
         wxFileName fn = it->second->GetFileName();
 
         wxString tempFileName =
@@ -213,7 +216,7 @@ void FP_CACHE::Save()
         // Allow file output stream to go out of scope to close the file stream before
         // renaming the file.
         {
-            wxLogTrace( traceFootprintLibrary, wxT( "Creating temporary library file %s" ),
+            wxLogTrace( traceKicadPcbPlugin, wxT( "Creating temporary library file %s" ),
                         GetChars( tempFileName ) );
 
             FILE_OUTPUTFORMATTER formatter( tempFileName );
@@ -243,7 +246,10 @@ void FP_CACHE::Save()
     }
 
     m_cache_timestamp += m_lib_path.GetModificationTime().GetValue().GetValue();
-    m_cache_dirty = false;
+
+    // If we've saved the full cache, we clear the dirty flag.
+    if( !aModule )
+        m_cache_dirty = false;
 }
 
 
@@ -881,6 +887,12 @@ void PCB_IO::format( DRAWSEGMENT* aSegment, int aNestLevel ) const
 
             m_out->Print( 0, ")" );
         }
+        else
+        {
+            wxFAIL_MSG( wxT( "Cannot format invalid polygon." ) );
+            return;
+        }
+
         break;
 
     case S_CURVE:   // Bezier curve
@@ -893,6 +905,7 @@ void PCB_IO::format( DRAWSEGMENT* aSegment, int aNestLevel ) const
 
     default:
         wxFAIL_MSG( wxT( "Cannot format invalid DRAWSEGMENT type." ) );
+        return;
     };
 
     formatLayer( aSegment );
@@ -957,6 +970,11 @@ void PCB_IO::format( EDGE_MODULE* aModuleDrawing, int aNestLevel ) const
 
             m_out->Print( 0, ")" );
         }
+        else
+        {
+            wxFAIL_MSG( wxT( "Cannot format invalid polygon." ) );
+            return;
+        }
         break;
 
     case S_CURVE:   // Bezier curve
@@ -969,6 +987,7 @@ void PCB_IO::format( EDGE_MODULE* aModuleDrawing, int aNestLevel ) const
 
     default:
         wxFAIL_MSG( wxT( "Cannot format invalid DRAWSEGMENT type." ) );
+        return;
     };
 
     formatLayer( aModuleDrawing );
@@ -1186,9 +1205,6 @@ void PCB_IO::formatLayers( LSET aLayerMask, int aNestLevel ) const
 
     LSET cu_mask = cu_all;
 
-    if( m_board )
-        cu_mask &= m_board->GetEnabledLayers();
-
     // output copper layers first, then non copper
 
     if( ( aLayerMask & cu_mask ) == cu_mask )
@@ -1239,9 +1255,6 @@ void PCB_IO::formatLayers( LSET aLayerMask, int aNestLevel ) const
     }
 
     // output any individual layers not handled in wildcard combos above
-
-    if( m_board )
-        aLayerMask &= m_board->GetEnabledLayers();
 
     wxString layerName;
 
@@ -1332,12 +1345,12 @@ void PCB_IO::format( D_PAD* aPad, int aNestLevel ) const
         m_out->Print( 0, ")" );
     }
 
-    formatLayers( aPad->GetLayerSet(), 0 );
+    formatLayers( aPad->GetLayerSet() );
 
     // Output the radius ratio for rounded rect pads
     if( aPad->GetShape() == PAD_SHAPE_ROUNDRECT )
     {
-        m_out->Print( 0,  "(roundrect_rratio %s)",
+        m_out->Print( 0,  " (roundrect_rratio %s)",
                       Double2Str( aPad->GetRoundRectRadiusRatio() ).c_str() );
     }
 
@@ -1352,14 +1365,16 @@ void PCB_IO::format( D_PAD* aPad, int aNestLevel ) const
         StrPrintf( &output, " (die_length %s)", FMT_IU( aPad->GetPadToDieLength() ).c_str() );
 
     if( aPad->GetLocalSolderMaskMargin() != 0 )
-        StrPrintf( &output, " (solder_mask_margin %s)", FMT_IU( aPad->GetLocalSolderMaskMargin() ).c_str() );
+        StrPrintf( &output, " (solder_mask_margin %s)",
+                   FMT_IU( aPad->GetLocalSolderMaskMargin() ).c_str() );
 
     if( aPad->GetLocalSolderPasteMargin() != 0 )
-        StrPrintf( &output, " (solder_paste_margin %s)", FMT_IU( aPad->GetLocalSolderPasteMargin() ).c_str() );
+        StrPrintf( &output, " (solder_paste_margin %s)",
+                   FMT_IU( aPad->GetLocalSolderPasteMargin() ).c_str() );
 
     if( aPad->GetLocalSolderPasteMarginRatio() != 0 )
         StrPrintf( &output, " (solder_paste_margin_ratio %s)",
-                Double2Str( aPad->GetLocalSolderPasteMarginRatio() ).c_str() );
+                   Double2Str( aPad->GetLocalSolderPasteMarginRatio() ).c_str() );
 
     if( aPad->GetLocalClearance() != 0 )
         StrPrintf( &output, " (clearance %s)", FMT_IU( aPad->GetLocalClearance() ).c_str() );
@@ -1453,9 +1468,11 @@ void PCB_IO::format( D_PAD* aPad, int aNestLevel ) const
                 for( unsigned ii = 0; ii < poly.size(); ii++ )
                 {
                     if( newLine == 0 )
-                        m_out->Print( nested_level+1, " (xy %s)", FMT_IU( wxPoint( poly[ii].x, poly[ii].y ) ).c_str() );
+                        m_out->Print( nested_level+1, " (xy %s)",
+                                      FMT_IU( wxPoint( poly[ii].x, poly[ii].y ) ).c_str() );
                     else
-                        m_out->Print( 0, " (xy %s)", FMT_IU( wxPoint( poly[ii].x, poly[ii].y ) ).c_str() );
+                        m_out->Print( 0, " (xy %s)",
+                                      FMT_IU( wxPoint( poly[ii].x, poly[ii].y ) ).c_str() );
 
                     if( ++newLine > 4 )
                     {
@@ -2005,7 +2022,7 @@ MODULE* PCB_IO::doLoadFootprint( const wxString& aLibraryPath,
     {
         validateCache( aLibraryPath, checkModified );
     }
-    catch( const IO_ERROR& ioe )
+    catch( const IO_ERROR& )
     {
         // do nothing with the error
     }
@@ -2054,12 +2071,28 @@ void PCB_IO::FootprintSave( const wxString& aLibraryPath, const MODULE* aFootpri
 
     if( !m_cache->IsWritable() )
     {
-        wxString msg = wxString::Format(
-                _( "Library \"%s\" is read only" ),
-                GetChars( aLibraryPath )
-                );
+        if( !m_cache->Exists() )
+        {
+            const wxString msg = wxString::Format( _( "Library \"%s\" does not exist.\n"
+                                                "Would you like to create it?"),
+                    GetChars( aLibraryPath ) );
+            const wxString title = wxString::Format( _( "Create new library \"%s\"?"),
+                    GetChars( aLibraryPath ) );
 
-        THROW_IO_ERROR( msg );
+            if( wxMessageBox( msg, title, wxYES_NO | wxICON_QUESTION ) != wxYES )
+                return;
+
+            // Save throws its own IO_ERROR on failure, so no need to recreate here
+            m_cache->Save( NULL );
+        }
+        else
+        {
+            wxString msg = wxString::Format( _( "Library \"%s\" is read only" ),
+                GetChars( aLibraryPath ) );
+            THROW_IO_ERROR( msg );
+        }
+
+
     }
 
     wxString footprintName = aFootprint->GetFPID().GetLibItemName();
@@ -2086,7 +2119,7 @@ void PCB_IO::FootprintSave( const wxString& aLibraryPath, const MODULE* aFootpri
 
     if( it != mods.end() )
     {
-        wxLogTrace( traceFootprintLibrary, wxT( "Removing footprint library file '%s'." ),
+        wxLogTrace( traceKicadPcbPlugin, wxT( "Removing footprint library file '%s'." ),
                     fn.GetFullPath().GetData() );
         mods.erase( footprintName );
         wxRemoveFile( fn.GetFullPath() );
@@ -2104,14 +2137,15 @@ void PCB_IO::FootprintSave( const wxString& aLibraryPath, const MODULE* aFootpri
     if( module->GetLayer() != F_Cu )
         module->Flip( module->GetPosition() );
 
-    wxLogTrace( traceFootprintLibrary, wxT( "Creating s-expression footprint file: %s." ),
+    wxLogTrace( traceKicadPcbPlugin, wxT( "Creating s-expression footprint file: %s." ),
                 fn.GetFullPath().GetData() );
     mods.insert( footprintName, new FP_CACHE_ITEM( module, fn ) );
-    m_cache->Save();
+    m_cache->Save( module );
 }
 
 
-void PCB_IO::FootprintDelete( const wxString& aLibraryPath, const wxString& aFootprintName, const PROPERTIES* aProperties )
+void PCB_IO::FootprintDelete( const wxString& aLibraryPath, const wxString& aFootprintName,
+                              const PROPERTIES* aProperties )
 {
     LOCALE_IO   toggle;     // toggles on, then off, the C locale.
 
@@ -2207,7 +2241,7 @@ bool PCB_IO::FootprintLibDelete( const wxString& aLibraryPath, const PROPERTIES*
         }
     }
 
-    wxLogTrace( traceFootprintLibrary, wxT( "Removing footprint library \"%s\"" ),
+    wxLogTrace( traceKicadPcbPlugin, wxT( "Removing footprint library \"%s\"" ),
                 aLibraryPath.GetData() );
 
     // Some of the more elaborate wxRemoveFile() crap puts up its own wxLog dialog

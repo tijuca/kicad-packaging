@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2013 Wayne Stambaugh <stambaughw@gmail.com>
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -40,6 +40,7 @@
 #include <eda_base_frame.h>
 #include <menus_helpers.h>
 #include <bitmaps.h>
+#include <trace_helpers.h>
 
 #include <wx/display.h>
 #include <wx/utils.h>
@@ -49,8 +50,6 @@
 #define DEFAULT_AUTO_SAVE_INTERVAL 600
 
 #define URL_GET_INVOLVED "http://kicad-pcb.org/contribute/"
-
-const wxChar traceAutoSave[] = wxT( "KICAD_TRACE_AUTOSAVE" );
 
 ///@{
 /// \ingroup config
@@ -76,8 +75,6 @@ EDA_BASE_FRAME::EDA_BASE_FRAME( wxWindow* aParent, FRAME_T aFrameType,
         long aStyle, const wxString& aFrameName ) :
     wxFrame( aParent, wxID_ANY, aTitle, aPos, aSize, aStyle, aFrameName )
 {
-    wxSize minsize;
-
     m_Ident = aFrameType;
     m_mainToolBar = NULL;
     m_hasAutoSave = false;
@@ -85,20 +82,14 @@ EDA_BASE_FRAME::EDA_BASE_FRAME( wxWindow* aParent, FRAME_T aFrameType,
     m_autoSaveInterval = -1;
     m_autoSaveTimer = new wxTimer( this, ID_AUTO_SAVE_TIMER );
     m_mruPath = wxStandardPaths::Get().GetDocumentsDir();
-    minsize.x = 470;
-    minsize.y = 350;
 
-    SetSizeHints( minsize.x, minsize.y, -1, -1, -1, -1 );
+    // Gives a reasonable minimal size to the frame:
+    const int minsize_x = 500;
+    const int  minsize_y = 400;
+    SetSizeHints( minsize_x, minsize_y, -1, -1, -1, -1 );
 
-    if( ( aSize.x < minsize.x ) || ( aSize.y < minsize.y ) )
-        SetSize( 0, 0, minsize.x, minsize.y );
-
-    // Create child subwindows.
-
-    // Dimensions of the user area of the main window.
+    // Store dimensions of the user area of the main window.
     GetClientSize( &m_FrameSize.x, &m_FrameSize.y );
-
-    m_FramePos.x = m_FramePos.y = 0;
 
     Connect( ID_AUTO_SAVE_TIMER, wxEVT_TIMER,
              wxTimerEventHandler( EDA_BASE_FRAME::onAutoSaveTimer ) );
@@ -112,28 +103,40 @@ EDA_BASE_FRAME::EDA_BASE_FRAME( wxWindow* aParent, FRAME_T aFrameType,
 }
 
 
-DIALOG_SHIM* findQuasiModalDialog( wxWindowList& aList )
+wxWindow* EDA_BASE_FRAME::findQuasiModalDialog()
 {
-    for( wxWindowList::iterator iter = aList.begin(); iter != aList.end(); ++iter )
+    for( auto& iter : GetChildren() )
     {
-        DIALOG_SHIM* dlg = dynamic_cast<DIALOG_SHIM*>( *iter );
+        DIALOG_SHIM* dlg = dynamic_cast<DIALOG_SHIM*>( iter );
         if( dlg && dlg->IsQuasiModal() )
             return dlg;
     }
-    return NULL;
+
+    // FIXME: CvPcb is currently implemented on top of KIWAY_PLAYER rather than DIALOG_SHIM,
+    // so we have to look for it separately.
+    if( m_Ident == FRAME_SCH )
+    {
+        wxWindow* cvpcb = wxWindow::FindWindowByName( "CvpcbFrame" );
+        if( cvpcb )
+            return cvpcb;
+    }
+
+    return nullptr;
 }
 
 
 void EDA_BASE_FRAME::windowClosing( wxCloseEvent& event )
 {
-    DIALOG_SHIM* dlg = findQuasiModalDialog( GetChildren() );
-    if( dlg )
+    // Don't allow closing when a quasi-modal is open.
+    wxWindow* quasiModal = findQuasiModalDialog();
+
+    if( quasiModal )
     {
-        // Happens when a quasi modal dialog is currently open.
-        // For example: if the Kicad manager try to close Kicad.
-        wxMessageBox( _(
-                "The program cannot be closed\n"
-                "A quasi-modal dialog window is currently open, please close it first." ) );
+        // Raise and notify; don't give the user a warning regarding "quasi-modal dialogs"
+        // when they have no idea what those are.
+        quasiModal->Raise();
+        wxBell();
+
         event.Veto();
         return;
     }
@@ -182,7 +185,7 @@ bool EDA_BASE_FRAME::ProcessEvent( wxEvent& aEvent )
     // them.
     if( !IsEnabled() && IsActive() )
     {
-        DIALOG_SHIM* dlg = findQuasiModalDialog( GetChildren() );
+        wxWindow* dlg = findQuasiModalDialog();
         if( dlg )
             dlg->Raise();
     }
@@ -270,16 +273,16 @@ void EDA_BASE_FRAME::LoadSettings( wxConfigBase* aCfg )
     wxString baseCfgName = ConfigBaseName();
 
     wxString text = baseCfgName + entryPosX;
-    aCfg->Read( text, &m_FramePos.x );
+    aCfg->Read( text, &m_FramePos.x, m_FramePos.x );
 
     text = baseCfgName + entryPosY;
-    aCfg->Read( text, &m_FramePos.y );
+    aCfg->Read( text, &m_FramePos.y, m_FramePos.y );
 
     text = baseCfgName + entrySizeX;
-    aCfg->Read( text, &m_FrameSize.x, wxDefaultSize.x );
+    aCfg->Read( text, &m_FrameSize.x, m_FrameSize.x );
 
     text = baseCfgName + entrySizeY;
-    aCfg->Read( text, &m_FrameSize.y, wxDefaultSize.x );
+    aCfg->Read( text, &m_FrameSize.y, m_FrameSize.y );
 
     text = baseCfgName + entryMaximized;
     aCfg->Read( text, &maximized, 0 );

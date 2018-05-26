@@ -407,8 +407,8 @@ void BOARD::chainMarkedSegments( wxPoint aPosition, const LSET& aLayerSet, TRACK
      * on other layers and they change the layer mask.  They can be a track
      * end or not.  They will be analyzer later and vias on terminal points
      * of the track will be considered as part of this track if they do not
-     * connect segments of another track together and will be considered as
-     * part of an other track when removing the via, the segments of that other
+     * connect segments of a other track together and will be considered as
+     * part of a other track when removing the via, the segments of that other
      * track are disconnected.
      */
     for( ; ; )
@@ -872,9 +872,9 @@ void BOARD::Add( BOARD_ITEM* aBoardItem, ADD_MODE aMode )
 
     case PCB_ZONE_T:
         if( aMode == ADD_APPEND )
-            m_Zone.PushBack( (SEGZONE*) aBoardItem );
+            m_SegZoneDeprecated.PushBack( (SEGZONE*) aBoardItem );
         else
-            m_Zone.PushFront( (SEGZONE*) aBoardItem );
+            m_SegZoneDeprecated.PushFront( (SEGZONE*) aBoardItem );
 
         break;
 
@@ -967,7 +967,7 @@ void BOARD::Remove( BOARD_ITEM* aBoardItem )
         break;
 
     case PCB_ZONE_T:
-        m_Zone.Remove( (SEGZONE*) aBoardItem );
+        m_SegZoneDeprecated.Remove( (SEGZONE*) aBoardItem );
         break;
 
     case PCB_DIMENSION_T:
@@ -1015,7 +1015,7 @@ int BOARD::GetNumSegmTrack() const
 
 int BOARD::GetNumSegmZone() const
 {
-    return m_Zone.GetCount();
+    return m_SegZoneDeprecated.GetCount();
 }
 
 
@@ -1075,7 +1075,7 @@ EDA_RECT BOARD::ComputeBoundingBox( bool aBoardEdgesOnly ) const
         }
 
         // Check segment zones
-        for( TRACK* track = m_Zone; track; track = track->Next() )
+        for( TRACK* track = m_SegZoneDeprecated; track; track = track->Next() )
         {
             if( !hasItems )
                 area = track->GetBoundingBox();
@@ -1134,7 +1134,7 @@ void BOARD::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
     aList.push_back( MSG_PANEL_ITEM( _( "Nets" ), txt, RED ) );
 
     txt.Printf( wxT( "%d" ), GetConnectivity()->GetUnconnectedCount() );
-    aList.push_back( MSG_PANEL_ITEM( _( "Unconnected" ), txt, BLUE ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Unrouted" ), txt, BLUE ) );
 }
 
 
@@ -1303,7 +1303,7 @@ SEARCH_RESULT BOARD::Visit( INSPECTOR inspector, void* testData, const KICAD_T s
             break;
 
         case PCB_ZONE_T:
-            result = IterateForward( m_Zone, inspector, testData, p );
+            result = IterateForward( m_SegZoneDeprecated, inspector, testData, p );
             ++p;
             break;
 
@@ -1920,16 +1920,16 @@ TRACK* BOARD::MarkTrace( TRACK*  aTrace, int* aCount,
             continue;
 
         /* If a track is found, this via connects also other segments of
-         * another track.  This case happens when a via ends the selected
+         * the other track.  This case happens when a via ends the selected
          * track but must we consider this via is on the selected track, or
-         * on another track.
+         * on a other track.
          * (this is important when selecting a track for deletion: must this
          * via be deleted or not?)
          * We consider this via to be on our track if other segments connected
          * to this via remain connected when removing this via.
          * We search for all other segments connected together:
          * if they are on the same layer, then the via is on the selected track;
-         * if they are on different layers, the via is on another track.
+         * if they are on different layers, the via is on a other track.
          */
         LAYER_NUM layer = track->GetLayer();
 
@@ -1937,8 +1937,8 @@ TRACK* BOARD::MarkTrace( TRACK*  aTrace, int* aCount,
         {
             if( layer != track->GetLayer() )
             {
-                // The via connects segments of another track: it is removed
-                // from list because it is member of another track
+                // The via connects segments of a other track: it is removed
+                // from list because it is member of a other track
                 via->SetState( BUSY, false );
                 break;
             }
@@ -1990,7 +1990,7 @@ TRACK* BOARD::MarkTrace( TRACK*  aTrace, int* aCount,
         D_PAD * pad_on_end = GetPad( track->GetEnd(), layer_set );
 
         // a segment fully inside a pad does not contribute to the track len
-        // (an other track end inside this pad will contribute to this lenght)
+        // (another track end inside this pad will contribute to this lenght)
         if( pad_on_start && ( pad_on_start == pad_on_end ) )
             continue;
 
@@ -2392,6 +2392,17 @@ void BOARD::ReplaceNetlist( NETLIST& aNetlist, bool aDeleteSinglePadNets,
     wxPoint        bestPosition;
     wxString       msg;
     std::vector<MODULE*> newFootprints;
+    std::map< ZONE_CONTAINER*, std::vector<D_PAD*> > zoneConnectionsCache;
+
+    for( int ii = 0; ii < GetAreaCount(); ii++ )
+    {
+        ZONE_CONTAINER* zone = GetArea( ii );
+
+        if( !zone->IsOnCopperLayer() || zone->GetIsKeepout() )
+            continue;
+
+        zoneConnectionsCache[ zone ] = m_connectivity->GetConnectedPads( zone );
+    }
 
     if( !IsEmpty() )
     {
@@ -2475,8 +2486,7 @@ void BOARD::ReplaceNetlist( NETLIST& aNetlist, bool aDeleteSinglePadNets,
         else                           // An existing footprint.
         {
             // Test for footprint change.
-            if( !component->GetFPID().empty() &&
-                footprint->GetFPID() != component->GetFPID() )
+            if( !component->GetFPID().empty() && footprint->GetFPID() != component->GetFPID() )
             {
                 if( aNetlist.GetReplaceFootprints() )
                 {
@@ -2756,15 +2766,10 @@ void BOARD::ReplaceNetlist( NETLIST& aNetlist, bool aDeleteSinglePadNets,
         }
     }
 
-    // Last step: Some tests:
-    // verify all pads found in netlist:
-    // They should exist in footprints, otherwise the footprint is wrong
-    // note also references or time stamps are updated, so we use only
-    // the reference to find a footprint
-    //
-    // Also verify if zones have acceptable nets, i.e. nets with pads.
-    // Zone with no pad belongs to a "dead" net which happens after changes in schematic
-    // when no more pad use this net name.
+    // Verify that board contains all pads in netlist: if it doesn't then footprints are
+    // wrong or missing.
+    // Note that we use references to find the footprints as they're already updated by this
+    // point (whether by-reference or by-timestamp).
     if( aReporter )
     {
         wxString padname;
@@ -2793,20 +2798,53 @@ void BOARD::ReplaceNetlist( NETLIST& aNetlist, bool aDeleteSinglePadNets,
                 aReporter->Report( msg, REPORTER::RPT_ERROR );
             }
         }
+    }
 
-        // Test copper zones to detect "dead" nets (nets without any pad):
-        for( int ii = 0; ii < GetAreaCount(); ii++ )
+    // Test copper zones to detect "dead" nets (nets without any pad):
+    for( int ii = 0; ii < GetAreaCount(); ii++ )
+    {
+        ZONE_CONTAINER* zone = GetArea( ii );
+
+        if( !zone->IsOnCopperLayer() || zone->GetIsKeepout() )
+            continue;
+
+        if( m_connectivity->GetPadCount( zone->GetNetCode() ) == 0 )
         {
-            ZONE_CONTAINER* zone = GetArea( ii );
+            // Look for a pad in the zone's connected-pad-cache which has been updated to
+            // a new net and use that. While this won't always be the right net, the dead
+            // net is guaranteed to be wrong.
+            NETINFO_ITEM* updatedNet = nullptr;
 
-            if( !zone->IsOnCopperLayer() || zone->GetIsKeepout() )
-                continue;
-
-            if( m_connectivity->GetPadCount( zone->GetNetCode() ) == 0 )
+            for( D_PAD* pad : zoneConnectionsCache[ zone ] )
             {
-                msg.Printf( _( "Copper zone (net name \"%s\"): net has no pads connected." ),
-                           GetChars( zone->GetNet()->GetNetname() ) );
-                aReporter->Report( msg, REPORTER::RPT_WARNING );
+                if( pad->GetNetname() != zone->GetNetname() )
+                {
+                    updatedNet = pad->GetNet();
+                    break;
+                }
+            }
+
+            if( aReporter )
+            {
+                if( updatedNet )
+                {
+                    msg.Printf( _( "Updating copper zone (net name \"%s\") to net name \"%s\"." ),
+                                zone->GetNetname(), updatedNet->GetNetname() );
+                    aReporter->Report( msg, REPORTER::RPT_ACTION );
+                }
+                else
+                {
+                    msg.Printf( _( "Copper zone (net name \"%s\") has no pads connected." ),
+                                zone->GetNetname() );
+                    aReporter->Report( msg, REPORTER::RPT_WARNING );
+                }
+            }
+
+            if( updatedNet && !aNetlist.IsDryRun() )
+            {
+                m_connectivity->Remove( zone );
+                zone->SetNet( updatedNet );
+                m_connectivity->Add( zone );
             }
         }
     }

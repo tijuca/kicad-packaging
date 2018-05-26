@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Feb  9 2018)
+// C++ code generated with wxFormBuilder (version Apr 19 2018)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -63,6 +63,7 @@ class DIALOG_DRC_CONTROL_BASE : public DIALOG_SHIM
 		wxStaticText* m_MicroViaMinTitle;
 		wxStaticText* m_MicroViaMinUnit;
 		wxCheckBox* m_cbRefillZones;
+		wxCheckBox* m_cbReportAllTrackErrors;
 		wxCheckBox* m_cbCourtyardOverlap;
 		wxCheckBox* m_cbCourtyardMissing;
 		wxStaticText* m_staticTextRpt;

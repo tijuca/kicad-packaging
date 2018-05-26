@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Nov 22 2017)
+// C++ code generated with wxFormBuilder (version Apr 19 2018)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -22,7 +22,7 @@ DIALOG_SELECT_NET_FROM_LIST_BASE::DIALOG_SELECT_NET_FROM_LIST_BASE( wxWindow* pa
 	fgSizer1->SetFlexibleDirection( wxBOTH );
 	fgSizer1->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
 	
-	m_staticTextFilter = new wxStaticText( this, wxID_ANY, _("Net name filter"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextFilter = new wxStaticText( this, wxID_ANY, _("Net name filter:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextFilter->Wrap( -1 );
 	fgSizer1->Add( m_staticTextFilter, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
@@ -46,8 +46,8 @@ DIALOG_SELECT_NET_FROM_LIST_BASE::DIALOG_SELECT_NET_FROM_LIST_BASE( wxWindow* pa
 	m_netsListGrid->SetMargins( 0, 0 );
 	
 	// Columns
-	m_netsListGrid->SetColSize( 0, 325 );
-	m_netsListGrid->SetColSize( 1, 100 );
+	m_netsListGrid->SetColSize( 0, 300 );
+	m_netsListGrid->SetColSize( 1, 130 );
 	m_netsListGrid->EnableDragColMove( false );
 	m_netsListGrid->EnableDragColSize( true );
 	m_netsListGrid->SetColLabelSize( 20 );
@@ -89,16 +89,22 @@ DIALOG_SELECT_NET_FROM_LIST_BASE::DIALOG_SELECT_NET_FROM_LIST_BASE( wxWindow* pa
 	this->Centre( wxBOTH );
 	
 	// Connect Events
+	this->Connect( wxEVT_SIZE, wxSizeEventHandler( DIALOG_SELECT_NET_FROM_LIST_BASE::updateSize ) );
 	m_textCtrlFilter->Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( DIALOG_SELECT_NET_FROM_LIST_BASE::onFilterChange ), NULL, this );
 	m_cbShowZeroPad->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_SELECT_NET_FROM_LIST_BASE::onFilterChange ), NULL, this );
 	m_netsListGrid->Connect( wxEVT_GRID_CELL_LEFT_CLICK, wxGridEventHandler( DIALOG_SELECT_NET_FROM_LIST_BASE::onCellClick ), NULL, this );
+	m_netsListGrid->Connect( wxEVT_GRID_COL_SIZE, wxGridSizeEventHandler( DIALOG_SELECT_NET_FROM_LIST_BASE::onColumnResize ), NULL, this );
+	m_netsListGrid->Connect( wxEVT_GRID_SELECT_CELL, wxGridEventHandler( DIALOG_SELECT_NET_FROM_LIST_BASE::onSelectCell ), NULL, this );
 }
 
 DIALOG_SELECT_NET_FROM_LIST_BASE::~DIALOG_SELECT_NET_FROM_LIST_BASE()
 {
 	// Disconnect Events
+	this->Disconnect( wxEVT_SIZE, wxSizeEventHandler( DIALOG_SELECT_NET_FROM_LIST_BASE::updateSize ) );
 	m_textCtrlFilter->Disconnect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( DIALOG_SELECT_NET_FROM_LIST_BASE::onFilterChange ), NULL, this );
 	m_cbShowZeroPad->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_SELECT_NET_FROM_LIST_BASE::onFilterChange ), NULL, this );
 	m_netsListGrid->Disconnect( wxEVT_GRID_CELL_LEFT_CLICK, wxGridEventHandler( DIALOG_SELECT_NET_FROM_LIST_BASE::onCellClick ), NULL, this );
+	m_netsListGrid->Disconnect( wxEVT_GRID_COL_SIZE, wxGridSizeEventHandler( DIALOG_SELECT_NET_FROM_LIST_BASE::onColumnResize ), NULL, this );
+	m_netsListGrid->Disconnect( wxEVT_GRID_SELECT_CELL, wxGridEventHandler( DIALOG_SELECT_NET_FROM_LIST_BASE::onSelectCell ), NULL, this );
 	
 }

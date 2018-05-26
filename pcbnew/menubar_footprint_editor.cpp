@@ -42,21 +42,13 @@
 
 void FOOTPRINT_EDIT_FRAME::ReCreateMenuBar()
 {
-    // Create and try to get the current menubar
-    wxMenuBar* menuBar = GetMenuBar();
-
-    if( !menuBar )
-        menuBar = new wxMenuBar();
-
-    // Delete all existing menus so they can be rebuilt.
-    // This allows language changes of the menu text on the fly.
-    menuBar->Freeze();
-
-    while( menuBar->GetMenuCount() )
-        delete menuBar->Remove( 0 );
+    // wxWidgets handles the Mac Application menu behind the scenes, but that means
+    // we always have to start from scratch with a new wxMenuBar.
+    wxMenuBar* oldMenuBar = GetMenuBar();
+    wxMenuBar* menuBar = new wxMenuBar();
+    wxString   text;
 
     // Recreate all menus:
-    wxString text;
 
     // Menu File:
     wxMenu* fileMenu = new wxMenu;
@@ -188,14 +180,14 @@ void FOOTPRINT_EDIT_FRAME::ReCreateMenuBar()
         text = AddHotkeyName( _( "&Paste" ), m_hotkeysDescrList, HK_EDIT_PASTE );
         AddMenuItem( editMenu, ID_EDIT_PASTE, text,
                      _( "Pastes item(s) from the Clipboard" ), KiBitmap( paste_xpm ) );
+
+        editMenu->AppendSeparator();
     }
 
-    // Delete items
+    // Delete items tool
     AddMenuItem( editMenu, ID_MODEDIT_DELETE_TOOL,
                  _( "&Delete" ), _( "Delete items" ),
                  KiBitmap( delete_xpm ) );
-
-    editMenu->AppendSeparator();
 
     //--------- View menu ----------------
     wxMenu* viewMenu = new wxMenu;
@@ -235,6 +227,10 @@ void FOOTPRINT_EDIT_FRAME::ReCreateMenuBar()
                           HK_ZOOM_AUTO  );
     AddMenuItem( viewMenu, ID_ZOOM_PAGE, text, _( "Zoom to fit footprint" ),
                  KiBitmap( zoom_fit_in_page_xpm ) );
+
+    text = AddHotkeyName( _( "Zoom to Selection" ), m_hotkeysDescrList, HK_ZOOM_SELECTION );
+
+    AddMenuItem( viewMenu, ID_ZOOM_SELECTION, text, KiBitmap( zoom_area_xpm ), wxITEM_CHECK );
 
     text = AddHotkeyName( _( "&Redraw" ), m_hotkeysDescrList, HK_ZOOM_REDRAW );
     AddMenuItem( viewMenu, ID_ZOOM_REDRAW, text,
@@ -432,20 +428,20 @@ void FOOTPRINT_EDIT_FRAME::ReCreateMenuBar()
     //----- Preferences menu -----------------
     wxMenu* prefs_menu = new wxMenu;
 
-    AddMenuItem( prefs_menu, ID_PCB_LIB_WIZARD,
-                _( "&Footprint Library Wizard..." ), _( "Add footprint libraries with wizard" ),
-                KiBitmap( wizard_add_fplib_small_xpm ) );
-
-    AddMenuItem( prefs_menu, ID_PCB_LIB_TABLE_EDIT,
-                _( "Footprint Li&brary Table..." ), _( "Configure footprint library table" ),
-                KiBitmap( library_table_xpm ) );
-
     // Path configuration edit dialog.
     AddMenuItem( prefs_menu,
                  ID_PREFERENCES_CONFIGURE_PATHS,
                  _( "Configure Pa&ths..." ),
                  _( "Edit path configuration environment variables" ),
                  KiBitmap( path_xpm ) );
+
+    AddMenuItem( prefs_menu, ID_PCB_LIB_WIZARD,
+                _( "Add &Footprint Libraries Wizard..." ), _( "Add footprint libraries with wizard" ),
+                KiBitmap( wizard_add_fplib_small_xpm ) );
+
+    AddMenuItem( prefs_menu, ID_PCB_LIB_TABLE_EDIT,
+                _( "Manage Footprint Li&braries..." ), _( "Configure footprint library table" ),
+                KiBitmap( library_table_xpm ) );
 
     // Settings
     AddMenuItem( prefs_menu, wxID_PREFERENCES,
@@ -530,11 +526,6 @@ void FOOTPRINT_EDIT_FRAME::ReCreateMenuBar()
     menuBar->Append( prefs_menu, _( "P&references" ) );
     menuBar->Append( helpMenu, _( "&Help" ) );
 
-    menuBar->Thaw();
-
-    // Associate the menu bar with the frame, if no previous menubar
-    if( GetMenuBar() == NULL )
-        SetMenuBar( menuBar );
-    else
-        menuBar->Refresh();
+    SetMenuBar( menuBar );
+    delete oldMenuBar;
 }

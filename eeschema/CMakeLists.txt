@@ -32,7 +32,7 @@ set( EESCHEMA_DLGS
     dialogs/dialog_edit_component_in_lib.cpp
     dialogs/dialog_edit_component_in_lib_base.cpp
     dialogs/dialog_edit_component_in_schematic.cpp
-    dialogs/dialog_edit_component_in_schematic_fbp.cpp
+    dialogs/dialog_edit_component_in_schematic_base.cpp
     dialogs/dialog_edit_components_libid.cpp
     dialogs/dialog_edit_components_libid_base.cpp
     dialogs/dialog_edit_label.cpp
@@ -120,8 +120,6 @@ set( EESCHEMA_SRCS
     eeschema_config.cpp
     erc.cpp
     events_called_functions_for_edit.cpp
-    fields_editor_table_column.cpp
-    fields_editor_table_model.cpp
     files-io.cpp
     find.cpp
     generate_alias_info.cpp
@@ -316,7 +314,6 @@ target_link_libraries( eeschema_kiface
     gal
     ${wxWidgets_LIBRARIES}
     ${GDI_PLUS_LIBRARIES}
-    ${NGSPICE_LIBRARY}
     )
 set_target_properties( eeschema_kiface PROPERTIES
     # Decorate OUTPUT_NAME with PREFIX and SUFFIX, creating something like
@@ -373,6 +370,18 @@ if( APPLE )
                 )
             " COMPONENT Runtime
         )
+
+    if( KICAD_SPICE )
+        # bundle libngspice, codemodels and scripts
+        get_filename_component( REAL_LIBNGSPICE ${NGSPICE_LIBRARY} REALPATH )
+        get_filename_component( LIBNGSPICE_PATH ${REAL_LIBNGSPICE} DIRECTORY )
+        install( FILES "${REAL_LIBNGSPICE}"
+                 DESTINATION "${OSX_BUNDLE_INSTALL_PLUGIN_DIR}/sim" )
+        install( DIRECTORY "${LIBNGSPICE_PATH}/ngspice"
+                 DESTINATION "${OSX_BUNDLE_INSTALL_PLUGIN_DIR}/sim" )
+        install( DIRECTORY "${LIBNGSPICE_PATH}/../share/ngspice/scripts"
+                 DESTINATION "${OSX_BUNDLE_INSTALL_PLUGIN_DIR}/sim/ngspice" )
+    endif()
 else()
     install( TARGETS eeschema
         DESTINATION ${KICAD_BIN}
