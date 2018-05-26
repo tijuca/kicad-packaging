@@ -1,0 +1,3 @@
+Tests: smoke
+Depends: kicad, python-nose
+Restrictions: allow-stderr,

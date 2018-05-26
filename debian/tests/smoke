@@ -1,0 +1,10 @@
+#!/usr/bin/python
+
+'''
+Really simple test to see if the pcbnew package can be imported.
+Right now there are no additional functional tests. If you can provide some
+usefull tests here please provide your suggestions via the BTS.
+
+'''
+
+import pcbnew
