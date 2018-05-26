@@ -1,3 +1,48 @@
+kicad (5.0.0~rc2+dfsg1-1) experimental; urgency=medium
+
+  * [3fedd8b] copyright: explain why we need to add 'dfsg' suffix
+    + From the Debian POV KiCad isn't fully free as upstream is shipping
+      currently two PDF files without the sources. But there won't be ever
+      sources for these files available, the files in question are from
+      UltraCAD Inc. and they never will release the source for rebuilding the
+      PDF files. We have removed the files to comply with the DFSG and this
+      fact is added to the copyright file.
+  * [85fb53b] New upstream version 5.0.0~rc2+dfsg1
+  * [98f1ced] rebuild patch queue from patch-queue branch
+    + added patch:
+      debian-hacks/Remove-specific-Japanese-translation-within-pcbnew.adoc.patches
+    + removed patches (applied upstream):
+      fixes/fix-misspelled-Allows-to-Allows-one-to.patch
+      fixes/fix-misspelled-allows-to-allows-one-to.patch
+      fixes/fix-misspelled-an-other-another.patch
+  * [50740a0] Revert "d/control: Build-Depend on libwxgtk3.0-gtk3-dev"
+    + The added build dependency on libwxgtk3.0-gtk3-dev was added to get
+      KiCad build against GTK3+ bindings but KiCad isn't fully ready and
+      prepared to use the GTK3+ stuff so we need to go back to libwxgtk3.0
+      with binding of GTK2+.
+  * [9fe8b7e] debian/rules: turn off support of SCRIPTING_WXPYTHON
+    + The scripting support engine needs wxpython which is currently only
+      available with GTK3+ bindings. So if we turn on scripting support we
+      will get a reverse dependency on libwxgtk3.0-gtk3 through wxpython.
+      This would result again in used GTK3+ symbols inside the KiCad binaries
+      and bring back the issues we had.
+    (Closes: #895801, #899215, #899216)
+  * [65826c8] debian/control: increase Standards-Version to 4.1.4
+    + No further changes needed.
+  * [f8389c2] debian/control: adjust field Maintainer due domain change
+    + The contact email address for the Debian Electronics Group has changed
+      to pkg-electronics-devel@alioth-lists.debian.net.
+  * [4251c7d] copyright: adopt upstream changes
+    + Due the upstream changes to the source we need to adopt the copyright
+      information.
+  * [30f2e7a] README.Debian: adding hints about GTK3+ issues
+    + Have a look into /us/s/d/k/README.Debian.gz to see some explanation why
+      the kicad package isn't using GTK3+ bindings of wxWidgets.
+  * [41c2de1] autopkg: adding again some auto testing stuff
+    + Let's add again some automatic testing for the kicad package.
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sat, 26 May 2018 13:15:07 +0200
+
 kicad (5.0.0~rc1+dfsg1+20180318-3) experimental; urgency=medium
 
   * [35b932c] kicad: adding versioned Depends for python-wxgtk3.0
