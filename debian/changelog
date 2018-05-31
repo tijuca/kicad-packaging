@@ -1,3 +1,10 @@
+kicad (5.0.0~rc2+dfsg1-2) unstable; urgency=medium
+
+  * rebuild for unstable
+    (Closes: #897100)
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Thu, 31 May 2018 07:27:13 +0200
+
 kicad (5.0.0~rc2+dfsg1-1) experimental; urgency=medium
 
   * [3fedd8b] copyright: explain why we need to add 'dfsg' suffix
