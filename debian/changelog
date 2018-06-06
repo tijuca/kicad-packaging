@@ -1,3 +1,14 @@
+kicad (5.0.0~rc2+dfsg1-3) unstable; urgency=medium
+
+  * [6a38e45] rebuild patch queue from patch-queue branch
+    + added patch:
+      fixes/Set-ViewBBox-to-viewitem-size.patch
+      Cherry-picked from the current upstream development to fix a segfault
+      that was happen on i386 in the pcbnew application.
+    (Closes: #896706)
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Wed, 06 Jun 2018 20:17:52 +0200
+
 kicad (5.0.0~rc2+dfsg1-2) unstable; urgency=medium
 
   * rebuild for unstable
