@@ -1,0 +1,36 @@
+From: Seth Hillbrand <hillbrand@ucdavis.edu>
+Date: Tue, 5 Jun 2018 08:54:50 -0700
+Subject: Set ViewBBox to viewitem size
+
+Limit the bbox size of origin view item to item size.  This prevents
+excessive redraw.
+
+This also side-steps a degeneracy in the RTree calculation under certain
+conditions in i386 where multiple, maximum-sized items are degenerate.
+
+Fixes: lp:1774316
+* https://bugs.launchpad.net/kicad/+bug/1774316
+---
+ common/origin_viewitem.cpp | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/common/origin_viewitem.cpp b/common/origin_viewitem.cpp
+index 0e05597..d7ae5fd 100644
+--- a/common/origin_viewitem.cpp
++++ b/common/origin_viewitem.cpp
+@@ -53,7 +53,14 @@ ORIGIN_VIEWITEM* ORIGIN_VIEWITEM::Clone() const
+ const BOX2I ORIGIN_VIEWITEM::ViewBBox() const
+ {
+     BOX2I bbox;
+-    bbox.SetMaximum();
++
++    if( m_drawAtZero )
++        bbox.SetOrigin( VECTOR2I( -m_size / 2, -m_size / 2 ) );
++    else
++        bbox.SetOrigin( VECTOR2I( m_position.x, m_position.y ) - VECTOR2I( m_size / 2, m_size / 2 ) );
++
++    bbox.SetSize( VECTOR2I( m_size, m_size ) );
++
+     return bbox;
+ }
+ 
