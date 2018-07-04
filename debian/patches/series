@@ -3,4 +3,3 @@ porting-kfreebsd-hurd/Fix-FTBFS-on-kFreeBSD-and-Hurd.patch
 reproducibility/add-field-revdate-to-asciidoc-files-of-documentation.patch
 debian-hacks/Removing-hyphen-inside-KICAD_FULL_VERSION.patch
 debian-hacks/Remove-specific-Japanese-translation-within-pcbnew.adoc.patch
-fixes/Set-ViewBBox-to-viewitem-size.patch
