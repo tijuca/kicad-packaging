@@ -90,14 +90,15 @@ TOOL_ACTION PCB_ACTIONS::routerActivateDiffPair( "pcbnew.InteractiveRouter.DiffP
         _( "Run push & shove router (differential pairs)" ), ps_diff_pair_xpm, AF_ACTIVATE );
 
 TOOL_ACTION PCB_ACTIONS::routerActivateSettingsDialog( "pcbnew.InteractiveRouter.SettingsDialog",
-        AS_GLOBAL, 0,
+        AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_ROUTING_OPTIONS ),
         _( "Interactive Router Settings..." ),
-        _( "Open Interactive Router settings" ), NULL, AF_ACTIVATE );
+        _( "Open Interactive Router settings" ), tools_xpm );
 
 TOOL_ACTION PCB_ACTIONS::routerActivateDpDimensionsDialog( "pcbnew.InteractiveRouter.DpDimensionsDialog",
         AS_GLOBAL, 0,
         _( "Differential Pair Dimension Settings..." ),
-        _( "Open Differential Pair Dimension settings" ), ps_diff_pair_gap_xpm, AF_ACTIVATE );
+        _( "Open Differential Pair Dimension settings" ),
+        ps_diff_pair_gap_xpm );
 
 TOOL_ACTION PCB_ACTIONS::routerActivateTuneSingleTrace( "pcbnew.LengthTuner.TuneSingleTrack",
         AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_ROUTE_TUNE_SINGLE ),
@@ -191,12 +192,6 @@ static const TOOL_ACTION ACT_SwitchPosture( "pcbnew.InteractiveRouter.SwitchPost
     _( "Switch Track Posture" ),
     _( "Switches posture of the currently routed track." ),
     change_entry_orient_xpm );
-
-static const TOOL_ACTION ACT_SetDpDimensions( "pcbnew.InteractiveRouter.SetDpDimensions",
-    AS_CONTEXT, TOOL_ACTION::LegacyHotKey( HK_DP_DIMENSIONS ),
-    _( "Differential Pair Dimensions..." ),
-    _( "Sets the width and gap of the currently routed differential pair." ),
-    ps_diff_pair_tune_length_xpm );
 
 ROUTER_TOOL::ROUTER_TOOL() :
     TOOL_BASE( "pcbnew.InteractiveRouter" )
@@ -338,10 +333,10 @@ public:
         Add( ACT_CustomTrackWidth );
 
         if( aMode == PNS::PNS_MODE_ROUTE_DIFF_PAIR )
-            Add( ACT_SetDpDimensions );
+            Add( PCB_ACTIONS::routerActivateDpDimensionsDialog );
 
         AppendSeparator();
-        Add( PNS::TOOL_BASE::ACT_RouterOptions );
+        Add( PCB_ACTIONS::routerActivateSettingsDialog );
 
         AppendSeparator();
         Add( &m_zoomMenu );
@@ -733,10 +728,12 @@ void ROUTER_TOOL::performRouting()
         {
             updateEndItem( *evt );
             bool needLayerSwitch = m_router->IsPlacingVia();
+            bool forceFinish = evt->Modifier( MD_SHIFT );
 
-            if( m_router->FixRoute( m_endSnapPoint, m_endItem ) )
+
+            if( m_router->FixRoute( m_endSnapPoint, m_endItem, forceFinish ) )
                 break;
-
+            
             if( needLayerSwitch )
                 switchLayerOnViaPlacement();
 
@@ -777,12 +774,10 @@ void ROUTER_TOOL::performRouting()
 
 int ROUTER_TOOL::DpDimensionsDialog( const TOOL_EVENT& aEvent )
 {
-    Activate();
-
     PNS::SIZES_SETTINGS sizes = m_router->Sizes();
     DIALOG_PNS_DIFF_PAIR_DIMENSIONS settingsDlg( frame(), sizes );
 
-    if( settingsDlg.ShowModal() )
+    if( settingsDlg.ShowModal() == wxID_OK )
     {
         m_router->UpdateSizes( sizes );
         m_savedSizes = sizes;
@@ -794,14 +789,10 @@ int ROUTER_TOOL::DpDimensionsDialog( const TOOL_EVENT& aEvent )
 
 int ROUTER_TOOL::SettingsDialog( const TOOL_EVENT& aEvent )
 {
-    Activate();
-
     DIALOG_PNS_SETTINGS settingsDlg( frame(), m_router->Settings() );
 
-    if( settingsDlg.ShowModal() )
-    {
+    if( settingsDlg.ShowModal() == wxID_OK )
         m_savedSettings = m_router->Settings();
-    }
 
     return 0;
 }
@@ -820,10 +811,6 @@ void ROUTER_TOOL::setTransitions()
     Go( &ROUTER_TOOL::onViaCommand, ACT_PlaceMicroVia.MakeEvent() );
     Go( &ROUTER_TOOL::onViaCommand, ACT_SelLayerAndPlaceThroughVia.MakeEvent() );
     Go( &ROUTER_TOOL::onViaCommand, ACT_SelLayerAndPlaceBlindVia.MakeEvent() );
-
-    // TODO is not this redundant? the same actions can be used for menus and hotkeys
-    Go( &ROUTER_TOOL::SettingsDialog, ACT_RouterOptions.MakeEvent() );
-    Go( &ROUTER_TOOL::DpDimensionsDialog, ACT_SetDpDimensions.MakeEvent() );
 
     Go( &ROUTER_TOOL::CustomTrackWidthDialog, ACT_CustomTrackWidth.MakeEvent() );
     Go( &ROUTER_TOOL::onTrackViaSizeChanged, PCB_ACTIONS::trackViaSizeChanged.MakeEvent() );
@@ -1128,6 +1115,8 @@ int ROUTER_TOOL::InlineDrag( const TOOL_EVENT& aEvent )
     if( m_router->RoutingInProgress() )
         m_router->StopRouting();
 
+    controls()->SetAutoPan( false );
+    controls()->ForceCursorPosition( false );
     frame()->UndoRedoBlock( false );
 
     return 0;

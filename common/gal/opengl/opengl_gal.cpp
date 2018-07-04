@@ -2,7 +2,7 @@
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
  * Copyright (C) 2012 Torsten Hueter, torstenhtr <at> gmx.de
- * Copyright (C) 2012-2016 Kicad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012-2018 Kicad Developers, see AUTHORS.txt for contributors.
  * Copyright (C) 2013-2017 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
@@ -73,15 +73,31 @@ OPENGL_GAL::OPENGL_GAL( GAL_DISPLAY_OPTIONS& aDisplayOptions, wxWindow* aParent,
     mouseListener( aMouseListener ), paintListener( aPaintListener ), currentManager( nullptr ),
     cachedManager( nullptr ), nonCachedManager( nullptr ), overlayManager( nullptr ), mainBuffer( 0 ), overlayBuffer( 0 )
 {
+// IsDisplayAttr() handles WX_GL_{MAJOR,MINOR}_VERSION correctly only in 3.0.4
+// starting with 3.1.0 one should use wxGLContext::IsOk() (done by GL_CONTEXT_MANAGER)
+#if wxCHECK_VERSION( 3, 0, 3 ) and !wxCHECK_VERSION( 3, 1, 0 )
+    const int attr[] = { WX_GL_MAJOR_VERSION, 2, WX_GL_MINOR_VERSION, 1, 0 };
+
+    if( !IsDisplaySupported( attr ) )
+        throw std::runtime_error( "OpenGL 2.1 or higher is required!" );
+#endif /* wxCHECK_VERSION( 3, 0, 3 ) */
+
     if( glMainContext == NULL )
     {
         glMainContext = GL_CONTEXT_MANAGER::Get().CreateCtx( this );
+
+        if( !glMainContext )
+            throw std::runtime_error( "Could not create the main OpenGL context" );
+
         glPrivContext = glMainContext;
         shader = new SHADER();
     }
     else
     {
         glPrivContext = GL_CONTEXT_MANAGER::Get().CreateCtx( this, glMainContext );
+
+        if( !glPrivContext )
+            throw std::runtime_error( "Could not create a private OpenGL context" );
     }
 
     ++instanceCounter;
@@ -781,15 +797,15 @@ void OPENGL_GAL::DrawPolygon( const VECTOR2D aPointList[], int aListSize )
     drawPolygon( points.get(), aListSize );
 }
 
+
 void OPENGL_GAL::drawTriangulatedPolyset( const SHAPE_POLY_SET& aPolySet )
 {
     currentManager->Shader( SHADER_NONE );
     currentManager->Color( fillColor.r, fillColor.g, fillColor.b, fillColor.a );
 
-
-    if ( isFillEnabled )
+    if( isFillEnabled )
     {
-        for( int j = 0; j < aPolySet.OutlineCount(); ++j )
+        for( unsigned int j = 0; j < aPolySet.TriangulatedPolyCount(); ++j )
         {
             auto triPoly = aPolySet.TriangulatedPolygon( j );
 
@@ -1004,7 +1020,7 @@ void OPENGL_GAL::DrawGrid()
     if( axesEnabled )
     {
         glLineWidth( minorLineWidth );
-        glColor4d( axesColor.r, axesColor.g, axesColor.b, 1.0 );
+        glColor4d( axesColor.r, axesColor.g, axesColor.b, axesColor.a );
 
         glBegin( GL_LINES );
         glVertex2d( worldStartPoint.x, 0 );
@@ -1060,7 +1076,7 @@ void OPENGL_GAL::DrawGrid()
     }
     else
     {
-        glColor4d( gridColor.r, gridColor.g, gridColor.b, 1.0 );
+        glColor4d( gridColor.r, gridColor.g, gridColor.b, gridColor.a );
     }
 
     if( gridStyle == GRID_STYLE::SMALL_CROSS )
@@ -1127,7 +1143,7 @@ void OPENGL_GAL::DrawGrid()
         if( gridStyle == GRID_STYLE::DOTS )
         {
             glStencilFunc( GL_NOTEQUAL, 0, 1 );
-            glColor4d( gridColor.r, gridColor.g, gridColor.b, 1.0 );
+            glColor4d( gridColor.r, gridColor.g, gridColor.b, gridColor.a );
         }
 
         // Horizontal lines

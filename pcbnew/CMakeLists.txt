@@ -92,8 +92,6 @@ set( PCBNEW_DIALOGS
     dialogs/dialog_fp_lib_table_base.cpp
     dialogs/dialog_fp_plugin_options.cpp
     dialogs/dialog_fp_plugin_options_base.cpp
-    dialogs/dialog_freeroute_exchange.cpp
-    dialogs/dialog_freeroute_exchange_base.cpp
     dialogs/dialog_gen_footprint_position_file_base.cpp
     dialogs/dialog_gencad_export_options.cpp
     dialogs/dialog_gendrill.cpp
@@ -164,8 +162,6 @@ set( PCBNEW_DIALOGS
     dialogs/dialog_track_via_size_base.cpp
     dialogs/dialog_update_pcb.cpp
     dialogs/dialog_update_pcb_base.cpp
-    dialogs/wizard_add_fplib.cpp
-    dialogs/wizard_add_fplib_base.cpp
     footprint_wizard.cpp
     footprint_wizard_frame.cpp
     footprint_wizard_frame_functions.cpp
@@ -525,14 +521,26 @@ if( DOXYGEN_FOUND )
             DEPENDS doxygen-python-xml
             )
 
-        # create doxygen-python html
+        # The sources to give to the Python Doxygen target
+        set( DOXYGEN_PYTHON_SOURCES
+            ${CMAKE_CURRENT_BINARY_DIR}/pcbnew.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/python/plugins/FootprintWizardBase.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/python/plugins/PadArray.py )
+
+        # The Doxyfile expects a space-separated list in the env var
+        string(REPLACE ";" " " DOXYGEN_PYTHON_SOURCES_STR "${DOXYGEN_PYTHON_SOURCES}")
+
+        # Create doxygen-python html
         add_custom_target( doxygen-python
             ${CMAKE_COMMAND} -E remove_directory doxygen-python
-            COMMAND PYTHON_SOURCES_TO_DOC=${CMAKE_CURRENT_BINARY_DIR}/pcbnew.py ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile_python
+            COMMAND ${CMAKE_COMMAND} -E env
+                PYTHON_SOURCES_TO_DOC=${DOXYGEN_PYTHON_SOURCES_STR}
+                CMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+                ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile_python
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
             DEPENDS Doxyfile_python
             DEPENDS xml-to-docstrings
-            DEPENDS pcbnew.py
+            DEPENDS ${DOXYGEN_PYTHON_SOURCES}
             COMMENT "building doxygen docs into directory doxygen-python/html"
             )
     endif()
@@ -561,22 +569,6 @@ if( APPLE )
     set( MACOSX_BUNDLE_NAME pcbnew )
 endif()
 
-
-# Create a C++ compilable string initializer containing html text into a *.h file:
-add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_freeroute_exchange_help_html.h
-    COMMAND ${CMAKE_COMMAND}
-        -DinputFile=${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_freeroute_exchange_help.html
-        -DoutputFile=${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_freeroute_exchange_help_html.h
-        -P ${CMAKE_MODULE_PATH}/Html2C.cmake
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_freeroute_exchange_help.html
-    COMMENT "creating ${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_freeroute_exchange_help_html.h
-       from ${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_freeroute_exchange_help.html"
-    )
-
-set_source_files_properties( dialogs/dialog_freeroute_exchange.cpp PROPERTIES
-    OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/dialogs/dialog_freeroute_exchange_help_html.h
-    )
 
 add_subdirectory( pcad2kicadpcb_plugin )
 

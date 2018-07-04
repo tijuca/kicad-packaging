@@ -95,6 +95,16 @@ static int parseEagle( const wxString& aDistance )
 }
 
 
+// In Eagle one can specify DRC rules where min value > max value,
+// in such case the max value has the priority
+template<typename T>
+static T eagleClamp( T aMin, T aValue, T aMax )
+{
+    T ret = std::max( aMin, aValue );
+    return std::min( aMax, ret );
+}
+
+
 /// Assemble a two part key as a simple concatenation of aFirst and aSecond parts,
 /// using a separator.
 static wxString makeKey( const wxString& aFirst, const wxString& aSecond )
@@ -865,7 +875,7 @@ void EAGLE_PLUGIN::loadElements( wxXmlNode* aElements )
     {
         if( element->GetName() != "element" )
         {
-            wxLogMessage( "expected: <element> read <%s>. Skip it", element->GetName() );
+            wxLogDebug( "expected: <element> read <%s>. Skip it", element->GetName() );
             // Get next item
             element = element->GetNext();
             continue;
@@ -959,7 +969,7 @@ void EAGLE_PLUGIN::loadElements( wxXmlNode* aElements )
             {
                 if( attribute->GetName() != "attribute" )
                 {
-                    wxLogMessage( "expected: <attribute> read <%s>. Skip it", attribute->GetName() );
+                    wxLogDebug( "expected: <attribute> read <%s>. Skip it", attribute->GetName() );
                     attribute = attribute->GetNext();
                     continue;
                 }
@@ -1080,129 +1090,128 @@ ZONE_CONTAINER* EAGLE_PLUGIN::loadPolygon( wxXmlNode* aPolyNode )
     EPOLYGON p( aPolyNode );
     PCB_LAYER_ID layer = kicad_layer( p.layer );
     ZONE_CONTAINER* zone = nullptr;
+    bool keepout = ( p.layer == EAGLE_LAYER::TRESTRICT || p.layer == EAGLE_LAYER::BRESTRICT );
 
-    // Handle copper and keepout layers
-    if( IsCopperLayer( layer )
-            || p.layer == EAGLE_LAYER::TRESTRICT || p.layer == EAGLE_LAYER::BRESTRICT )
+    if( !IsCopperLayer( layer ) && !keepout )
+        return nullptr;
+
+    // use a "netcode = 0" type ZONE:
+    zone = new ZONE_CONTAINER( m_board );
+    zone->SetTimeStamp( EagleTimeStamp( aPolyNode ) );
+    m_board->Add( zone, ADD_APPEND );
+
+    if( p.layer == EAGLE_LAYER::TRESTRICT )         // front layer keepout
+        zone->SetLayer( F_Cu );
+    else if( p.layer == EAGLE_LAYER::BRESTRICT )    // bottom layer keepout
+        zone->SetLayer( B_Cu );
+    else
+        zone->SetLayer( layer );
+
+    if( keepout )
     {
-        // use a "netcode = 0" type ZONE:
-        zone = new ZONE_CONTAINER( m_board );
-        zone->SetTimeStamp( EagleTimeStamp( aPolyNode ) );
-        m_board->Add( zone, ADD_APPEND );
+        zone->SetIsKeepout( true );
+        zone->SetDoNotAllowVias( true );
+        zone->SetDoNotAllowTracks( true );
+        zone->SetDoNotAllowCopperPour( true );
+    }
 
-        if( p.layer == EAGLE_LAYER::TRESTRICT )
+    // Get the first vertex and iterate
+    wxXmlNode* vertex = aPolyNode->GetChildren();
+    std::vector<EVERTEX> vertices;
+
+    // Create a circular vector of vertices
+    // The "curve" parameter indicates a curve from the current
+    // to the next vertex, so we keep the first at the end as well
+    // to allow the curve to link back
+    while( vertex )
+    {
+        if( vertex->GetName() == "vertex" )
+            vertices.push_back( EVERTEX( vertex ) );
+
+        vertex = vertex->GetNext();
+    }
+
+    vertices.push_back( vertices[0] );
+
+    for( size_t i = 0; i < vertices.size() - 1; i++ )
+    {
+        EVERTEX v1 = vertices[i];
+
+        // Append the corner
+        zone->AppendCorner( wxPoint( kicad_x( v1.x ), kicad_y( v1.y ) ), -1 );
+
+        if( v1.curve )
         {
-            zone->SetIsKeepout( true );
-            zone->SetLayer( F_Cu );
-        }
-        else if( p.layer == EAGLE_LAYER::BRESTRICT )
-        {
-            zone->SetIsKeepout( true );
-            zone->SetLayer( B_Cu );
-        }
-        else
-        {
-            zone->SetLayer( layer );
-        }
+            EVERTEX v2 = vertices[i + 1];
+            wxPoint center = ConvertArcCenter(
+                    wxPoint( kicad_x( v1.x ), kicad_y( v1.y ) ),
+                    wxPoint( kicad_x( v2.x ), kicad_y( v2.y ) ), *v1.curve );
+            double angle = DEG2RAD( *v1.curve );
+            double end_angle = atan2( kicad_y( v2.y ) - center.y,
+                                        kicad_x( v2.x ) - center.x );
+            double radius = sqrt( pow( center.x - kicad_x( v1.x ), 2 )
+                                + pow( center.y - kicad_y( v1.y ), 2 ) );
 
-        // Get the first vertex and iterate
-        wxXmlNode* vertex = aPolyNode->GetChildren();
-        std::vector<EVERTEX> vertices;
+            // If we are curving, we need at least 2 segments otherwise
+            // delta_angle == angle
+            double delta_angle = angle / std::max(
+                            2, GetArcToSegmentCount( KiROUND( radius ),
+                            ARC_HIGH_DEF, *v1.curve ) - 1 );
 
-        // Create a circular vector of vertices
-        // The "curve" parameter indicates a curve from the current
-        // to the next vertex, so we keep the first at the end as well
-        // to allow the curve to link back
-        while( vertex )
-        {
-            if( vertex->GetName() == "vertex" )
-                vertices.push_back( EVERTEX( vertex ) );
-
-            vertex = vertex->GetNext();
-        }
-
-        vertices.push_back( vertices[0] );
-
-        for( size_t i = 0; i < vertices.size() - 1; i++ )
-        {
-            EVERTEX v1 = vertices[i];
-
-            // Append the corner
-            zone->AppendCorner( wxPoint( kicad_x( v1.x ), kicad_y( v1.y ) ), -1 );
-
-            if( v1.curve )
+            for( double a = end_angle + angle;
+                    fabs( a - end_angle ) > fabs( delta_angle );
+                    a -= delta_angle )
             {
-                EVERTEX v2 = vertices[i + 1];
-                wxPoint center = ConvertArcCenter(
-                        wxPoint( kicad_x( v1.x ), kicad_y( v1.y ) ),
-                        wxPoint( kicad_x( v2.x ), kicad_y( v2.y ) ), *v1.curve );
-                double angle = DEG2RAD( *v1.curve );
-                double end_angle = atan2( kicad_y( v2.y ) - center.y,
-                                            kicad_x( v2.x ) - center.x );
-                double radius = sqrt( pow( center.x - kicad_x( v1.x ), 2 )
-                                    + pow( center.y - kicad_y( v1.y ), 2 ) );
-
-                // If we are curving, we need at least 2 segments otherwise
-                // delta_angle == angle
-                double delta_angle = angle / std::max(
-                                2, GetArcToSegmentCount( KiROUND( radius ),
-                                ARC_HIGH_DEF, *v1.curve ) - 1 );
-
-                for( double a = end_angle + angle;
-                        fabs( a - end_angle ) > fabs( delta_angle );
-                        a -= delta_angle )
-                {
-                    zone->AppendCorner(
-                            wxPoint( KiROUND( radius * cos( a ) ),
-                                        KiROUND( radius * sin( a ) ) ) + center,
-                            -1 );
-                }
+                zone->AppendCorner(
+                        wxPoint( KiROUND( radius * cos( a ) ),
+                                    KiROUND( radius * sin( a ) ) ) + center,
+                        -1 );
             }
         }
-
-        // If the pour is a cutout it needs to be set to a keepout
-        if( p.pour == EPOLYGON::CUTOUT )
-        {
-            zone->SetIsKeepout( true );
-            zone->SetDoNotAllowCopperPour( true );
-            zone->SetHatchStyle( ZONE_CONTAINER::NO_HATCH );
-        }
-
-        // if spacing is set the zone should be hatched
-        // However, use the default hatch step, p.spacing value has no meaning for Kicad
-        // TODO: see if this parameter is related to a grid fill option.
-        if( p.spacing )
-            zone->SetHatch( ZONE_CONTAINER::DIAGONAL_EDGE, zone->GetDefaultHatchPitch(), true );
-
-        // clearances, etc.
-        zone->SetArcSegmentCount( 32 );     // @todo: should be a constructor default?
-        zone->SetMinThickness( p.width.ToPcbUnits() );
-
-        // FIXME: KiCad zones have very rounded corners compared to eagle.
-        //        This means that isolation amounts that work well in eagle
-        //        tend to make copper intrude in soldermask free areas around pads.
-        if( p.isolate )
-            zone->SetZoneClearance( p.isolate->ToPcbUnits() );
-        else
-            zone->SetZoneClearance( 0 );
-
-        // missing == yes per DTD.
-        bool thermals = !p.thermals || *p.thermals;
-        zone->SetPadConnection( thermals ? PAD_ZONE_CONN_THERMAL : PAD_ZONE_CONN_FULL );
-
-        if( thermals )
-        {
-            // FIXME: eagle calculates dimensions for thermal spokes
-            //        based on what the zone is connecting to.
-            //        (i.e. width of spoke is half of the smaller side of an smd pad)
-            //        This is a basic workaround
-            zone->SetThermalReliefGap( p.width.ToPcbUnits() + 50000 ); // 50000nm == 0.05mm
-            zone->SetThermalReliefCopperBridge( p.width.ToPcbUnits() + 50000 );
-        }
-
-        int rank = p.rank ? (p.max_priority - *p.rank) : p.max_priority;
-        zone->SetPriority( rank );
     }
+
+    // If the pour is a cutout it needs to be set to a keepout
+    if( p.pour == EPOLYGON::CUTOUT )
+    {
+        zone->SetIsKeepout( true );
+        zone->SetDoNotAllowCopperPour( true );
+        zone->SetHatchStyle( ZONE_CONTAINER::NO_HATCH );
+    }
+
+    // if spacing is set the zone should be hatched
+    // However, use the default hatch step, p.spacing value has no meaning for Kicad
+    // TODO: see if this parameter is related to a grid fill option.
+    if( p.spacing )
+        zone->SetHatch( ZONE_CONTAINER::DIAGONAL_EDGE, zone->GetDefaultHatchPitch(), true );
+
+    // clearances, etc.
+    zone->SetArcSegmentCount( 32 );     // @todo: should be a constructor default?
+    zone->SetMinThickness( p.width.ToPcbUnits() );
+
+    // FIXME: KiCad zones have very rounded corners compared to eagle.
+    //        This means that isolation amounts that work well in eagle
+    //        tend to make copper intrude in soldermask free areas around pads.
+    if( p.isolate )
+        zone->SetZoneClearance( p.isolate->ToPcbUnits() );
+    else
+        zone->SetZoneClearance( 0 );
+
+    // missing == yes per DTD.
+    bool thermals = !p.thermals || *p.thermals;
+    zone->SetPadConnection( thermals ? PAD_ZONE_CONN_THERMAL : PAD_ZONE_CONN_FULL );
+
+    if( thermals )
+    {
+        // FIXME: eagle calculates dimensions for thermal spokes
+        //        based on what the zone is connecting to.
+        //        (i.e. width of spoke is half of the smaller side of an smd pad)
+        //        This is a basic workaround
+        zone->SetThermalReliefGap( p.width.ToPcbUnits() + 50000 ); // 50000nm == 0.05mm
+        zone->SetThermalReliefCopperBridge( p.width.ToPcbUnits() + 50000 );
+    }
+
+    int rank = p.rank ? (p.max_priority - *p.rank) : p.max_priority;
+    zone->SetPriority( rank );
 
     return zone;
 }
@@ -1393,8 +1402,8 @@ void EAGLE_PLUGIN::packageWire( MODULE* aModule, wxXmlNode* aTree ) const
     if( IsCopperLayer( layer ) )  // skip copper "package.circle"s
     {
         wxLogMessage( wxString::Format(
-                    "Line on copper layer in package %s (%f mm, %f mm) (%f mm, %f mm)."
-                    "\nMoving to Dwgs.User layer",
+                    _( "Line on copper layer in package %s (%f mm, %f mm) (%f mm, %f mm)."
+                    "\nMoving to Dwgs.User layer" ),
                     aModule->GetFPID().GetLibItemName().c_str(), w.x1.ToMm(), w.y1.ToMm(),
                     w.x2.ToMm(), w.y2.ToMm() ) );
         layer = Dwgs_User;
@@ -1485,7 +1494,7 @@ void EAGLE_PLUGIN::packagePad( MODULE* aModule, wxXmlNode* aTree ) const
     {
         double drillz  = pad->GetDrillSize().x;
         double annulus = drillz * m_rules->rvPadTop;   // copper annulus, eagle "restring"
-        annulus = Clamp( m_rules->rlMinPadTop, annulus, m_rules->rlMaxPadTop );
+        annulus = eagleClamp( m_rules->rlMinPadTop, annulus, m_rules->rlMaxPadTop );
         int diameter = KiROUND( drillz + 2 * annulus );
         pad->SetSize( wxSize( KiROUND( diameter ), KiROUND( diameter ) ) );
     }
@@ -1514,7 +1523,7 @@ void EAGLE_PLUGIN::packageText( MODULE* aModule, wxXmlNode* aTree ) const
     if( IsCopperLayer( layer ) )  // skip copper texts
     {
         wxLogMessage( wxString::Format(
-                "Unsupported text on copper layer in package %s.\nMoving to Dwgs.User layer.",
+                _( "Unsupported text on copper layer in package %s.\nMoving to Dwgs.User layer." ),
                 aModule->GetFPID().GetLibItemName().c_str() ) );
         layer = Dwgs_User;
     }
@@ -1628,7 +1637,7 @@ void EAGLE_PLUGIN::packageRectangle( MODULE* aModule, wxXmlNode* aTree ) const
     if( IsCopperLayer( layer ) )  // skip copper "package.circle"s
     {
         wxLogMessage( wxString::Format(
-                "Unsupported rectangle on copper layer in package %s.\nMoving to Dwgs.User layer.",
+                _( "Unsupported rectangle on copper layer in package %s.\nMoving to Dwgs.User layer." ),
                 aModule->GetFPID().GetLibItemName().c_str() ) );
         layer = Dwgs_User;
     }
@@ -1671,7 +1680,7 @@ void EAGLE_PLUGIN::packagePolygon( MODULE* aModule, wxXmlNode* aTree ) const
     if( IsCopperLayer( layer ) )  // skip copper "package.circle"s
     {
         wxLogMessage( wxString::Format(
-                "Unsupported polygon on copper layer in package %s.\nMoving to Dwgs.User layer.",
+                _( "Unsupported polygon on copper layer in package %s.\nMoving to Dwgs.User layer." ),
                 aModule->GetFPID().GetLibItemName().c_str() ) );
         layer = Dwgs_User;
     }
@@ -1756,7 +1765,7 @@ void EAGLE_PLUGIN::packageCircle( MODULE* aModule, wxXmlNode* aTree ) const
     if( IsCopperLayer( layer ) )  // skip copper "package.circle"s
     {
         wxLogMessage( wxString::Format(
-                "Unsupported circle on copper layer in package %s.\nMoving to Dwgs.User layer.",
+                _( "Unsupported circle on copper layer in package %s.\nMoving to Dwgs.User layer." ),
                 aModule->GetFPID().GetLibItemName().c_str() ) );
         layer = Dwgs_User;
     }
@@ -1846,7 +1855,7 @@ void EAGLE_PLUGIN::packageSMD( MODULE* aModule, wxXmlNode* aTree ) const
     int minPadSize = std::min( padSize.x, padSize.y );
 
     // Rounded rectangle pads
-    int roundRadius = Clamp( m_rules->srMinRoundness * 2,
+    int roundRadius = eagleClamp( m_rules->srMinRoundness * 2,
             (int)( minPadSize * m_rules->srRoundness ), m_rules->srMaxRoundness * 2 );
 
     if( e.roundness || roundRadius > 0 )
@@ -1866,7 +1875,7 @@ void EAGLE_PLUGIN::packageSMD( MODULE* aModule, wxXmlNode* aTree ) const
         pad->SetOrientation( e.rot->degrees * 10 );
     }
 
-    pad->SetLocalSolderPasteMargin( Clamp( m_rules->mlMinCreamFrame,
+    pad->SetLocalSolderPasteMargin( -eagleClamp( m_rules->mlMinCreamFrame,
                 (int) ( m_rules->mvCreamFrame * minPadSize ),
                 m_rules->mlMaxCreamFrame ) );
 
@@ -1895,7 +1904,7 @@ void EAGLE_PLUGIN::transferPad( const EPAD_COMMON& aEaglePad, D_PAD* aPad ) cons
 
     if( !aEaglePad.stop || !*aEaglePad.stop )     // enabled by default
     {
-        aPad->SetLocalSolderMaskMargin( Clamp( m_rules->mlMinStopFrame,
+        aPad->SetLocalSolderMaskMargin( eagleClamp( m_rules->mlMinStopFrame,
                     (int)( m_rules->mvStopFrame * std::min( padSize.x, padSize.y ) ),
                     m_rules->mlMaxStopFrame ) );
     }
@@ -2058,7 +2067,7 @@ void EAGLE_PLUGIN::loadSignals( wxXmlNode* aSignals )
                     else
                     {
                         double annulus = drillz * m_rules->rvViaOuter;  // eagle "restring"
-                        annulus = Clamp( m_rules->rlMinViaOuter, annulus, m_rules->rlMaxViaOuter );
+                        annulus = eagleClamp( m_rules->rlMinViaOuter, annulus, m_rules->rlMaxViaOuter );
                         kidiam = KiROUND( drillz + 2 * annulus );
                         via->SetWidth( kidiam );
                     }
@@ -2069,7 +2078,7 @@ void EAGLE_PLUGIN::loadSignals( wxXmlNode* aSignals )
 
                     if( !v.diam || via->GetWidth() <= via->GetDrill() )
                     {
-                        double annulus = Clamp( m_rules->rlMinViaOuter,
+                        double annulus = eagleClamp( m_rules->rlMinViaOuter,
                                 (double)( via->GetWidth() / 2 - via->GetDrill() ), m_rules->rlMaxViaOuter );
                         via->SetWidth( drillz + 2 * annulus );
                     }
@@ -2178,8 +2187,8 @@ PCB_LAYER_ID EAGLE_PLUGIN::kicad_layer( int aEagleLayer ) const
         case EAGLE_LAYER::BPLACE:        kiLayer = B_SilkS;      break;
         case EAGLE_LAYER::TNAMES:        kiLayer = F_SilkS;      break;
         case EAGLE_LAYER::BNAMES:        kiLayer = B_SilkS;      break;
-        case EAGLE_LAYER::TVALUES:       kiLayer = F_SilkS;      break;
-        case EAGLE_LAYER::BVALUES:       kiLayer = B_SilkS;      break;
+        case EAGLE_LAYER::TVALUES:       kiLayer = F_Fab;        break;
+        case EAGLE_LAYER::BVALUES:       kiLayer = B_Fab;        break;
         case EAGLE_LAYER::TSTOP:         kiLayer = F_Mask;       break;
         case EAGLE_LAYER::BSTOP:         kiLayer = B_Mask;       break;
         case EAGLE_LAYER::TCREAM:        kiLayer = F_Paste;      break;
@@ -2213,7 +2222,7 @@ PCB_LAYER_ID EAGLE_PLUGIN::kicad_layer( int aEagleLayer ) const
         case EAGLE_LAYER::HOLES:
         default:
             // some layers do not map to KiCad
-            wxLogMessage( wxString::Format( "Unsupported Eagle layer '%s' (%d), converted to Dwgs.User layer",
+            wxLogMessage( wxString::Format( _( "Unsupported Eagle layer '%s' (%d), converted to Dwgs.User layer" ),
                     eagle_layer_name( aEagleLayer ), aEagleLayer ) );
 
             kiLayer = Dwgs_User;

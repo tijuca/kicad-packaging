@@ -57,9 +57,9 @@ class TestBoardClass(unittest.TestCase):
         bounding_box = pcb.ComputeBoundingBox()
         height, width = ToMM(bounding_box.GetSize())
 
-        clearance = ToMM(track.GetClearance()*2)
-        self.assertAlmostEqual(width, (30-10) + 0.5 + clearance, 2)
-        self.assertAlmostEqual(height,  (20-10) + 0.5 + clearance, 2)
+        margin = 0 # margin around bounding boxes (currently 0)
+        self.assertAlmostEqual(width, (30-10) + 0.5 + margin, 2)
+        self.assertAlmostEqual(height,  (20-10) + 0.5 + margin, 2)
 
     def test_pcb_get_pad(self):
         pcb = BOARD()
@@ -71,6 +71,10 @@ class TestBoardClass(unittest.TestCase):
         pad.SetShape(PAD_SHAPE_OVAL)
         pad.SetSize(wxSizeMM(2.0, 3.0))
         pad.SetPosition(wxPointMM(0,0))
+
+        #Update the footprint bounding box, because
+        #the new pad must be inside the bounding box to be located
+        module.CalculateBoundingBox()
 
         # easy case
         p1 = pcb.GetPad(wxPointMM(0,0))

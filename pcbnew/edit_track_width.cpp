@@ -120,7 +120,7 @@ bool PCB_EDIT_FRAME::SetTrackSegmentWidth( TRACK*             aTrackItem,
         int diagdrc = OK_DRC;
 
         if( Settings().m_legacyDrcOn )
-            diagdrc = m_drc->Drc( aTrackItem, GetBoard()->m_Track );
+            diagdrc = m_drc->DrcOnCreatingTrack( aTrackItem, GetBoard()->m_Track );
 
         if( diagdrc == OK_DRC )
             change_ok = true;
@@ -211,7 +211,8 @@ void PCB_EDIT_FRAME::Edit_Track_Width( wxDC* aDC, TRACK* aTrackSegment )
     if( aTrackSegment == NULL )
         return;
 
-    pt_track = GetBoard()->MarkTrace( aTrackSegment, &nb_segm, NULL, NULL, true );
+    pt_track = GetBoard()->MarkTrace( GetBoard()->m_Track, aTrackSegment, &nb_segm,
+                                      NULL, NULL, true );
 
     PICKED_ITEMS_LIST itemsListPicker;
     bool change = false;

@@ -203,11 +203,13 @@ private:
      * is used by MarkTrace() to set the BUSY flag of connected segments of the trace
      * segment located at \a aPosition on aLayerMask.
      *  Vias are put in list but their flags BUSY is not set
+     * @param aTrackList is the beginning of the track list (usually the board track list).
      * @param aPosition A wxPoint object containing the position of the starting search.
      * @param aLayerSet The allowed layers for segments to search.
      * @param aList The track list to fill with points of flagged segments.
      */
-    void chainMarkedSegments( wxPoint aPosition, const LSET& aLayerSet, TRACKS* aList );
+    void chainMarkedSegments( TRACK* aTrackList, wxPoint aPosition,
+                              const LSET& aLayerSet, TRACKS* aList );
 
     // The default copy constructor & operator= are inadequate,
     // either write one or do not use it at all
@@ -689,9 +691,10 @@ public:
 
     /**
      * Function GetNodesCount
+     * @param aNet Only count nodes belonging to this net
      * @return the number of pads members of nets (i.e. with netcode > 0)
      */
-    unsigned GetNodesCount() const;
+    unsigned GetNodesCount( int aNet = -1 );
 
     /**
      * Function GetUnconnectedNetCount
@@ -703,7 +706,7 @@ public:
      * Function GetPadCount
      * @return the number of pads in board
      */
-    unsigned GetPadCount() const;
+    unsigned GetPadCount();
 
     /**
      * Function GetPad
@@ -1246,6 +1249,8 @@ public:
      * are rearranged into a contiguous chain within the given list.
      * </p>
      *
+     * @param aTrackList The list of available track segments.
+     * usually tracks on board, but can be a list of segments currently created.
      * @param aTrace The segment within a list of trace segments to test.
      * @param aCount A pointer to an integer where to return the number of
      *               marked segments (can be NULL).
@@ -1261,7 +1266,7 @@ public:
      *                 track length in this case, flags are reset
      * @return TRACK* - The first in the chain of interesting segments.
      */
-    TRACK* MarkTrace( TRACK* aTrace, int* aCount, double* aTraceLength,
+    TRACK* MarkTrace( TRACK* aTrackList, TRACK* aTrace, int* aCount, double* aTraceLength,
                       double* aInPackageLength, bool aReorder );
 
     /**

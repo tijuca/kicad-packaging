@@ -62,11 +62,8 @@ DIALOG_CHOOSE_COMPONENT::DIALOG_CHOOSE_COMPONENT( SCH_BASE_FRAME* aParent, const
           m_deMorganConvert( aDeMorganConvert >= 0 ? aDeMorganConvert : 0 ),
           m_allow_field_edits( aAllowFieldEdits ),
           m_show_footprints( aShowFootprints ),
-          m_load_footprints( aShowFootprints ),
           m_external_browser_requested( false )
 {
-    m_fp_list = FOOTPRINT_LIST::GetInstance( Kiway() );
-
     auto sizer = new wxBoxSizer( wxVERTICAL );
 
     // Use a slightly different layout, with a details pane spanning the entire window,
@@ -77,6 +74,9 @@ DIALOG_CHOOSE_COMPONENT::DIALOG_CHOOSE_COMPONENT( SCH_BASE_FRAME* aParent, const
     m_splitter_tree_canvas = new wxSplitterWindow(
         vsplitter ? static_cast<wxWindow *>( vsplitter ) : static_cast<wxWindow *>( this ),
         wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE | wxSP_3DSASH );
+
+    //Avoid the splitter window being assigned as the Parent to additional windows
+    m_splitter_tree_canvas->SetExtraStyle( wxWS_EX_TRANSIENT );
 
     auto details = aShowFootprints ? nullptr : new wxHtmlWindow(
         vsplitter, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxHW_SCROLLBAR_AUTO );
@@ -100,7 +100,7 @@ DIALOG_CHOOSE_COMPONENT::DIALOG_CHOOSE_COMPONENT( SCH_BASE_FRAME* aParent, const
     SetSizer( sizer );
 
     Bind( wxEVT_INIT_DIALOG, &DIALOG_CHOOSE_COMPONENT::OnInitDialog, this );
-    Bind( wxEVT_IDLE, &DIALOG_CHOOSE_COMPONENT::OnIdle, this );
+    Bind( wxEVT_ACTIVATE, &DIALOG_CHOOSE_COMPONENT::OnActivate, this );
     Bind( wxEVT_TIMER, &DIALOG_CHOOSE_COMPONENT::OnCloseTimer, this, m_dbl_click_timer->GetId() );
     Bind( COMPONENT_PRESELECTED, &DIALOG_CHOOSE_COMPONENT::OnComponentPreselected, this );
     Bind( COMPONENT_SELECTED, &DIALOG_CHOOSE_COMPONENT::OnComponentSelected, this );
@@ -137,11 +137,21 @@ DIALOG_CHOOSE_COMPONENT::DIALOG_CHOOSE_COMPONENT( SCH_BASE_FRAME* aParent, const
 
 DIALOG_CHOOSE_COMPONENT::~DIALOG_CHOOSE_COMPONENT()
 {
+    Unbind( wxEVT_INIT_DIALOG, &DIALOG_CHOOSE_COMPONENT::OnInitDialog, this );
+    Unbind( wxEVT_ACTIVATE, &DIALOG_CHOOSE_COMPONENT::OnActivate, this );
+    Unbind( wxEVT_TIMER, &DIALOG_CHOOSE_COMPONENT::OnCloseTimer, this );
+    Unbind( COMPONENT_PRESELECTED, &DIALOG_CHOOSE_COMPONENT::OnComponentPreselected, this );
+    Unbind( COMPONENT_SELECTED, &DIALOG_CHOOSE_COMPONENT::OnComponentSelected, this );
+
+    m_sch_view_ctrl->Unbind( wxEVT_LEFT_DCLICK, &DIALOG_CHOOSE_COMPONENT::OnSchViewDClick, this );
+    m_sch_view_ctrl->Unbind( wxEVT_PAINT, &DIALOG_CHOOSE_COMPONENT::OnSchViewPaint, this );
+
+    if( m_fp_sel_ctrl )
+        m_fp_sel_ctrl->Unbind( EVT_FOOTPRINT_SELECTED, &DIALOG_CHOOSE_COMPONENT::OnFootprintSelected, this );
+
     // I am not sure the following two lines are necessary,
     // but they will not hurt anyone
     m_dbl_click_timer->Stop();
-    Unbind( wxEVT_TIMER, &DIALOG_CHOOSE_COMPONENT::OnCloseTimer, this );
-
     delete m_dbl_click_timer;
 
     m_last_dlg_size = GetSize();
@@ -161,8 +171,10 @@ wxPanel* DIALOG_CHOOSE_COMPONENT::ConstructRightPanel( wxWindow* aParent )
 
     if( m_show_footprints )
     {
+        FOOTPRINT_LIST* fp_list = FOOTPRINT_LIST::GetInstance( Kiway() );
+
         if( m_allow_field_edits )
-            m_fp_sel_ctrl = new FOOTPRINT_SELECT_WIDGET( panel, m_fp_list, true );
+            m_fp_sel_ctrl = new FOOTPRINT_SELECT_WIDGET( panel, fp_list, true );
 
         m_fp_view_ctrl = new FOOTPRINT_PREVIEW_WIDGET( panel, Kiway() );
 
@@ -194,17 +206,17 @@ void DIALOG_CHOOSE_COMPONENT::OnInitDialog( wxInitDialogEvent& aEvent )
         // This hides the GAL panel and shows the status label
         m_fp_view_ctrl->SetStatusText( wxEmptyString );
     }
+
+    if( m_fp_sel_ctrl )
+        m_fp_sel_ctrl->Load( Kiway(), Prj() );
 }
 
 
-// Let the dialog display before starting the footprint load
-void DIALOG_CHOOSE_COMPONENT::OnIdle( wxIdleEvent& aEvent )
+void DIALOG_CHOOSE_COMPONENT::OnActivate( wxActivateEvent& event )
 {
-    if( m_load_footprints && m_fp_sel_ctrl )
-    {
-        m_load_footprints = false;
-        m_fp_sel_ctrl->Load( Kiway(), Prj() );
-    }
+    m_tree->SetFocus();
+
+    event.Skip();    // required under wxMAC
 }
 
 
@@ -217,7 +229,7 @@ LIB_ID DIALOG_CHOOSE_COMPONENT::GetSelectedLibId( int* aUnit ) const
 void DIALOG_CHOOSE_COMPONENT::OnCloseTimer( wxTimerEvent& aEvent )
 {
     // Hack handler because of eaten MouseUp event. See
-    // DIALOG_CHOOSE_COMPONENT::OnDoubleClickTreeActivation for the beginning
+    // DIALOG_CHOOSE_COMPONENT::OnComponentSelected for the beginning
     // of this spaghetti noodle.
 
     auto state = wxGetMouseState();
@@ -276,7 +288,7 @@ void DIALOG_CHOOSE_COMPONENT::ShowFootprintFor( LIB_ID const& aLibId )
 
 void DIALOG_CHOOSE_COMPONENT::ShowFootprint( wxString const& aName )
 {
-    if( !m_fp_view_ctrl )
+    if( !m_fp_view_ctrl || !m_fp_view_ctrl->IsInitialized() )
     {
         return;
     }

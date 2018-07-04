@@ -6,11 +6,11 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
  *
- * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -388,34 +388,35 @@ TRACKS BOARD::TracksInNetBetweenPoints( const wxPoint& aStartPos, const wxPoint&
 }
 
 
-void BOARD::chainMarkedSegments( wxPoint aPosition, const LSET& aLayerSet, TRACKS* aList )
+void BOARD::chainMarkedSegments( TRACK* aTrackList, wxPoint aPosition,
+                                 const LSET& aLayerSet, TRACKS* aList )
 {
     LSET    layer_set = aLayerSet;
 
-    if( !m_Track )      // no tracks at all in board
+    if( !aTrackList )      // no tracks at all in board
         return;
 
     D_PAD*  pad = NULL;
-    double  distanceToPadCenter;
+    double  distanceToPadCenter = std::numeric_limits<double>::max();
 
     /* Set the BUSY flag of all connected segments, first search starting at
      * aPosition.  The search ends when a pad is found (end of a track), a
      * segment end has more than one other segment end connected, or when no
      * connected item found.
      *
-     * Vias are a special case because they must look for segments connected
+     * Vias are a special case because they can connect segments
      * on other layers and they change the layer mask.  They can be a track
-     * end or not.  They will be analyzer later and vias on terminal points
+     * end or not.  They will be analyzed later, and vias on terminal points
      * of the track will be considered as part of this track if they do not
-     * connect segments of a other track together and will be considered as
+     * connect segments on a other track together and will be considered as
      * part of a other track when removing the via, the segments of that other
      * track are disconnected.
      */
     for( ; ; )
     {
-
         if( !pad )
             pad = GetPad( aPosition, layer_set );
+
         if( pad )
             distanceToPadCenter = GetLineLength( aPosition, pad->GetCenter() );
 
@@ -426,12 +427,11 @@ void BOARD::chainMarkedSegments( wxPoint aPosition, const LSET& aLayerSet, TRACK
          * is found we do not know at this time the number of connected items
          * and we do not know if this via is on the track or finish the track
          */
-        TRACK* via = m_Track->GetVia( NULL, aPosition, layer_set );
+        TRACK* via = aTrackList->GetVia( NULL, aPosition, layer_set );
 
         if( via )
         {
             layer_set = via->GetLayerSet();
-
             aList->push_back( via );
         }
 
@@ -443,7 +443,7 @@ void BOARD::chainMarkedSegments( wxPoint aPosition, const LSET& aLayerSet, TRACK
          *  if > 1 segment:
          *      then end of "track" (because more than 2 segments are connected at aPosition)
          */
-        TRACK*  segment = m_Track;
+        TRACK*  segment = aTrackList;
 
         while( ( segment = ::GetTrack( segment, NULL, aPosition, layer_set ) ) != NULL )
         {
@@ -492,6 +492,7 @@ void BOARD::chainMarkedSegments( wxPoint aPosition, const LSET& aLayerSet, TRACK
             {
                 if( GetPad( aPosition, layer_set ) != pad )
                     return;
+
                 if( GetLineLength( aPosition, pad->GetCenter() ) > distanceToPadCenter )
                     return;
             }
@@ -1019,9 +1020,19 @@ int BOARD::GetNumSegmZone() const
 }
 
 
-unsigned BOARD::GetNodesCount() const
+unsigned BOARD::GetNodesCount( int aNet )
 {
-    return m_connectivity->GetPadCount();
+    unsigned retval = 0;
+    for( auto mod : Modules() )
+    {
+        for( auto pad : mod->Pads() )
+        {
+            if( ( aNet == -1 && pad->GetNetCode() > 0 ) || aNet == pad->GetNetCode() )
+                retval++;
+        }
+    }
+
+    return retval;
 }
 
 
@@ -1388,12 +1399,17 @@ MODULE* BOARD::FindModule( const wxString& aRefOrTimeStamp, bool aSearchByTimeSt
 }
 
 
-// Sort nets by decreasing pad count. For same pad count, sort by alphabetic names
+
+// The pad count for each netcode, stored in a buffer for a fast access.
+// This is needed by the sort function sortNetsByNodes()
+static std::vector<int> padCountListByNet;
+
+// Sort nets by decreasing pad count.
+// For same pad count, sort by alphabetic names
 static bool sortNetsByNodes( const NETINFO_ITEM* a, const NETINFO_ITEM* b )
 {
-    auto connectivity = a->GetParent()->GetConnectivity();
-    int countA = connectivity->GetPadCount( a->GetNet() );
-    int countB = connectivity->GetPadCount( b->GetNet() );
+    int countA = padCountListByNet[a->GetNet()];
+    int countB = padCountListByNet[b->GetNet()];
 
     if( countA == countB )
         return a->GetNetname() < b->GetNetname();
@@ -1426,7 +1442,25 @@ int BOARD::SortedNetnamesList( wxArrayString& aNames, bool aSortbyPadsCount )
 
     // sort the list
     if( aSortbyPadsCount )
+    {
+        // Build the pad count by net:
+        padCountListByNet.clear();
+        std::vector<D_PAD*> pads = GetPads();
+
+        // Calculate the max value of net codes, and creates the buffer to
+        // store the pad count by net code
+        int max_netcode = 0;
+
+        for( D_PAD* pad : pads )
+            max_netcode = std::max( max_netcode, pad->GetNetCode() );
+
+        padCountListByNet.assign( max_netcode+1, 0 );
+
+        for( D_PAD* pad : pads )
+            padCountListByNet[pad->GetNetCode()]++;
+
         sort( netBuffer.begin(), netBuffer.end(), sortNetsByNodes );
+    }
     else
         sort( netBuffer.begin(), netBuffer.end(), sortNetsByNames );
 
@@ -1556,7 +1590,10 @@ D_PAD* BOARD::GetPad( const wxPoint& aPosition, LSET aLayerSet )
 
     for( MODULE* module = m_Modules;  module;  module = module->Next() )
     {
-        D_PAD* pad = module->GetPad( aPosition, aLayerSet );
+        D_PAD* pad = NULL;
+
+        if( module->HitTest( aPosition ) )
+            pad = module->GetPad( aPosition, aLayerSet );
 
         if( pad )
             return pad;
@@ -1572,16 +1609,7 @@ D_PAD* BOARD::GetPad( TRACK* aTrace, ENDPOINT_T aEndPoint )
 
     LSET lset( aTrace->GetLayer() );
 
-    for( MODULE* module = m_Modules;  module;  module = module->Next() )
-    {
-        D_PAD*  pad = module->GetPad( aPosition, lset );
-
-        if( pad )
-            return pad;
-    }
-
-    return NULL;
-
+    return GetPad( aPosition, lset );
 }
 
 
@@ -1784,30 +1812,7 @@ TRACK* BOARD::GetVisibleTrack( TRACK* aStartingTrace, const wxPoint& aPosition,
 }
 
 
-#if defined(DEBUG) && 0
-static void dump_tracks( const char* aName, const TRACKS& aList )
-{
-    printf( "%s: count=%zd\n", aName, aList.size() );
-
-    for( unsigned i = 0; i < aList.size();  ++i )
-    {
-        TRACK*  seg = aList[i];
-        ::VIA*  via = dynamic_cast< ::VIA* >( seg );
-
-        if( via )
-            printf( " via[%u]: (%d, %d)\n", i, via->GetStart().x, via->GetStart().y );
-        else
-            printf( " seg[%u]: (%d, %d) (%d, %d)\n", i,
-                    seg->GetStart().x, seg->GetStart().y,
-                    seg->GetEnd().x,   seg->GetEnd().y );
-    }
-}
-#endif
-
-
-
-
-TRACK* BOARD::MarkTrace( TRACK*  aTrace, int* aCount,
+TRACK* BOARD::MarkTrace( TRACK* aTrackList, TRACK*  aTrace, int* aCount,
                          double* aTraceLength, double* aPadToDieLength,
                          bool    aReorder )
 {
@@ -1824,7 +1829,7 @@ TRACK* BOARD::MarkTrace( TRACK*  aTrace, int* aCount,
 
     // Ensure the flag BUSY of all tracks of the board is cleared
     // because we use it to mark segments of the track
-    for( TRACK* track = m_Track; track; track = track->Next() )
+    for( TRACK* track = aTrackList; track; track = track->Next() )
         track->SetState( BUSY, false );
 
     // Set flags of the initial track segment
@@ -1842,7 +1847,7 @@ TRACK* BOARD::MarkTrace( TRACK*  aTrace, int* aCount,
      */
     if( aTrace->Type() == PCB_VIA_T )
     {
-        TRACK* segm1 = ::GetTrack( m_Track, NULL, aTrace->GetStart(), layer_set );
+        TRACK* segm1 = ::GetTrack( aTrackList, NULL, aTrace->GetStart(), layer_set );
         TRACK* segm2 = NULL;
         TRACK* segm3 = NULL;
 
@@ -1870,13 +1875,13 @@ TRACK* BOARD::MarkTrace( TRACK*  aTrace, int* aCount,
         if( segm1 ) // search for other segments connected to the initial segment start point
         {
             layer_set = segm1->GetLayerSet();
-            chainMarkedSegments( aTrace->GetStart(), layer_set, &trackList );
+            chainMarkedSegments( aTrackList, aTrace->GetStart(), layer_set, &trackList );
         }
 
         if( segm2 ) // search for other segments connected to the initial segment end point
         {
             layer_set = segm2->GetLayerSet();
-            chainMarkedSegments( aTrace->GetStart(), layer_set, &trackList );
+            chainMarkedSegments( aTrackList, aTrace->GetStart(), layer_set, &trackList );
         }
     }
     else    // mark the chain using both ends of the initial segment
@@ -1884,8 +1889,8 @@ TRACK* BOARD::MarkTrace( TRACK*  aTrace, int* aCount,
         TRACKS  from_start;
         TRACKS  from_end;
 
-        chainMarkedSegments( aTrace->GetStart(), layer_set, &from_start );
-        chainMarkedSegments( aTrace->GetEnd(),   layer_set, &from_end );
+        chainMarkedSegments( aTrackList, aTrace->GetStart(), layer_set, &from_start );
+        chainMarkedSegments( aTrackList, aTrace->GetEnd(),   layer_set, &from_end );
 
         // combine into one trackList:
         trackList.insert( trackList.end(), from_start.begin(), from_start.end() );
@@ -1911,7 +1916,7 @@ TRACK* BOARD::MarkTrace( TRACK*  aTrace, int* aCount,
 
         layer_set = via->GetLayerSet();
 
-        TRACK* track = ::GetTrack( m_Track, NULL, via->GetStart(), layer_set );
+        TRACK* track = ::GetTrack( aTrackList, NULL, via->GetStart(), layer_set );
 
         // GetTrace does not consider tracks flagged BUSY.
         // So if no connected track found, this via is on the current track
@@ -1954,7 +1959,7 @@ TRACK* BOARD::MarkTrace( TRACK*  aTrace, int* aCount,
     int     busy_count = 0;
     TRACK*  firstTrack;
 
-    for( firstTrack = m_Track; firstTrack; firstTrack = firstTrack->Next() )
+    for( firstTrack = aTrackList; firstTrack; firstTrack = firstTrack->Next() )
     {
         // Search for the first flagged BUSY segments
         if( firstTrack->GetState( BUSY ) )
@@ -2710,9 +2715,9 @@ void BOARD::ReplaceNetlist( NETLIST& aNetlist, bool aDeleteSinglePadNets,
     {
         std::vector<unsigned int> padCount( connAlgo->NetCount() );
 
-        for( const auto cnItem : connAlgo->PadList() )
+        for( const auto cnItem : connAlgo->ItemList() )
         {
-            if( !cnItem->Valid() )
+            if( !cnItem->Valid() || cnItem->Parent()->Type() != PCB_PAD_T )
                 continue;
 
             int net = cnItem->Parent()->GetNetCode();
@@ -2892,15 +2897,13 @@ BOARD_ITEM* BOARD::Duplicate( const BOARD_ITEM* aItem,
  * All contours should be closed, i.e. are valid vertices for a closed polygon
  * return true if success, false if a contour is not valid
  */
-extern bool BuildBoardPolygonOutlines( BOARD* aBoard,
-                                SHAPE_POLY_SET& aOutlines,
-                                wxString* aErrorText );
+extern bool BuildBoardPolygonOutlines( BOARD* aBoard, SHAPE_POLY_SET& aOutlines,
+                                wxString* aErrorText, unsigned int aTolerance );
 
 
-bool BOARD::GetBoardPolygonOutlines( SHAPE_POLY_SET& aOutlines,
-                                     wxString* aErrorText )
+bool BOARD::GetBoardPolygonOutlines( SHAPE_POLY_SET& aOutlines, wxString* aErrorText )
 {
-    bool success = BuildBoardPolygonOutlines( this, aOutlines, aErrorText );
+    bool success = BuildBoardPolygonOutlines( this, aOutlines, aErrorText, Millimeter2iu( 0.05 ) );
 
     // Make polygon strictly simple to avoid issues (especially in 3D viewer)
     aOutlines.Simplify( SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
@@ -2924,9 +2927,15 @@ const std::vector<D_PAD*> BOARD::GetPads()
 }
 
 
-unsigned BOARD::GetPadCount() const
+unsigned BOARD::GetPadCount()
 {
-    return m_connectivity->GetPadCount();
+    unsigned retval = 0;
+    for( auto mod : Modules() )
+    {
+        retval += mod->Pads().Size();
+    }
+
+    return retval;
 }
 
 
