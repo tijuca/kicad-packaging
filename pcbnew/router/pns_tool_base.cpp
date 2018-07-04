@@ -61,11 +61,6 @@ using namespace KIGFX;
 
 namespace PNS {
 
-TOOL_ACTION TOOL_BASE::ACT_RouterOptions( "pcbnew.InteractiveRouter.RouterOptions",
-                                            AS_CONTEXT, TOOL_ACTION::LegacyHotKey( HK_ROUTING_OPTIONS ),
-                                            _( "Routing Options..." ),
-                                            _( "Shows a dialog containing router options." ), tools_xpm );
-
 
 TOOL_BASE::TOOL_BASE( const std::string& aToolName ) :
     PCB_TOOL( aToolName )
@@ -101,6 +96,7 @@ void TOOL_BASE::Reset( RESET_REASON aReason )
     m_iface->SetBoard( board() );
     m_iface->SetView( getView() );
     m_iface->SetHostTool( this );
+    m_iface->SetDisplayOptions( (PCB_DISPLAY_OPTIONS*) frame()->GetDisplayOptions() );
 
     m_router = new ROUTER;
     m_router->SetInterface( m_iface );

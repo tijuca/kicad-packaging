@@ -24,6 +24,7 @@
  */
 
 #include <gl_context_mgr.h>
+#include <wx/debug.h>
 
 GL_CONTEXT_MANAGER& GL_CONTEXT_MANAGER::Get()
 {
@@ -35,8 +36,16 @@ GL_CONTEXT_MANAGER& GL_CONTEXT_MANAGER::Get()
 wxGLContext* GL_CONTEXT_MANAGER::CreateCtx( wxGLCanvas* aCanvas, const wxGLContext* aOther )
 {
     wxGLContext* context = new wxGLContext( aCanvas, aOther );
-    assert( context /* && context->IsOK() */ );     // IsOK() is available in wx3.1+
-    assert( m_glContexts.count( context ) == 0 );
+    wxCHECK( context, nullptr );
+
+#if wxCHECK_VERSION( 3, 1, 0 )
+    if( !context->IsOK() )
+    {
+        delete context;
+        return nullptr;
+    }
+#endif /* wxCHECK_VERSION( 3, 1, 0 ) */
+
     m_glContexts.insert( std::make_pair( context, aCanvas ) );
 
     return context;
@@ -53,28 +62,30 @@ void GL_CONTEXT_MANAGER::DestroyCtx( wxGLContext* aContext )
     else
     {
         // Do not delete unknown GL contexts
-        assert( false );
+        wxFAIL;
     }
 
     if( m_glCtx == aContext )
-    {
         m_glCtx = NULL;
-    }
 }
 
 
 void GL_CONTEXT_MANAGER::DeleteAll()
 {
+    m_glCtxMutex.lock();
+
     for( auto& ctx : m_glContexts )
         delete ctx.first;
 
     m_glContexts.clear();
+    m_glCtx = NULL;
+    m_glCtxMutex.unlock();
 }
 
 
 void GL_CONTEXT_MANAGER::LockCtx( wxGLContext* aContext, wxGLCanvas* aCanvas )
 {
-    assert( aCanvas || m_glContexts.count( aContext ) > 0 );
+    wxCHECK( aCanvas || m_glContexts.count( aContext ) > 0, /* void */ );
 
     m_glCtxMutex.lock();
     wxGLCanvas* canvas = aCanvas ? aCanvas : m_glContexts.at( aContext );
@@ -93,7 +104,7 @@ void GL_CONTEXT_MANAGER::LockCtx( wxGLContext* aContext, wxGLCanvas* aCanvas )
 
 void GL_CONTEXT_MANAGER::UnlockCtx( wxGLContext* aContext )
 {
-    assert( m_glContexts.count( aContext ) > 0 );
+    wxCHECK( m_glContexts.count( aContext ) > 0, /* void */ );
 
     if( m_glCtx == aContext )
     {
@@ -102,9 +113,8 @@ void GL_CONTEXT_MANAGER::UnlockCtx( wxGLContext* aContext )
     }
     else
     {
-        wxLogDebug(
-            "Trying to unlock GL context mutex from a wrong context: aContext %p m_glCtx %p",
-            aContext, m_glCtx );
+        wxFAIL_MSG( wxString::Format( "Trying to unlock GL context mutex from "
+                    "a wrong context: aContext %p m_glCtx %p", aContext, m_glCtx ) );
     }
 }
 

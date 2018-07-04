@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2010-2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2012 Wayne Stambaugh <stambaughw@gmail.com>
- * Copyright (C) 2010-2017 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2010-2018 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -69,7 +69,7 @@ public:
     LIB_ID( const wxString& aId );
 
     ///> Types of library identifiers
-    enum LIB_ID_TYPE { ID_SCH, ID_PCB };
+    enum LIB_ID_TYPE { ID_SCH, ID_ALIAS, ID_PCB };
 
     /**
      * This LIB_ID ctor is a special version which ignores the parsing due to symbol
@@ -218,29 +218,40 @@ public:
      *
      * @param aLibItemName is the #LIB_ID item name to replace illegal characters.
      * @param aType is the library identifier type
+     * @param aLib True if we are checking library names, false if we are checking item names
      * @return the corrected version of \a aLibItemName.
      */
-    static UTF8 FixIllegalChars( const UTF8& aLibItemName, LIB_ID_TYPE aType );
+    static UTF8 FixIllegalChars( const UTF8& aLibItemName, LIB_ID_TYPE aType, bool aLib = false );
 
     /**
-     * Looks for characters that are illegal in library and item names.
+     * Looks for characters that are illegal in library nicknames.
      *
      * @param aNickname is the logical library name to be tested.
      * @param aType is the library identifier type
      * @return Invalid character found in the name or 0 is the name is valid.
      */
-    static unsigned FindIllegalChar( const UTF8& aNickname, LIB_ID_TYPE aType );
+    static unsigned FindIllegalLibNicknameChar( const UTF8& aNickname, LIB_ID_TYPE aType );
 
 #if defined(DEBUG)
     static void Test();
 #endif
 
 protected:
-    /** Tests whether a unicode character is a legal LIB_ID character
-     * note: aUniChar is expected to be a unicode 32 bits char, not a UTF8 char, that use
-     * a variable lenght coding value
+    /**
+     * Tests whether a unicode character is a legal LIB_ID item name character
+     *
+     * @note @a aUniChar is expected to be a 32 bit unicode character, not a UTF8 char, that use
+     * a variable length coding value.
      */
     static bool isLegalChar( unsigned aUniChar, LIB_ID_TYPE aType );
+
+    /**
+     * Tests whether a unicode character is a legal LIB_ID library nickname character
+     *
+     * @note @a aUniChar is expected to be a 32 bit unicode character, not a UTF8 char, that use
+     * a variable length coding value.
+     */
+    static bool isLegalLibNicknameChar( unsigned aUniChar, LIB_ID_TYPE aType );
 
     UTF8    nickname;       ///< The nickname of the library or empty.
     UTF8    item_name;      ///< The name of the entry in the logical library.

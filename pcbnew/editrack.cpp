@@ -214,7 +214,7 @@ TRACK* PCB_EDIT_FRAME::Begin_Route( TRACK* aTrack, wxDC* aDC )
 
         if( Settings().m_legacyDrcOn )
         {
-            if( BAD_DRC == m_drc->Drc( g_CurrentTrackSegment, GetBoard()->m_Track ) )
+            if( BAD_DRC == m_drc->DrcOnCreatingTrack( g_CurrentTrackSegment, GetBoard()->m_Track ) )
             {
                 return g_CurrentTrackSegment;
             }
@@ -225,13 +225,14 @@ TRACK* PCB_EDIT_FRAME::Begin_Route( TRACK* aTrack, wxDC* aDC )
         // Test for a D.R.C. error:
         if( Settings().m_legacyDrcOn )
         {
-            if( BAD_DRC == m_drc->Drc( g_CurrentTrackSegment, GetBoard()->m_Track ) )
+            if( BAD_DRC == m_drc->DrcOnCreatingTrack( g_CurrentTrackSegment, GetBoard()->m_Track ) )
                 return NULL;
 
             // We must handle 2 segments
             if( Settings().m_legacyUseTwoSegmentTracks && g_CurrentTrackSegment->Back() )
             {
-                if( BAD_DRC == m_drc->Drc( g_CurrentTrackSegment->Back(), GetBoard()->m_Track ) )
+                if( BAD_DRC == m_drc->DrcOnCreatingTrack( g_CurrentTrackSegment->Back(),
+                                                          GetBoard()->m_Track ) )
                     return NULL;
             }
         }
@@ -355,7 +356,8 @@ bool PCB_EDIT_FRAME::Add45DegreeSegment( wxDC* aDC )
         else
             newTrack->SetEnd( wxPoint(newTrack->GetEnd().x - segm_step_45, newTrack->GetEnd().y) );
 
-        if( Settings().m_legacyDrcOn && BAD_DRC == m_drc->Drc( curTrack, GetBoard()->m_Track ) )
+        if( Settings().m_legacyDrcOn &&
+            BAD_DRC == m_drc->DrcOnCreatingTrack( curTrack, GetBoard()->m_Track ) )
         {
             delete newTrack;
             return false;
@@ -390,7 +392,8 @@ bool PCB_EDIT_FRAME::Add45DegreeSegment( wxDC* aDC )
         else
             newTrack->SetEnd( wxPoint(newTrack->GetEnd().x, newTrack->GetEnd().y - segm_step_45) );
 
-        if( Settings().m_legacyDrcOn && BAD_DRC==m_drc->Drc( newTrack, GetBoard()->m_Track ) )
+        if( Settings().m_legacyDrcOn &&
+            BAD_DRC == m_drc->DrcOnCreatingTrack( newTrack, GetBoard()->m_Track ) )
         {
             delete newTrack;
             return false;
@@ -414,7 +417,8 @@ bool PCB_EDIT_FRAME::End_Route( TRACK* aTrack, wxDC* aDC )
     if( aTrack == NULL )
         return false;
 
-    if( Settings().m_legacyDrcOn && BAD_DRC == m_drc->Drc( g_CurrentTrackSegment, GetBoard()->m_Track ) )
+    if( Settings().m_legacyDrcOn &&
+        BAD_DRC == m_drc->DrcOnCreatingTrack( g_CurrentTrackSegment, GetBoard()->m_Track ) )
         return false;
 
     // Saving the coordinate of end point of the trace
@@ -465,26 +469,21 @@ bool PCB_EDIT_FRAME::End_Route( TRACK* aTrack, wxDC* aDC )
     {
         int    netcode    = g_FirstTrackSegment->GetNetCode();
         TRACK* firstTrack = g_FirstTrackSegment;
-        int    newCount   = g_CurrentTrackList.GetCount();
+        int    newCount   = 0;
 
         // Put entire new current segment list in BOARD, and prepare undo command
         TRACK* track;
         TRACK* insertBeforeMe = g_CurrentTrackSegment->GetBestInsertPoint( GetBoard() );
 
-        while( ( track = g_CurrentTrackList.PopFront() ) != NULL )
+        while( ( track = g_CurrentTrackList.PopFront() ) != nullptr )
         {
             ITEM_PICKER picker( track, UR_NEW );
             s_ItemsListPicker.PushItem( picker );
             GetBoard()->m_Track.Insert( track, insertBeforeMe );
             GetBoard()->GetConnectivity()->Add( track );
-        }
-
-        int i = 0;
-
-        for( track = firstTrack; track && i < newCount; ++i, track = track->Next() )
-        {
             track->ClearFlags();
             track->SetState( BUSY, false );
+            newCount++;
         }
 
         // delete the old track, if it exists and is redundant
@@ -781,44 +780,19 @@ void ShowNewTrackWhenMovingCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPo
     if( isegm->GetLength() == 0 && g_CurrentTrackSegment->Back() )
         isegm = g_CurrentTrackSegment->Back();
 
-    // display interesting segment info only:
+    // display track info:
     frame->SetMsgPanel( isegm );
-
-    // Display current track length (on board) and the the actual track len
-    // if there is an extra len due to the len die on the starting pad (if any)
-    double   trackLen = 0.0;
-    double   lenPadToDie = 0.0;
     wxString msg;
 
-    // If the starting point is on a pad, add current track length+ length die
-    if( g_FirstTrackSegment->GetState( BEGIN_ONPAD ) )
-    {
-        D_PAD* pad = (D_PAD*) g_FirstTrackSegment->start;
-        lenPadToDie = (double) pad->GetPadToDieLength();
-    }
-
-    // calculate track len on board:
-    for( TRACK* track = g_FirstTrackSegment; track; track = track->Next() )
-        trackLen += track->GetLength();
-
-    msg = frame->LengthDoubleToString( trackLen );
-    frame->AppendMsgPanel( _( "Track Len" ), msg, DARKCYAN );
-
-    if( lenPadToDie != 0 )      // display the track len on board and the actual track len
-    {
-        frame->AppendMsgPanel( _( "Full Len" ), msg, DARKCYAN );
-        msg = frame->LengthDoubleToString( trackLen+lenPadToDie );
-        frame->AppendMsgPanel( _( "Pad to die" ), msg, DARKCYAN );
-    }
-
-    // Add current segments count (number of segments in this new track):
-    msg.Printf( wxT( "%d" ), g_CurrentTrackList.GetCount() );
+    // Display current segments count (number of segments in this new track):
+    msg.Printf( "%d", g_CurrentTrackList.GetCount() );
     frame->AppendMsgPanel( _( "Segs Count" ), msg, DARKCYAN );
 
     displ_opts->m_ShowTrackClearanceMode = showTrackClearanceMode;
     displ_opts->m_DisplayPcbTrackFill    = tmp;
 
-    frame->BuildAirWiresTargetsList( NULL, g_CurrentTrackSegment->GetEnd(), g_CurrentTrackSegment->GetNetCode() );
+    frame->BuildAirWiresTargetsList( NULL, g_CurrentTrackSegment->GetEnd(),
+                                     g_CurrentTrackSegment->GetNetCode() );
     frame->TraceAirWiresToTargets( aDC );
 }
 

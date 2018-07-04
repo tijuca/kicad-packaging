@@ -12,8 +12,8 @@
    width="26"
    version="1.0"
    id="svg2"
-   inkscape:version="0.48.4 r9939"
-   sodipodi:docname="locked.svg">
+   inkscape:version="0.92.0 r15299"
+   sodipodi:docname="unlocked.svg">
   <metadata
      id="metadata188">
     <rdf:RDF>
@@ -22,7 +22,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -35,15 +35,15 @@
      guidetolerance="10"
      inkscape:pageopacity="0"
      inkscape:pageshadow="2"
-     inkscape:window-width="1366"
-     inkscape:window-height="744"
+     inkscape:window-width="1920"
+     inkscape:window-height="1033"
      id="namedview186"
      showgrid="true"
      inkscape:zoom="15.365974"
-     inkscape:cx="16.18766"
+     inkscape:cx="-7.1105702"
      inkscape:cy="11.395488"
-     inkscape:window-x="0"
-     inkscape:window-y="24"
+     inkscape:window-x="-4"
+     inkscape:window-y="-4"
      inkscape:window-maximized="1"
      inkscape:current-layer="svg2">
     <inkscape:grid
@@ -56,18 +56,6 @@
   </sodipodi:namedview>
   <defs
      id="defs4">
-    <linearGradient
-       inkscape:collect="always"
-       id="linearGradient3975">
-      <stop
-         style="stop-color:#333333;stop-opacity:1;"
-         offset="0"
-         id="stop3977" />
-      <stop
-         style="stop-color:#585858;stop-opacity:1"
-         offset="1"
-         id="stop3979" />
-    </linearGradient>
     <linearGradient
        id="an"
        y2="13.849"
@@ -426,25 +414,15 @@
          stdDeviation="0.42546784"
          id="feGaussianBlur106" />
     </filter>
-    <linearGradient
-       inkscape:collect="always"
-       xlink:href="#linearGradient3975"
-       id="linearGradient3981"
-       x1="10"
-       y1="21"
-       x2="5"
-       y2="13"
-       gradientUnits="userSpaceOnUse"
-       gradientTransform="translate(-3,0)" />
   </defs>
   <path
-     style="fill:none;stroke:#808080;stroke-width:2;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none"
+     style="fill:none;stroke:#607a63;stroke-width:2;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none"
      d="m 25,12 0,-4 c 0,0 0.5,-5 -5,-5 -5.5,0 -5,5 -5,5 l 0,4"
      id="path3944"
      inkscape:connector-curvature="0"
      sodipodi:nodetypes="cczcc" />
   <rect
-     style="fill:url(#linearGradient3981);fill-opacity:1;stroke:none"
+     style="fill:#333333;fill-opacity:1;stroke:none"
      id="rect3169"
      width="17.999996"
      height="13"

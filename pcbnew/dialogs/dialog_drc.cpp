@@ -39,6 +39,9 @@
 #include <class_draw_panel_gal.h>
 #include <view/view.h>
 
+#include <tool/tool_manager.h>
+#include <tools/pcb_actions.h>
+
 /* class DIALOG_DRC_CONTROL: a dialog to set DRC parameters (clearance, min cooper size)
  * and run DRC tests
  */
@@ -226,6 +229,7 @@ void DIALOG_DRC_CONTROL::OnStartdrcClick( wxCommandEvent& event )
     DelDRCMarkers();
 
     wxBeginBusyCursor();
+    wxWindowDisabler disabler;
 
     // run all the tests, with no UI at this time.
     m_Messages->Clear();
@@ -649,6 +653,10 @@ void DIALOG_DRC_CONTROL::RedrawDrawPanel()
 void DIALOG_DRC_CONTROL::DelDRCMarkers()
 {
     m_brdEditor->SetCurItem( NULL );           // clear curr item, because it could be a DRC marker
+
+    // Clear current selection list to avoid selection of deleted items
+    m_brdEditor->GetToolManager()->RunAction( PCB_ACTIONS::selectionClear, true );
+
     m_ClearanceListBox->DeleteAllItems();
     m_UnconnectedListBox->DeleteAllItems();
     m_DeleteCurrentMarkerButton->Enable( false );

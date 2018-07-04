@@ -219,6 +219,8 @@ void DIALOG_EXPORT_STEP::onUpdateYPos( wxUpdateUIEvent& aEvent )
     aEvent.Enable( m_rbUserDefinedOrigin->GetValue() );
 }
 
+extern bool BuildBoardPolygonOutlines( BOARD* aBoard, SHAPE_POLY_SET& aOutlines,
+                                wxString* aErrorText, unsigned int aTolerance );
 
 void DIALOG_EXPORT_STEP::onExportButton( wxCommandEvent& aEvent )
 {
@@ -226,8 +228,7 @@ void DIALOG_EXPORT_STEP::onExportButton( wxCommandEvent& aEvent )
     wxString msg;
 
     // Check if the board outline is continuous
-    // TODO the check below is more forgiving than kicad2step, needs to be more strict
-    if( !m_parent->GetBoard()->GetBoardPolygonOutlines( outline, &msg ) )
+    if( !BuildBoardPolygonOutlines( m_parent->GetBoard(), outline, &msg, Millimeter2iu( 0.01 ) ) )
     {
         DisplayErrorMessage( this, _( "Cannot determine the board outline." ), msg );
         return;
@@ -249,6 +250,19 @@ void DIALOG_EXPORT_STEP::onExportButton( wxCommandEvent& aEvent )
     double yOrg = 0.0;
 
     wxFileName appK2S( wxStandardPaths::Get().GetExecutablePath() );
+
+#ifdef __WXMAC__
+    // On macOS, we have standalone applications inside the main bundle, so we handle that here:
+        if( appK2S.GetPath().find( "/Contents/Applications/pcbnew.app/Contents/MacOS" ) != wxNOT_FOUND )
+        {
+            appK2S.AppendDir( ".." );
+            appK2S.AppendDir( ".." );
+            appK2S.AppendDir( ".." );
+            appK2S.AppendDir( ".." );
+            appK2S.AppendDir( "MacOS" );
+        }
+#endif
+
     appK2S.SetName( "kicad2step" );
 
     wxString cmdK2S = "\"";
@@ -309,7 +323,7 @@ void DIALOG_EXPORT_STEP::onExportButton( wxCommandEvent& aEvent )
     bool success = false;
     wxArrayString output, errors;
     REPORTER& reporter = m_messagesPanel->Reporter();
-    reporter.Report( wxString::Format( _( "Executing '%s'" ), cmdK2S ), REPORTER::RPT_ACTION );
+    reporter.ReportHead( wxString::Format( _( "Executing '%s'" ), cmdK2S ), REPORTER::RPT_ACTION );
 
     {
         wxBusyCursor dummy;
@@ -334,17 +348,17 @@ void DIALOG_EXPORT_STEP::onExportButton( wxCommandEvent& aEvent )
     {
         if( !success )
         {
-            reporter.Report( _( "Unable to create STEP file.  Check that the board has a "
+            reporter.ReportTail( _( "Unable to create STEP file.  Check that the board has a "
                                         "valid outline and models." ), REPORTER::RPT_ERROR );
         }
         else
         {
-            reporter.Report( _( "STEP file has been created, but there are warnings." ),
+            reporter.ReportTail( _( "STEP file has been created, but there are warnings." ),
                     REPORTER::RPT_INFO );
         }
     }
     else
     {
-        reporter.Report( _( "STEP file has been created successfully." ), REPORTER::RPT_INFO );
+        reporter.ReportTail( _( "STEP file has been created successfully." ), REPORTER::RPT_INFO );
     }
 }

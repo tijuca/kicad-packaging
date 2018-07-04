@@ -43,6 +43,7 @@ public:
     bool TransferDataFromWindow() override;
 
 private:
+    wxConfigBase*   m_config;
     SCH_EDIT_FRAME* m_parent;
     int             m_showColWidth;
     int             m_groupByColWidth;
@@ -50,7 +51,7 @@ private:
     SCH_REFERENCE_LIST             m_componentRefs;
     FIELDS_EDITOR_GRID_DATA_MODEL* m_dataModel;
 
-    void AddField( const wxString& aFieldName, bool defaultShow, bool defaultSortBy );
+    void AddField( const wxString& aName, bool defaultShow, bool defaultSortBy );
     void LoadFieldNames();
 
     void OnColSort( wxGridEvent& aEvent );
@@ -63,6 +64,8 @@ private:
     void OnTableItemContextMenu( wxGridEvent& event ) override;
     void OnSizeFieldList( wxSizeEvent& event ) override;
     void OnSaveAndContinue( wxCommandEvent& aEvent ) override;
+    void OnCancel( wxCommandEvent& event ) override;
+    void OnClose( wxCloseEvent& event ) override;
 };
 
 #endif /* DIALOG_FIELDS_EDITOR_GLOBAL_H */

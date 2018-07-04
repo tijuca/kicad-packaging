@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2013 Wayne Stambaugh <stambaughw@gmail.com>
  * Copyright (C) 2013-2018 KiCad Developers, see AUTHORS.txt for contributors.
@@ -146,7 +146,6 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
     // menu Config
     EVT_MENU( ID_PCB_DRAWINGS_WIDTHS_SETUP, PCB_EDIT_FRAME::OnConfigurePcbOptions )
     EVT_MENU( ID_PCB_LIB_TABLE_EDIT, PCB_EDIT_FRAME::Process_Config )
-    EVT_MENU( ID_PCB_LIB_WIZARD, PCB_EDIT_FRAME::Process_Config )
     EVT_MENU( ID_PCB_3DSHAPELIB_WIZARD, PCB_EDIT_FRAME::Process_Config )
     EVT_MENU( ID_PREFERENCES_CONFIGURE_PATHS, PCB_EDIT_FRAME::OnConfigurePaths )
     EVT_MENU( ID_CONFIG_SAVE, PCB_EDIT_FRAME::Process_Config )
@@ -216,7 +215,6 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_COMBOBOX( ID_TOOLBARH_PCB_SELECT_LAYER, PCB_EDIT_FRAME::Process_Special_Functions )
     EVT_CHOICE( ID_AUX_TOOLBAR_PCB_TRACK_WIDTH, PCB_EDIT_FRAME::Tracks_and_Vias_Size_Event )
     EVT_CHOICE( ID_AUX_TOOLBAR_PCB_VIA_SIZE, PCB_EDIT_FRAME::Tracks_and_Vias_Size_Event )
-    EVT_TOOL( ID_TOOLBARH_PCB_FREEROUTE_ACCESS, PCB_EDIT_FRAME::Access_to_External_Tool )
 
 
 #if defined(KICAD_SCRIPTING) && defined(KICAD_SCRIPTING_ACTION_MENU)
@@ -354,7 +352,6 @@ PCB_EDIT_FRAME::PCB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     m_Layers = new PCB_LAYER_WIDGET( this, GetCanvas() );
 
     m_drc = new DRC( this );        // these 2 objects point to each other
-    m_plotDialog = nullptr;
 
     wxIcon  icon;
     icon.CopyFromBitmap( KiBitmap( icon_pcbnew_xpm ) );
@@ -487,42 +484,50 @@ PCB_EDIT_FRAME::PCB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
 
                 // Switch to OpenGL, which will save the new setting if successful
                 wxCommandEvent evt( wxEVT_MENU, ID_MENU_CANVAS_OPENGL );
-                auto handler = GetEventHandler();
-                handler->ProcessEvent( evt );
+                GetEventHandler()->ProcessEvent( evt );
+
+                // Switch back to Cairo if OpenGL is not supported
+                if( GetGalCanvas()->GetBackend() == EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE )
+                {
+                    wxCommandEvent cairoEvt( wxEVT_MENU, ID_MENU_CANVAS_CAIRO );
+                    GetEventHandler()->ProcessEvent( cairoEvt );
+                }
             }
-            else
+            else if( canvasType == EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE )
             {
                 // If they were on legacy, switch them to Cairo
-
-                if( canvasType == EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE )
-                {
-                    wxCommandEvent evt( wxEVT_MENU, ID_MENU_CANVAS_CAIRO );
-                    auto handler = GetEventHandler();
-                    handler->ProcessEvent( evt );
-                }
+                wxCommandEvent evt( wxEVT_MENU, ID_MENU_CANVAS_CAIRO );
+                GetEventHandler()->ProcessEvent( evt );
             }
         }
 
         m_firstRunDialogSetting = 1;
         SaveSettings( config() );
     }
-
-    // Canvas may have been updated by the dialog
-    canvasType = loadCanvasTypeSetting();
-
-    if( canvasType != EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE )
+    else
     {
-        if( GetGalCanvas()->SwitchBackend( canvasType ) )
-            UseGalCanvas( true );
+        if( canvasType != EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE )
+        {
+            if( GetGalCanvas()->SwitchBackend( canvasType ) )
+                UseGalCanvas( true );
+        }
     }
 
     enableGALSpecificMenus();
 
     // disable Export STEP item if kicad2step does not exist
     wxString strK2S = Pgm().GetExecutablePath();
-    #ifdef __WXMAC__
-        strK2S += "Contents/MacOS/";
-    #endif
+
+#ifdef __WXMAC__
+    if (strK2S.find( "pcbnew.app" ) != wxNOT_FOUND )
+    {
+        // On macOS, we have standalone applications inside the main bundle, so we handle that here:
+        strK2S += "../../";
+    }
+
+    strK2S += "Contents/MacOS/";
+#endif
+
     wxFileName appK2S( strK2S, "kicad2step" );
 
     #ifdef _WIN32
@@ -537,7 +542,6 @@ PCB_EDIT_FRAME::PCB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
 PCB_EDIT_FRAME::~PCB_EDIT_FRAME()
 {
     delete m_drc;
-    delete m_plotDialog;
 }
 
 
@@ -571,7 +575,7 @@ void PCB_EDIT_FRAME::SetPageSettings( const PAGE_INFO& aPageSettings )
 
         // Prepare worksheet template
         KIGFX::WORKSHEET_VIEWITEM* worksheet;
-        worksheet = new KIGFX::WORKSHEET_VIEWITEM( &m_Pcb->GetPageSettings(),
+        worksheet = new KIGFX::WORKSHEET_VIEWITEM( IU_PER_MILS ,&m_Pcb->GetPageSettings(),
                                                    &m_Pcb->GetTitleBlock() );
         worksheet->SetSheetName( std::string( GetScreenDesc().mb_str() ) );
 
@@ -1185,10 +1189,15 @@ void PCB_EDIT_FRAME::OnSwitchCanvas( wxCommandEvent& aEvent )
 
 void PCB_EDIT_FRAME::ToPlotter( wxCommandEvent& event )
 {
-    if( !m_plotDialog )
-        m_plotDialog = new DIALOG_PLOT( this );
+    // Force rebuild the dialog if currently open because the old dialog can be not up to date
+    // if the board (or units) has changed
+    wxWindow* dlg =  wxWindow::FindWindowByName( DLG_WINDOW_NAME );
 
-    m_plotDialog->Show( true );
+    if( dlg )
+        dlg->Destroy();
+
+    dlg = new DIALOG_PLOT( this );
+    dlg->Show( true );
 }
 
 

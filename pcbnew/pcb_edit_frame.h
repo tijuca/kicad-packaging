@@ -90,8 +90,6 @@ protected:
 
     DRC* m_drc;                                 ///< the DRC controller, see drc.cpp
 
-    DIALOG_PLOT*      m_plotDialog;
-
     PARAM_CFG_ARRAY   m_configParams;         ///< List of Pcbnew configuration settings.
 
     wxString          m_lastNetListRead;        ///< Last net list read with relative path.
@@ -1072,12 +1070,6 @@ public:
      * specification.
      */
     void ImportSpecctraDesign( wxCommandEvent& event );
-
-    /**
-     * Function Access_to_External_Tool
-     * Run an external tool (like freeroute )
-     */
-    void Access_to_External_Tool( wxCommandEvent& event );
 
     /**
      * Function ListAndSelectModuleName

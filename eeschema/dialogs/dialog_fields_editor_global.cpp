@@ -37,6 +37,7 @@
 
 #include <sch_edit_frame.h>
 #include <sch_reference_list.h>
+#include <kiface_i.h>
 
 #include "dialog_fields_editor_global.h"
 
@@ -85,7 +86,9 @@ class FIELDS_EDITOR_GRID_DATA_MODEL : public wxGridTableBase
 protected:
     // The data model is fundamentally m_componentRefs X m_fieldNames.
 
+    SCH_EDIT_FRAME*       m_frame;
     SCH_REFERENCE_LIST    m_componentRefs;
+    bool                  m_edited;
     std::vector<wxString> m_fieldNames;
     int                   m_sortColumn;
     bool                  m_sortAscending;
@@ -106,9 +109,12 @@ protected:
 
 
 public:
-    FIELDS_EDITOR_GRID_DATA_MODEL( SCH_REFERENCE_LIST& aComponentList )
+    FIELDS_EDITOR_GRID_DATA_MODEL( SCH_EDIT_FRAME* aFrame, SCH_REFERENCE_LIST& aComponentList ) :
+            m_frame( aFrame ),
+            m_componentRefs( aComponentList ),
+            m_edited( false ),
+            m_sortAscending( false )
     {
-        m_componentRefs = aComponentList;
         m_componentRefs.SplitReferences();
     }
 
@@ -122,7 +128,7 @@ public:
             SCH_COMPONENT* comp = m_componentRefs[ i ].GetComp();
             timestamp_t compID = comp->GetTimeStamp();
 
-            m_dataStore[ compID ][ aFieldName ] = comp->GetFieldText( aFieldName );
+            m_dataStore[ compID ][ aFieldName ] = comp->GetFieldText( aFieldName, m_frame );
         }
     }
 
@@ -166,6 +172,11 @@ public:
             return GetValue( m_rows[ aRow ], aCol );
     }
 
+    std::vector<SCH_REFERENCE> GetRowReferences( int aRow )
+    {
+        wxCHECK( aRow < (int)m_rows.size(), std::vector<SCH_REFERENCE>() );
+        return m_rows[ aRow ].m_Refs;
+    }
 
     wxString GetValue( DATA_MODEL_ROW& group, int aCol )
     {
@@ -228,6 +239,8 @@ public:
 
         for( const auto& ref : rowGroup.m_Refs )
             m_dataStore[ ref.GetComp()->GetTimeStamp() ][ fieldName ] = aValue;
+
+        m_edited = true;
     }
 
 
@@ -480,34 +493,44 @@ public:
     }
 
 
-    void ApplyData( SCH_EDIT_FRAME* aParent )
+    void ApplyData()
     {
         for( unsigned i = 0; i < m_componentRefs.GetCount(); ++i )
         {
             SCH_COMPONENT* comp = m_componentRefs[ i ].GetComp();
 
-            aParent->SetCurrentSheet( m_componentRefs[ i ].GetSheetPath() );
-            aParent->SaveCopyInUndoList( comp, UR_CHANGED, true );
+            m_frame->SetCurrentSheet( m_componentRefs[ i ].GetSheetPath() );
+            m_frame->SaveCopyInUndoList( comp, UR_CHANGED, true );
 
             std::map<wxString, wxString>& fieldStore = m_dataStore[ comp->GetTimeStamp() ];
 
-            for( std::pair<wxString, wxString> fieldData : fieldStore )
+            for( std::pair<wxString, wxString> srcData : fieldStore )
             {
-                wxString   fieldName = fieldData.first;
-                SCH_FIELD* field = comp->FindField( fieldName );
+                wxString   srcName = srcData.first;
+                wxString   srcValue = srcData.second;
+                SCH_FIELD* destField = comp->FindField( srcName );
 
-                if( !field )
-                    field = comp->AddField( SCH_FIELD( wxPoint( 0, 0 ), -1, comp, fieldName ) );
+                if( !destField && !srcValue.IsEmpty() )
+                    destField = comp->AddField( SCH_FIELD( wxPoint( 0, 0 ), -1, comp, srcName ) );
 
-                field->SetText( fieldData.second );
+                if( destField )
+                    destField->SetText( srcValue );
             }
         }
+
+        m_edited = false;
+    }
+
+    bool IsEdited()
+    {
+        return m_edited;
     }
 };
 
 
 DIALOG_FIELDS_EDITOR_GLOBAL::DIALOG_FIELDS_EDITOR_GLOBAL( SCH_EDIT_FRAME* parent ) :
         DIALOG_FIELDS_EDITOR_GLOBAL_BASE( parent ),
+        m_config( Kiface().KifaceSettings() ),
         m_parent( parent )
 {
     // Get all components from the list of schematic sheets
@@ -534,7 +557,7 @@ DIALOG_FIELDS_EDITOR_GLOBAL::DIALOG_FIELDS_EDITOR_GLOBAL( SCH_EDIT_FRAME* parent
     // expander buttons... but it doesn't.  Fix by forcing the indent to 0.
     m_fieldsCtrl->SetIndent( 0 );
 
-    m_dataModel = new FIELDS_EDITOR_GRID_DATA_MODEL( m_componentRefs );
+    m_dataModel = new FIELDS_EDITOR_GRID_DATA_MODEL( m_parent, m_componentRefs );
 
     LoadFieldNames();   // loads rows into m_fieldsCtrl and columns into m_dataModel
 
@@ -556,6 +579,15 @@ DIALOG_FIELDS_EDITOR_GLOBAL::DIALOG_FIELDS_EDITOR_GLOBAL( SCH_EDIT_FRAME* parent
 
     m_grid->UseNativeColHeader( true );
     m_grid->SetTable( m_dataModel, true );
+
+    // sync m_grid's column visiblities to Show checkboxes in m_fieldsCtrl
+    for( int i = 0; i < m_fieldsCtrl->GetItemCount(); ++i )
+    {
+        if( m_fieldsCtrl->GetToggleValue( i, 1 ) )
+            m_grid->ShowCol( i );
+        else
+            m_grid->HideCol( i );
+    }
 
     // add Cut, Copy, and Paste to wxGrid
     m_grid->PushEventHandler( new GRID_TRICKS( m_grid ) );
@@ -614,7 +646,7 @@ bool DIALOG_FIELDS_EDITOR_GLOBAL::TransferDataFromWindow()
 
     SCH_SHEET_PATH currentSheet = m_parent->GetCurrentSheet();
 
-    m_dataModel->ApplyData( m_parent );
+    m_dataModel->ApplyData();
     m_parent->OnModify();
 
     // Reset the view to where we left the user
@@ -625,18 +657,21 @@ bool DIALOG_FIELDS_EDITOR_GLOBAL::TransferDataFromWindow()
 }
 
 
-void DIALOG_FIELDS_EDITOR_GLOBAL::AddField( const wxString& aFieldName,
+void DIALOG_FIELDS_EDITOR_GLOBAL::AddField( const wxString& aName,
                                             bool defaultShow, bool defaultSortBy )
 {
-    m_dataModel->AddColumn( aFieldName );
+    m_dataModel->AddColumn( aName );
 
-    wxVector<wxVariant> fieldsCtrlDataLine;
+    wxVector<wxVariant> fieldsCtrlRow;
 
-    fieldsCtrlDataLine.push_back( wxVariant( aFieldName ) );
-    fieldsCtrlDataLine.push_back( wxVariant( defaultShow ) );
-    fieldsCtrlDataLine.push_back( wxVariant( defaultSortBy ) );
+    m_config->Read("SymbolFieldEditor/Show/" + aName, &defaultShow);
+    m_config->Read("SymbolFieldEditor/GroupBy/" + aName, &defaultSortBy);
 
-    m_fieldsCtrl->AppendItem( fieldsCtrlDataLine );
+    fieldsCtrlRow.push_back( wxVariant( aName ) );
+    fieldsCtrlRow.push_back( wxVariant( defaultShow ) );
+    fieldsCtrlRow.push_back( wxVariant( defaultSortBy ) );
+
+    m_fieldsCtrl->AppendItem( fieldsCtrlRow );
 }
 
 
@@ -656,13 +691,16 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::LoadFieldNames()
             userFieldNames.insert( comp->GetField( j )->GetName() );
     }
 
-    AddField( _( "Reference" ),   true,  true  );
-    AddField( _( "Value" ),       true,  true  );
-    AddField( _( "Footprint" ),   true,  true  );
-    AddField( _( "Datasheet" ),   true,  false );
+    AddField( _( "Reference" ), true, true  );
+    AddField( _( "Value" ),     true, true  );
+    AddField( _( "Footprint" ), true, true  );
+    AddField( _( "Datasheet" ), true, false );
 
     for( auto fieldName : userFieldNames )
-        AddField( fieldName,      true,  false );
+        AddField( fieldName, true, false );
+
+    for( auto templateFieldName : m_parent->GetTemplateFieldNames() )
+        AddField( templateFieldName.m_Name, false, false );
 }
 
 
@@ -679,17 +717,28 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::OnColumnItemToggled( wxDataViewEvent& event )
         break;
 
     case SHOW_FIELD_COLUMN:
-        if( m_fieldsCtrl->GetToggleValue( row, col ) )
+    {
+        bool value = m_fieldsCtrl->GetToggleValue( row, col );
+        wxString fieldName = m_fieldsCtrl->GetTextValue( row, FIELD_NAME_COLUMN );
+        m_config->Write( "SymbolFieldEditor/Show/" + fieldName, value );
+
+        if( value )
             m_grid->ShowCol( row );
         else
             m_grid->HideCol( row );     // grid's columns map to fieldsCtrl's rows
         break;
+    }
 
     case GROUP_BY_COLUMN:
+    {
+        bool value = m_fieldsCtrl->GetToggleValue( row, col );
+        wxString fieldName = m_fieldsCtrl->GetTextValue( row, FIELD_NAME_COLUMN );
+        m_config->Write( "SymbolFieldEditor/GroupBy/" + fieldName, value );
         m_dataModel->RebuildRows( m_groupComponentsBox, m_fieldsCtrl );
         m_dataModel->Sort( m_grid->GetSortingColumn(), m_grid->IsSortOrderAscending() );
         m_grid->ForceRefresh();
         break;
+    }
     }
 }
 
@@ -737,9 +786,21 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::OnRegroupComponents( wxCommandEvent& event )
 void DIALOG_FIELDS_EDITOR_GLOBAL::OnTableCellClick( wxGridEvent& event )
 {
     if( event.GetCol() == REFERENCE )
-        m_dataModel->ExpandCollapseRow( event.GetRow());
+    {
+        m_dataModel->ExpandCollapseRow( event.GetRow() );
+        std::vector<SCH_REFERENCE> refs = m_dataModel->GetRowReferences( event.GetRow() );
+
+        // Focus eeschema view on the component selected in the dialog
+        if( refs.size() == 1 )
+        {
+            m_parent->FindComponentAndItem( refs[0].GetRef() + refs[0].GetRefNumber(),
+                                            true, FIND_COMPONENT_ONLY, wxEmptyString, false );
+        }
+    }
     else
+    {
         event.Skip();
+    }
 }
 
 
@@ -773,5 +834,41 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::OnSaveAndContinue( wxCommandEvent& aEvent )
     {
         wxCommandEvent dummyEvent;
         m_parent->OnSaveProject( dummyEvent );
+    }
+}
+
+
+void DIALOG_FIELDS_EDITOR_GLOBAL::OnCancel( wxCommandEvent& event )
+{
+    Close();
+}
+
+
+void DIALOG_FIELDS_EDITOR_GLOBAL::OnClose( wxCloseEvent& event )
+{
+    // Commit any pending in-place edits and close the editor
+    m_grid->DisableCellEditControl();
+
+    if( m_dataModel->IsEdited() )
+    {
+        switch( DisplayExitDialog( this, wxEmptyString ) )
+        {
+        case wxID_CANCEL:
+            event.Veto();
+            break;
+
+        case wxID_YES:
+            if( TransferDataFromWindow() )
+                event.Skip();
+            break;
+
+        case wxID_NO:
+            event.Skip();
+            break;
+        }
+    }
+    else
+    {
+        event.Skip();
     }
 }

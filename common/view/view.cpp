@@ -207,7 +207,7 @@ private:
             {
                 new_layer = aReorderMap.at( orig_layer );
             }
-            catch( std::out_of_range ) {}
+            catch( const std::out_of_range& ) {}
 
             m_groups[i].first = new_layer;
         }
@@ -283,7 +283,7 @@ void VIEW::OnDestroy( VIEW_ITEM* aItem )
 VIEW::VIEW( bool aIsDynamic ) :
     m_enableOrderModifier( true ),
     m_scale( 4.0 ),
-    m_minScale( 4.0 ), m_maxScale( 15000 ),
+    m_minScale( 4.0 ), m_maxScale( 75000.0 ),
     m_mirrorX( false ), m_mirrorY( false ),
     m_painter( NULL ),
     m_gal( NULL ),
@@ -665,7 +665,7 @@ void VIEW::ReorderLayerData( std::unordered_map<int, int> aReorderMap )
         {
             new_idx = aReorderMap.at( orig_idx );
         }
-        catch( std::out_of_range )
+        catch( const std::out_of_range& )
         {
             new_idx = orig_idx;
         }

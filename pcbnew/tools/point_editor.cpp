@@ -165,11 +165,6 @@ public:
                     points->AddPoint( segment->GetCenter() );
                     points->AddPoint( segment->GetEnd() );
 
-                    // Set constraints
-                    // Circle end is on the horizontal axis with the center
-                    points->Point( CIRC_END ).SetConstraint(
-                            new EC_HORIZONTAL( points->Point( CIRC_END ),
-                                               points->Point( CIRC_CENTER ) ) );
                     break;
 
                 case S_POLYGON:
@@ -737,10 +732,9 @@ void POINT_EDITOR::setAltConstraint( bool aEnabled )
     {
         EDIT_LINE* line = dynamic_cast<EDIT_LINE*>( m_editedPoint );
 
-        if( line )
+        if( line && m_editPoints->GetParent()->Type() == PCB_ZONE_AREA_T )
         {
-            if( m_editPoints->GetParent()->Type() == PCB_ZONE_AREA_T )
-                m_altConstraint.reset( (EDIT_CONSTRAINT<EDIT_POINT>*)( new EC_CONVERGING( *line, *m_editPoints ) ) );
+            m_altConstraint.reset( (EDIT_CONSTRAINT<EDIT_POINT>*)( new EC_CONVERGING( *line, *m_editPoints ) ) );
         }
         else
         {

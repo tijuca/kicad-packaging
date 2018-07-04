@@ -54,6 +54,7 @@
 
 #include <wx/tokenzr.h>
 #include <iostream>
+#include <cctype>
 
 #include <eeschema_id.h>    // for MAX_UNIT_COUNT_PER_PACKAGE definition
 
@@ -731,7 +732,7 @@ bool SCH_COMPONENT::IsReferenceStringValid( const wxString& aReferenceString )
     bool ok = true;
 
     // Try to unannotate this reference
-    while( !text.IsEmpty() && ( text.Last() == '?' || isdigit( text.Last() ) ) )
+    while( !text.IsEmpty() && ( text.Last() == '?' || std::isdigit( text.Last().GetValue() ) ) )
         text.RemoveLast();
 
     if( text.IsEmpty() )
@@ -794,7 +795,7 @@ void SCH_COMPONENT::SetRef( const SCH_SHEET_PATH* sheet, const wxString& ref )
 
     if( IsReferenceStringValid( prefix ) )
     {
-        while( prefix.Last() == '?' || isdigit( prefix.Last() ) )
+        while( prefix.Last() == '?' || std::isdigit( prefix.Last().GetValue() ) )
             prefix.RemoveLast();
     }
     else
@@ -902,35 +903,12 @@ SCH_FIELD* SCH_COMPONENT::GetField( int aFieldNdx ) const
 }
 
 
-wxString SCH_COMPONENT::GetFieldText( const wxString& aFieldName, bool aIncludeDefaultFields ) const
+wxString SCH_COMPONENT::GetFieldText( const wxString& aFieldName, SCH_EDIT_FRAME* aFrame ) const
 {
-    // Field name for comparison
-    wxString cmpFieldName;
-
-    if( aIncludeDefaultFields )
+    for( unsigned int ii = 0; ii < m_Fields.size(); ii++ )
     {
-
-        // Default field names
-        for ( unsigned int i=0; i<MANDATORY_FIELDS; i++)
-        {
-            cmpFieldName = TEMPLATE_FIELDNAME::GetDefaultFieldName( i );
-
-            if( cmpFieldName.Cmp( aFieldName ) == 0 )
-            {
-                return m_Fields[i].GetText();
-            }
-        }
-    }
-
-    // Search custom fields
-    for( unsigned int ii=MANDATORY_FIELDS; ii<m_Fields.size(); ii++ )
-    {
-        cmpFieldName = m_Fields[ii].GetName();
-
-        if( cmpFieldName.Cmp( aFieldName ) == 0 )
-        {
+        if( aFieldName == m_Fields[ii].GetName() )
             return m_Fields[ii].GetText();
-        }
     }
 
     return wxEmptyString;
@@ -1085,68 +1063,42 @@ void SCH_COMPONENT::SwapData( SCH_ITEM* aItem )
 
 void SCH_COMPONENT::ClearAnnotation( SCH_SHEET_PATH* aSheetPath )
 {
-    bool           keepMulti = false;
     wxArrayString  reference_fields;
-
     static const wxChar separators[] = wxT( " " );
-
     PART_SPTR part = m_part.lock();
-
-    if( part && part->UnitsLocked() )
-        keepMulti = true;
 
     // Build a reference with no annotation,
     // i.e. a reference ended by only one '?'
     wxString defRef = m_prefix;
 
-    if( IsReferenceStringValid( defRef ) )
-    {
-        while( defRef.Last() == '?' )
-            defRef.RemoveLast();
-    }
-    else
+    if( !IsReferenceStringValid( defRef ) )
     {   // This is a malformed reference: reinit this reference
         m_prefix = defRef = wxT("U");        // Set to default ref prefix
     }
 
+    while( defRef.Last() == '?' )
+        defRef.RemoveLast();
+
     defRef.Append( wxT( "?" ) );
 
-    wxString multi = wxT( "1" );
+    wxString path;
 
-    // For components with units locked,
-    // we cannot remove all annotations: part selection must be kept
-    // For all components: if aSheetPath is not NULL,
-    // remove annotation only for the given path
-    if( keepMulti || aSheetPath )
+    if( aSheetPath )
+        path = GetPath( aSheetPath );
+
+    for( unsigned int ii = 0; ii < m_PathsAndReferences.GetCount(); ii++ )
     {
-        wxString NewHref;
-        wxString path;
+        // Break hierarchical reference in path, ref and multi selection:
+        reference_fields = wxStringTokenize( m_PathsAndReferences[ii], separators );
 
-        if( aSheetPath )
-            path = GetPath( aSheetPath );
-
-        for( unsigned int ii = 0; ii < m_PathsAndReferences.GetCount(); ii++ )
+        // For all components: if aSheetPath is not NULL,
+        // remove annotation only for the given path
+        if( aSheetPath == NULL || reference_fields[0].Cmp( path ) == 0 )
         {
-            // Break hierarchical reference in path, ref and multi selection:
-            reference_fields = wxStringTokenize( m_PathsAndReferences[ii], separators );
-
-            if( aSheetPath == NULL || reference_fields[0].Cmp( path ) == 0 )
-            {
-                if( keepMulti )  // Get and keep part selection
-                    multi = reference_fields[2];
-
-                NewHref = reference_fields[0];
-                NewHref << wxT( " " ) << defRef << wxT( " " ) << multi;
-                m_PathsAndReferences[ii] = NewHref;
-            }
+            wxString NewHref = reference_fields[0];
+            NewHref << wxT( " " ) << defRef << wxT( " " ) << reference_fields[2];
+            m_PathsAndReferences[ii] = NewHref;
         }
-    }
-    else
-    {
-        // Clear reference strings, but does not free memory because a new annotation
-        // will reuse it
-        m_PathsAndReferences.Empty();
-        m_unit = 1;
     }
 
     // These 2 changes do not work in complex hierarchy.
