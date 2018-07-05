@@ -2913,8 +2913,6 @@ License: GPL-3+
 
 Files: pcbnew/dialogs/wizard_3DShape_Libs_downloader.cpp
  pcbnew/dialogs/wizard_3DShape_Libs_downloader.h
- pcbnew/dialogs/wizard_add_fplib.cpp
- pcbnew/dialogs/wizard_add_fplib.h
 Copyright: 2015, CERN
  2014, 2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
  1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
