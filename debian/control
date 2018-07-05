@@ -57,6 +57,7 @@ Build-Depends:
  source-highlight,
  swig,
  texlive-fonts-extra,
+ texlive-lang-chinese,
  texlive-lang-cyrillic,
  texlive-lang-english,
  texlive-lang-european,
