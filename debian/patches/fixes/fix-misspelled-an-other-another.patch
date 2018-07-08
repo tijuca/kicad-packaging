@@ -1,0 +1,58 @@
+From: Carsten Schoenert <c.schoenert@t-online.de>
+Date: Sun, 8 Jul 2018 13:21:29 +0200
+Subject: fix misspelled 'an other' -> 'another'
+
+---
+ pcbnew/editrack-part2.cpp     | 2 +-
+ pcbnew/menubar_pcb_editor.cpp | 2 +-
+ pcbnew/pcb_base_frame.cpp     | 4 ++--
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/pcbnew/editrack-part2.cpp b/pcbnew/editrack-part2.cpp
+index 84208c1..714e6f8 100644
+--- a/pcbnew/editrack-part2.cpp
++++ b/pcbnew/editrack-part2.cpp
+@@ -270,7 +270,7 @@ int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
+     // is fully inside a pad, MarkTrace does not find correctly the full trace,
+     // because the entire track is the set of segments between 2 nodes
+     // (pads or point connecting more than 2 items)
+-    // so use an other (better) starting segment in this case
++    // so use another (better) starting segment in this case
+     TRACK* track_segment = aNewTrack;
+ 
+     for( int ii = 0; ii < aNewTrackSegmentsCount; ii++ )
+diff --git a/pcbnew/menubar_pcb_editor.cpp b/pcbnew/menubar_pcb_editor.cpp
+index 2e7fedc..3c9c855 100644
+--- a/pcbnew/menubar_pcb_editor.cpp
++++ b/pcbnew/menubar_pcb_editor.cpp
+@@ -556,7 +556,7 @@ void prepareEditMenu( wxMenu* aParentMenu, bool aUseGal )
+ 
+     AddMenuItem( aParentMenu, ID_MENU_PCB_SWAP_LAYERS,
+                  _( "&Move and Swap Layers..." ),
+-                 _( "Move tracks or drawings from a layer to an other layer" ),
++                 _( "Move tracks or drawings from a layer to another layer" ),
+                  KiBitmap( swap_layer_xpm ) );
+ 
+     aParentMenu->AppendSeparator();
+diff --git a/pcbnew/pcb_base_frame.cpp b/pcbnew/pcb_base_frame.cpp
+index bf697fa..237c515 100644
+--- a/pcbnew/pcb_base_frame.cpp
++++ b/pcbnew/pcb_base_frame.cpp
+@@ -145,7 +145,7 @@ bool PCB_BASE_FRAME::Update3DView( const wxString* aTitle )
+     if( draw3DFrame == NULL )
+         return false;
+ 
+-    // Ensure the viewer was created by me, and not by an other editor:
++    // Ensure the viewer was created by me, and not by another editor:
+     PCB_BASE_FRAME* owner = draw3DFrame->Parent();
+ 
+     // if I am not the owner, do not use the current viewer instance
+@@ -434,7 +434,7 @@ bool PCB_BASE_FRAME::CreateAndShow3D_Frame( bool aForceRecreateIfNotOwner )
+ {
+     EDA_3D_VIEWER* draw3DFrame = Get3DViewerFrame();
+ 
+-    // Ensure the viewer was created by me, and not by an other editor:
++    // Ensure the viewer was created by me, and not by another editor:
+     PCB_BASE_FRAME* owner = draw3DFrame ? draw3DFrame->Parent() : nullptr;
+ 
+     // if I am not the owner, do not use the current viewer instance
