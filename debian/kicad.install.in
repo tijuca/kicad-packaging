@@ -21,6 +21,9 @@ usr/lib/python2.7/dist-packages
 usr/share/applications
 usr/share/icons
 usr/share/kicad/plugins
+# installing the following file into the /u/s/d/kicad and symlink it to
+# /u/s/k/plugins via kicad.links sequencer
+usr/share/kicad/plugins/README-bom.txt usr/share/doc/kicad
 usr/share/kicad/scripting
 usr/share/kicad/template
 usr/share/locale
