@@ -16,6 +16,7 @@ usr/bin/kicad
 usr/bin/pcb_calculator
 usr/bin/pcbnew
 usr/bin/pl_editor
+usr/lib/@DEB_HOST_MULTIARCH@/kicad/plugins/3d
 usr/lib/@DEB_HOST_MULTIARCH@/libkicad*
 usr/lib/python2.7/dist-packages
 usr/share/applications
