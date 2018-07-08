@@ -201,13 +201,12 @@ Description: Kicad help files (English)
   * Eeschema -schematic capture editor
   * GerbView - Gerber file viewer (RS 274 X format)
   * GSIK - Getting Started in KiCad
+  * GUI Translation - HowTo Help to do GUI translation
   * IDF Exporter - Export tool for IDFv3 boards and libraries
   * KiCad - The main project editor
   * Pcbnew - The printed circuit board software tool
   * PlEditor - The layout editor for custom title block
- .
- You will also find a GUI translation HOWTO inside this package if you want to
- help with translation of the KiCad GUI into new or existing languages.
+  * Plugins - Introduction to the KiCad plugin system
 
 Package: kicad-doc-es
 Section: doc
