@@ -15,6 +15,7 @@ Files: /usr/share/doc/kicad/help/de/cvpcb.pdf.gz
        /usr/share/doc/kicad/help/de/eeschema.pdf.gz
        /usr/share/doc/kicad/help/de/gerbview.pdf.gz
        /usr/share/doc/kicad/help/de/getting_started_in_kicad.pdf.gz
+       /usr/share/doc/kicad/help/de/gui_translation_howto.pdf.gz
        /usr/share/doc/kicad/help/de/idf_exporter.pdf.gz
        /usr/share/doc/kicad/help/de/kicad.pdf.gz
        /usr/share/doc/kicad/help/de/pcbnew.pdf.gz
