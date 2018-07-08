@@ -84,7 +84,7 @@ Depends:
  ${shlibs:Depends},
 Suggests:
  extra-xdg-menus,
- kicad-doc-ca | kicad-doc-de | kicad-doc-en | kicad-doc-es | kicad-doc-fr | kicad-doc-it | kicad-doc-ja | kicad-doc-nl | kicad-doc-pl | kicad-doc-ru,
+ kicad-doc-ca | kicad-doc-de | kicad-doc-en | kicad-doc-es | kicad-doc-fr | kicad-doc-id | kicad-doc-it | kicad-doc-ja | kicad-doc-nl | kicad-doc-pl | kicad-doc-ru,
  kicad-packages3d,
 Recommends:
  kicad-libraries,
@@ -242,6 +242,20 @@ Description: Kicad help files (French)
   * KiCad - The main project editor
   * Pcbnew - The printed circuit board software tool
   * PlEditor - The layout editor for custom title block
+
+Package: kicad-doc-id
+Section: doc
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ ${misc:Depends},
+Description: Kicad help files (Indonesian)
+ This package provides various documentation files for KiCad in German, like
+ the EPUB and the PDF files and also the OnLine HTML documentation for:
+ .
+  * Eeschema -schematic capture editor
+  * GSIK - Getting Started in KiCad
+  * KiCad - The main project editor
 
 Package: kicad-doc-it
 Section: doc
