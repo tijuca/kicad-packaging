@@ -1,0 +1,4 @@
+source: spelling-error-in-patch-description debian/patches/fixes/fix-misspelled-Toogle-Toggle.patch Toogle Toggle
+source: spelling-error-in-patch-description debian/patches/fixes/fix-misspelled-allows-to-allows-one-to.patch allows to allows one to
+source: spelling-error-in-patch-description debian/patches/fixes/fix-misspelled-allow-to-allow-one-to.patch allow to allow one to
+source: spelling-error-in-patch-description debian/patches/fixes/fix-misspelled-an-other-another.patch an other another
