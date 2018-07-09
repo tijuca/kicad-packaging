@@ -1,3 +1,35 @@
+kicad (5.0.0~rc3+dfsg1-2) unstable; urgency=medium
+
+  * [2c5ba31] d/control: adjust kicad-doc-de description
+  * [54b0227] d/kicad-doc-de.doc-base: add new installed files
+    + Refresh the entries about the German documentation files within the
+      doc-base sequencer and also within the package description.
+  * [35b0f9b] d/control: adjust kicad-doc-en description
+    + Dito for the English documentation related files.
+  * [aa6d6bb] d/control: adjust kicad-doc-ja description
+  * [b90d73e] d/kicad-doc-ja.doc-base: add new installed files
+    + And also for Japanese.
+  * [8f20697] d/control: adjust kicad-doc-ru description
+  * [a397cf7] d/kicad-doc-ru.doc-base: add new installed files
+    + Also the Russian files did get some updates.
+  * [d8c80e4] Adding entries and dh sequencer for Indonesian docu
+    + The Indonesian documentation got extended and is now re-added.
+  * [6f883c7] Adding entries and dh sequencer for Chinese docu
+    + The Chinese documentation is new and added by this commit.
+  * [e43e930] rebuild patch queue from patch-queue branch
+    + Adding some patches about fixing spelling issues.
+  * [c37d816] lintian-overrides: ignore some patch queue patches
+  * [5fc6dfb] link README-bom.txt from /u/s/d/kicad
+    + The Readme file about the *.txt, *.py and *.xsl files for the plugins
+      is now placed within the /u/s/d/kicad folder but also linked within the
+      plugin folder.
+  * [4fddc71] d/kicad.install.in: fix install of 3d plugin
+    + We dropped the 3D plugin installation by the last upload and 3D models
+      aren't visible by this anymore. Corrected with this commit.
+    (Closes: #903291)
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Mon, 09 Jul 2018 16:46:59 +0200
+
 kicad (5.0.0~rc3+dfsg1-1) unstable; urgency=medium
 
   * [2500209] debian/watch: catch also RC versions correctly
