@@ -28,5 +28,6 @@ usr/share/kicad/plugins/README-bom.txt usr/share/doc/kicad
 usr/share/kicad/scripting
 usr/share/kicad/template
 usr/share/locale
+usr/share/appdata/kicad.appdata.xml usr/share/metainfo
 usr/share/mime
 debian/man/*                     usr/share/man/man1
