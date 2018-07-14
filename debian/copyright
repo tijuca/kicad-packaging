@@ -3526,6 +3526,11 @@ Files: potrace/*
 Copyright: 2001-2017, Peter Selinger.
 License: GPL-1
 
+Files: resources/linux/appdata/kicad.appdata.xml
+Copyright: 2016-2017 Lubomir Rintel <lkundrak@v3.sk>
+ 2016-2017 KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+ or CC0-1.0
+
 Files: qa/common/mocks.cpp
 Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
 License: GPL-2+
@@ -4728,6 +4733,10 @@ License: CC-BY-SA-3.0
  trademark usage guidelines, as may be published on its website or otherwise
  made available upon request from time to time. For the avoidance of doubt,
  this trademark restriction does not form part of the License.
+
+License: CC0-1.0
+ On Debian systems, the complete text of the Creative Common Zero
+ License can be found in the file /usr/share/common-licenses/CC0-1.0'.
 
 License: Expat
  The MIT License
