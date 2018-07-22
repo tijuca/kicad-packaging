@@ -49,7 +49,6 @@ Build-Depends:
  libwxgtk3.0-dev,
  libxml2-utils,
  lmodern,
- pandoc,
  pkg-config,
  po4a,
  python-all,
