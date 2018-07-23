@@ -1,3 +1,29 @@
+KiCad 5, Changes to the global Symbol and Footprint Table
+---------------------------------------------------------
+
+The KiCad application stores global settings for the schematic symbols in the
+file
+
+ $(HOME)/.config/kicad/sym-lib-table
+
+and for the footprints within
+
+ $(HOME)/.config/kicad/fp-lib-table
+
+Both default settings have been changed in KiCad 5 due the chnaged names of the
+libraries, unfortunately the kicad application isn't doing any automatic
+migration. You need to make the adjustments by yourself within the editor for
+the 'Symbol Librarries' (in Eeschema within the menu 'Preferences - Manage
+Symbol Libraries...') and the editor for the 'Footprint Libraries" (in
+Footprint Editor in the menu 'Preferences - Manage Footprint Libraries...')
+
+Note:
+It's mostly easier to backup the old files an re-adjust just your local needs
+after a restart of KiCad. KiCad will recreate new default files if it can't
+find any of the files in the .config folder.
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Mo, 23 Apr 2018 15:00:00 +0800
+
 KiCad 5, GTK+2 vs GTK+3 Restrictions
 ------------------------------------
 
