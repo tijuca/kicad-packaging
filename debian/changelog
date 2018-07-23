@@ -1,3 +1,28 @@
+kicad (5.0.0+dfsg1-1) unstable; urgency=medium
+
+  * [ebb652c] New upstream version 5.0.0+dfsg1
+    (Closes: #903992)
+  * [92686c6] rebuild patch queue from patch-queue branch
+    + removed patches:
+      fixes/fix-misspelled-Toogle-Toggle.patch
+      fixes/fix-misspelled-allow-to-allow-one-to.patch
+      fixes/fix-misspelled-allows-to-allows-one-to.patch
+      fixes/fix-misspelled-an-other-another.patch
+      All patches are applied upstream.
+  * [bc6a355] Revert "lintian-overrides: ignore some patch queue patches"
+    + The lintian override isn't needed anymore due the changed patch queue.
+  * [e900771] d/control: remove pandoc as B-D
+    + For building the documentation the pandoc package isn't needed anymore.
+  * [c1e20a2] d/README.Debian: extend some more thing for KiCad 5
+    + Adding some more information about the changes which are introduced by
+      the new KiCad major version.
+  * [d74a414] d/kicad.NEWS: adding a NEWS information for kicad
+    + Adding also a NEWS file for the kicad package so user get a more visible
+      announcement about the changes that take also a notable effect on the user
+      side.
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Mon, 23 Jul 2018 16:09:57 +0800
+
 kicad (5.0.0~rc3+dfsg1-2) unstable; urgency=medium
 
   * [2c5ba31] d/control: adjust kicad-doc-de description
