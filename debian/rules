@@ -115,8 +115,6 @@ override_dh_auto_install: $(PREPROCESS_FILES:.in=)
 	done
 	# The kicad XPM icon comes with a to high resolution, fixing before install.
 	convert -resize '32x32!' $(CURDIR)/bitmaps_png/icons/icon_kicad.xpm $(CURDIR)/bitmaps_png/icons/kicad.xpm
-	# remove the cvpcb desktop, it's history
-	rm $(INSTDIR)/usr/share/applications/cvpcb.desktop
 
 override_dh_install:
 	dh_install
