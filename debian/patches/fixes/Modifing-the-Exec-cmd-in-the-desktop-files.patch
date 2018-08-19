@@ -5,15 +5,13 @@ Subject: Modifying the Exec cmd in the desktop-files
 Fixup the *.desktop files and add a file handler to the Exec key.
 https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s06.html
 ---
- resources/linux/mime/applications/bitmap2component.desktop |  4 +++-
- resources/linux/mime/applications/cvpcb.desktop            | 10 ++++++++++
- resources/linux/mime/applications/eeschema.desktop         |  1 +
- resources/linux/mime/applications/gerbview.desktop         |  5 +++--
- resources/linux/mime/applications/kicad.desktop            |  2 ++
- resources/linux/mime/applications/pcbcalculator.desktop    |  5 +++--
- resources/linux/mime/applications/pcbnew.desktop           |  1 +
- 7 files changed, 23 insertions(+), 5 deletions(-)
- create mode 100644 resources/linux/mime/applications/cvpcb.desktop
+ resources/linux/mime/applications/bitmap2component.desktop | 4 +++-
+ resources/linux/mime/applications/eeschema.desktop         | 1 +
+ resources/linux/mime/applications/gerbview.desktop         | 5 +++--
+ resources/linux/mime/applications/kicad.desktop            | 2 ++
+ resources/linux/mime/applications/pcbcalculator.desktop    | 5 +++--
+ resources/linux/mime/applications/pcbnew.desktop           | 1 +
+ 6 files changed, 13 insertions(+), 5 deletions(-)
 
 diff --git a/resources/linux/mime/applications/bitmap2component.desktop b/resources/linux/mime/applications/bitmap2component.desktop
 index 07da619..aa2b78c 100644
@@ -30,22 +28,6 @@ index 07da619..aa2b78c 100644
  Name=Bitmap to Component Converter
  GenericName=Bitmap to Component Converter
  GenericName[it]=Convertitore da bitmap a componente
-diff --git a/resources/linux/mime/applications/cvpcb.desktop b/resources/linux/mime/applications/cvpcb.desktop
-new file mode 100644
-index 0000000..eadbc64
---- /dev/null
-+++ b/resources/linux/mime/applications/cvpcb.desktop
-@@ -0,0 +1,10 @@
-+[Desktop Entry]
-+Categories=Development;Electronics;
-+Comment=Assign footprints to symbols (part of KiCad)
-+Exec=cvpcb %f
-+GenericName=EDA Suite
-+Icon=cvpcb
-+MimeType=application/x-cvpcb-project;
-+Name=CvPcb
-+Type=Application
-+Name[en_US]=CvPcb
 diff --git a/resources/linux/mime/applications/eeschema.desktop b/resources/linux/mime/applications/eeschema.desktop
 index 9f6cd18..845ecea 100644
 --- a/resources/linux/mime/applications/eeschema.desktop
