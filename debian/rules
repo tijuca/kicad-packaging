@@ -140,7 +140,6 @@ override_dh_strip-arch:
 override_dh_shlibdeps:
 	dh_shlibdeps -a -l $(CURDIR)/debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH) \
 		-Xlibkicad_3dsg \
-		-Xlibs3d_plugin_oce \
-		-Xlibs3d_plugin_vrml \
 		-Xlibs3d_plugin_idf \
+		-Xlibs3d_plugin_vrml \
 		-X_pcbnew.$(DEB_HOST_MULTIARCH)
