@@ -362,6 +362,7 @@ Description: Kicad help files (Chinese)
 Package: kicad-libraries
 Architecture: all
 Section: metapackages
+Multi-Arch: foreign
 Depends:
  kicad-footprints,
  kicad-symbols,
