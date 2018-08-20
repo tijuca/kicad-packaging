@@ -1,3 +1,29 @@
+kicad (5.0.0+dfsg1-2) unstable; urgency=medium
+
+  * [93df210] d/copyright: add info about appdata.xml
+  * [0d2d642] d/kicad.install.in: also install file kicad.appdata.xml
+  * [d93a835] rebuild patch queue from patch-queue branch (Closes: #905221)
+    + added patches:
+      fixes/Add-German-translations-entries-to-appdata.xml.patch
+      fixes/Adjust-RTree-default-floating-point-to-use-double.patch
+    + modified patch:
+      fixes/Modifing-the-Exec-cmd-in-the-desktop-files.patch
+  * [60bb5ea] d/rules: remove the deletion of cvpcb.desktop
+    + This desktop file was added by the patch queue but later deleted by
+      debian/rules. As the patch queue was cleaned on this we don't need the
+      deletion in debian/rules any more.
+  * [d3f7c9d] d/rules: drop libs3d_plugin_oce library from dh_shlibdeps
+    + Due the switch to the OCE suite we need to ensure dh_shlibdeps is also
+      taking account into the library libs3d_plugin_oce while collecting the
+      symbols from the needed libraries. Removing the libraries from the
+      exclusion.
+    (Closes: #905605)
+  * [9e823f6] d/control: mark kicad-libraries as Multi-Arch: foreign
+  * [9f7234e] d/control: increase Standards-Version to 4.2.0
+    + No further changes needed.
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Mon, 20 Aug 2018 18:44:29 +0200
+
 kicad (5.0.0+dfsg1-1) unstable; urgency=medium
 
   * [ebb652c] New upstream version 5.0.0+dfsg1
