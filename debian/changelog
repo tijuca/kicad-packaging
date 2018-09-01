@@ -1,3 +1,17 @@
+kicad (5.0.0+dfsg1-2~bpo9+1) stretch-backports; urgency=medium
+
+  * Rebuild for stretch-backports.
+  * [aefe43e] kicad: relax Depends on python-wxgtk3.0
+    + We need to remove the version from the depending package python-wxgtk3.0
+      in the binary package kicad. We have no need in Stretch to such a
+      versioned dependcy anyway.
+  * [5f233ec] kicad: switching SCRIPTING_WXPYTHON on
+    + Also related to the still existing GTK2 bindings in python-wxgtk3.0-dev
+      in Stretch we can turn on (again) the Python(2) scripting console foe
+      KiCad.
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Fri, 07 Sep 2018 17:13:01 +0200
+
 kicad (5.0.0+dfsg1-2) unstable; urgency=medium
 
   * [93df210] d/copyright: add info about appdata.xml
