@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -34,7 +34,7 @@
 #include <id.h>
 #include <class_drawpanel.h>
 #include <view/view.h>
-#include <class_base_screen.h>
+#include <base_screen.h>
 #include <draw_frame.h>
 #include <kicad_device_context.h>
 #include <hotkeys_basic.h>
@@ -58,19 +58,48 @@ void EDA_DRAW_FRAME::RedrawScreen( const wxPoint& aCenterPoint, bool aWarpPointe
     m_canvas->Update();
 }
 
+
 void EDA_DRAW_FRAME::RedrawScreen2( const wxPoint& posBefore )
 {
     if( IsGalCanvasActive() )
         return;
 
-    wxPoint dPos = posBefore - m_canvas->GetClientSize() / 2; // relative screen position to center before zoom
-    wxPoint newScreenPos = m_canvas->ToDeviceXY( GetCrossHairPosition() ); // screen position of crosshair after zoom
+    // Account for scrollbars (see EDA_DRAW_FRAME::AdjustScrollBars that takes
+    // in account scroolbars area to adjust scroll bars)
+    wxSize scrollbarSize = m_canvas->GetSize() - m_canvas->GetClientSize();
+    wxSize sizeAdjusted = m_canvas->GetClientSize() - scrollbarSize;
+
+    wxPoint dPos = posBefore - sizeAdjusted / 2;
+
+    // screen position of crosshair after zoom
+    wxPoint newScreenPos = m_canvas->ToDeviceXY( GetCrossHairPosition() );
     wxPoint newCenter = m_canvas->ToLogicalXY( newScreenPos - dPos );
 
     AdjustScrollBars( newCenter );
 
     m_canvas->Refresh();
     m_canvas->Update();
+}
+
+
+// Factor out the calculation portion of the various BestZoom() implementations.
+//
+// Note that like it's forerunners this routine has an intentional side-effect: it
+// sets the scroll centre position.  While I'm not happy about that, it's probably
+// not worth fixing as its days are numbered (GAL canvases use a different method).
+double EDA_DRAW_FRAME::bestZoom( double sizeX, double sizeY, double scaleFactor, wxPoint centre )
+{
+    double bestzoom = std::max( sizeX * scaleFactor / (double) m_canvas->GetClientSize().x,
+                                sizeY * scaleFactor / (double) m_canvas->GetClientSize().y );
+
+    // Take scrollbars into account
+    DSIZE scrollbarSize = m_canvas->GetSize() - m_canvas->GetClientSize();
+    centre.x -= int( bestzoom * scrollbarSize.x / 2.0 );
+    centre.y -= int( bestzoom * scrollbarSize.y / 2.0 );
+
+    SetScrollCenterPosition( centre );
+
+    return bestzoom;
 }
 
 
@@ -96,10 +125,6 @@ void EDA_DRAW_FRAME::Zoom_Automatique( bool aWarpPointer )
 }
 
 
-/** Compute the zoom factor and the new draw offset to draw the
- *  selected area (Rect) in full window screen
- *  @param Rect = selected area to show after zooming
- */
 void EDA_DRAW_FRAME::Window_Zoom( EDA_RECT& Rect )
 {
     // Compute the best zoom
@@ -118,10 +143,6 @@ void EDA_DRAW_FRAME::Window_Zoom( EDA_RECT& Rect )
 }
 
 
-/**
- * Function OnZoom
- * Called from any zoom event (toolbar , hotkey or popup )
- */
 void EDA_DRAW_FRAME::OnZoom( wxCommandEvent& event )
 {
     if( m_canvas == NULL )
@@ -132,10 +153,22 @@ void EDA_DRAW_FRAME::OnZoom( wxCommandEvent& event )
     BASE_SCREEN* screen = GetScreen();
     wxPoint      center = GetScrollCenterPosition();
 
+    if ( id == ID_KEY_ZOOM_IN )
+    {
+        id = GetCanvas()->GetEnableZoomNoCenter() ?
+             ID_OFFCENTER_ZOOM_IN : ID_POPUP_ZOOM_IN;
+    }
+    else if ( id == ID_KEY_ZOOM_OUT )
+    {
+        id = GetCanvas()->GetEnableZoomNoCenter() ?
+             ID_OFFCENTER_ZOOM_OUT : ID_POPUP_ZOOM_OUT;
+    }
+
     switch( id )
     {
     case ID_OFFCENTER_ZOOM_IN:
         center = m_canvas->ToDeviceXY( GetCrossHairPosition() );
+
         if( screen->SetPreviousZoom() )
             RedrawScreen2( center );
         break;
@@ -153,6 +186,7 @@ void EDA_DRAW_FRAME::OnZoom( wxCommandEvent& event )
 
     case ID_OFFCENTER_ZOOM_OUT:
         center = m_canvas->ToDeviceXY( GetCrossHairPosition() );
+
         if( screen->SetNextZoom() )
             RedrawScreen2( center );
         break;
@@ -233,9 +267,6 @@ void EDA_DRAW_FRAME::SetPresetZoom( int aIndex )
 }
 
 
-/* add the zoom list menu the the MasterMenu.
- *  used in OnRightClick(wxMouseEvent& event)
- */
 void EDA_DRAW_FRAME::AddMenuZoomAndGrid( wxMenu* MasterMenu )
 {
     int         maxZoomIds;
@@ -245,19 +276,19 @@ void EDA_DRAW_FRAME::AddMenuZoomAndGrid( wxMenu* MasterMenu )
 
     msg = AddHotkeyName( _( "Center" ), m_hotkeysDescrList, HK_ZOOM_CENTER );
     AddMenuItem( MasterMenu, ID_POPUP_ZOOM_CENTER, msg, KiBitmap( zoom_center_on_screen_xpm ) );
-    msg = AddHotkeyName( _( "Zoom in" ), m_hotkeysDescrList, HK_ZOOM_IN );
+    msg = AddHotkeyName( _( "Zoom In" ), m_hotkeysDescrList, HK_ZOOM_IN );
     AddMenuItem( MasterMenu, ID_POPUP_ZOOM_IN, msg, KiBitmap( zoom_in_xpm ) );
-    msg = AddHotkeyName( _( "Zoom out" ), m_hotkeysDescrList, HK_ZOOM_OUT );
+    msg = AddHotkeyName( _( "Zoom Out" ), m_hotkeysDescrList, HK_ZOOM_OUT );
     AddMenuItem( MasterMenu, ID_POPUP_ZOOM_OUT, msg, KiBitmap( zoom_out_xpm ) );
-    msg = AddHotkeyName( _( "Redraw view" ), m_hotkeysDescrList, HK_ZOOM_REDRAW );
+    msg = AddHotkeyName( _( "Redraw View" ), m_hotkeysDescrList, HK_ZOOM_REDRAW );
     AddMenuItem( MasterMenu, ID_POPUP_ZOOM_REDRAW, msg, KiBitmap( zoom_redraw_xpm ) );
-    msg = AddHotkeyName( _( "Zoom auto" ), m_hotkeysDescrList, HK_ZOOM_AUTO );
+    msg = AddHotkeyName( _( "Zoom to Fit" ), m_hotkeysDescrList, HK_ZOOM_AUTO );
     AddMenuItem( MasterMenu, ID_POPUP_ZOOM_PAGE, msg, KiBitmap( zoom_fit_in_page_xpm ) );
 
 
     wxMenu* zoom_choice = new wxMenu;
     AddMenuItem( MasterMenu, zoom_choice,
-                 ID_POPUP_ZOOM_SELECT, _( "Zoom select" ),
+                 ID_POPUP_ZOOM_SELECT, _( "Zoom" ),
                  KiBitmap( zoom_selection_xpm ) );
 
     zoom = screen->GetZoom();
@@ -281,7 +312,7 @@ void EDA_DRAW_FRAME::AddMenuZoomAndGrid( wxMenu* MasterMenu )
     {
         wxMenu* gridMenu = new wxMenu;
         AddMenuItem( MasterMenu, gridMenu, ID_POPUP_GRID_SELECT,
-                     _( "Grid Select" ), KiBitmap( grid_select_xpm ) );
+                     _( "Grid" ), KiBitmap( grid_select_xpm ) );
 
         wxArrayString gridsList;
         int icurr = screen->BuildGridsChoiceList( gridsList, g_UserUnit != INCHES );
@@ -289,7 +320,7 @@ void EDA_DRAW_FRAME::AddMenuZoomAndGrid( wxMenu* MasterMenu )
         for( unsigned i = 0; i < gridsList.GetCount(); i++ )
         {
             GRID_TYPE& grid = screen->GetGrid( i );
-            gridMenu->Append( grid.m_CmdId, gridsList[i], wxEmptyString, true );
+            gridMenu->Append( grid.m_CmdId, gridsList[i], wxEmptyString, wxITEM_CHECK );
 
             if( (int)i == icurr )
                 gridMenu->Check( grid.m_CmdId, true );

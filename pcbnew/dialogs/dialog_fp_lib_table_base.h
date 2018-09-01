@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Mar  9 2015)
+// C++ code generated with wxFormBuilder (version Jul 17 2016)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -51,7 +51,7 @@ class DIALOG_FP_LIB_TABLE_BASE : public DIALOG_SHIM
 		wxStaticText* m_staticText4;
 		wxStaticText* m_PrjTableFilename;
 		wxGrid* m_project_grid;
-		wxButton* m_buttonWizard;
+		wxButton* m_browseButton;
 		wxButton* m_append_button;
 		wxButton* m_delete_button;
 		wxButton* m_move_up_button;
@@ -66,7 +66,7 @@ class DIALOG_FP_LIB_TABLE_BASE : public DIALOG_SHIM
 		virtual void onCancelCaptionButtonClick( wxCloseEvent& event ) = 0;
 		virtual void onKeyDown( wxKeyEvent& event ) = 0;
 		virtual void pageChangedHandler( wxAuiNotebookEvent& event ) = 0;
-		virtual void OnClickLibraryWizard( wxCommandEvent& event ) = 0;
+		virtual void browseLibrariesHandler( wxCommandEvent& event ) = 0;
 		virtual void appendRowHandler( wxCommandEvent& event ) = 0;
 		virtual void deleteRowHandler( wxCommandEvent& event ) = 0;
 		virtual void moveUpHandler( wxCommandEvent& event ) = 0;
@@ -78,7 +78,7 @@ class DIALOG_FP_LIB_TABLE_BASE : public DIALOG_SHIM
 	
 	public:
 		
-		DIALOG_FP_LIB_TABLE_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("PCB Library Tables"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 717,600 ), long style = wxCAPTION|wxCLOSE_BOX|wxDEFAULT_DIALOG_STYLE|wxMAXIMIZE_BOX|wxRESIZE_BORDER|wxSYSTEM_MENU ); 
+		DIALOG_FP_LIB_TABLE_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Footprint Libraries"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 717,600 ), long style = wxCAPTION|wxCLOSE_BOX|wxDEFAULT_DIALOG_STYLE|wxMAXIMIZE_BOX|wxRESIZE_BORDER|wxSYSTEM_MENU ); 
 		~DIALOG_FP_LIB_TABLE_BASE();
 	
 };

@@ -45,28 +45,34 @@ public:
     virtual ~CAIRO_COMPOSITOR();
 
     /// @copydoc COMPOSITOR::Initialize()
-    virtual void Initialize();
+    virtual void Initialize() override;
 
     /// @copydoc COMPOSITOR::Resize()
-    virtual void Resize( unsigned int aWidth, unsigned int aHeight );
+    virtual void Resize( unsigned int aWidth, unsigned int aHeight ) override;
 
     /// @copydoc COMPOSITOR::CreateBuffer()
-    virtual unsigned int CreateBuffer();
+    virtual unsigned int CreateBuffer() override;
 
     /// @copydoc COMPOSITOR::GetBuffer()
-    inline virtual unsigned int GetBuffer() const
+    inline virtual unsigned int GetBuffer() const override
     {
         return m_current + 1;
     }
 
     /// @copydoc COMPOSITOR::SetBuffer()
-    virtual void SetBuffer( unsigned int aBufferHandle );
+    virtual void SetBuffer( unsigned int aBufferHandle ) override;
+
+    /// @copydoc COMPOSITOR::Begin()
+    virtual void Begin() override;
 
     /// @copydoc COMPOSITOR::ClearBuffer()
-    virtual void ClearBuffer();
+    virtual void ClearBuffer( const COLOR4D& aColor ) override;
 
     /// @copydoc COMPOSITOR::DrawBuffer()
-    virtual void DrawBuffer( unsigned int aBufferHandle );
+    virtual void DrawBuffer( unsigned int aBufferHandle ) override;
+
+    /// @copydoc COMPOSITOR::Present()
+    virtual void Present() override;
 
     /**
      * Function SetMainContext()

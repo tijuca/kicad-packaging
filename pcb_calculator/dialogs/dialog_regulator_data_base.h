@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Mar 17 2012)
+// C++ code generated with wxFormBuilder (version Apr 19 2018)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_REGULATOR_DATA_BASE_H__
@@ -53,13 +53,12 @@ class DIALOG_EDITOR_DATA_BASE : public DIALOG_SHIM
 		
 		// Virtual event handlers, overide them in your derived class
 		virtual void OnRegTypeSelection( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnOKClick( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
 		
-		DIALOG_EDITOR_DATA_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Regulator Parameters"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 310,210 ), long style = wxDEFAULT_DIALOG_STYLE ); 
+		DIALOG_EDITOR_DATA_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Regulator Parameters"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 292,200 ), long style = wxDEFAULT_DIALOG_STYLE ); 
 		~DIALOG_EDITOR_DATA_BASE();
 	
 };

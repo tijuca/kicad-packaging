@@ -224,7 +224,6 @@ LINE_READER* DSNLEXER::PopReader()
             reader = 0;
             start  = dummy;
             limit  = dummy;
-            limit  = dummy;
         }
     }
     return ret;
@@ -347,38 +346,35 @@ bool DSNLEXER::IsSymbol( int aTok )
     // This is static and not inline to reduce code space.
 
     // if aTok is >= 0, then it is a coincidental match to a keyword.
-    return     aTok==DSN_SYMBOL
-            || aTok==DSN_STRING
-            || aTok>=0
-            ;
+    return aTok==DSN_SYMBOL || aTok==DSN_STRING || aTok>=0;
 }
 
 
-void DSNLEXER::Expecting( int aTok ) throw( IO_ERROR )
+void DSNLEXER::Expecting( int aTok )
 {
     wxString errText = wxString::Format(
-        _("Expecting '%s'"), GetChars( GetTokenString( aTok ) ) );
+        _( "Expecting \"%s\"" ), GetChars( GetTokenString( aTok ) ) );
     THROW_PARSE_ERROR( errText, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
 }
 
 
-void DSNLEXER::Expecting( const char* text ) throw( IO_ERROR )
+void DSNLEXER::Expecting( const char* text )
 {
     wxString errText = wxString::Format(
-        _("Expecting '%s'"), GetChars( wxString::FromUTF8( text ) ) );
+        _( "Expecting \"%s\"" ), GetChars( wxString::FromUTF8( text ) ) );
     THROW_PARSE_ERROR( errText, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
 }
 
 
-void DSNLEXER::Unexpected( int aTok ) throw( IO_ERROR )
+void DSNLEXER::Unexpected( int aTok )
 {
     wxString errText = wxString::Format(
-        _("Unexpected '%s'"), GetChars( GetTokenString( aTok ) ) );
+        _( "Unexpected \"%s\"" ), GetChars( GetTokenString( aTok ) ) );
     THROW_PARSE_ERROR( errText, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
 }
 
 
-void DSNLEXER::Duplicate( int aTok ) throw( IO_ERROR )
+void DSNLEXER::Duplicate( int aTok )
 {
     wxString errText = wxString::Format(
         _("%s is a duplicate"), GetTokenString( aTok ).GetData() );
@@ -386,15 +382,15 @@ void DSNLEXER::Duplicate( int aTok ) throw( IO_ERROR )
 }
 
 
-void DSNLEXER::Unexpected( const char* text ) throw( IO_ERROR )
+void DSNLEXER::Unexpected( const char* text )
 {
     wxString errText = wxString::Format(
-        _("Unexpected '%s'"), GetChars( wxString::FromUTF8( text ) ) );
+        _( "Unexpected \"%s\"" ), GetChars( wxString::FromUTF8( text ) ) );
     THROW_PARSE_ERROR( errText, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
 }
 
 
-void DSNLEXER::NeedLEFT() throw( IO_ERROR )
+void DSNLEXER::NeedLEFT()
 {
     int tok = NextTok();
     if( tok != DSN_LEFT )
@@ -402,7 +398,7 @@ void DSNLEXER::NeedLEFT() throw( IO_ERROR )
 }
 
 
-void DSNLEXER::NeedRIGHT() throw( IO_ERROR )
+void DSNLEXER::NeedRIGHT()
 {
     int tok = NextTok();
     if( tok != DSN_RIGHT )
@@ -410,7 +406,7 @@ void DSNLEXER::NeedRIGHT() throw( IO_ERROR )
 }
 
 
-int DSNLEXER::NeedSYMBOL() throw( IO_ERROR )
+int DSNLEXER::NeedSYMBOL()
 {
     int tok = NextTok();
     if( !IsSymbol( tok ) )
@@ -419,7 +415,7 @@ int DSNLEXER::NeedSYMBOL() throw( IO_ERROR )
 }
 
 
-int DSNLEXER::NeedSYMBOLorNUMBER() throw( IO_ERROR )
+int DSNLEXER::NeedSYMBOLorNUMBER()
 {
     int  tok = NextTok();
     if( !IsSymbol( tok ) && tok!=DSN_NUMBER )
@@ -428,13 +424,13 @@ int DSNLEXER::NeedSYMBOLorNUMBER() throw( IO_ERROR )
 }
 
 
-int DSNLEXER::NeedNUMBER( const char* aExpectation ) throw( IO_ERROR )
+int DSNLEXER::NeedNUMBER( const char* aExpectation )
 {
     int tok = NextTok();
     if( tok != DSN_NUMBER )
     {
         wxString errText = wxString::Format(
-            _("need a NUMBER for '%s'"), wxString::FromUTF8( aExpectation ).GetData() );
+            _( "need a NUMBER for \"%s\"" ), wxString::FromUTF8( aExpectation ).GetData() );
         THROW_PARSE_ERROR( errText, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
     }
     return tok;
@@ -541,7 +537,7 @@ static bool isNumber( const char* cp, const char* limit )
 }
 
 
-int DSNLEXER::NextTok() throw( IO_ERROR )
+int DSNLEXER::NextTok()
 {
     const char*   cur  = next;
     const char*   head = cur;
@@ -812,7 +808,7 @@ exit:   // single point of exit, no returns elsewhere please.
 }
 
 
-wxArrayString* DSNLEXER::ReadCommentLines() throw( IO_ERROR )
+wxArrayString* DSNLEXER::ReadCommentLines()
 {
     wxArrayString*  ret = 0;
     bool            cmt_setting = SetCommentsAreTokens( true );

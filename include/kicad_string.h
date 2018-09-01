@@ -30,6 +30,8 @@
 #ifndef KICAD_STRING_H_
 #define KICAD_STRING_H_
 
+#include "config.h"
+
 #include <wx/string.h>
 #include <wx/filename.h>
 
@@ -72,6 +74,11 @@ int ReadDelimitedText( wxString* aDest, const char* aSource );
 std::string EscapedUTF8( const wxString& aString );
 
 /**
+ * Return a new wxString escaped for embedding in HTML.
+ */
+wxString EscapedHTML( const wxString& aString );
+
+/**
  * Function GetLine
  * reads one line line from \a aFile.
  * @return A pointer the first useful line read by eliminating blank lines and comments.
@@ -92,10 +99,10 @@ char* StrPurge( char* text );
 wxString DateAndTime();
 
 /**
- * Function StrLenNumCmp
+ * Function StrNumCmp
  * is a routine compatible with qsort() to sort by alphabetical order.
  *
- * This function is equivalent to strncmp() or strnicmp() if \a aIgnoreCase is true
+ * This function is equivalent to strncmp() or strncasecmp() if \a aIgnoreCase is true
  * except that strings containing numbers are compared by their integer value not
  * by their ASCII code.
  *
@@ -119,6 +126,16 @@ int StrNumCmp( const wxString& aString1, const wxString& aString2, int aLength =
 bool WildCompareString( const wxString& pattern,
                         const wxString& string_to_tst,
                         bool            case_sensitive = true );
+
+/**
+ * Function ValueStringCompare
+ * acts just like the strcmp function but handles numbers and modifiers within the
+ * string text correctly for sorting.  eg. 1mF > 55uF
+ * return -1 if first string is less than the second
+ * return 0 if the strings are equal
+ * return 1 if the first string is greater than the second
+ */
+int ValueStringCompare( const wxString& strFWord, const wxString& strSWord );
 
 /**
  * Function RefDesStringCompare
@@ -165,6 +182,7 @@ wxString GetIllegalFileNameWxChars();
  * @return true if any characters have been replaced in \a aName.
  */
 bool ReplaceIllegalFileNameChars( std::string* aName, int aReplaceChar = 0 );
+bool ReplaceIllegalFileNameChars( wxString& aName, int aReplaceChar = 0 );
 
 #ifndef HAVE_STRTOKR
 // common/strtok_r.c optionally:

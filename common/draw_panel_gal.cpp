@@ -1,7 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013-2015 CERN
+ * Copyright (C) 2013-2017 CERN
+ * Copyright (C) 2013-2017 KiCad Developers, see AUTHORS.txt for contributors.
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
@@ -23,18 +24,14 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <wx/wx.h>
-#include <wx/frame.h>
-#include <wx/window.h>
-#include <wx/event.h>
-#include <wx/colour.h>
-#include <wx/filename.h>
+#include <draw_frame.h>
+#include <kiface_i.h>
 #include <confirm.h>
 
 #include <class_draw_panel_gal.h>
 #include <view/view.h>
 #include <view/wx_view_controls.h>
-#include <pcb_painter.h>
+#include <painter.h>
 
 #include <gal/graphics_abstraction_layer.h>
 #include <gal/opengl/opengl_gal.h>
@@ -43,43 +40,39 @@
 #include <tool/tool_dispatcher.h>
 #include <tool/tool_manager.h>
 
-#include <boost/foreach.hpp>
-
 #ifdef __WXDEBUG__
 #include <profile.h>
-#endif /* __WXDEBUG__ */
+#endif /* PROFILE */
+
 
 EDA_DRAW_PANEL_GAL::EDA_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWindowId,
                                         const wxPoint& aPosition, const wxSize& aSize,
-                                        GAL_TYPE aGalType ) :
-    wxScrolledCanvas( aParentWindow, aWindowId, aPosition, aSize )
+                                        KIGFX::GAL_DISPLAY_OPTIONS& aOptions, GAL_TYPE aGalType ) :
+    wxScrolledCanvas( aParentWindow, aWindowId, aPosition, aSize ), m_options( aOptions )
 {
     m_parent     = aParentWindow;
+    m_edaFrame   = dynamic_cast<EDA_DRAW_FRAME*>( aParentWindow );
     m_gal        = NULL;
     m_backend    = GAL_TYPE_NONE;
     m_view       = NULL;
     m_painter    = NULL;
     m_eventDispatcher = NULL;
     m_lostFocus  = false;
+    m_stealsFocus = true;
+
+#ifdef __WXMAC__
+    m_defaultCursor = m_currentCursor = wxCURSOR_CROSS;
+#else
+    m_defaultCursor = m_currentCursor = wxCURSOR_ARROW;
+#endif
 
     SetLayoutDirection( wxLayout_LeftToRight );
 
     SwitchBackend( aGalType );
     SetBackgroundStyle( wxBG_STYLE_CUSTOM );
-    
-// Scrollbars broken in GAL on OSX
-#ifdef __WXMAC__
-    ShowScrollbars( wxSHOW_SB_NEVER, wxSHOW_SB_NEVER );
-#else
+
     ShowScrollbars( wxSHOW_SB_ALWAYS, wxSHOW_SB_ALWAYS );
-#endif
     EnableScrolling( false, false );    // otherwise Zoom Auto disables GAL canvas
-
-    m_painter = new KIGFX::PCB_PAINTER( m_gal );
-
-    m_view = new KIGFX::VIEW( true );
-    m_view->SetPainter( m_painter );
-    m_view->SetGAL( m_gal );
 
     Connect( wxEVT_SIZE, wxSizeEventHandler( EDA_DRAW_PANEL_GAL::onSize ), NULL, this );
     Connect( wxEVT_ENTER_WINDOW, wxEventHandler( EDA_DRAW_PANEL_GAL::onEnter ), NULL, this );
@@ -87,38 +80,49 @@ EDA_DRAW_PANEL_GAL::EDA_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWin
 
     const wxEventType events[] =
     {
+        // Binding both EVT_CHAR and EVT_CHAR_HOOK ensures that all key events,
+        // especially special key like arrow keys, are handled by the GAL event dispatcher,
+        // and not sent to GUI without filtering, because they have a default action (scroll)
+        // that must not be called.
         wxEVT_LEFT_UP, wxEVT_LEFT_DOWN, wxEVT_LEFT_DCLICK,
         wxEVT_RIGHT_UP, wxEVT_RIGHT_DOWN, wxEVT_RIGHT_DCLICK,
         wxEVT_MIDDLE_UP, wxEVT_MIDDLE_DOWN, wxEVT_MIDDLE_DCLICK,
-        wxEVT_MOTION, wxEVT_MOUSEWHEEL, wxEVT_CHAR,
-#ifdef USE_OSX_MAGNIFY_EVENT
+        wxEVT_MOTION, wxEVT_MOUSEWHEEL, wxEVT_CHAR, wxEVT_CHAR_HOOK,
+#if wxCHECK_VERSION( 3, 1, 0 ) || defined( USE_OSX_MAGNIFY_EVENT )
         wxEVT_MAGNIFY,
 #endif
         KIGFX::WX_VIEW_CONTROLS::EVT_REFRESH_MOUSE
     };
 
-    BOOST_FOREACH( wxEventType eventType, events )
+    for( wxEventType eventType : events )
     {
-        Connect( eventType, wxEventHandler( EDA_DRAW_PANEL_GAL::onEvent ),
+        Connect( eventType, wxEventHandler( EDA_DRAW_PANEL_GAL::OnEvent ),
                  NULL, m_eventDispatcher );
     }
 
-    // View controls is the first in the event handler chain, so the Tool Framework operates
-    // on updated viewport data.
-    m_viewControls = new KIGFX::WX_VIEW_CONTROLS( m_view, this );
-
-    // Set up timer that prevents too frequent redraw commands
-    m_refreshTimer.SetOwner( this );
     m_pendingRefresh = false;
     m_drawing = false;
     m_drawingEnabled = false;
-    Connect( wxEVT_TIMER, wxTimerEventHandler( EDA_DRAW_PANEL_GAL::onRefreshTimer ), NULL, this );
+
+    // Set up timer that prevents too frequent redraw commands
+    m_refreshTimer.SetOwner( this );
+    Connect( m_refreshTimer.GetId(), wxEVT_TIMER,
+            wxTimerEventHandler( EDA_DRAW_PANEL_GAL::onRefreshTimer ), NULL, this );
+
+    // Set up timer to execute OnShow() method when the window appears on the screen
+    m_onShowTimer.SetOwner( this );
+    Connect( m_onShowTimer.GetId(), wxEVT_TIMER,
+            wxTimerEventHandler( EDA_DRAW_PANEL_GAL::onShowTimer ), NULL, this );
+    m_onShowTimer.Start( 10 );
 }
 
 
 EDA_DRAW_PANEL_GAL::~EDA_DRAW_PANEL_GAL()
 {
-    delete m_painter;
+    StopDrawing();
+
+    wxASSERT( !m_drawing );
+
     delete m_viewControls;
     delete m_view;
     delete m_gal;
@@ -148,33 +152,61 @@ void EDA_DRAW_PANEL_GAL::onPaint( wxPaintEvent& WXUNUSED( aEvent ) )
     if( m_drawing )
         return;
 
+#ifdef __WXDEBUG__
+    PROF_COUNTER totalRealTime;
+#endif /* PROFILE */
+
+    wxASSERT( m_painter );
+
     m_drawing = true;
+    KIGFX::RENDER_SETTINGS* settings = static_cast<KIGFX::RENDER_SETTINGS*>( m_painter->GetSettings() );
 
-// Scrollbars broken in GAL on OSX
-#ifndef __WXMAC__
     m_viewControls->UpdateScrollbars();
-#endif
 
-    m_view->UpdateItems();
-    m_gal->BeginDrawing();
-    m_gal->ClearScreen( m_painter->GetSettings()->GetBackgroundColor() );
-
-    KIGFX::COLOR4D gridColor = static_cast<KIGFX::PCB_RENDER_SETTINGS*> (m_painter->GetSettings())->GetLayerColor( ITEM_GAL_LAYER ( GRID_VISIBLE ) );
-    m_gal->SetGridColor ( gridColor );
-
-    if( m_view->IsDirty() )
+    try
     {
-        m_view->ClearTargets();
+        m_view->UpdateItems();
 
-        // Grid has to be redrawn only when the NONCACHED target is redrawn
-        if( m_view->IsTargetDirty( KIGFX::TARGET_NONCACHED ) )
-            m_gal->DrawGrid();
+        m_gal->BeginDrawing();
+        m_gal->SetClearColor( settings->GetBackgroundColor() );
+        m_gal->SetCursorColor( settings->GetLayerColor( LAYER_CURSOR ) );
+        m_gal->ClearScreen( );
 
-        m_view->Redraw();
+        if( m_view->IsDirty() )
+        {
+            m_view->ClearTargets();
+
+            // Grid has to be redrawn only when the NONCACHED target is redrawn
+            if( m_view->IsTargetDirty( KIGFX::TARGET_NONCACHED ) )
+                m_gal->DrawGrid();
+
+            m_view->Redraw();
+        }
+
+        m_gal->DrawCursor( m_viewControls->GetCursorPosition() );
+        m_gal->EndDrawing();
+    }
+    catch( std::runtime_error& err )
+    {
+        constexpr auto GAL_FALLBACK = GAL_TYPE_CAIRO;
+
+        if( m_edaFrame )
+        {
+            bool use_gal = m_edaFrame->SwitchCanvas( GAL_FALLBACK );
+            m_edaFrame->UseGalCanvas( use_gal );
+        }
+        else
+        {
+            SwitchBackend( GAL_TYPE_CAIRO );
+        }
+
+        DisplayError( m_parent, wxString( err.what() ) );
     }
 
-    m_gal->DrawCursor( m_viewControls->GetCursorPosition() );
-    m_gal->EndDrawing();
+#ifdef __WXDEBUG__
+    totalRealTime.Stop();
+    wxLogTrace( "GAL_PROFILE", "EDA_DRAW_PANEL_GAL::onPaint(): %.1f ms", totalRealTime.msecs() );
+#endif /* PROFILE */
 
     m_lastRefresh = wxGetLocalTimeMillis();
     m_drawing = false;
@@ -183,7 +215,8 @@ void EDA_DRAW_PANEL_GAL::onPaint( wxPaintEvent& WXUNUSED( aEvent ) )
 
 void EDA_DRAW_PANEL_GAL::onSize( wxSizeEvent& aEvent )
 {
-    m_gal->ResizeScreen( aEvent.GetSize().x, aEvent.GetSize().y );
+    wxSize clientSize = GetClientSize();
+    m_gal->ResizeScreen( clientSize.x, clientSize.y );
     m_view->MarkTargetDirty( KIGFX::TARGET_CACHED );
     m_view->MarkTargetDirty( KIGFX::TARGET_NONCACHED );
 }
@@ -232,7 +265,7 @@ void EDA_DRAW_PANEL_GAL::SetEventDispatcher( TOOL_DISPATCHER* aEventDispatcher )
 
     if( m_eventDispatcher )
     {
-        BOOST_FOREACH( wxEventType type, eventTypes )
+        for( wxEventType type : eventTypes )
         {
             m_parent->Connect( type, wxCommandEventHandler( TOOL_DISPATCHER::DispatchWxCommand ),
                                NULL, m_eventDispatcher );
@@ -240,7 +273,7 @@ void EDA_DRAW_PANEL_GAL::SetEventDispatcher( TOOL_DISPATCHER* aEventDispatcher )
     }
     else
     {
-        BOOST_FOREACH( wxEventType type, eventTypes )
+        for( wxEventType type : eventTypes )
         {
             // While loop is used to be sure that all event handlers are removed.
             while( m_parent->Disconnect( type,
@@ -263,12 +296,11 @@ void EDA_DRAW_PANEL_GAL::StopDrawing()
     m_drawingEnabled = false;
     Disconnect( wxEVT_PAINT, wxPaintEventHandler( EDA_DRAW_PANEL_GAL::onPaint ), NULL, this );
     m_pendingRefresh = false;
-    m_drawing = true;
     m_refreshTimer.Stop();
 }
 
 
-void EDA_DRAW_PANEL_GAL::SetHighContrastLayer( LAYER_ID aLayer )
+void EDA_DRAW_PANEL_GAL::SetHighContrastLayer( int aLayer )
 {
     // Set display settings for high contrast mode
     KIGFX::RENDER_SETTINGS* rSettings = m_view->GetPainter()->GetSettings();
@@ -282,7 +314,7 @@ void EDA_DRAW_PANEL_GAL::SetHighContrastLayer( LAYER_ID aLayer )
 }
 
 
-void EDA_DRAW_PANEL_GAL::SetTopLayer( LAYER_ID aLayer )
+void EDA_DRAW_PANEL_GAL::SetTopLayer( int aLayer )
 {
     m_view->ClearTopLayers();
     m_view->SetTopLayer( aLayer );
@@ -315,11 +347,11 @@ bool EDA_DRAW_PANEL_GAL::SwitchBackend( GAL_TYPE aGalType )
         switch( aGalType )
         {
         case GAL_TYPE_OPENGL:
-            new_gal = new KIGFX::OPENGL_GAL( this, this, this );
+            new_gal = new KIGFX::OPENGL_GAL( m_options, this, this, this );
             break;
 
         case GAL_TYPE_CAIRO:
-            new_gal = new KIGFX::CAIRO_GAL( this, this, this );
+            new_gal = new KIGFX::CAIRO_GAL( m_options, this, this, this );
             break;
 
         default:
@@ -329,17 +361,22 @@ bool EDA_DRAW_PANEL_GAL::SwitchBackend( GAL_TYPE aGalType )
         case GAL_TYPE_NONE:
             // KIGFX::GAL is a stub - it actually does cannot display anything,
             // but prevents code relying on GAL canvas existence from crashing
-            new_gal = new KIGFX::GAL();
+            new_gal = new KIGFX::GAL( m_options );
             break;
         }
     }
     catch( std::runtime_error& err )
     {
-        new_gal = new KIGFX::GAL();
+        // Create a dummy GAL
+        new_gal = new KIGFX::GAL( m_options );
         aGalType = GAL_TYPE_NONE;
         DisplayError( m_parent, wxString( err.what() ) );
         result = false;
     }
+
+    // trigger update of the gal options in case they differ
+    // from the defaults
+    m_options.NotifyChanged();
 
     assert( new_gal );
     delete m_gal;
@@ -352,7 +389,11 @@ bool EDA_DRAW_PANEL_GAL::SwitchBackend( GAL_TYPE aGalType )
         m_painter->SetGAL( m_gal );
 
     if( m_view )
+    {
         m_view->SetGAL( m_gal );
+        // Note: OpenGL requires reverse draw order when draw priority is enabled
+        m_view->ReverseDrawOrder( aGalType == GAL_TYPE_OPENGL );
+    }
 
     m_backend = aGalType;
 
@@ -360,9 +401,9 @@ bool EDA_DRAW_PANEL_GAL::SwitchBackend( GAL_TYPE aGalType )
 }
 
 
-void EDA_DRAW_PANEL_GAL::onEvent( wxEvent& aEvent )
+void EDA_DRAW_PANEL_GAL::OnEvent( wxEvent& aEvent )
 {
-    if( m_lostFocus )
+    if( m_lostFocus && m_stealsFocus )
         SetFocus();
 
     if( !m_eventDispatcher )
@@ -377,7 +418,8 @@ void EDA_DRAW_PANEL_GAL::onEvent( wxEvent& aEvent )
 void EDA_DRAW_PANEL_GAL::onEnter( wxEvent& aEvent )
 {
     // Getting focus is necessary in order to receive key events properly
-    SetFocus();
+    if( m_stealsFocus )
+        SetFocus();
 
     aEvent.Skip();
 }
@@ -395,7 +437,7 @@ void EDA_DRAW_PANEL_GAL::onRefreshTimer( wxTimerEvent& aEvent )
 {
     if( !m_drawingEnabled )
     {
-        if( m_gal->IsInitialized() )
+        if( m_gal && m_gal->IsInitialized() )
         {
             m_drawing = false;
             m_pendingRefresh = true;
@@ -405,11 +447,21 @@ void EDA_DRAW_PANEL_GAL::onRefreshTimer( wxTimerEvent& aEvent )
         else
         {
             // Try again soon
-            m_refreshTimer.Start( 100, true );
+            m_refreshTimer.StartOnce( 100 );
             return;
         }
     }
 
     wxPaintEvent redrawEvent;
     wxPostEvent( this, redrawEvent );
+}
+
+
+void EDA_DRAW_PANEL_GAL::onShowTimer( wxTimerEvent& aEvent )
+{
+    if( m_gal && m_gal->IsVisible() )
+    {
+        m_onShowTimer.Stop();
+        OnShow();
+    }
 }

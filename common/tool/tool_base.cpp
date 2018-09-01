@@ -25,7 +25,12 @@
 #include <tool/tool_event.h>
 #include <tool/tool_manager.h>
 
-#include <wxPcbStruct.h> // LAME!
+#include <pcb_edit_frame.h>
+
+bool TOOL_BASE::IsToolActive() const
+{
+    return m_toolMgr->IsToolActive( m_toolId );
+}
 
 KIGFX::VIEW* TOOL_BASE::getView() const
 {

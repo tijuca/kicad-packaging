@@ -1,10 +1,8 @@
-/**
- * @file pagelayout_editor/hotkeys.cpp
- */
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2013 CERN
+ * Copyright (C) 2016-2018 KiCad Developers, see AUTHORS.txt for contributors.
  * @author Jean-Pierre Charras, jp.charras at wanadoo.fr
  *
  * This program is free software; you can redistribute it and/or
@@ -25,6 +23,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+/**
+ * @file pagelayout_editor/hotkeys.cpp
+ */
+
 #include <fctsys.h>
 #include <common.h>
 #include <kicad_device_context.h>
@@ -33,7 +35,7 @@
 #include <class_drawpanel.h>
 #include <pl_editor_frame.h>
 #include <design_tree_frame.h>
-#include <class_worksheet_dataitem.h>
+#include <worksheet_dataitem.h>
 #include <hotkeys.h>
 #include <pl_editor_id.h>
 
@@ -65,7 +67,8 @@
 
 // mouse click command:
 static EDA_HOTKEY HkMouseLeftClick( _HKI( "Mouse Left Click" ), HK_LEFT_CLICK, WXK_RETURN, 0 );
-static EDA_HOTKEY HkMouseLeftDClick( _HKI( "Mouse Left Double Click" ), HK_LEFT_DCLICK, WXK_END, 0 );
+static EDA_HOTKEY HkMouseLeftDClick( _HKI( "Mouse Left Double Click" ), HK_LEFT_DCLICK,
+                                     WXK_END, 0 );
 
 static EDA_HOTKEY    HkResetLocalCoord( _HKI( "Reset Local Coordinates" ),
                                         HK_RESET_LOCAL_COORD, ' ' );
@@ -73,9 +76,11 @@ static EDA_HOTKEY    HkZoomAuto( _HKI( "Zoom Auto" ), HK_ZOOM_AUTO, WXK_HOME, ID
 static EDA_HOTKEY    HkZoomCenter( _HKI( "Zoom Center" ), HK_ZOOM_CENTER, WXK_F4,
                                    ID_POPUP_ZOOM_CENTER );
 static EDA_HOTKEY    HkZoomRedraw( _HKI( "Zoom Redraw" ), HK_ZOOM_REDRAW, WXK_F3, ID_ZOOM_REDRAW );
-static EDA_HOTKEY    HkZoomOut( _HKI( "Zoom Out" ), HK_ZOOM_OUT, WXK_F2, ID_POPUP_ZOOM_OUT );
-static EDA_HOTKEY    HkZoomIn( _HKI( "Zoom In" ), HK_ZOOM_IN, WXK_F1, ID_POPUP_ZOOM_IN );
-static EDA_HOTKEY    HkHelp( _HKI( "Help (this window)" ), HK_HELP, '?' );
+static EDA_HOTKEY    HkZoomOut( _HKI( "Zoom Out" ), HK_ZOOM_OUT, WXK_F2, ID_KEY_ZOOM_OUT );
+static EDA_HOTKEY    HkZoomIn( _HKI( "Zoom In" ), HK_ZOOM_IN, WXK_F1, ID_KEY_ZOOM_IN );
+static EDA_HOTKEY    HkZoomSelection( _HKI( "Zoom to Selection" ), HK_ZOOM_SELECTION,
+                                      GR_KB_CTRL + WXK_F5, ID_ZOOM_SELECTION );
+static EDA_HOTKEY    HkHelp( _HKI( "Help (this window)" ), HK_HELP, GR_KB_CTRL + WXK_F1 );
 static EDA_HOTKEY    HkMoveItem( _HKI( "Move Item" ), HK_MOVE_ITEM, 'M', ID_POPUP_ITEM_MOVE );
 static EDA_HOTKEY    HkPlaceItem( _HKI( "Place Item" ), HK_PLACE_ITEM, 'P', ID_POPUP_ITEM_PLACE );
 static EDA_HOTKEY    HkMoveStartPoint( _HKI( "Move Start Point" ), HK_MOVE_START_POINT, 'S',
@@ -85,17 +90,24 @@ static EDA_HOTKEY    HkMoveEndPoint( _HKI( "Move End Point" ), HK_MOVE_END_POINT
 static EDA_HOTKEY    HkDeleteItem( _HKI( "Delete Item" ), HK_DELETE_ITEM, WXK_DELETE,
                                    ID_POPUP_ITEM_DELETE );
 
-// Undo Redo
+// Common: hotkeys_basic.h
 static EDA_HOTKEY HkUndo( _HKI( "Undo" ), HK_UNDO, GR_KB_CTRL + 'Z', (int) wxID_UNDO );
 static EDA_HOTKEY HkRedo( _HKI( "Redo" ), HK_REDO, GR_KB_CTRL + 'Y', (int) wxID_REDO );
+static EDA_HOTKEY HkNew( _HKI( "New" ), HK_NEW, GR_KB_CTRL + 'N', (int) wxID_NEW );
+static EDA_HOTKEY HkOpen( _HKI( "Open" ), HK_OPEN, GR_KB_CTRL + 'O', (int) wxID_OPEN );
+static EDA_HOTKEY HkSave( _HKI( "Save" ), HK_SAVE, GR_KB_CTRL + 'S', (int) wxID_SAVE );
+static EDA_HOTKEY HkSaveAs( _HKI( "Save As" ), HK_SAVEAS, GR_KB_CTRL + GR_KB_SHIFT + 'S',
+                            (int) wxID_SAVEAS );
+static EDA_HOTKEY HkPrint( _HKI( "Print" ), HK_PRINT, GR_KB_CTRL + 'P', (int) wxID_PRINT );
 
 // List of common hotkey descriptors
 EDA_HOTKEY* s_Common_Hotkey_List[] =
 {
-    &HkHelp,
-    &HkZoomIn,    &HkZoomOut,      &HkZoomRedraw, &HkZoomCenter,
-    &HkZoomAuto,  &HkResetLocalCoord,
+    &HkNew, &HkOpen, &HkSave, &HkSaveAs, &HkPrint,
     &HkUndo, &HkRedo,
+    &HkZoomIn,    &HkZoomOut,      &HkZoomRedraw, &HkZoomCenter,
+    &HkZoomAuto,  &HkZoomSelection, &HkResetLocalCoord,
+    &HkHelp,
     &HkMouseLeftClick,
     &HkMouseLeftDClick,
     NULL
@@ -173,8 +185,29 @@ bool PL_EDITOR_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode,
         OnLeftDClick( aDC, aPosition );
         break;
 
-    case HK_HELP:       // Display Current hotkey list
-        DisplayHotkeyList( this, PlEditorHokeysDescr );
+    case HK_NEW:
+        cmd.SetId( wxID_NEW );
+        GetEventHandler()->ProcessEvent( cmd );
+        break;
+
+    case HK_OPEN:
+        cmd.SetId( wxID_OPEN );
+        GetEventHandler()->ProcessEvent( cmd );
+        break;
+
+    case HK_SAVE:
+        cmd.SetId( wxID_SAVE );
+        GetEventHandler()->ProcessEvent( cmd );
+        break;
+
+    case HK_SAVEAS:
+        cmd.SetId( wxID_SAVEAS );
+        GetEventHandler()->ProcessEvent( cmd );
+        break;
+
+    case HK_PRINT:
+        cmd.SetId( wxID_PRINT );
+        GetEventHandler()->ProcessEvent( cmd );
         break;
 
     case HK_UNDO:
@@ -210,8 +243,17 @@ bool PL_EDITOR_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode,
         GetEventHandler()->ProcessEvent( cmd );
         break;
 
+    case HK_ZOOM_SELECTION:
+        cmd.SetId( ID_ZOOM_SELECTION );
+        GetEventHandler()->ProcessEvent( cmd );
+        break;
+
     case HK_RESET_LOCAL_COORD:      // Reset the relative coord
         GetScreen()->m_O_Curseur = GetCrossHairPosition();
+        break;
+
+    case HK_HELP:       // Display Current hotkey list
+        DisplayHotkeyList( this, PlEditorHokeysDescr );
         break;
 
     case HK_SET_GRID_ORIGIN:

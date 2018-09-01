@@ -5,7 +5,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 1992-2011 Jean-Pierre Charras.
- * Copyright (C) 1992-2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2016 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -35,7 +35,7 @@
 using namespace NL_T;
 
 
-void KICAD_NETLIST_READER::LoadNetlist() throw ( IO_ERROR, PARSE_ERROR, boost::bad_pointer )
+void KICAD_NETLIST_READER::LoadNetlist()
 {
     m_parser->Parse();
 
@@ -61,7 +61,7 @@ KICAD_NETLIST_PARSER::KICAD_NETLIST_PARSER( LINE_READER* aReader, NETLIST* aNetl
 }
 
 
-void KICAD_NETLIST_PARSER::skipCurrent() throw( IO_ERROR, PARSE_ERROR )
+void KICAD_NETLIST_PARSER::skipCurrent()
 {
     int curr_level = 0;
 
@@ -81,7 +81,7 @@ void KICAD_NETLIST_PARSER::skipCurrent() throw( IO_ERROR, PARSE_ERROR )
 }
 
 
-void KICAD_NETLIST_PARSER::Parse() throw( IO_ERROR, PARSE_ERROR, boost::bad_pointer )
+void KICAD_NETLIST_PARSER::Parse()
 {
     int plevel = 0;     // the count of ')' to read and end of file,
                         // after parsing all sections
@@ -177,7 +177,7 @@ void KICAD_NETLIST_PARSER::Parse() throw( IO_ERROR, PARSE_ERROR, boost::bad_poin
 }
 
 
-void KICAD_NETLIST_PARSER::parseNet() throw( IO_ERROR, PARSE_ERROR )
+void KICAD_NETLIST_PARSER::parseNet()
 {
     /* Parses a section like
      * (net (code 20) (name /PC-A0)
@@ -268,7 +268,7 @@ void KICAD_NETLIST_PARSER::parseNet() throw( IO_ERROR, PARSE_ERROR )
 }
 
 
-void KICAD_NETLIST_PARSER::parseComponent() throw( IO_ERROR, PARSE_ERROR, boost::bad_pointer )
+void KICAD_NETLIST_PARSER::parseComponent()
 {
    /* Parses a section like
      * (comp (ref P1)
@@ -282,7 +282,7 @@ void KICAD_NETLIST_PARSER::parseComponent() throw( IO_ERROR, PARSE_ERROR, boost:
      * A component need a reference, value, footprint name and a full time stamp
      * The full time stamp is the sheetpath time stamp + the component time stamp
      */
-    FPID     fpid;
+    LIB_ID   fpid;
     wxString footprint;
     wxString ref;
     wxString value;
@@ -335,9 +335,14 @@ void KICAD_NETLIST_PARSER::parseComponent() throw( IO_ERROR, PARSE_ERROR, boost:
                     name = FROM_UTF8( CurText() );
                     NeedRIGHT();
                 }
+                else if( token == T_description )
+                {
+                    NeedSYMBOLorNUMBER();
+                    NeedRIGHT();
+                }
                 else
                 {
-                    Expecting( "part or lib" );
+                    Expecting( "part, lib or description" );
                 }
             }
             break;
@@ -366,7 +371,7 @@ void KICAD_NETLIST_PARSER::parseComponent() throw( IO_ERROR, PARSE_ERROR, boost:
     if( !footprint.IsEmpty() && fpid.Parse( footprint ) >= 0 )
     {
         wxString error;
-        error.Printf( _( "invalid footprint ID in\nfile: <%s>\nline: %d\noffset: %d" ),
+        error.Printf( _( "invalid footprint ID in\nfile: \"%s\"\nline: %d\noffset: %d" ),
                       GetChars( CurSource() ), CurLineNumber(), CurOffset() );
 
         THROW_IO_ERROR( error );
@@ -380,7 +385,7 @@ void KICAD_NETLIST_PARSER::parseComponent() throw( IO_ERROR, PARSE_ERROR, boost:
 }
 
 
-void KICAD_NETLIST_PARSER::parseLibPartList() throw( IO_ERROR, PARSE_ERROR )
+void KICAD_NETLIST_PARSER::parseLibPartList()
 {
    /* Parses a section like
     *   (libpart (lib device) (part C)
@@ -407,6 +412,7 @@ void KICAD_NETLIST_PARSER::parseLibPartList() throw( IO_ERROR, PARSE_ERROR )
     wxString          libPartName;
     wxArrayString     footprintFilters;
     wxArrayString     aliases;
+    int               pinCount = 0;
 
     // The last token read was libpart, so read the next token
     while( (token = NextTok()) != T_RIGHT )
@@ -442,7 +448,6 @@ void KICAD_NETLIST_PARSER::parseLibPartList() throw( IO_ERROR, PARSE_ERROR )
                 footprintFilters.Add( FROM_UTF8( CurText() ) );
                 NeedRIGHT();
             }
-
             break;
 
         case T_aliases:
@@ -459,6 +464,22 @@ void KICAD_NETLIST_PARSER::parseLibPartList() throw( IO_ERROR, PARSE_ERROR )
                 NeedRIGHT();
             }
             break;
+
+        case T_pins:
+            while( (token = NextTok()) != T_RIGHT )
+            {
+                if( token == T_LEFT )
+                    token = NextTok();
+
+                if( token != T_pin )
+                    Expecting( T_pin );
+
+                pinCount++;
+
+                skipCurrent();
+            }
+            break;
+
         default:
             // Skip not used data (i.e all other tokens)
             skipCurrent();
@@ -472,12 +493,18 @@ void KICAD_NETLIST_PARSER::parseLibPartList() throw( IO_ERROR, PARSE_ERROR )
         component = m_netlist->GetComponent( i );
 
         if( component->IsLibSource( libName, libPartName ) )
+        {
             component->SetFootprintFilters( footprintFilters );
+            component->SetPinCount( pinCount );
+        }
 
         for( unsigned jj = 0; jj < aliases.GetCount(); jj++ )
         {
             if( component->IsLibSource( libName, aliases[jj] ) )
+            {
                 component->SetFootprintFilters( footprintFilters );
+                component->SetPinCount( pinCount );
+            }
         }
 
     }

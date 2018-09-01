@@ -31,9 +31,9 @@
 #include <fctsys.h>
 #include <gr_basic.h>
 #include <class_drawpanel.h>
-#include <wxstruct.h>
 #include <trigo.h>
 #include <msgpanel.h>
+#include <bitmaps.h>
 
 #include <pcbnew.h>
 #include <class_marker_pcb.h>
@@ -41,7 +41,7 @@
 
 
 /// Adjust the actual size of markers, when using default shape
-#define SCALING_FACTOR      DMils2iu( 30 )
+#define SCALING_FACTOR      Mils2iu( 3 )
 
 
 MARKER_PCB::MARKER_PCB( BOARD_ITEM* aParent ) :
@@ -85,7 +85,7 @@ MARKER_PCB::~MARKER_PCB()
  * param aLayer The layer to test for.
  * return bool - true if on given layer, else false.
  */
-bool MARKER_PCB::IsOnLayer( LAYER_ID aLayer ) const
+bool MARKER_PCB::IsOnLayer( PCB_LAYER_ID aLayer ) const
 {
     return IsCopperLayer( aLayer );
 }
@@ -137,8 +137,19 @@ wxString MARKER_PCB::GetSelectMenuText() const
 }
 
 
+BITMAP_DEF MARKER_PCB::GetMenuImage() const
+{
+    return drc_xpm;
+}
+
+
 void MARKER_PCB::ViewGetLayers( int aLayers[], int& aCount ) const
 {
     aCount = 1;
-    aLayers[0] = ITEM_GAL_LAYER( DRC_VISIBLE );
+    aLayers[0] = LAYER_DRC;
+}
+
+const EDA_RECT MARKER_PCB::GetBoundingBox() const
+{
+    return EDA_RECT( m_Pos, wxSize( 1300000, 1300000 ) );
 }

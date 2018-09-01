@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2007-2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2007-2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,8 +28,8 @@
 
 #include <fctsys.h>
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
-#include <modview_frame.h>
+#include <pcb_edit_frame.h>
+#include <footprint_viewer_frame.h>
 #include <pcbnew_id.h>
 
 #include <hotkeys.h>
@@ -93,13 +93,30 @@ static EDA_HOTKEY HkSwitch2NextCopperLayer( _HKI( "Switch to Next Layer" ),
 static EDA_HOTKEY HkSwitch2PreviousCopperLayer( _HKI( "Switch to Previous Layer" ),
                                                 HK_SWITCH_LAYER_TO_PREVIOUS, '-' );
 
-static EDA_HOTKEY HkSaveModule( _HKI( "Save Footprint" ), HK_SAVE_MODULE, 'S' + GR_KB_CTRL );
-static EDA_HOTKEY HkSavefile( _HKI( "Save Board" ), HK_SAVE_BOARD, 'S' + GR_KB_CTRL );
-static EDA_HOTKEY HkSavefileAs( _HKI( "Save Board As" ), HK_SAVE_BOARD_AS, 'S' + GR_KB_CTRL + GR_KB_SHIFT );
-static EDA_HOTKEY HkLoadfile( _HKI( "Load Board" ), HK_LOAD_BOARD, 'L' + GR_KB_CTRL );
 static EDA_HOTKEY HkFindItem( _HKI( "Find Item" ), HK_FIND_ITEM, 'F' + GR_KB_CTRL );
 static EDA_HOTKEY HkBackspace( _HKI( "Delete Track Segment" ), HK_BACK_SPACE, WXK_BACK );
 static EDA_HOTKEY HkAddNewTrack( _HKI( "Add New Track" ), HK_ADD_NEW_TRACK, 'X' );
+
+static EDA_HOTKEY HkRouteDiffPair( _HKI( "Route Differential Pair (Modern Toolset only)" ),
+                                   HK_ROUTE_DIFF_PAIR, '6' );
+static EDA_HOTKEY HkRouteTuneSingle( _HKI( "Tune Single Track (Modern Toolset only)" ),
+                                     HK_ROUTE_TUNE_SINGLE, '7' );
+static EDA_HOTKEY HkRouteTuneDiffPair( _HKI( "Tune Differential Pair Length (Modern Toolset only)" ),
+                                       HK_ROUTE_TUNE_DIFF_PAIR, '8' );
+static EDA_HOTKEY HkRouteTuneSkew( _HKI( "Tune Differential Pair Skew (Modern Toolset only)" ),
+                                   HK_ROUTE_TUNE_SKEW, '9' );
+static EDA_HOTKEY HkRouteTuneSettings( _HKI( "Length Tuning Settings (Modern Toolset only)" ),
+                                       HK_ROUTE_TUNE_SETTINGS, 'L' + GR_KB_CTRL );
+
+static EDA_HOTKEY HkRouteTuneIncreaseSpacing( _HKI( "Increase meander spacing by one step." ),
+        HK_ROUTE_TUNE_INCREASE_SPACING, '1' );
+static EDA_HOTKEY HkRouteTuneDecreaseSpacing( _HKI( "Decrease meander spacing by one step." ),
+        HK_ROUTE_TUNE_DECREASE_SPACING, '2' );
+static EDA_HOTKEY HkRouteTuneIncreaseAmp( _HKI( "Increase meander amplitude by one step." ),
+        HK_ROUTE_TUNE_INCREASE_AMP, '3' );
+static EDA_HOTKEY HkRouteTuneDecreaseAmp( _HKI( "Decrease meander amplitude by one step." ),
+        HK_ROUTE_TUNE_DECREASE_AMP, '4' );
+
 static EDA_HOTKEY HkAddThroughVia( _HKI( "Add Through Via" ), HK_ADD_THROUGH_VIA, 'V' );
 static EDA_HOTKEY HkSelLayerAndAddThroughVia( _HKI( "Select Layer and Add Through Via" ),
                                               HK_SEL_LAYER_AND_ADD_THROUGH_VIA, '<' );
@@ -114,12 +131,15 @@ static EDA_HOTKEY HkEditBoardItem( _HKI( "Edit Item" ), HK_EDIT_ITEM, 'E' );
 static EDA_HOTKEY HkEditWithModedit( _HKI( "Edit with Footprint Editor" ), HK_EDIT_MODULE_WITH_MODEDIT, 'E' + GR_KB_CTRL );
 static EDA_HOTKEY HkFlipItem( _HKI( "Flip Item" ), HK_FLIP_ITEM, 'F' );
 static EDA_HOTKEY HkRotateItem( _HKI( "Rotate Item" ), HK_ROTATE_ITEM, 'R' );
+static EDA_HOTKEY HkRotateItemClockwise( _HKI( "Rotate Item Clockwise (Modern Toolset only)" ),
+                                         HK_ROTATE_ITEM_CLOCKWISE, GR_KB_SHIFT + 'R' );
 static EDA_HOTKEY HkMoveItem( _HKI( "Move Item" ), HK_MOVE_ITEM, 'M' );
 static EDA_HOTKEY HkMoveItemExact( _HKI( "Move Item Exactly" ), HK_MOVE_ITEM_EXACT, 'M' + GR_KB_CTRL );
+static EDA_HOTKEY HkPositionItemRelative( _HKI( "Position Item Relative" ), HK_POSITION_RELATIVE, 'R' + GR_KB_CTRL );
 static EDA_HOTKEY HkDuplicateItem( _HKI( "Duplicate Item" ), HK_DUPLICATE_ITEM, 'D' + GR_KB_CTRL );
 static EDA_HOTKEY HkDuplicateItemAndIncrement( _HKI( "Duplicate Item and Increment" ),
                                    HK_DUPLICATE_ITEM_AND_INCREMENT, 'D' + GR_KB_SHIFTCTRL );
-static EDA_HOTKEY HkCreateArray( _HKI( "Create Array" ), HK_CREATE_ARRAY, 'N' + GR_KB_CTRL );
+static EDA_HOTKEY HkCreateArray( _HKI( "Create Array" ), HK_CREATE_ARRAY, 'T' + GR_KB_CTRL );
 static EDA_HOTKEY HkCopyItem( _HKI( "Copy Item" ), HK_COPY_ITEM, 'C' );
 static EDA_HOTKEY HkDragFootprint( _HKI( "Drag Item" ), HK_DRAG_ITEM, 'G' );
 static EDA_HOTKEY HkGetAndMoveFootprint( _HKI( "Get and Move Footprint" ), HK_GET_AND_MOVE_FOOTPRINT, 'T' );
@@ -128,22 +148,40 @@ static EDA_HOTKEY HkDelete( _HKI( "Delete Track or Footprint" ), HK_DELETE, WXK_
 static EDA_HOTKEY HkResetLocalCoord( _HKI( "Reset Local Coordinates" ), HK_RESET_LOCAL_COORD, ' ' );
 static EDA_HOTKEY HkSwitchHighContrastMode( _HKI( "Toggle High Contrast Mode" ), HK_SWITCH_HIGHCONTRAST_MODE,'H');
 
+static EDA_HOTKEY HkAddLine( _HKI( "Draw Line" ), HK_ADD_LINE, 'L' + GR_KB_SHIFTCTRL );
+static EDA_HOTKEY HkAddPolygon( _HKI( "Draw Graphic Polygon" ), HK_ADD_POLYGON, 'P' + GR_KB_SHIFTCTRL );
+static EDA_HOTKEY HkAddCircle( _HKI( "Draw Circle" ), HK_ADD_CIRCLE, 'C' + GR_KB_SHIFTCTRL );
+static EDA_HOTKEY HkAddArc( _HKI( "Draw Arc" ), HK_ADD_ARC, 'A' + GR_KB_SHIFTCTRL );
+static EDA_HOTKEY HkAddText( _HKI( "Add Text" ), HK_ADD_TEXT, 'T' + GR_KB_SHIFTCTRL );
+static EDA_HOTKEY HkAddDimension( _HKI( "Add Dimension" ), HK_ADD_DIMENSION, 'H' + GR_KB_SHIFTCTRL );
+static EDA_HOTKEY HkAddFilledZone( _HKI( "Add Filled Zone" ), HK_ADD_ZONE, 'Z' + GR_KB_SHIFTCTRL );
+static EDA_HOTKEY HkAddFreeVia( _HKI( "Add Vias" ), HK_ADD_FREE_VIA, 'V' + GR_KB_SHIFTCTRL );
+static EDA_HOTKEY HkAddKeepout( _HKI( "Add Keepout Area" ), HK_ADD_KEEPOUT, 'K' + GR_KB_SHIFTCTRL );
+static EDA_HOTKEY HkAddZoneCutout( _HKI( "Add a Zone Cutout" ), HK_ADD_CUTOUT, 'C' );
+static EDA_HOTKEY HkAddSimilarZone( _HKI( "Add a Similar Zone" ), HK_ADD_SIMILAR_ZONE, '.' + GR_KB_SHIFTCTRL );
+static EDA_HOTKEY HkAddDXF( _HKI( "Place DXF" ), HK_ADD_DXF, 'F' + GR_KB_SHIFTCTRL );
+static EDA_HOTKEY HkAddAnchor( _HKI( "Place the Footprint Anchor" ), HK_ADD_ANCHOR, 'N' + GR_KB_SHIFTCTRL );
+
+static EDA_HOTKEY HkIncreaseLineWidth( _HKI( "Increase Line Width" ), HK_INC_LINE_WIDTH, '+' + GR_KB_CTRL );
+static EDA_HOTKEY HkDecreaseLineWidth( _HKI( "Decrease Line Width" ), HK_DEC_LINE_WIDTH, '-' + GR_KB_CTRL );
+
+
 static EDA_HOTKEY HkSetGridOrigin( _HKI( "Set Grid Origin" ), HK_SET_GRID_ORIGIN, 'S' );
 static EDA_HOTKEY HkResetGridOrigin( _HKI( "Reset Grid Origin" ), HK_RESET_GRID_ORIGIN, 'Z' );
 
-static EDA_HOTKEY HkCanvasDefault( _HKI( "Switch to Default Canvas" ),
-                                   HK_CANVAS_DEFAULT,
+static EDA_HOTKEY HkCanvasDefault( _HKI( "Switch to Legacy Toolset (not all features will be available" ),
+                                   HK_CANVAS_LEGACY,
 #ifdef __WXMAC__
                                    GR_KB_ALT +
 #endif
                                    WXK_F9 );
-static EDA_HOTKEY HkCanvasOpenGL( _HKI( "Switch to OpenGL Canvas" ),
+static EDA_HOTKEY HkCanvasOpenGL( _HKI( "Switch to Modern Toolset with hardware-accelerated graphics (recommended)" ),
                                   HK_CANVAS_OPENGL,
 #ifdef __WXMAC__
                                   GR_KB_ALT +
 #endif
                                   WXK_F11 );
-static EDA_HOTKEY HkCanvasCairo( _HKI( "Switch to Cairo Canvas" ),
+static EDA_HOTKEY HkCanvasCairo( _HKI( "Switch to Modern Toolset with software graphics (fall-back)" ),
                                  HK_CANVAS_CAIRO,
 #ifdef __WXMAC__
                                  GR_KB_ALT +
@@ -184,22 +222,12 @@ static EDA_HOTKEY HkZoomOut( _HKI( "Zoom Out" ), HK_ZOOM_OUT, WXK_F2 );
 static EDA_HOTKEY HkZoomOut( _HKI( "Zoom Out" ), HK_ZOOM_OUT, GR_KB_CTRL + '-' );
 #endif
 
+static EDA_HOTKEY HkZoomSelection( _HKI( "Zoom to Selection" ), HK_ZOOM_SELECTION,
+                                   GR_KB_CTRL + WXK_F5, ID_ZOOM_SELECTION );
+
 static EDA_HOTKEY Hk3DViewer( _HKI( "3D Viewer" ), HK_3D_VIEWER, GR_KB_ALT + '3' );
 
-static EDA_HOTKEY HkHelp( _HKI( "Help (this window)" ), HK_HELP, '?' );
-
-
-/* Undo */
-static EDA_HOTKEY HkUndo( _HKI( "Undo" ), HK_UNDO, GR_KB_CTRL + 'Z', (int) wxID_UNDO );
-
-/* Redo */
-#if !defined( __WXMAC__ )
-static EDA_HOTKEY HkRedo( _HKI( "Redo" ), HK_REDO, GR_KB_CTRL + 'Y', (int) wxID_REDO );
-#else
-static EDA_HOTKEY HkRedo( _HKI( "Redo" ), HK_REDO,
-                          GR_KB_SHIFT + GR_KB_CTRL + 'Z',
-                          (int) wxID_REDO );
-#endif
+static EDA_HOTKEY HkHelp( _HKI( "Help (this window)" ), HK_HELP, GR_KB_CTRL + WXK_F1 );
 
 static EDA_HOTKEY HkSwitchTrackWidthToNext( _HKI( "Switch Track Width To Next" ),
                                             HK_SWITCH_TRACK_WIDTH_TO_NEXT, 'W' );
@@ -221,61 +249,81 @@ static EDA_HOTKEY HkSwitchGridToPrevious( _HKI( "Switch Grid To Previous" ),
                                           HK_SWITCH_GRID_TO_PREVIOUS, 'N' + GR_KB_SHIFT );
 
 static EDA_HOTKEY HkSwitchUnits( _HKI( "Switch Units" ), HK_SWITCH_UNITS, 'U' + GR_KB_CTRL );
+
 static EDA_HOTKEY HkTrackDisplayMode( _HKI( "Track Display Mode" ),
                                       HK_SWITCH_TRACK_DISPLAY_MODE, 'K' );
+
 static EDA_HOTKEY HkAddModule( _HKI( "Add Footprint" ), HK_ADD_MODULE, 'O' );
 
-/* Record and play macros */
-static EDA_HOTKEY HkRecordMacros0( _HKI( "Record Macro 0" ), HK_RECORD_MACROS_0, GR_KB_CTRL+'0' );
+// These hotkeys work only in GAL canvas, because the legacy canvas using wxDC does not know
+// the transparency (alpha channel)
+static EDA_HOTKEY HkIncLayerAlpha( _HKI( "Increment Layer Transparency (Modern Toolset only)" ),
+                                   HK_INC_LAYER_ALPHA, '}' );
 
-static EDA_HOTKEY HkCallMacros0( _HKI( "Call Macro 0" ), HK_CALL_MACROS_0, '0' );
+static EDA_HOTKEY HkDecLayerAlpha( _HKI( "Decrement Layer Transparency (Modern Toolset only)" ),
+                                   HK_DEC_LAYER_ALPHA, '{' );
 
-static EDA_HOTKEY HkRecordMacros1( _HKI( "Record Macro 1" ), HK_RECORD_MACROS_1, GR_KB_CTRL+'1' );
+// These two are currently unused, and are intentionally not added to a list below.
+static EDA_HOTKEY HkIncHighContrast( _HKI( "Increment High Contrast" ), HK_HIGHCONTRAST_INC, '>' );
+static EDA_HOTKEY HkDecHighContrast( _HKI( "Decrement High Contrast" ), HK_HIGHCONTRAST_DEC, '<' );
 
-static EDA_HOTKEY HkCallMacros1( _HKI( "Call Macro 1" ), HK_CALL_MACROS_1, '1' );
+static EDA_HOTKEY HkSelectConnection( _HKI( "Select Trivial Connection" ), HK_SEL_TRIVIAL_CONNECTION, 'U' );
 
-static EDA_HOTKEY HkRecordMacros2( _HKI( "Record Macro 2" ), HK_RECORD_MACROS_2, GR_KB_CTRL+'2' );
+static EDA_HOTKEY HkSelectCopper( _HKI( "Select Copper Connection" ), HK_SEL_COPPER_CONNECTION, 'I' );
 
-static EDA_HOTKEY HkCallMacros2( _HKI( "Call Macro 2" ), HK_CALL_MACROS_2, '2' );
+static EDA_HOTKEY HkRoutingOptions( _HKI( "Routing Options" ), HK_ROUTING_OPTIONS, ',' + GR_KB_CTRL );
 
-static EDA_HOTKEY HkRecordMacros3( _HKI( "Record Macro 3" ), HK_RECORD_MACROS_3, GR_KB_CTRL+'3' );
+static EDA_HOTKEY HkCustomTrackWidth( _HKI( "Custom Track/Via Size" ), HK_CUSTOM_TRACK_WIDTH, 'Q' );
 
-static EDA_HOTKEY HkCallMacros3( _HKI( "Call Macro 3" ), HK_CALL_MACROS_3, '3' );
+static EDA_HOTKEY HkDpDimension( _HKI( "Differential Pair Dimensions" ), HK_DP_DIMENSIONS, 'R' + GR_KB_SHIFTCTRL );
 
-static EDA_HOTKEY HkRecordMacros4( _HKI( "Record Macro 4" ), HK_RECORD_MACROS_4, GR_KB_CTRL+'4' );
+static EDA_HOTKEY HkViaSizeInc( _HKI( "Increase Via Size" ), HK_VIA_SIZE_INC, '\'' );
 
-static EDA_HOTKEY HkCallMacros4( _HKI( "Call Macro 4" ), HK_CALL_MACROS_4, '4' );
+static EDA_HOTKEY HkViaSizeDec( _HKI( "Decrease Via Size" ), HK_VIA_SIZE_DEC, '\\' );
 
-static EDA_HOTKEY HkRecordMacros5( _HKI( "Record Macro 5" ), HK_RECORD_MACROS_5, GR_KB_CTRL+'5' );
+static EDA_HOTKEY HkHighlightNetSelection( _HKI( "Toggle Highlight of Selected Net (Modern Toolset only)" ),
+                                           HK_HIGHLIGHT_NET_SELECTION, '`' );
 
-static EDA_HOTKEY HkCallMacros5( _HKI( "Call Macro 5" ), HK_CALL_MACROS_5, '5' );
+// Common: hotkeys_basic.h
+static EDA_HOTKEY HkNew( _HKI( "New" ), HK_NEW, GR_KB_CTRL + 'N', (int) wxID_NEW );
+static EDA_HOTKEY HkOpen( _HKI( "Open" ), HK_OPEN, GR_KB_CTRL + 'O', (int) wxID_OPEN );
+static EDA_HOTKEY HkSave( _HKI( "Save" ), HK_SAVE, GR_KB_CTRL + 'S', (int) wxID_SAVE );
+static EDA_HOTKEY HkSaveAs( _HKI( "Save As" ), HK_SAVEAS, GR_KB_SHIFT + GR_KB_CTRL + 'S', (int) wxID_SAVEAS );
+static EDA_HOTKEY HkPrint( _HKI( "Print" ), HK_PRINT, GR_KB_CTRL + 'P', (int) wxID_PRINT );
 
-static EDA_HOTKEY HkRecordMacros6( _HKI( "Record Macro 6" ), HK_RECORD_MACROS_6, GR_KB_CTRL+'6' );
+static EDA_HOTKEY HkUndo( _HKI( "Undo" ), HK_UNDO, GR_KB_CTRL + 'Z', (int) wxID_UNDO );
 
-static EDA_HOTKEY HkCallMacros6( _HKI( "Call Macro 6" ), HK_CALL_MACROS_6, '6' );
+#if !defined( __WXMAC__ )
+static EDA_HOTKEY HkRedo( _HKI( "Redo" ), HK_REDO, GR_KB_CTRL + 'Y', (int) wxID_REDO );
+#else
+static EDA_HOTKEY HkRedo( _HKI( "Redo" ), HK_REDO,
+                          GR_KB_SHIFT + GR_KB_CTRL + 'Z',
+                          (int) wxID_REDO );
+#endif
 
-static EDA_HOTKEY HkRecordMacros7( _HKI( "Record Macro 7" ), HK_RECORD_MACROS_7, GR_KB_CTRL+'7' );
+static EDA_HOTKEY HkEditCut( _HKI( "Cut" ), HK_EDIT_CUT, GR_KB_CTRL + 'X', (int) wxID_CUT );
+static EDA_HOTKEY HkEditCopy( _HKI( "Copy" ), HK_EDIT_COPY, GR_KB_CTRL + 'C', (int) wxID_COPY );
+static EDA_HOTKEY HkEditPaste( _HKI( "Paste" ), HK_EDIT_PASTE, GR_KB_CTRL + 'V', (int) wxID_PASTE );
 
-static EDA_HOTKEY HkCallMacros7( _HKI( "Call Macro 7" ), HK_CALL_MACROS_7, '7' );
-
-static EDA_HOTKEY HkRecordMacros8( _HKI( "Record Macro 8" ), HK_RECORD_MACROS_8, GR_KB_CTRL+'8' );
-
-static EDA_HOTKEY HkCallMacros8( _HKI( "Call Macro 8" ), HK_CALL_MACROS_8, '8' );
-
-static EDA_HOTKEY HkRecordMacros9( _HKI( "Record Macro 9" ), HK_RECORD_MACROS_9, GR_KB_CTRL+'9' );
-
-static EDA_HOTKEY HkCallMacros9( _HKI( "Call Macro 9" ), HK_CALL_MACROS_9, '9' );
-
+static EDA_HOTKEY HkToggleCursor( _HKI( "Toggle Cursor Display (Modern Toolset only)" ),
+                                  HK_TOGGLE_CURSOR, 'X' + GR_KB_SHIFTCTRL );
+static EDA_HOTKEY HkMeasureTool( _HKI( "Measure Distance (Modern Toolset only)" ),
+                                 HK_MEASURE_TOOL, 'M' + GR_KB_SHIFTCTRL );
 
 // List of common hotkey descriptors
 EDA_HOTKEY* common_Hotkey_List[] =
 {
-    &HkHelp,        &HkZoomIn,          &HkZoomOut,
-    &HkZoomRedraw,  &HkZoomCenter,      &HkZoomAuto,      &Hk3DViewer,
-    &HkSwitchUnits, &HkResetLocalCoord, &HkSetGridOrigin, &HkResetGridOrigin,
+    &HkNew,         &HkOpen,            &HkSave,          &HkSaveAs,        &HkPrint,
     &HkUndo,        &HkRedo,
+    &HkEditCut,     &HkEditCopy,        &HkEditPaste,
+    &HkHelp,        &HkZoomIn,          &HkZoomOut,
+    &HkZoomRedraw,  &HkZoomCenter,      &HkZoomAuto,      &HkZoomSelection, &Hk3DViewer,
+    &HkSwitchUnits, &HkResetLocalCoord, &HkSetGridOrigin, &HkResetGridOrigin,
     &HkMouseLeftClick,
     &HkMouseLeftDClick,
+    &HkIncLayerAlpha, &HkDecLayerAlpha,
+    &HkToggleCursor,
+    &HkMeasureTool,
     NULL
 };
 
@@ -293,45 +341,143 @@ EDA_HOTKEY* common_basic_Hotkey_List[] =
 // List of hotkey descriptors for Pcbnew
 EDA_HOTKEY* board_edit_Hotkey_List[] =
 {
-    &HkTrackDisplayMode,       &HkDelete,
-    &HkBackspace,
-    &HkAddNewTrack,            &HkAddThroughVia, &HkAddBlindBuriedVia,
-    &HkAddMicroVia,
-    &HkSelLayerAndAddThroughVia, &HkSelLayerAndAddBlindBuriedVia,
+    // Adding Items
+    &HkPlaceItem,
+    &HkAddModule,
+    &HkAddFreeVia,
+    &HkAddFilledZone,
+    &HkAddKeepout,
+    &HkAddZoneCutout,
+    &HkAddSimilarZone,
+    &HkAddLine,
+    &HkAddCircle,
+    &HkAddArc,
+    &HkAddPolygon,
+    &HkAddText,
+    &HkAddDimension,
+    &HkAddDXF,
+
+    // Routing and options during routing
+    &HkAddNewTrack,
     &HkSwitchTrackPosture,
     &HkDragTrackKeepSlope,
-    &HkPlaceItem,              &HkCopyItem,
-    &HkMoveItem,
-    &HkFlipItem,
-    &HkRotateItem,             &HkMoveItemExact,
-    &HkDuplicateItem,          &HkDuplicateItemAndIncrement, &HkCreateArray,
+    &HkAddThroughVia,
+    &HkAddBlindBuriedVia,
+    &HkAddMicroVia,
+
+    // Routing
+    &HkRouteDiffPair,
+    &HkRouteTuneSingle,
+    &HkRouteTuneDiffPair,
+    &HkRouteTuneSkew,
+
+    // Routing Options
+    &HkRoutingOptions,
+    &HkRouteTuneSettings,
+    &HkRouteTuneIncreaseSpacing,
+    &HkRouteTuneDecreaseSpacing,
+    &HkRouteTuneIncreaseAmp,
+    &HkRouteTuneDecreaseAmp,
+    &HkDpDimension,
+
+    // Zones
+    &HkZoneFillOrRefill,
+    &HkZoneRemoveFilled,
+
+    // Highlight and display
+    &HkSelectConnection,
+    &HkSelectCopper,
+    &HkHighlightNetSelection,
+    &HkTrackDisplayMode,
+
+    // Adjust track/via sizes
+    &HkCustomTrackWidth,
+    &HkSwitchTrackWidthToNext,
+    &HkSwitchTrackWidthToPrevious,
+    &HkViaSizeInc,
+    &HkViaSizeDec,
+
+    // Remove items
+    &HkDelete,
+    &HkBackspace,
+
+    // Edit placement
     &HkDragFootprint,
-    &HkGetAndMoveFootprint,    &HkLock_Unlock_Footprint,     &HkSavefile, &HkSavefileAs,
-    &HkLoadfile,               &HkFindItem,                  &HkEditBoardItem,
+    &HkCopyItem,
+    &HkMoveItem,
+    &HkGetAndMoveFootprint,
+    &HkMoveItemExact,
+    &HkPositionItemRelative,
+    &HkFlipItem,
+    &HkRotateItem,
+    &HkRotateItemClockwise,
+
+    &HkSelLayerAndAddThroughVia,
+    &HkSelLayerAndAddBlindBuriedVia,
+
+    &HkDuplicateItem,
+    &HkDuplicateItemAndIncrement,
+    &HkCreateArray,
+    &HkLock_Unlock_Footprint,
+
+    &HkFindItem,
+    &HkEditBoardItem,
     &HkEditWithModedit,
-    &HkSwitch2CopperLayer,     &HkSwitch2InnerLayer1,
-    &HkSwitch2InnerLayer2,     &HkSwitch2InnerLayer3,        &HkSwitch2InnerLayer4,
-    &HkSwitch2InnerLayer5,     &HkSwitch2InnerLayer6,        &HkSwitch2ComponentLayer,
-    &HkSwitch2NextCopperLayer, &HkSwitch2PreviousCopperLayer,&HkAddModule,
-    &HkSwitchTrackWidthToNext, &HkSwitchTrackWidthToPrevious,&HkSwitchGridToFastGrid1,
-    &HkSwitchGridToFastGrid2,  &HkSwitchGridToNext,          &HkSwitchGridToPrevious,
-    &HkRecordMacros0,          &HkCallMacros0,    &HkRecordMacros1,          &HkCallMacros1,
-    &HkRecordMacros2,          &HkCallMacros2,    &HkRecordMacros3,          &HkCallMacros3,
-    &HkRecordMacros4,          &HkCallMacros4,    &HkRecordMacros5,          &HkCallMacros5,
-    &HkRecordMacros6,          &HkCallMacros6,    &HkRecordMacros7,          &HkCallMacros7,
-    &HkRecordMacros8,          &HkCallMacros8,    &HkRecordMacros9,          &HkCallMacros9,
+
+    // Active Layer
+    &HkSwitch2ComponentLayer,
+    &HkSwitch2CopperLayer,
+    &HkSwitch2InnerLayer1,
+    &HkSwitch2InnerLayer2,
+    &HkSwitch2InnerLayer3,
+    &HkSwitch2InnerLayer4,
+    &HkSwitch2InnerLayer5,
+    &HkSwitch2InnerLayer6,
+    &HkSwitch2NextCopperLayer,
+    &HkSwitch2PreviousCopperLayer,
+
+    // Grids
+    &HkSwitchGridToFastGrid1,
+    &HkSwitchGridToFastGrid2,
+    &HkSwitchGridToNext,
+    &HkSwitchGridToPrevious,
+
+    // Display
     &HkSwitchHighContrastMode,
-    &HkCanvasDefault,          &HkCanvasCairo,               &HkCanvasOpenGL,
-    &HkZoneFillOrRefill,       &HkZoneRemoveFilled,
+    &HkCanvasDefault,
+    &HkCanvasCairo,
+    &HkCanvasOpenGL,
     NULL
 };
 
 // List of hotkey descriptors for the module editor
 EDA_HOTKEY* module_edit_Hotkey_List[] = {
-    &HkMoveItem,               &HkRotateItem,                &HkEditBoardItem,
-    &HkMoveItemExact,          &HkDuplicateItem,             &HkDuplicateItemAndIncrement,
-    &HkCreateArray,            &HkDelete,                    &HkSaveModule,
-    &HkCanvasDefault,          &HkCanvasCairo,               &HkCanvasOpenGL,
+    // Add Items
+    &HkAddLine,
+    &HkAddCircle,
+    &HkAddArc,
+    &HkAddPolygon,
+    &HkAddText,
+    &HkAddAnchor,
+
+    // Delete/Move
+    &HkDelete,
+    &HkMoveItem,
+    &HkMoveItemExact,
+    &HkRotateItem,
+    &HkSwitchTrackPosture,
+
+    // Edit/Duplicate
+    &HkEditBoardItem,
+    &HkDuplicateItem,
+    &HkDuplicateItemAndIncrement,
+    &HkCreateArray,
+
+    // Display
+    &HkSwitchHighContrastMode,
+    &HkCanvasDefault,
+    &HkCanvasCairo,
+    &HkCanvasOpenGL,
     NULL
  };
 
@@ -353,7 +499,7 @@ static wxString moduleEditSectionTitle( _HKI( "Footprint Editor" ) );
 
 // list of sections and corresponding hotkey list for Pcbnew
 // (used to create an hotkey config file, and edit hotkeys )
-struct EDA_HOTKEY_CONFIG g_Pcbnew_Editor_Hokeys_Descr[] = {
+struct EDA_HOTKEY_CONFIG g_Pcbnew_Editor_Hotkeys_Descr[] = {
     { &g_CommonSectionTag,      common_Hotkey_List,         &commonSectionTitle      },
     { &boardEditorSectionTag,   board_edit_Hotkey_List,     &boardEditorSectionTitle },
     { &moduleEditSectionTag,  module_edit_Hotkey_List,    &moduleEditSectionTitle  },
@@ -362,7 +508,7 @@ struct EDA_HOTKEY_CONFIG g_Pcbnew_Editor_Hokeys_Descr[] = {
 
 // list of sections and corresponding hotkey list for the board editor
 // (used to list current hotkeys in the board editor)
-struct EDA_HOTKEY_CONFIG g_Board_Editor_Hokeys_Descr[] = {
+struct EDA_HOTKEY_CONFIG g_Board_Editor_Hotkeys_Descr[] = {
     { &g_CommonSectionTag,      common_Hotkey_List,      &commonSectionTitle },
     { &boardEditorSectionTag,   board_edit_Hotkey_List,  &boardEditorSectionTitle },
     { NULL, NULL, NULL }
@@ -370,7 +516,7 @@ struct EDA_HOTKEY_CONFIG g_Board_Editor_Hokeys_Descr[] = {
 
 // list of sections and corresponding hotkey list for the footprint editor
 // (used to list current hotkeys in the module editor)
-struct EDA_HOTKEY_CONFIG g_Module_Editor_Hokeys_Descr[] = {
+struct EDA_HOTKEY_CONFIG g_Module_Editor_Hotkeys_Descr[] = {
     { &g_CommonSectionTag,     common_Hotkey_List,      &commonSectionTitle },
     { &moduleEditSectionTag, module_edit_Hotkey_List, &moduleEditSectionTitle },
     { NULL,                    NULL,                    NULL }
@@ -378,7 +524,7 @@ struct EDA_HOTKEY_CONFIG g_Module_Editor_Hokeys_Descr[] = {
 
 // list of sections and corresponding hotkey list for the footprint viewer
 // (used to list current hotkeys in the module viewer)
-struct EDA_HOTKEY_CONFIG g_Module_Viewer_Hokeys_Descr[] = {
+struct EDA_HOTKEY_CONFIG g_Module_Viewer_Hotkeys_Descr[] = {
     { &g_CommonSectionTag, common_basic_Hotkey_List, &commonSectionTitle },
     { NULL,                NULL,                     NULL }
 };
@@ -396,7 +542,7 @@ EDA_HOTKEY* FOOTPRINT_VIEWER_FRAME::GetHotKeyDescription( int aCommand ) const
 
 
 bool FOOTPRINT_VIEWER_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
-                                     EDA_ITEM* aItem )
+                                       EDA_ITEM* aItem )
 {
     if( aHotKey == 0 )
         return false;
@@ -424,7 +570,7 @@ bool FOOTPRINT_VIEWER_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aP
         return false;
 
     case HK_HELP:                   // Display Current hotkey list
-        DisplayHotkeyList( this, g_Module_Viewer_Hokeys_Descr );
+        DisplayHotkeyList( this, g_Module_Viewer_Hotkeys_Descr );
         break;
 
     case HK_RESET_LOCAL_COORD:      // set local (relative) coordinate origin
@@ -447,12 +593,12 @@ bool FOOTPRINT_VIEWER_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aP
         break;
 
     case HK_ZOOM_IN:
-        cmd.SetId( ID_POPUP_ZOOM_IN );
+        cmd.SetId( ID_KEY_ZOOM_IN );
         GetEventHandler()->ProcessEvent( cmd );
         break;
 
     case HK_ZOOM_OUT:
-        cmd.SetId( ID_POPUP_ZOOM_OUT );
+        cmd.SetId( ID_KEY_ZOOM_OUT );
         GetEventHandler()->ProcessEvent( cmd );
         break;
 

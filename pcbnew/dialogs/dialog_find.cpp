@@ -2,8 +2,8 @@
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
  * Copyright (C) 2012 Marco Mattila <marcom99@gmail.com>
- * Copyright (C) 2006 Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
- * Copyright (C) 1992-2012 Kicad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2018 Jean-Pierre Charras jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2018 Kicad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,7 +28,7 @@
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <kicad_string.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 
 #include <class_board.h>
 #include <class_module.h>
@@ -51,13 +51,17 @@ DIALOG_FIND::DIALOG_FIND( PCB_BASE_FRAME* aParent ) : DIALOG_FIND_BASE( aParent 
     GetSizer()->SetSizeHints( this );
 
     m_SearchTextCtrl->AppendText( prevSearchString );
-    m_SearchTextCtrl->SetFocus();
-    m_SearchTextCtrl->SetSelection( -1, -1 );
     m_NoMouseWarpCheckBox->SetValue( !warpMouse );
 
     itemCount = markerCount = 0;
 
     Center();
+}
+
+void DIALOG_FIND::OnInitDialog( wxInitDialogEvent& event )
+{
+    m_SearchTextCtrl->SetFocus();
+    m_SearchTextCtrl->SetSelection( -1, -1 );
 }
 
 void DIALOG_FIND::EnableWarp( bool aEnabled )
@@ -124,15 +128,14 @@ void DIALOG_FIND::onButtonFindItemClick( wxCommandEvent& aEvent )
     if( foundItem )
     {
         parent->SetCurItem( foundItem );
-        msg.Printf( _( "<%s> found" ), GetChars( searchString ) );
+        parent->FocusOnLocation( pos, !m_NoMouseWarpCheckBox->IsChecked(), true );
+        msg.Printf( _( "\"%s\" found" ), GetChars( searchString ) );
         parent->SetStatusText( msg );
-
-        parent->CursorGoto( pos, !m_NoMouseWarpCheckBox->IsChecked() );
     }
     else
     {
         parent->SetStatusText( wxEmptyString );
-        msg.Printf( _( "<%s> not found" ), GetChars( searchString ) );
+        msg.Printf( _( "\"%s\" not found" ), GetChars( searchString ) );
         DisplayError( this, msg, 10 );
         itemCount = 0;
     }
@@ -162,10 +165,9 @@ void DIALOG_FIND::onButtonFindMarkerClick( wxCommandEvent& aEvent )
     if( foundItem )
     {
         parent->SetCurItem( foundItem );
+        parent->FocusOnLocation( pos, !m_NoMouseWarpCheckBox->IsChecked() );
         msg = _( "Marker found" );
         parent->SetStatusText( msg );
-
-        parent->CursorGoto( pos, !m_NoMouseWarpCheckBox->IsChecked() );
     }
     else
     {

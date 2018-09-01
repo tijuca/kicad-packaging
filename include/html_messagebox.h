@@ -41,15 +41,24 @@ class HTML_MESSAGE_BOX : public DIALOG_DISPLAY_HTML_TEXT_BASE
 {
 protected:
     // Handlers for HTML_MESSAGE_BOX_BASE events.
-    void OnCloseButtonClick( wxCommandEvent& event );
+    void OnCloseButtonClick( wxCommandEvent& event ) override;
 
 public:
+    HTML_MESSAGE_BOX( wxWindow* parent, const wxString& aTitle );
+    ~HTML_MESSAGE_BOX() override;
+
     /**
-     * Constructor
+     * set the dialog size, using a "logical value.
+     * the physical size in pixel will depend on the display definition
+     * so a value used here shoul be OK with any display (HDPI for instance)
+     * @param aWidth is a "logical" value of the dialog width.
+     * @param aHeight is a "logical" value of the dialog height.
      */
-    HTML_MESSAGE_BOX( wxWindow* parent, const wxString& aTitle,
-                       wxPoint aPos = wxDefaultPosition,
-                       wxSize aSize = wxSize( 450, 250 ) );
+    void SetDialogSizeInDU( int aWidth, int aHeight )
+    {
+        SetSizeInDU( aWidth, aHeight );
+        Center();
+    }
 
     /**
      * Function ListSet

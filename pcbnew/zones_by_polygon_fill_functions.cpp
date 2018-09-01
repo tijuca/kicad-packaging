@@ -5,8 +5,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2009 Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
- * Copyright (C) 2007 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2009 Jean-Pierre Charras jp.charras at wanadoo.fr
+ * Copyright (C) 2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -33,8 +33,11 @@
 #include <class_drawpanel.h>
 #include <class_draw_panel_gal.h>
 #include <ratsnest_data.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <macros.h>
+
+#include <tool/tool_manager.h>
+#include <tools/pcb_actions.h>
 
 #include <class_board.h>
 #include <class_track.h>
@@ -43,7 +46,11 @@
 #include <pcbnew.h>
 #include <zones.h>
 
-#define FORMAT_STRING _( "Filling zone %d out of %d (net %s)..." )
+#include <connectivity_data.h>
+#include <board_commit.h>
+
+#include <widgets/progress_reporter.h>
+#include <zone_filler.h>
 
 
 /**
@@ -55,19 +62,20 @@
  * @param aZone = zone segment within the zone to delete. Can be NULL
  * @param aTimestamp = Timestamp for the zone to delete, used if aZone == NULL
  */
-void PCB_EDIT_FRAME::Delete_OldZone_Fill( SEGZONE* aZone, time_t aTimestamp )
+void PCB_EDIT_FRAME::Delete_OldZone_Fill( SEGZONE* aZone, timestamp_t aTimestamp )
 {
     bool          modify  = false;
-    time_t        TimeStamp;
+    timestamp_t   TimeStamp;
 
     if( aZone == NULL )
         TimeStamp = aTimestamp;
     else
         TimeStamp = aZone->GetTimeStamp(); // Save reference time stamp (aZone will be deleted)
 
+    // SEGZONE is a deprecated item, only used for compatibility with very old boards
     SEGZONE* next;
 
-    for( SEGZONE* zone = GetBoard()->m_Zone; zone != NULL; zone = next )
+    for( SEGZONE* zone = GetBoard()->m_SegZoneDeprecated; zone != NULL; zone = next )
     {
         next = zone->Next();
 
@@ -87,102 +95,40 @@ void PCB_EDIT_FRAME::Delete_OldZone_Fill( SEGZONE* aZone, time_t aTimestamp )
 }
 
 
-int PCB_EDIT_FRAME::Fill_Zone( ZONE_CONTAINER* aZone )
+int PCB_EDIT_FRAME::Fill_All_Zones( wxWindow* aActiveWindow )
 {
-    aZone->ClearFilledPolysList();
-    aZone->UnFill();
-
-    // Cannot fill keepout zones:
-    if( aZone->GetIsKeepout() )
-        return 1;
-
-    wxString msg;
-
-    ClearMsgPanel();
-
-    // Shows the net
-    ZONE_SETTINGS zoneInfo = GetZoneSettings();
-    zoneInfo.m_NetcodeSelection = aZone->GetNetCode();
-    SetZoneSettings( zoneInfo );
-
-    msg = aZone->GetNetname();
-
-    if( msg.IsEmpty() )
-        msg = wxT( "No net" );
-
-    AppendMsgPanel( _( "NetName" ), msg, RED );
-
-    wxBusyCursor dummy;     // Shows an hourglass cursor (removed by its destructor)
-
-    aZone->BuildFilledSolidAreasPolygons( GetBoard() );
-    aZone->ViewUpdate( KIGFX::VIEW_ITEM::ALL );
-    GetBoard()->GetRatsnest()->Update( aZone );
-
-    OnModify();
-
+    auto toolMgr = GetToolManager();
+    wxCHECK( toolMgr, 1 );
+    toolMgr->RunAction( PCB_ACTIONS::zoneFillAll, true );
     return 0;
 }
 
 
-int PCB_EDIT_FRAME::Fill_All_Zones( wxWindow * aActiveWindow, bool aVerbose )
+void PCB_EDIT_FRAME::Check_All_Zones( wxWindow* aActiveWindow )
 {
-    int errorLevel = 0;
-    int areaCount = GetBoard()->GetAreaCount();
-    wxBusyCursor dummyCursor;
-    wxString msg;
-    wxProgressDialog * progressDialog = NULL;
+    if( !m_ZoneFillsDirty )
+        return;
 
-    // Create a message with a long net name, and build a wxProgressDialog
-    // with a correct size to show this long net name
-    msg.Printf( FORMAT_STRING, 000, areaCount, wxT("XXXXXXXXXXXXXXXXX" ) );
+    std::vector<ZONE_CONTAINER*> toFill;
 
-    if( aActiveWindow )
-        progressDialog = new wxProgressDialog( _( "Fill All Zones" ), msg,
-                                     areaCount+2, aActiveWindow,
-                                     wxPD_AUTO_HIDE | wxPD_CAN_ABORT |
-                                     wxPD_APP_MODAL | wxPD_ELAPSED_TIME );
-    // Display the actual message
-    if( progressDialog )
-        progressDialog->Update( 0, _( "Starting zone fill..." ) );
+    for( auto zone : GetBoard()->Zones() )
+        toFill.push_back(zone);
 
-    // Remove segment zones
-    GetBoard()->m_Zone.DeleteAll();
+    BOARD_COMMIT commit( this );
 
-    int ii;
+    std::unique_ptr<WX_PROGRESS_REPORTER> progressReporter(
+            new WX_PROGRESS_REPORTER( aActiveWindow, _( "Checking Zones" ), 3 ) );
 
-    for( ii = 0; ii < areaCount; ii++ )
+    ZONE_FILLER filler( GetBoard(), &commit );
+    filler.SetProgressReporter( progressReporter.get() );
+
+    if( filler.Fill( toFill, true ) )
     {
-        ZONE_CONTAINER* zoneContainer = GetBoard()->GetArea( ii );
-        if( zoneContainer->GetIsKeepout() )
-            continue;
+        m_ZoneFillsDirty = false;
 
-        msg.Printf( FORMAT_STRING, ii + 1, areaCount, GetChars( zoneContainer->GetNetname() ) );
+        if( IsGalCanvasActive() && GetGalCanvas() )
+            GetGalCanvas()->ForceRefresh();
 
-        if( progressDialog )
-        {
-            if( !progressDialog->Update( ii+1, msg ) )
-                break;  // Aborted by user
-        }
-
-        errorLevel = Fill_Zone( zoneContainer );
-
-        if( errorLevel && !aVerbose )
-            break;
+        GetCanvas()->Refresh();
     }
-
-    if( progressDialog )
-    {
-        progressDialog->Update( ii+2, _( "Updating ratsnest..." ) );
-#ifdef __WXMAC__
-        // Work around a dialog z-order issue on OS X
-        aActiveWindow->Raise();
-#endif
-    }
-    TestConnections();
-
-    // Recalculate the active ratsnest, i.e. the unconnected links
-    TestForActiveLinksInRatsnest( 0 );
-    if( progressDialog )
-        progressDialog->Destroy();
-    return errorLevel;
 }

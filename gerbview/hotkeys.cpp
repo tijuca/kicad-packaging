@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2010 <Jean-Pierre Charras>
- * Copyright (C) 1992-2010 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,14 +28,13 @@
 
 #include <fctsys.h>
 #include <common.h>
-#include <kicad_device_context.h>
-#include <id.h>
+#include <gerbview_id.h>
 
 #include <gerbview.h>
 #include <gerbview_frame.h>
 #include <class_drawpanel.h>
+#include <gerbview_layer_widget.h>
 #include <hotkeys.h>
-#include <gerbview_id.h>
 
 
 /* How to add a new hotkey:
@@ -64,28 +63,64 @@ static EDA_HOTKEY   HkZoomCenter( _HKI( "Zoom Center" ), HK_ZOOM_CENTER, WXK_F4 
 static EDA_HOTKEY   HkZoomRedraw( _HKI( "Zoom Redraw" ), HK_ZOOM_REDRAW, WXK_F3 );
 static EDA_HOTKEY   HkZoomOut( _HKI( "Zoom Out" ), HK_ZOOM_OUT, WXK_F2 );
 static EDA_HOTKEY   HkZoomIn( _HKI( "Zoom In" ), HK_ZOOM_IN, WXK_F1 );
-static EDA_HOTKEY   HkHelp( _HKI( "Help (this window)" ), HK_HELP, '?' );
+static EDA_HOTKEY   HkZoomSelection( _HKI( "Zoom to Selection" ),
+                                     HK_ZOOM_SELECTION, GR_KB_CTRL + WXK_F5 );
+static EDA_HOTKEY   HkHelp( _HKI( "Help (this window)" ), HK_HELP, GR_KB_CTRL + WXK_F1 );
 static EDA_HOTKEY   HkSwitchUnits( _HKI( "Switch Units" ), HK_SWITCH_UNITS, 'U' );
-static EDA_HOTKEY   HkResetLocalCoord( _HKI( "Reset Local Coordinates" ), HK_RESET_LOCAL_COORD, ' ' );
+static EDA_HOTKEY   HkResetLocalCoord( _HKI( "Reset Local Coordinates" ),
+                                       HK_RESET_LOCAL_COORD, ' ' );
 
-static EDA_HOTKEY   HkLinesDisplayMode( _HKI( "Gbr Lines Display Mode" ), HK_GBR_LINES_DISPLAY_MODE, 'L' );
-static EDA_HOTKEY   HkFlashedDisplayMode( _HKI( "Gbr Flashed Display Mode" ), HK_GBR_FLASHED_DISPLAY_MODE, 'F' );
-static EDA_HOTKEY   HkPolygonDisplayMode( _HKI( "Gbr Polygons Display Mode" ), HK_GBR_POLYGON_DISPLAY_MODE, 'P' );
-static EDA_HOTKEY   HkNegativeObjDisplayMode( _HKI( "Gbr Negative Obj Display Mode" ), HK_GBR_NEGATIVE_DISPLAY_ONOFF, 'N' );
-static EDA_HOTKEY   HkDCodesDisplayMode( _HKI( "DCodes Display Mode" ), HK_GBR_DCODE_DISPLAY_ONOFF, 'D' );
+static EDA_HOTKEY   HkLinesDisplayMode( _HKI( "Gbr Lines Display Mode" ),
+                                        HK_GBR_LINES_DISPLAY_MODE, 'L' );
+static EDA_HOTKEY   HkFlashedDisplayMode( _HKI( "Gbr Flashed Display Mode" ),
+                                        HK_GBR_FLASHED_DISPLAY_MODE, 'F' );
+static EDA_HOTKEY   HkPolygonDisplayMode( _HKI( "Gbr Polygons Display Mode" ),
+                                          HK_GBR_POLYGON_DISPLAY_MODE, 'P' );
+static EDA_HOTKEY   HkNegativeObjDisplayMode( _HKI( "Gbr Negative Obj Display Mode" ),
+                                              HK_GBR_NEGATIVE_DISPLAY_ONOFF, 'N' );
+static EDA_HOTKEY   HkDCodesDisplayMode( _HKI( "DCodes Display Mode" ),
+                                         HK_GBR_DCODE_DISPLAY_ONOFF, 'D' );
 
-static EDA_HOTKEY   HkSwitch2NextCopperLayer( _HKI( "Switch to Next Layer" ), HK_SWITCH_LAYER_TO_NEXT, '+' );
-static EDA_HOTKEY   HkSwitch2PreviousCopperLayer( _HKI( "Switch to Previous Layer" ), HK_SWITCH_LAYER_TO_PREVIOUS, '-' );
+static EDA_HOTKEY   HkSwitch2NextCopperLayer( _HKI( "Switch to Next Layer" ),
+                                              HK_SWITCH_LAYER_TO_NEXT, '+' );
+static EDA_HOTKEY   HkSwitch2PreviousCopperLayer( _HKI( "Switch to Previous Layer" ),
+                                              HK_SWITCH_LAYER_TO_PREVIOUS, '-' );
+
+static EDA_HOTKEY HkCanvasDefault( _HKI( "Switch to Legacy Toolset" ),
+                                   HK_CANVAS_LEGACY,
+#ifdef __WXMAC__
+                                   GR_KB_ALT +
+#endif
+                                   WXK_F9 );
+static EDA_HOTKEY HkCanvasOpenGL( _HKI( "Switch to Modern Toolset with hardware-accelerated graphics (recommended)" ),
+                                  HK_CANVAS_OPENGL,
+#ifdef __WXMAC__
+                                  GR_KB_ALT +
+#endif
+                                  WXK_F11 );
+static EDA_HOTKEY HkCanvasCairo( _HKI( "Switch to Modern Toolset with software graphics (fall-back)" ),
+                                 HK_CANVAS_CAIRO,
+#ifdef __WXMAC__
+                                 GR_KB_ALT +
+#endif
+                                 WXK_F12 );
+
+static EDA_HOTKEY HkMeasureTool( _HKI( "Measure Distance (Modern Toolset only)" ),
+                                HK_MEASURE_TOOL, 'M' + GR_KB_SHIFTCTRL );
 
 // List of common hotkey descriptors
 EDA_HOTKEY* gerbviewHotkeyList[] = {
     &HkHelp,
-    &HkZoomIn,                      &HkZoomOut,         &HkZoomRedraw,  &HkZoomCenter,
-    &HkZoomAuto,    &HkSwitchUnits, &HkResetLocalCoord,
+    &HkZoomIn, &HkZoomOut, &HkZoomRedraw, &HkZoomCenter,
+    &HkZoomAuto, &HkZoomSelection, &HkSwitchUnits, &HkResetLocalCoord,
     &HkLinesDisplayMode, &HkFlashedDisplayMode, &HkPolygonDisplayMode,
     &HkDCodesDisplayMode, &HkNegativeObjDisplayMode,
     &HkSwitch2NextCopperLayer,
     &HkSwitch2PreviousCopperLayer,
+    &HkCanvasDefault,
+    &HkCanvasOpenGL,
+    &HkCanvasCairo,
+    &HkMeasureTool,
     NULL
 };
 
@@ -138,12 +173,12 @@ bool GERBVIEW_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
         break;
 
     case HK_ZOOM_IN:
-        cmd.SetId( ID_POPUP_ZOOM_IN );
+        cmd.SetId( ID_KEY_ZOOM_IN );
         GetEventHandler()->ProcessEvent( cmd );
         break;
 
     case HK_ZOOM_OUT:
-        cmd.SetId( ID_POPUP_ZOOM_OUT );
+        cmd.SetId( ID_KEY_ZOOM_OUT );
         GetEventHandler()->ProcessEvent( cmd );
         break;
 
@@ -155,6 +190,11 @@ bool GERBVIEW_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
     case HK_ZOOM_CENTER:
         cmd.SetId( ID_POPUP_ZOOM_CENTER );
         GetEventHandler()->ProcessEvent( cmd );
+        break;
+
+    case HK_ZOOM_SELECTION:
+        //cmd.SetId( ID_ZOOM_SELECTION );
+        //GetEventHandler()->ProcessEvent( cmd );
         break;
 
     case HK_ZOOM_AUTO:
@@ -186,29 +226,44 @@ bool GERBVIEW_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
         break;
 
     case HK_GBR_NEGATIVE_DISPLAY_ONOFF:
-        SetElementVisibility( NEGATIVE_OBJECTS_VISIBLE, not IsElementVisible( NEGATIVE_OBJECTS_VISIBLE ) );
+        SetElementVisibility( LAYER_NEGATIVE_OBJECTS, not IsElementVisible( LAYER_NEGATIVE_OBJECTS ) );
         m_canvas->Refresh();
         break;
 
     case HK_GBR_DCODE_DISPLAY_ONOFF:
-        SetElementVisibility( DCODES_VISIBLE, not IsElementVisible( DCODES_VISIBLE ) );
+        SetElementVisibility( LAYER_DCODES, not IsElementVisible( LAYER_DCODES ) );
         m_canvas->Refresh();
         break;
 
     case HK_SWITCH_LAYER_TO_PREVIOUS:
-        if( getActiveLayer() > 0 )
+        if( GetActiveLayer() > 0 )
         {
-            setActiveLayer( getActiveLayer() - 1 );
+            SetActiveLayer( GetActiveLayer() - 1, true );
             m_canvas->Refresh();
         }
         break;
 
     case HK_SWITCH_LAYER_TO_NEXT:
-        if( getActiveLayer() < 31 )
+        if( GetActiveLayer() < GERBER_DRAWLAYERS_COUNT - 1 )
         {
-            setActiveLayer( getActiveLayer() + 1 );
+            SetActiveLayer( GetActiveLayer() + 1, true );
             m_canvas->Refresh();
         }
+        break;
+
+    case HK_CANVAS_CAIRO:
+        cmd.SetId( ID_MENU_CANVAS_CAIRO );
+        GetEventHandler()->ProcessEvent( cmd );
+        break;
+
+    case HK_CANVAS_OPENGL:
+        cmd.SetId( ID_MENU_CANVAS_OPENGL );
+        GetEventHandler()->ProcessEvent( cmd );
+        break;
+
+    case HK_CANVAS_LEGACY:
+        cmd.SetId( ID_MENU_CANVAS_LEGACY );
+        GetEventHandler()->ProcessEvent( cmd );
         break;
     }
 

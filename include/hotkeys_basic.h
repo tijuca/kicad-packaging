@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,7 +29,11 @@
 #ifndef  HOTKEYS_BASIC_H
 #define  HOTKEYS_BASIC_H
 
+#include <common.h>
+
 #define DEFAULT_HOTKEY_FILENAME_EXT wxT( "hotkeys" )
+#define EESCHEMA_HOTKEY_NAME wxT( "Eeschema" )
+#define PCBNEW_HOTKEY_NAME wxT( "PcbNew" )
 
 // A define to allow translation of Hot Key message Info in hotkey help menu
 // We do not want to use the _( x ) usual macro from wxWidgets, which calls wxGetTranslation(),
@@ -54,6 +58,9 @@ extern wxString g_CommonSectionTag;
  */
 class EDA_HOTKEY
 {
+private:
+    int m_defaultKeyCode;   // Key code assigned upon object construction, to be used as default value
+
 public:
     int      m_KeyCode;      // Key code (ascii value for ascii keys or wxWidgets code for function key
     wxString m_InfoMsg;      // info message.
@@ -63,6 +70,7 @@ public:
 public:
     EDA_HOTKEY( const wxChar* infomsg, int idcommand, int keycode, int idmenuevent = 0 );
     EDA_HOTKEY( const EDA_HOTKEY* base);
+    void ResetKeyCodeToDefault() { m_KeyCode = m_defaultKeyCode; }
 };
 
 
@@ -216,18 +224,47 @@ EDA_HOTKEY* GetDescriptorFromCommand( int aCommand, EDA_HOTKEY** aList );
  * Function ReadHotkeyConfig
  * Read hotkey configuration for a given app,
  * possibly before the frame for that app has been created
- * @param Appname = the value of the app's m_FrameName
+ * @param aFilename = the filename to save the hotkeys as
  * @param aDescList = the hotkey data
+ * @param aDefaultLocation = if true, add hotkey path and extension to aFilename
+ * @return 1 on success, 0 on failure
 */
-void ReadHotkeyConfig( const wxString& Appname, struct EDA_HOTKEY_CONFIG* aDescList );
+int ReadHotkeyConfigFile( const wxString& aFilename, struct EDA_HOTKEY_CONFIG* aDescList,
+                        const bool aDefaultLocation = true );
 
-void ParseHotkeyConfig( const wxString& data, struct EDA_HOTKEY_CONFIG* aDescList );
+/**
+ * Function ReadHotkeyConfig
+ * Read configuration data and fill the current hotkey list with hotkeys
+ * @param aAppname = the value of the app's m_FrameName
+ * @param aDescList = current hotkey list descr. to initialize.
+ */
+int ReadHotkeyConfig( const wxString& aAppname,  struct EDA_HOTKEY_CONFIG* aDescList );
+
+/**
+ * Function ParseHotkeyConfig
+ * Translates hotkey string data into application hotkeys
+ * @param data The string of data read from the configuration files
+ * @param aDescList The list of hotkeys to update
+ * @param aAppname The application interface requesting hotkey updates or empty for all
+ */
+void ParseHotkeyConfig( const wxString& data, struct EDA_HOTKEY_CONFIG* aDescList,
+        const wxString& aAppname );
 
 
 // common hotkeys event id
 // these hotkey ID are used in many files, so they are define here only once.
 enum common_hotkey_id_commnand {
     HK_NOT_FOUND = 0,
+    HK_NEW,
+    HK_OPEN,
+    HK_SAVE,
+    HK_SAVEAS,
+    HK_PRINT,
+    HK_UNDO,
+    HK_REDO,
+    HK_EDIT_CUT,
+    HK_EDIT_COPY,
+    HK_EDIT_PASTE,
     HK_RESET_LOCAL_COORD,
     HK_SET_GRID_ORIGIN,
     HK_RESET_GRID_ORIGIN,
@@ -237,8 +274,9 @@ enum common_hotkey_id_commnand {
     HK_ZOOM_REDRAW,
     HK_ZOOM_CENTER,
     HK_ZOOM_AUTO,
-    HK_UNDO,
-    HK_REDO,
+    HK_ZOOM_SELECTION,
+    HK_TOGGLE_CURSOR,
+    HK_MEASURE_TOOL,
     HK_COMMON_END
 };
 

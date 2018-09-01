@@ -33,8 +33,12 @@
 #include <vector>
 
 #include <base_struct.h>
+#include <gal/color4d.h>
+#include <geometry/shape_poly_set.h>
 
+using KIGFX::COLOR4D;
 
+class wxDC;
 class GERBER_DRAW_ITEM;
 
 
@@ -73,7 +77,7 @@ struct APERTURE_MACRO;
 
 /**
  * Class D_CODE
- * holds a gerber DCODE definition.
+ * holds a gerber DCODE (also called Aperture) definition.
  */
 class D_CODE
 {
@@ -86,22 +90,24 @@ private:
      */
     std::vector<double>   m_am_params;
 
-    std::vector <wxPoint> m_PolyCorners;    /* Polygon used to draw APT_POLYGON shape and some other
+public:
+    wxSize                m_Size;           ///< Horizontal and vertical dimensions.
+    APERTURE_T            m_Shape;          ///< shape ( Line, rectangle, circle , oval .. )
+    int                   m_Num_Dcode;      ///< D code value ( >= 10 )
+    wxSize                m_Drill;          ///< dimension of the hole (if any) (draill file)
+    APERTURE_DEF_HOLETYPE m_DrillShape;     ///< shape of the hole (0 = no hole, round = 1, rect = 2) */
+    double                m_Rotation;       ///< shape rotation in degrees
+    int                   m_EdgesCount;     ///< in aperture definition Polygon only:
+                                            ///< number of edges for the polygon
+    bool                  m_InUse;          ///< false if the aperure (previously defined)
+                                            ///< is not used to draw something
+    bool                  m_Defined;        ///< false if the aperture is not defined in the header
+    wxString              m_AperFunction;   ///< the aperture attribute (created by a %TA.AperFunction command)
+                                            ///< attached to the D_CODE
+    SHAPE_POLY_SET        m_Polygon;        /* Polygon used to draw APT_POLYGON shape and some other
                                              * complex shapes which are converted to polygon
                                              * (shapes with hole )
                                              */
-
-public:
-    wxSize                m_Size;           /* Horizontal and vertical dimensions. */
-    APERTURE_T            m_Shape;          /* shape ( Line, rectangle, circle , oval .. ) */
-    int                   m_Num_Dcode;      /* D code ( >= 10 ) */
-    wxSize                m_Drill;          /* dimension of the hole (if any) */
-    APERTURE_DEF_HOLETYPE m_DrillShape;     /* shape of the hole (0 = no hole, round = 1, rect = 2) */
-    double                m_Rotation;       /* shape rotation in degrees */
-    int                   m_EdgesCount;     /* in aperture definition Polygon only: number of edges for the polygon */
-    bool                  m_InUse;          /* false if not used */
-    bool                  m_Defined;        /* false if not defined */
-    wxString              m_SpecialDescr;
 
 public:
     D_CODE( int num_dcode );
@@ -165,13 +171,11 @@ public:
      * @param aClipBox = DC clip box (NULL is no clip)
      * @param aDC = device context
      * @param aColor = the normal color to use
-     * @param aAltColor = the color used to draw with "reverse" exposure mode (used in
-     *                    aperture macros only)
      * @param aShapePos = the actual shape position
      * @param aFilledShape = true to draw in filled mode, false to draw in sketch mode
      */
     void DrawFlashedShape( GERBER_DRAW_ITEM* aParent, EDA_RECT* aClipBox,
-                           wxDC* aDC, EDA_COLOR_T aColor, EDA_COLOR_T aAltColor,
+                           wxDC* aDC, COLOR4D aColor,
                            wxPoint aShapePos, bool aFilledShape );
 
     /**
@@ -188,7 +192,7 @@ public:
      * @param aPosition = the actual shape position
      */
     void DrawFlashedPolygon( GERBER_DRAW_ITEM* aParent,
-                             EDA_RECT* aClipBox, wxDC* aDC, EDA_COLOR_T aColor,
+                             EDA_RECT* aClipBox, wxDC* aDC, COLOR4D aColor,
                              bool aFilled, const wxPoint& aPosition );
 
     /**

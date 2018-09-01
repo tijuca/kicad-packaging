@@ -32,7 +32,7 @@
 #include <fctsys.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <trigo.h>
 #include <macros.h>
 #include <gr_basic.h>
@@ -40,7 +40,7 @@
 #include <class_board.h>
 
 #include <pcbnew.h>
-#include <drc_stuff.h>
+#include <drc.h>
 #include <drag.h>
 #include <pcbnew_id.h>
 
@@ -103,7 +103,7 @@ static void Abort_MoveTrack( EDA_DRAW_PANEL* aPanel, wxDC* aDC )
 static void Show_MoveNode( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition,
                            bool aErase )
 {
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*) aPanel->GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*) aPanel->GetDisplayOptions();
     wxPoint      moveVector;
     int          tmp = displ_opts->m_DisplayPcbTrackFill;
     GR_DRAWMODE  draw_mode = GR_XOR | GR_HIGHLIGHT;
@@ -801,17 +801,17 @@ bool PCB_EDIT_FRAME::PlaceDraggedOrMovedTrackSegment( TRACK* Track, wxDC* DC )
     int current_net_code = Track->GetNetCode();
 
     // DRC control:
-    if( g_Drc_On )
+    if( Settings().m_legacyDrcOn )
     {
-        errdrc = m_drc->Drc( Track, GetBoard()->m_Track );
+        errdrc = m_drc->DrcOnCreatingTrack( Track, GetBoard()->m_Track );
 
         if( errdrc == BAD_DRC )
             return false;
 
-        // Redraw the dragged segments
+        // Test the dragged segments
         for( unsigned ii = 0; ii < g_DragSegmentList.size(); ii++ )
         {
-            errdrc = m_drc->Drc( g_DragSegmentList[ii].m_Track, GetBoard()->m_Track );
+            errdrc = m_drc->DrcOnCreatingTrack( g_DragSegmentList[ii].m_Track, GetBoard()->m_Track );
 
             if( errdrc == BAD_DRC )
                 return false;

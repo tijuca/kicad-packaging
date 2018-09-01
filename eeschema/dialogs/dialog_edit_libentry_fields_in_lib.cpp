@@ -3,7 +3,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2011-2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2007-2016 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2007-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,12 +31,12 @@
 #include <kiway.h>
 #include <confirm.h>
 #include <class_drawpanel.h>
-#include <schframe.h>
+#include <sch_edit_frame.h>
 #include <id.h>
 #include <base_units.h>
 
 #include <general.h>
-#include <libeditframe.h>
+#include <lib_edit_frame.h>
 #include <class_library.h>
 #include <sch_component.h>
 #include <sch_field.h>
@@ -44,7 +44,14 @@
 #include <dialog_helpers.h>
 #include <sch_validators.h>
 
+#include <bitmaps.h>
+#include "eda_doc.h"
+
 #include <dialog_edit_libentry_fields_in_lib_base.h>
+#ifdef KICAD_SPICE
+#include <dialog_spice_model.h>
+#include <netlist_exporter_pspice.h>
+#endif /* KICAD_SPICE */
 
 // Local variables:
 static int s_SelectedRow;
@@ -60,12 +67,14 @@ public:
 
 private:
     // Events handlers:
-    void OnInitDialog( wxInitDialogEvent& event );
-    void OnCloseDialog( wxCloseEvent& event );
+    void OnInitDialog( wxInitDialogEvent& event ) override;
+    void OnCloseDialog( wxCloseEvent& event ) override;
+    void OnSizeFieldsList( wxSizeEvent& event ) override;
 
-    void OnListItemDeselected( wxListEvent& event );
-    void OnListItemSelected( wxListEvent& event );
-    void addFieldButtonHandler( wxCommandEvent& event );
+    void OnListItemDeselected( wxListEvent& event ) override;
+    void OnListItemSelected( wxListEvent& event ) override;
+    void addFieldButtonHandler( wxCommandEvent& event ) override;
+    void EditSpiceModel( wxCommandEvent& event ) override;
 
     /**
      * Function deleteFieldButtonHandler
@@ -74,12 +83,13 @@ private:
      * If a field is empty, it is removed.
      * if not empty, the text is removed.
      */
-    void deleteFieldButtonHandler( wxCommandEvent& event );
+    void deleteFieldButtonHandler( wxCommandEvent& event ) override;
 
-    void moveUpButtonHandler( wxCommandEvent& event );
-    void OnCancelButtonClick( wxCommandEvent& event );
-    void OnOKButtonClick( wxCommandEvent& event );
-    void showButtonHandler( wxCommandEvent& event );
+    void moveUpButtonHandler( wxCommandEvent& event ) override;
+    void moveDownButtonHandler( wxCommandEvent& event ) override;
+    void OnCancelButtonClick( wxCommandEvent& event ) override;
+    void OnOKButtonClick( wxCommandEvent& event ) override;
+    void showButtonHandler( wxCommandEvent& event ) override;
 
     // internal functions:
     void setSelectedFieldNdx( int aFieldNdx );
@@ -149,6 +159,9 @@ void LIB_EDIT_FRAME::InstallFieldsEditorDialog( wxCommandEvent& event )
 
     DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB dlg( this, GetCurPart() );
 
+    if( GetDrawItem() && GetDrawItem()->Type() == LIB_FIELD_T )
+        SetDrawItem( nullptr );     // selected LIB_FIELD might be deleted
+
     // This dialog itself subsequently can invoke a KIWAY_PLAYER as a quasimodal
     // frame. Therefore this dialog as a modal frame parent, MUST be run under
     // quasimodal mode for the quasimodal frame support to work.  So don't use
@@ -171,6 +184,16 @@ DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB(
     m_parent   = aParent;
     m_libEntry = aLibEntry;
     m_skipCopyFromPanel = false;
+
+#ifndef KICAD_SPICE
+    m_spiceFieldsButton->Show(false);
+#endif
+
+    // Configure button logos
+    addFieldButton->SetBitmap( KiBitmap( plus_xpm ) );
+    deleteFieldButton->SetBitmap( KiBitmap( minus_xpm ) );
+    moveUpButton->SetBitmap( KiBitmap( go_up_xpm ) );
+    moveDownButton->SetBitmap( KiBitmap( go_down_xpm ) );
 }
 
 
@@ -195,8 +218,6 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::OnInitDialog( wxInitDialogEvent& event 
     copySelectedFieldToPanel();
 
     stdDialogButtonSizerOK->SetDefault();
-
-    FixOSXCancelButtonIssue();
 
     // Now all widgets have the size fixed, call FinishDialogSettings
     FinishDialogSettings();
@@ -237,6 +258,14 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::OnCloseDialog( wxCloseEvent& event )
     // and calls EndQuasiModal.
     // Therefore calling EndQuasiModal here is not mandatory but it creates no issues.
     EndQuasiModal( wxID_CANCEL );
+}
+
+
+void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::OnSizeFieldsList( wxSizeEvent& event )
+{
+    int newWidth = event.GetSize().GetX();
+    fieldListCtrl->SetColumnWidth( COLUMN_TEXT, newWidth - fieldListCtrl->GetColumnWidth( 0 ) );
+    event.Skip();
 }
 
 
@@ -302,6 +331,53 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::OnOKButtonClick( wxCommandEvent& event 
 }
 
 
+void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::EditSpiceModel( wxCommandEvent& event )
+{
+#ifdef KICAD_SPICE
+    // DIALOG_SPICE_MODEL expects a SCH_COMPONENT,
+    // and a list of SCH_FIELDS to create/edit/delete Spice fields.
+    SCH_COMPONENT component;    // This dummy component
+
+    // Build fields list from the m_FieldsBuf fields buffer dialog
+    // to be sure to use the current fields.
+    SCH_FIELDS schfields;
+
+    for( unsigned ii = 0; ii < m_FieldsBuf.size(); ++ii )
+    {
+        LIB_FIELD& libfield = m_FieldsBuf[ii];
+        SCH_FIELD schfield( libfield.GetTextPos(), libfield.GetId(),
+                            &component,  libfield.GetName() );
+        schfield.ImportValues( m_FieldsBuf[ii] );
+        schfield.SetText( m_FieldsBuf[ii].GetText() );
+
+        schfields.push_back( schfield );
+    }
+
+    component.SetFields( schfields );
+
+    DIALOG_SPICE_MODEL dialog( this, component, schfields );
+
+    if( dialog.ShowModal() != wxID_OK )
+        return;
+
+    // Transfer sch fields to the m_FieldsBuf fields buffer dialog:
+    m_FieldsBuf.clear();
+
+    for( unsigned ii = 0; ii < schfields.size(); ii++ )
+    {
+        LIB_FIELD libfield;
+        schfields[ii].ExportValues( libfield );
+        m_FieldsBuf.push_back( libfield );
+    }
+
+    // ... and to the panel:
+    copySelectedFieldToPanel();
+
+    updateDisplay();
+#endif /* KICAD_SPICE */
+}
+
+
 void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::addFieldButtonHandler( wxCommandEvent& event )
 {
     // in case m_FieldsBuf[REFERENCE].m_Orient has changed on screen only, grab
@@ -361,6 +437,44 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::deleteFieldButtonHandler( wxCommandEven
 }
 
 
+void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::moveDownButtonHandler( wxCommandEvent& event )
+{
+    unsigned int fieldNdx = getSelectedFieldNdx();
+
+    // Ensure there is at least one field after this one
+    if( fieldNdx >= ( m_FieldsBuf.size() - 1 ) )
+    {
+        return;
+    }
+
+    // The first field which can be moved up is the second user field
+    // so any field which id < MANDATORY_FIELDS cannot be moved down
+    if( fieldNdx < MANDATORY_FIELDS )
+        return;
+
+    if( !copyPanelToSelectedField() )
+        return;
+
+    // swap the fieldNdx field with the one before it, in both the vector
+    // and in the fieldListCtrl
+    LIB_FIELD tmp = m_FieldsBuf[fieldNdx + 1];
+
+    m_FieldsBuf[fieldNdx + 1] = m_FieldsBuf[fieldNdx];
+    setRowItem( fieldNdx + 1, m_FieldsBuf[fieldNdx] );
+    m_FieldsBuf[fieldNdx + 1].SetId( fieldNdx + 1 );
+
+    m_FieldsBuf[fieldNdx] = tmp;
+    setRowItem( fieldNdx, tmp );
+    m_FieldsBuf[fieldNdx].SetId( fieldNdx );
+
+    updateDisplay( );
+
+    m_skipCopyFromPanel = true;
+    setSelectedFieldNdx( fieldNdx + 1 );
+    m_skipCopyFromPanel = false;
+}
+
+
 void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB:: moveUpButtonHandler( wxCommandEvent& event )
 {
     unsigned fieldNdx = getSelectedFieldNdx();
@@ -403,14 +517,15 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::showButtonHandler( wxCommandEvent& even
     if( fieldNdx == DATASHEET )
     {
         wxString datasheet_uri = fieldValueTextCtrl->GetValue();
-        ::wxLaunchDefaultBrowser( datasheet_uri );
+        datasheet_uri = ResolveUriByEnvVars( datasheet_uri );
+        GetAssociatedDocument( this, datasheet_uri );
     }
     else if( fieldNdx == FOOTPRINT )
     {
         // pick a footprint using the footprint picker.
         wxString fpid;
 
-        KIWAY_PLAYER* frame = Kiway().Player( FRAME_PCB_MODULE_VIEWER_MODAL, true );
+        KIWAY_PLAYER* frame = Kiway().Player( FRAME_PCB_MODULE_VIEWER_MODAL, true, this );
 
         if( frame->ShowModal( &fpid, this ) )
         {
@@ -535,12 +650,7 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::initBuffers()
         if( !libField )
         {
             fld.SetName( it->m_Name );
-            fld.SetText( it->m_Value );   // empty? ok too.
-
-            if( !it->m_Visible )
-                fld.SetVisible( false );
-            else
-                fld.SetVisible( true );
+            fld.SetVisible( it->m_Visible );
         }
         else
         {
@@ -602,8 +712,9 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::setRowItem( int aFieldNdx, const wxStri
     fieldListCtrl->SetItem( aFieldNdx, COLUMN_TEXT, aValue );
 
     // recompute the column widths here, after setting texts
+    int totalWidth = fieldListCtrl->GetSize().GetWidth();
     fieldListCtrl->SetColumnWidth( COLUMN_FIELD_NAME, wxLIST_AUTOSIZE );
-    fieldListCtrl->SetColumnWidth( COLUMN_TEXT, wxLIST_AUTOSIZE );
+    fieldListCtrl->SetColumnWidth( COLUMN_TEXT, totalWidth - fieldListCtrl->GetColumnWidth( 0 ) );
 }
 
 
@@ -618,7 +729,7 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::copySelectedFieldToPanel()
 
     showCheckBox->SetValue( field.IsVisible() );
 
-    rotateCheckBox->SetValue( field.GetOrientation() == TEXT_ORIENT_VERT );
+    rotateCheckBox->SetValue( field.GetTextAngle() == TEXT_ANGLE_VERT );
 
     int style = 0;
 
@@ -670,6 +781,7 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::copySelectedFieldToPanel()
     // only user defined fields may be moved, and not the top most user defined
     // field since it would be moving up into the fixed fields, > not >=
     moveUpButton->Enable( fieldNdx > MANDATORY_FIELDS );
+    moveDownButton->Enable( ( fieldNdx >= MANDATORY_FIELDS ) && ( fieldNdx < ( m_FieldsBuf.size() - 1 ) ) );
 
     // if fieldNdx == REFERENCE, VALUE, then disable delete button
     deleteFieldButton->Enable( fieldNdx >= MANDATORY_FIELDS );
@@ -677,18 +789,31 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::copySelectedFieldToPanel()
     fieldValueTextCtrl->SetValidator( SCH_FIELD_VALIDATOR( true, field.GetId() ) );
     fieldValueTextCtrl->SetValue( field.GetText() );
 
-    textSizeTextCtrl->SetValue( EDA_GRAPHIC_TEXT_CTRL::FormatSize( g_UserUnit, field.GetSize().x ) );
+    textSizeTextCtrl->SetValue( EDA_GRAPHIC_TEXT_CTRL::FormatSize( g_UserUnit, field.GetTextSize().x ) );
 
     m_show_datasheet_button->Enable( fieldNdx == DATASHEET || fieldNdx == FOOTPRINT );
 
     if( fieldNdx == DATASHEET )
-        m_show_datasheet_button->SetLabel( _( "Show in Browser" ) );
+    {
+        m_show_datasheet_button->SetLabel( _( "Show Datasheet" ) );
+        m_show_datasheet_button->SetToolTip(
+            _("If your datasheet is given as an http:// link,"
+              " then pressing this button should bring it up in your webbrowser.") );
+    }
     else if( fieldNdx == FOOTPRINT )
-        m_show_datasheet_button->SetLabel( _( "Assign Footprint" ) );
+    {
+        m_show_datasheet_button->SetLabel( _( "Browse Footprints" ) );
+        m_show_datasheet_button->SetToolTip(
+            _("Open the footprint browser to choose a footprint and assign it.") );
+    }
     else
+    {
         m_show_datasheet_button->SetLabel( wxEmptyString );
+        m_show_datasheet_button->SetToolTip(
+            _("Used only for fields Footprint and Datasheet.") );
+    }
 
-    wxPoint coord = field.GetTextPosition();
+    wxPoint coord = field.GetTextPos();
     wxPoint zero;
 
     // If the field value is empty and the position is at relative zero, we set the
@@ -697,11 +822,11 @@ void DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::copySelectedFieldToPanel()
     // close to the desired position.
     if( coord == zero && field.GetText().IsEmpty() )
     {
-        rotateCheckBox->SetValue( m_FieldsBuf[REFERENCE].GetOrientation() == TEXT_ORIENT_VERT );
+        rotateCheckBox->SetValue( m_FieldsBuf[REFERENCE].GetTextAngle() == TEXT_ANGLE_VERT );
 
-        coord.x = m_FieldsBuf[REFERENCE].GetTextPosition().x +
+        coord.x = m_FieldsBuf[REFERENCE].GetTextPos().x +
                   (fieldNdx - MANDATORY_FIELDS + 1) * 100;
-        coord.y = m_FieldsBuf[REFERENCE].GetTextPosition().y +
+        coord.y = m_FieldsBuf[REFERENCE].GetTextPos().y +
                   (fieldNdx - MANDATORY_FIELDS + 1) * 100;
 
         // coord can compute negative if field is < MANDATORY_FIELDS, e.g. FOOTPRINT.
@@ -740,9 +865,9 @@ bool DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::copyPanelToSelectedField()
         field.SetVisible( false );
 
     if( rotateCheckBox->GetValue() )
-        field.SetOrientation( TEXT_ORIENT_VERT );
+        field.SetTextAngle( TEXT_ANGLE_VERT );
     else
-        field.SetOrientation( TEXT_ORIENT_HORIZ );
+        field.SetTextAngle( TEXT_ANGLE_HORIZ );
 
     // Copy the text justification
     static const EDA_TEXT_HJUSTIFY_T hjustify[3] = {
@@ -776,7 +901,7 @@ bool DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::copyPanelToSelectedField()
 
     int tmp = EDA_GRAPHIC_TEXT_CTRL::ParseSize( textSizeTextCtrl->GetValue(), g_UserUnit );
 
-    field.SetSize( wxSize( tmp, tmp ) );
+    field.SetTextSize( wxSize( tmp, tmp ) );
 
     int style = m_StyleRadioBox->GetSelection();
 
@@ -790,7 +915,7 @@ bool DIALOG_EDIT_LIBENTRY_FIELDS_IN_LIB::copyPanelToSelectedField()
     // and the screen axis is top to bottom: we must change the y coord sign for editing
     pos.y = -pos.y;
 
-    field.SetTextPosition( pos );
+    field.SetTextPos( pos );
 
     return true;
 }

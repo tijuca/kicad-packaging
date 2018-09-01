@@ -1,11 +1,7 @@
-/**
- * @file pagelayout_editor/menubar.cpp
- * @brief (Re)Create the main menubar for Pl_Editor
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2016-2018 KiCad Developers, see AUTHORS.txt for contributors.
  * Copyright (C) 2013 CERN
  * @author Jean-Pierre Charras, jp.charras at wanadoo.fr
  *
@@ -27,90 +23,144 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <fctsys.h>
+/**
+ * @file pagelayout_editor/menubar.cpp
+ * @brief (Re)Create the main menubar for Pl_Editor
+ */
 
-#include <pgm_base.h>
+
 #include <kiface_i.h>
-#include <pl_editor_frame.h>
-#include <pl_editor_id.h>
-#include <hotkeys.h>
 #include <menus_helpers.h>
+#include <pgm_base.h>
+
+#include "hotkeys.h"
+#include "pl_editor_frame.h"
+#include "pl_editor_id.h"
 
 
 void PL_EDITOR_FRAME::ReCreateMenuBar()
 {
-    // Create and try to get the current menubar
-    wxMenuBar* menuBar = GetMenuBar();
+    // wxWidgets handles the Mac Application menu behind the scenes, but that means
+    // we always have to start from scratch with a new wxMenuBar.
+    wxMenuBar*  oldMenuBar = GetMenuBar();
+    wxMenuBar*  menuBar = new wxMenuBar();
 
-    if( !menuBar )
-        menuBar = new wxMenuBar();
+    wxString msg;
+    static wxMenu* openRecentMenu;  // Open Recent submenu,
+                                    // static to remember this menu
 
-    // Delete all existing menus so they can be rebuilt.
-    // This allows language changes of the menu text on the fly.
-    menuBar->Freeze();
-
-    while( menuBar->GetMenuCount() )
-        delete menuBar->Remove( 0 );
-
-    // Recreate all menus:
-
-    // Menu File:
-    wxMenu* fileMenu = new wxMenu;
-
-    // Load
-    AddMenuItem( fileMenu, wxID_NEW,
-                 _( "&New Page Layout Design" ),
-                 wxEmptyString, KiBitmap( pagelayout_new_xpm ) );
-    AddMenuItem( fileMenu, wxID_OPEN,
-                 _( "Load Page Layout &File" ),
-                 wxEmptyString, KiBitmap(  pagelayout_load_xpm ) );
-    AddMenuItem( fileMenu, ID_LOAD_DEFAULT_PAGE_LAYOUT,
-                 _( "Load &Default Page Layout" ),
-                 wxEmptyString, KiBitmap(  pagelayout_load_default_xpm ) );
-
-    // Recent gerber files
-    static wxMenu* openRecentMenu;
-
-    // Add this menu to list menu managed by m_fileHistory
+    // Before deleting, remove the menus managed by m_fileHistory
     // (the file history will be updated when adding/removing files in history
     if( openRecentMenu )
         Kiface().GetFileHistory().RemoveMenu( openRecentMenu );
 
-    openRecentMenu = new wxMenu();
+    // Recreate all menus:
 
+    // File Menu:
+    wxMenu* fileMenu = new wxMenu;
+
+    msg = AddHotkeyName( _( "&New" ), PlEditorHokeysDescr, HK_NEW );
+    AddMenuItem( fileMenu, wxID_NEW, msg,
+                 _( "Create new page layout design" ),
+                 KiBitmap( new_page_layout_xpm ) );
+
+    msg = AddHotkeyName( _( "&Open..." ), PlEditorHokeysDescr, HK_OPEN );
+    AddMenuItem( fileMenu, wxID_OPEN, msg,
+                 _( "Open an existing page layout design file" ),
+                 KiBitmap(  open_page_layout_xpm ) );
+
+    openRecentMenu = new wxMenu();
     Kiface().GetFileHistory().UseMenu( openRecentMenu );
     Kiface().GetFileHistory().AddFilesToMenu();
-
     AddMenuItem( fileMenu, openRecentMenu,
-                 wxID_ANY, _( "Open &Recent Page Layout File" ),
-                 wxEmptyString, KiBitmap(  pagelayout_recent_xpm ) );
+                 wxID_ANY,
+                 _( "Open &Recent" ),
+                 _( "Open recent page layout design file" ),
+                 KiBitmap(  recent_xpm ) );
 
-     fileMenu->AppendSeparator();
-    // Save current sheet
-    AddMenuItem( fileMenu, wxID_SAVE,
-                 _( "&Save Page Layout Design" ),
-                 wxEmptyString, KiBitmap( save_xpm ) );
-
-    // Save current sheet as
-    AddMenuItem( fileMenu, wxID_SAVEAS,
-                 _( "Save Page Layout Design &As" ),
-                 wxEmptyString, KiBitmap( save_as_xpm ) );
-
-    // Print
-    fileMenu->AppendSeparator();
-    AddMenuItem( fileMenu, wxID_PRINT, _( "&Print" ),
-                 wxEmptyString, KiBitmap( print_button_xpm ) );
-    AddMenuItem( fileMenu, wxID_PREVIEW, _( "Print Pre&view" ),
-                 wxEmptyString, KiBitmap( print_button_xpm ) );
-
-    // Separator
     fileMenu->AppendSeparator();
 
-    // Exit
-    AddMenuItem( fileMenu, wxID_EXIT,
-                 _( "&Close" ),
-                 _( "&Close Page Layout Editor" ),
-                 KiBitmap( exit_xpm ) );
+    msg = AddHotkeyName( _( "&Save" ), PlEditorHokeysDescr, HK_SAVE );
+    AddMenuItem( fileMenu, wxID_SAVE, msg,
+                 _( "Save current page layout design file" ),
+                 KiBitmap( save_xpm ) );
+
+    msg = AddHotkeyName( _( "Save &As..." ), PlEditorHokeysDescr, HK_SAVEAS );
+    AddMenuItem( fileMenu, wxID_SAVEAS, msg,
+                 _( "Save current page layout design file with a different name" ),
+                 KiBitmap( save_as_xpm ) );
+
+    fileMenu->AppendSeparator();
+
+    msg = AddHotkeyName( _( "&Print..." ), PlEditorHokeysDescr, HK_PRINT );
+    AddMenuItem( fileMenu, wxID_PRINT, msg,
+                 wxEmptyString, KiBitmap( print_button_xpm ) );
+
+    AddMenuItem( fileMenu, wxID_PREVIEW, _( "Print Pre&view..." ),
+                 wxEmptyString, KiBitmap( print_button_xpm ) );
+
+    fileMenu->AppendSeparator();
+
+    AddMenuItem( fileMenu, wxID_EXIT, _( "&Close" ),
+                 _( "Close Page Layout Editor" ), KiBitmap( exit_xpm ) );
+
+
+    // Edit Menu:
+    wxMenu* editMenu = new wxMenu;
+
+    msg = AddHotkeyName( _( "Undo" ), PlEditorHokeysDescr, HK_UNDO );
+    AddMenuItem( editMenu, wxID_UNDO, msg, wxEmptyString, KiBitmap( undo_xpm ) );
+
+    msg = AddHotkeyName( _( "Redo" ), PlEditorHokeysDescr, HK_REDO );
+    AddMenuItem( editMenu, wxID_REDO, msg, wxEmptyString, KiBitmap( redo_xpm ) );
+
+    editMenu->AppendSeparator();
+
+    AddMenuItem( editMenu, wxID_CUT, _( "Delete" ), wxEmptyString, KiBitmap( delete_xpm ) );
+
+
+    // View Menu:
+    wxMenu* viewMenu = new wxMenu;
+
+    msg = AddHotkeyName( _( "Zoom In" ), PlEditorHokeysDescr, HK_ZOOM_IN, IS_ACCELERATOR );
+    AddMenuItem( viewMenu, ID_ZOOM_IN, msg, wxEmptyString, KiBitmap( zoom_in_xpm ) );
+
+    msg = AddHotkeyName( _( "Zoom Out" ), PlEditorHokeysDescr, HK_ZOOM_OUT, IS_ACCELERATOR );
+    AddMenuItem( viewMenu, ID_ZOOM_OUT, msg, wxEmptyString, KiBitmap( zoom_out_xpm ) );
+
+    msg = AddHotkeyName( _( "Zoom to Fit" ), PlEditorHokeysDescr, HK_ZOOM_AUTO );
+    AddMenuItem( viewMenu, ID_ZOOM_PAGE, msg, wxEmptyString, KiBitmap( zoom_fit_in_page_xpm ) );
+
+    msg = AddHotkeyName( _( "Zoom to Selection" ), PlEditorHokeysDescr, HK_ZOOM_SELECTION );
+    AddMenuItem( viewMenu, ID_MENU_ZOOM_SELECTION, msg, wxEmptyString, KiBitmap( zoom_area_xpm ) );
+
+    viewMenu->AppendSeparator();
+
+    msg = AddHotkeyName( _( "Redraw View" ), PlEditorHokeysDescr, HK_ZOOM_REDRAW );
+    AddMenuItem( viewMenu, ID_ZOOM_REDRAW, msg, wxEmptyString, KiBitmap( zoom_redraw_xpm ) );
+
+
+    // Place Menu:
+    wxMenu* placeMenu = new wxMenu;
+
+    AddMenuItem( placeMenu, ID_POPUP_ITEM_ADD_LINE, _( "&Line..." ),
+                 wxEmptyString, KiBitmap( add_dashed_line_xpm ) );
+
+    AddMenuItem( placeMenu, ID_POPUP_ITEM_ADD_RECT, _( "&Rectangle..." ),
+                 wxEmptyString, KiBitmap( add_rectangle_xpm ) );
+
+    AddMenuItem( placeMenu, ID_POPUP_ITEM_ADD_TEXT, _( "&Text..." ),
+                 wxEmptyString, KiBitmap( text_xpm ) );
+
+    AddMenuItem( placeMenu, ID_POPUP_ITEM_ADD_BITMAP, _( "&Bitmap..." ),
+                 wxEmptyString, KiBitmap( image_xpm ) );
+
+    placeMenu->AppendSeparator();
+
+    AddMenuItem( placeMenu, ID_APPEND_DESCR_FILE, _( "&Append Existing Page Layout Design File..." ),
+                 _( "Append an existing page layout design file to current file" ),
+                 KiBitmap( pagelayout_load_xpm ) );
+
 
     // Menu for preferences
     wxMenu* preferencesMenu = new wxMenu;
@@ -129,21 +179,21 @@ void PL_EDITOR_FRAME::ReCreateMenuBar()
     // Text editor selection
     AddMenuItem( preferencesMenu,
                  ID_MENU_PL_EDITOR_SELECT_PREFERED_EDITOR,
-                 _( "&Text Editor" ),
+                 _( "Set &Text Editor..." ),
                  _( "Select your preferred text editor" ),
                  KiBitmap( editor_xpm ) );
 
     // Language submenu
     Pgm().AddMenuLanguageList( preferencesMenu );
 
+    // Icons options submenu
+    AddMenuIconsOptions( preferencesMenu );
+
     // Hotkey submenu
     AddHotkeyConfigMenu( preferencesMenu );
 
     // Menu Help
     wxMenu* helpMenu = new wxMenu;
-
-    // Version info
-    AddHelpVersionInfoMenuEntry( helpMenu );
 
     // Contents
     AddMenuItem( helpMenu,
@@ -158,26 +208,35 @@ void PL_EDITOR_FRAME::ReCreateMenuBar()
                  _( "Open \"Getting Started in KiCad\" guide for beginners" ),
                  KiBitmap( help_xpm ) );
 
+    msg = AddHotkeyName( _( "&List Hotkeys" ), PlEditorHokeysDescr, HK_HELP );
+    AddMenuItem( helpMenu, ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST, msg,
+                 _( "Displays the current hotkeys list and corresponding commands" ),
+                 KiBitmap( hotkeys_xpm ) );
+
+    helpMenu->AppendSeparator();
+    AddMenuItem( helpMenu, ID_HELP_GET_INVOLVED,
+                 _( "Get &Involved" ),
+                 _( "Contribute to KiCad (opens a web browser)" ),
+                 KiBitmap( info_xpm ) );
+
     // Separator
     helpMenu->AppendSeparator();
 
     // About Kicad
     AddMenuItem( helpMenu,
                  wxID_ABOUT,
-                 _( "&About Kicad" ),
+                 _( "&About KiCad" ),
                  _( "About KiCad" ),
-                 KiBitmap( info_xpm ) );
+                 KiBitmap( about_xpm ) );
 
     // Append menus to the menubar
     menuBar->Append( fileMenu, _( "&File" ) );
-    menuBar->Append( preferencesMenu, _( "&Preferences" ) );
+    menuBar->Append( editMenu, _( "&Edit" ) );
+    menuBar->Append( viewMenu, _( "&View" ) );
+    menuBar->Append( placeMenu, _( "&Place" ) );
+    menuBar->Append( preferencesMenu, _( "P&references" ) );
     menuBar->Append( helpMenu, _( "&Help" ) );
 
-    menuBar->Thaw();
-
-    // Associate the menu bar with the frame, if no previous menubar
-    if( GetMenuBar() == NULL )
-        SetMenuBar( menuBar );
-    else
-        menuBar->Refresh();
+    SetMenuBar( menuBar );
+    delete oldMenuBar;
 }

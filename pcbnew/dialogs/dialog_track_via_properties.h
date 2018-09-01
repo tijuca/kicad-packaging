@@ -23,11 +23,13 @@
  */
 
 #include <dialogs/dialog_track_via_properties_base.h>
-#include <wx_unit_binder.h>
-#include <boost/optional.hpp>
+#include <widgets/unit_binder.h>
+#include <core/optional.h>
 #include <layers_id_colors_and_visibility.h>
 
-struct SELECTION;
+class SELECTION;
+class COMMIT;
+
 class PCB_BASE_FRAME;
 
 class DIALOG_TRACK_VIA_PROPERTIES : public DIALOG_TRACK_VIA_PROPERTIES_BASE
@@ -36,41 +38,55 @@ public:
     DIALOG_TRACK_VIA_PROPERTIES( PCB_BASE_FRAME* aParent, const SELECTION& aItems );
 
     ///> Applies values from the dialog to the selected items.
-    bool Apply();
+    bool Apply( COMMIT& aCommit );
 
 private:
-    void onClose( wxCloseEvent& aEvent );
-    void onTrackNetclassCheck( wxCommandEvent& aEvent );
-    void onViaNetclassCheck( wxCommandEvent& aEvent );
-    void onCancelClick( wxCommandEvent& aEvent );
-    void onOkClick( wxCommandEvent& aEvent );
+    void onClose( wxCloseEvent& aEvent ) override;
+    void onTrackNetclassCheck( wxCommandEvent& aEvent ) override;
+    void onViaNetclassCheck( wxCommandEvent& aEvent ) override;
+    void onCancelClick( wxCommandEvent& aEvent ) override;
+    void onOkClick( wxCommandEvent& aEvent ) override;
+    void onViaSelect( wxCommandEvent& aEvent );
+    void onViaEdit( wxCommandEvent& aEvent );
+
+    void OnInitDlg( wxInitDialogEvent& event ) override
+    {
+        // Call the default wxDialog handler of a wxInitDialogEvent
+        TransferDataToWindow();
+
+        // Now all widgets have the size fixed, call FinishDialogSettings
+        FinishDialogSettings();
+    }
 
     ///> Checks if the dialog values are correct.
     bool check() const;
 
-    ///> Sets wxTextCtrl to the value stored in boost::optional<T> or "<...>" if it is not available.
+    ///> Sets wxTextEntry to the value stored in OPT<T> or "<...>" if it is not available.
     template<typename T>
-    void setCommonVal( const boost::optional<T>& aVal, wxTextCtrl* aTxtCtrl, WX_UNIT_BINDER& aBinder )
+        void setCommonVal( const OPT<T>& aVal, wxTextEntry* aTxtEntry, UNIT_BINDER& aBinder )
     {
         if( aVal )
             aBinder.SetValue( *aVal );
         else
-            aTxtCtrl->SetValue( "<...>" );
+            aTxtEntry->SetValue( "<...>" );
     }
 
     ///> Selected items to be modified.
     const SELECTION& m_items;
 
-    WX_UNIT_BINDER m_trackStartX, m_trackStartY;
-    WX_UNIT_BINDER m_trackEndX, m_trackEndY;
-    WX_UNIT_BINDER m_trackWidth;
+    UNIT_BINDER m_trackStartX, m_trackStartY;
+    UNIT_BINDER m_trackEndX, m_trackEndY;
+    UNIT_BINDER m_trackWidth;
 
-    WX_UNIT_BINDER m_viaX, m_viaY;
-    WX_UNIT_BINDER m_viaDiameter, m_viaDrill;
+    UNIT_BINDER m_viaX, m_viaY;
+    UNIT_BINDER m_viaDiameter, m_viaDrill;
 
     ///> Flag that determines if the dialog displays track properties.
     bool m_tracks;
 
     ///> Flag that determines if the dialog displays via properties.
     bool m_vias;
+
+    ///> Fixme
+    bool m_haveUniqueNet;
 };

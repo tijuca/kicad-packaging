@@ -1,19 +1,40 @@
-/***************/
-/* worksheet.h */
-/***************/
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
 
 // For page and paper size, values are in 1/1000 inch
 
 #ifndef WORKSHEET_H_
 #define WORKSHEET_H_
 
-#include <colors.h>     // EDA_COLOR_T definition
-#include <class_page_info.h>
+#include <gal/color4d.h>
+#include <page_info.h>
 
 // Forward declarations:
 class EDA_DRAW_PANEL;
 class EDA_RECT;
 class TITLE_BLOCK;
+
+using KIGFX::COLOR4D;
 
 /**
  * Function DrawPageLayout is a core function to draw the page layout with
@@ -30,6 +51,7 @@ class TITLE_BLOCK;
  * @param aScalar the scale factor to convert from mils to internal units.
  * @param aColor The color for drawing.
  * @param aAltColor The color for items which need to be "hightlighted".
+ * @param aSheetLayer The layer from pcbnew.
  *
  * Parameters used in aPageInfo
  * - the size of the page layout.
@@ -43,7 +65,8 @@ void DrawPageLayout( wxDC* aDC, EDA_RECT* aClipBox,
                      TITLE_BLOCK& aTitleBlock,
                      int aSheetCount, int aSheetNumber,
                      int aPenWidth, double aScalar,
-                     EDA_COLOR_T aColor, EDA_COLOR_T aAltColor );
+                     COLOR4D aColor, COLOR4D aAltColor,
+                     const wxString& aSheetLayer = wxEmptyString );
 
 
 #endif // WORKSHEET_H_

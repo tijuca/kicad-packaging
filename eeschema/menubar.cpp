@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2009-2014 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2014 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2009 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,188 +28,125 @@
  * @brief (Re)Create the main menubar for the schematic frame
  */
 
-#include <fctsys.h>
+
 #include <kiface_i.h>
-#include <pgm_base.h>
-#include <schframe.h>
-
-#include <general.h>
-#include <eeschema_id.h>
-#include <hotkeys.h>
 #include <menus_helpers.h>
+#include <pgm_base.h>
 
-#include <help_common_strings.h>
+#include "eeschema_id.h"
+#include "general.h"
+#include "help_common_strings.h"
+#include "hotkeys.h"
+#include "sch_edit_frame.h"
+
+// helper functions that build specific submenus:
+
+// Build the place submenu
+static void preparePlaceMenu( wxMenu* aParentMenu );
+
+// Build the files menu. Because some commands are available only if
+// Eeschemat is run outside a project (run alone), aIsOutsideProject is false
+// when Eeschema is run from Kicad manager, and true is run as stand alone app.
+static void prepareFilesMenu( wxMenu* aParentMenu, bool aIsOutsideProject );
+
+// Build the inspect menu
+static void prepareInspectMenu( wxMenu* aParentMenu );
+
+// Build the tools menu
+static void prepareToolsMenu( wxMenu* aParentMenu );
+
+// Build the help menu
+static void prepareHelpMenu( wxMenu* aParentMenu );
+
+// Build the edit menu
+static void prepareEditMenu( wxMenu* aParentMenu );
+
+// Build the view menu
+static void prepareViewMenu( wxMenu* aParentMenu );
+
+// Build the preferences menu
+static void preparePreferencesMenu( SCH_EDIT_FRAME* aFrame, wxMenu* aParentMenu );
 
 
 void SCH_EDIT_FRAME::ReCreateMenuBar()
 {
-    // Create and try to get the current menubar
+    // wxWidgets handles the Mac Application menu behind the scenes, but that means
+    // we always have to start from scratch with a new wxMenuBar.
+    wxMenuBar* oldMenuBar = GetMenuBar();
+    wxMenuBar* menuBar = new wxMenuBar();
     wxString   text;
-    wxMenuBar* menuBar = GetMenuBar();
-
-    if( !menuBar )
-        menuBar = new wxMenuBar();
-
-    // Delete all existing menus so they can be rebuilt.
-    // This allows language changes of the menu text on the fly.
-    menuBar->Freeze();
-
-    while( menuBar->GetMenuCount() )
-        delete menuBar->Remove( 0 );
 
     // Recreate all menus:
 
     // Menu File:
     wxMenu* fileMenu = new wxMenu;
-
-    if( Kiface().IsSingle() )   // not when under a project mgr
-    {
-        AddMenuItem( fileMenu,
-                     ID_NEW_PROJECT,
-                     _( "&New Schematic Project" ),
-                     _( "Clear current schematic hierarchy and start a new schematic root sheet" ),
-                     KiBitmap( new_sch_xpm ) );
-
-        text = AddHotkeyName( _( "&Open Schematic Project" ), g_Schematic_Hokeys_Descr, HK_LOAD_SCH );
-        AddMenuItem( fileMenu,
-                     ID_LOAD_PROJECT, text,
-                     _( "Open an existing schematic hierarchy" ),
-                     KiBitmap( open_document_xpm ) );
-    }
-
-    // @todo: static probably not OK in multiple open projects.
-    // Open Recent submenu
-    static wxMenu* openRecentMenu;
-
-    // Add this menu to list menu managed by m_fileHistory
-    // (the file history will be updated when adding/removing files in history
-    if( openRecentMenu )
-        Kiface().GetFileHistory().RemoveMenu( openRecentMenu );
-
-    openRecentMenu = new wxMenu();
-
-    Kiface().GetFileHistory().UseMenu( openRecentMenu );
-    Kiface().GetFileHistory().AddFilesToMenu( openRecentMenu );
-
-    if( Kiface().IsSingle() )   // not when under a project mgr
-    {
-        AddMenuItem( fileMenu, openRecentMenu,
-                     wxID_ANY, _( "Open &Recent" ),
-                     _( "Open a recent opened schematic project" ),
-                     KiBitmap( open_project_xpm ) );
-    }
-
-    AddMenuItem( fileMenu,
-                 ID_APPEND_PROJECT, _( "App&end Schematic Sheet" ),
-                 _( "Append schematic sheet to current project" ),
-                 KiBitmap( open_document_xpm ) );
-
-    fileMenu->AppendSeparator();
-
-    text = AddHotkeyName( _( "&Save Schematic Project" ),
-                          g_Schematic_Hokeys_Descr, HK_SAVE_SCH );
-    AddMenuItem( fileMenu,
-                 ID_SAVE_PROJECT, text,
-                 _( "Save all sheets in schematic project" ),
-                 KiBitmap( save_project_xpm ) );
-
-    AddMenuItem( fileMenu,
-                 ID_UPDATE_ONE_SHEET,
-                 _( "Save &Current Sheet Only" ),
-                 _( "Save only current schematic sheet" ),
-                 KiBitmap( save_xpm ) );
-
-    if( Kiface().IsSingle() )   // not when under a project mgr
-    {
-        AddMenuItem( fileMenu,
-                     ID_SAVE_ONE_SHEET_UNDER_NEW_NAME,
-                     _( "Save C&urrent Sheet As" ),
-                     _( "Save current schematic sheet as..." ),
-                     KiBitmap( save_as_xpm ) );
-    }
-
-    fileMenu->AppendSeparator();
-
-    AddMenuItem( fileMenu,
-                 ID_SHEET_SET,
-                 _( "Pa&ge Settings" ),
-                 _( "Setting for sheet size and frame references" ),
-                 KiBitmap( sheetset_xpm ) );
-
-    AddMenuItem( fileMenu,
-                 wxID_PRINT,
-                 _( "Pri&nt" ),
-                 _( "Print schematic sheet" ),
-                 KiBitmap( print_button_xpm ) );
-
-    // Plot submenu
-    wxMenu* choice_plot_fmt = new wxMenu;
-    AddMenuItem( choice_plot_fmt, ID_GEN_PLOT_SCHEMATIC,
-                 _( "&Plot" ),
-                 _( "Plot schematic sheet in PostScript, PDF, SVG, DXF or HPGL format" ),
-                 KiBitmap( plot_xpm ) );
-
-    // Plot to Clipboard
-    AddMenuItem( choice_plot_fmt, ID_GEN_COPY_SHEET_TO_CLIPBOARD,
-                 _( "Plot to C&lipboard" ),
-                 _( "Export drawings to clipboard" ),
-                 KiBitmap( copy_button_xpm ) );
-
-    // Plot
-    AddMenuItem( fileMenu, choice_plot_fmt,
-                 ID_GEN_PLOT, _( "&Plot" ),
-                 _( "Plot schematic sheet in HPGL, PostScript or SVG format" ),
-                 KiBitmap( plot_xpm ) );
-
-    // Separator
-    fileMenu->AppendSeparator();
-
-    // Quit
-    AddMenuItem( fileMenu,
-                 wxID_EXIT,
-                 _( "&Close" ),
-                 _( "Close Eeschema" ),
-                 KiBitmap( exit_xpm ) );
+    prepareFilesMenu( fileMenu, Kiface().IsSingle() );
 
     // Menu Edit:
     wxMenu* editMenu = new wxMenu;
-
-    // Undo
-    text = AddHotkeyName( _( "&Undo" ), g_Schematic_Hokeys_Descr, HK_UNDO );
-
-    AddMenuItem( editMenu, wxID_UNDO, text, HELP_UNDO, KiBitmap( undo_xpm ) );
-
-    // Redo
-    text = AddHotkeyName( _( "&Redo" ), g_Schematic_Hokeys_Descr, HK_REDO );
-
-    AddMenuItem( editMenu, wxID_REDO, text, HELP_REDO, KiBitmap( redo_xpm ) );
-
-    // Delete
-    editMenu->AppendSeparator();
-    AddMenuItem( editMenu, ID_SCHEMATIC_DELETE_ITEM_BUTT,
-                 _( "&Delete" ), HELP_DELETE_ITEMS,
-                 KiBitmap( delete_xpm ) );
-
-    // Find
-    editMenu->AppendSeparator();
-    text = AddHotkeyName( _( "&Find" ), g_Schematic_Hokeys_Descr, HK_FIND_ITEM );
-    AddMenuItem( editMenu, ID_FIND_ITEMS, text, HELP_FIND, KiBitmap( find_xpm ) );
-
-    // Find/Replace
-    text = AddHotkeyName( _( "Find and Re&place" ), g_Schematic_Hokeys_Descr,
-                          HK_FIND_REPLACE );
-    AddMenuItem( editMenu, wxID_REPLACE, text, HELP_REPLACE,
-                 KiBitmap( find_replace_xpm ) );
-
-    // Import footprint association from the CvPcb cmp file:
-    editMenu->AppendSeparator();
-    AddMenuItem( editMenu, ID_BACKANNO_ITEMS,
-                 _( "Import Footprint Selection" ),
-                 HELP_IMPORT_FOOTPRINTS,
-                 KiBitmap( import_footprint_names_xpm ) );
+    prepareEditMenu( editMenu );
 
     // Menu View:
     wxMenu* viewMenu = new wxMenu;
+    prepareViewMenu( viewMenu );
+
+    // Menu place:
+    wxMenu* placeMenu = new wxMenu;
+    preparePlaceMenu( placeMenu );
+
+    // Menu Inspect:
+    wxMenu* inspectMenu = new wxMenu;
+    prepareInspectMenu( inspectMenu );
+
+    // Menu Tools:
+    wxMenu* toolsMenu = new wxMenu;
+    prepareToolsMenu( toolsMenu );
+
+    // Menu Preferences:
+    wxMenu* preferencesMenu = new wxMenu;
+    preparePreferencesMenu( this, preferencesMenu );
+
+    // Help Menu:
+    wxMenu* helpMenu = new wxMenu;
+    prepareHelpMenu( helpMenu );
+
+    // Create the menubar and append all submenus
+    menuBar->Append( fileMenu, _( "&File" ) );
+    menuBar->Append( editMenu, _( "&Edit" ) );
+    menuBar->Append( viewMenu, _( "&View" ) );
+    menuBar->Append( placeMenu, _( "&Place" ) );
+    menuBar->Append( inspectMenu, _( "&Inspect" ) );
+    menuBar->Append( toolsMenu, _( "&Tools" ) );
+    menuBar->Append( preferencesMenu, _( "P&references" ) );
+    menuBar->Append( helpMenu, _( "&Help" ) );
+
+    SetMenuBar( menuBar );
+    delete oldMenuBar;
+}
+
+
+void prepareViewMenu( wxMenu* aParentMenu )
+{
+    wxString text;
+
+    AddMenuItem( aParentMenu,
+                 ID_TO_LIBVIEW,
+                 _( "Library &Browser" ),  HELP_RUN_LIB_VIEWER,
+                 KiBitmap( library_browse_xpm ) );
+
+    AddMenuItem( aParentMenu,
+                 ID_HIERARCHY,
+                 _( "Show &Hierarchical Navigator" ),
+                 _( "Navigate schematic hierarchy" ),
+                 KiBitmap( hierarchy_nav_xpm ) );
+
+    text = AddHotkeyName( _( "&Leave Sheet" ), g_Schematic_Hokeys_Descr, HK_LEAVE_SHEET );
+    AddMenuItem( aParentMenu,
+                 ID_POPUP_SCH_LEAVE_SHEET, text,
+                 _( "Leave Sheet" ),
+                 KiBitmap( leave_sheet_xpm ) );
+
+    aParentMenu->AppendSeparator();
 
     /**
      * Important Note for ZOOM IN and ZOOM OUT commands from menubar:
@@ -228,294 +165,574 @@ void SCH_EDIT_FRAME::ReCreateMenuBar()
 
     text = AddHotkeyName( _( "Zoom &In" ), g_Schematic_Hokeys_Descr,
                           HK_ZOOM_IN, IS_ACCELERATOR );  // add an accelerator, not a shortcut
-    AddMenuItem( viewMenu, ID_ZOOM_IN, text, HELP_ZOOM_IN, KiBitmap( zoom_in_xpm ) );
+    AddMenuItem( aParentMenu, ID_ZOOM_IN, text, HELP_ZOOM_IN, KiBitmap( zoom_in_xpm ) );
 
     text = AddHotkeyName( _( "Zoom &Out" ), g_Schematic_Hokeys_Descr,
                           HK_ZOOM_OUT, IS_ACCELERATOR );  // add accelerator, not a shortcut
-    AddMenuItem( viewMenu, ID_ZOOM_OUT, text, HELP_ZOOM_OUT, KiBitmap( zoom_out_xpm ) );
+    AddMenuItem( aParentMenu, ID_ZOOM_OUT, text, HELP_ZOOM_OUT, KiBitmap( zoom_out_xpm ) );
 
-    text = AddHotkeyName( _( "&Fit on Screen" ), g_Schematic_Hokeys_Descr, HK_ZOOM_AUTO );
+    text = AddHotkeyName( _( "&Zoom to Fit" ), g_Schematic_Hokeys_Descr, HK_ZOOM_AUTO );
 
-    AddMenuItem( viewMenu, ID_ZOOM_PAGE, text, HELP_ZOOM_FIT, KiBitmap( zoom_fit_in_page_xpm ) );
+    AddMenuItem( aParentMenu, ID_ZOOM_PAGE, text,
+                 HELP_ZOOM_FIT, KiBitmap( zoom_fit_in_page_xpm ) );
+
+    text = AddHotkeyName( _( "Zoom to Selection" ), g_Eeschema_Hokeys_Descr, HK_ZOOM_SELECTION );
+
+    AddMenuItem( aParentMenu, ID_MENU_ZOOM_SELECTION, text, KiBitmap( zoom_area_xpm ) );
 
     text = AddHotkeyName( _( "&Redraw" ), g_Schematic_Hokeys_Descr, HK_ZOOM_REDRAW );
 
-    AddMenuItem( viewMenu, ID_ZOOM_REDRAW, text, HELP_ZOOM_REDRAW, KiBitmap( zoom_redraw_xpm ) );
+    AddMenuItem( aParentMenu, ID_ZOOM_REDRAW, text,
+                 HELP_ZOOM_REDRAW, KiBitmap( zoom_redraw_xpm ) );
 
-    viewMenu->AppendSeparator();
+    aParentMenu->AppendSeparator();
 
-    AddMenuItem( viewMenu,
-                 ID_HIERARCHY,
-                 _( "Show &Hierarchical Navigator" ),
-                 _( "Navigate hierarchical sheets" ),
-                 KiBitmap( hierarchy_nav_xpm ) );
+    AddMenuItem( aParentMenu, ID_TB_OPTIONS_SHOW_GRID,
+                 _( "Show &Grid" ), wxEmptyString,
+                 KiBitmap( grid_xpm ), wxITEM_CHECK );
 
-    text = AddHotkeyName( _( "&Leave Sheet" ), g_Schematic_Hokeys_Descr, HK_LEAVE_SHEET );
+    // Units submenu
+    wxMenu* unitsSubMenu = new wxMenu;
+    AddMenuItem( unitsSubMenu, ID_TB_OPTIONS_SELECT_UNIT_INCH,
+                 _( "&Imperial" ), _( "Use imperial units" ),
+                 KiBitmap( unit_inch_xpm ), wxITEM_RADIO );
 
-    AddMenuItem( viewMenu,
-                 ID_POPUP_SCH_LEAVE_SHEET,
-                 text,
-                 _( "Leave Sheet" ),
-                 KiBitmap( leave_sheet_xpm ) );
+    AddMenuItem( unitsSubMenu, ID_TB_OPTIONS_SELECT_UNIT_MM,
+                 _( "&Metric" ), _( "Use metric units" ),
+                 KiBitmap( unit_mm_xpm ), wxITEM_RADIO );
 
-    // Menu place:
-    wxMenu* placeMenu = new wxMenu;
+    AddMenuItem( aParentMenu, unitsSubMenu,
+                 -1, _( "&Units" ),
+                 _( "Select which units are displayed" ),
+                 KiBitmap( unit_mm_xpm ) );
 
-    text = AddHotkeyName( _( "&Component" ), g_Schematic_Hokeys_Descr,
+
+#ifndef __APPLE__
+    AddMenuItem( aParentMenu, ID_TB_OPTIONS_SELECT_CURSOR,
+                 _( "Full &Window Crosshair" ),
+                 _( "Change cursor shape" ),
+                 KiBitmap( cursor_shape_xpm ), wxITEM_CHECK );
+#else
+    AddMenuItem( aParentMenu, ID_TB_OPTIONS_SELECT_CURSOR,
+                 _( "Full &Window Crosshair" ),
+                 _( "Change cursor shape (not supported in Legacy graphics)" ),
+                 KiBitmap( cursor_shape_xpm ), wxITEM_CHECK );
+#endif
+
+    aParentMenu->AppendSeparator();
+
+    AddMenuItem( aParentMenu, ID_TB_OPTIONS_HIDDEN_PINS,
+                 _( "Show Hidden &Pins" ),
+                 wxEmptyString,
+                 KiBitmap( hidden_pin_xpm ), wxITEM_CHECK );
+
+#ifdef __APPLE__
+    aParentMenu->AppendSeparator();
+#endif
+}
+
+
+void preparePlaceMenu( wxMenu* aParentMenu )
+{
+    wxString text;
+
+    text = AddHotkeyName( _( "&Symbol" ), g_Schematic_Hokeys_Descr,
                           HK_ADD_NEW_COMPONENT, IS_ACCELERATOR );    // add an accelerator, not a shortcut
-    AddMenuItem( placeMenu, ID_SCH_PLACE_COMPONENT, text,
+    AddMenuItem( aParentMenu, ID_MENU_PLACE_COMPONENT, text,
                  HELP_PLACE_COMPONENTS,
                  KiBitmap( add_component_xpm ) );
 
     text = AddHotkeyName( _( "&Power Port" ), g_Schematic_Hokeys_Descr,
                           HK_ADD_NEW_POWER, IS_ACCELERATOR );    // add an accelerator, not a shortcut
-    AddMenuItem( placeMenu, ID_PLACE_POWER_BUTT, text,
+    AddMenuItem( aParentMenu, ID_MENU_PLACE_POWER_BUTT, text,
                  HELP_PLACE_POWERPORT,
                  KiBitmap( add_power_xpm ) );
 
     text = AddHotkeyName( _( "&Wire" ), g_Schematic_Hokeys_Descr,
                           HK_BEGIN_WIRE, IS_ACCELERATOR );    // add an accelerator, not a shortcut
-    AddMenuItem( placeMenu, ID_WIRE_BUTT, text,
+    AddMenuItem( aParentMenu, ID_MENU_WIRE_BUTT, text,
                  HELP_PLACE_WIRE,
                  KiBitmap( add_line_xpm ) );
 
     text = AddHotkeyName( _( "&Bus" ), g_Schematic_Hokeys_Descr,
                           HK_BEGIN_BUS, IS_ACCELERATOR );    // add an accelerator, not a shortcut
-    AddMenuItem( placeMenu, ID_BUS_BUTT, text,
+    AddMenuItem( aParentMenu, ID_MENU_BUS_BUTT, text,
                  HELP_PLACE_BUS,
                  KiBitmap( add_bus_xpm ) );
 
     text = AddHotkeyName( _( "Wire to Bus &Entry" ), g_Schematic_Hokeys_Descr,
                           HK_ADD_WIRE_ENTRY, IS_ACCELERATOR );    // add an accelerator, not a shortcut
-    AddMenuItem( placeMenu, ID_WIRETOBUS_ENTRY_BUTT, text,
+    AddMenuItem( aParentMenu, ID_MENU_WIRETOBUS_ENTRY_BUTT, text,
                  HELP_PLACE_WIRE2BUS_ENTRY,
                  KiBitmap( add_line2bus_xpm ) );
 
     text = AddHotkeyName( _( "Bus &to Bus Entry" ), g_Schematic_Hokeys_Descr,
                           HK_ADD_BUS_ENTRY, IS_ACCELERATOR );    // add an accelerator, not a shortcut
-    AddMenuItem( placeMenu, ID_BUSTOBUS_ENTRY_BUTT, text,
+    AddMenuItem( aParentMenu, ID_MENU_BUSTOBUS_ENTRY_BUTT, text,
                  HELP_PLACE_BUS2BUS_ENTRY,
                  KiBitmap( add_bus2bus_xpm ) );
 
     text = AddHotkeyName( _( "&No Connect Flag" ), g_Schematic_Hokeys_Descr,
                           HK_ADD_NOCONN_FLAG, IS_ACCELERATOR );    // add an accelerator, not a shortcut
-    AddMenuItem( placeMenu, ID_NOCONN_BUTT, text, HELP_PLACE_NC_FLAG, KiBitmap( noconn_xpm ) );
+    AddMenuItem( aParentMenu, ID_MENU_NOCONN_BUTT, text, HELP_PLACE_NC_FLAG, KiBitmap( noconn_xpm ) );
 
     text = AddHotkeyName( _( "&Junction" ), g_Schematic_Hokeys_Descr,
                           HK_ADD_JUNCTION, IS_ACCELERATOR );    // add an accelerator, not a shortcut
-    AddMenuItem( placeMenu, ID_JUNCTION_BUTT, text,
+    AddMenuItem( aParentMenu, ID_MENU_JUNCTION_BUTT, text,
                  HELP_PLACE_JUNCTION,
                  KiBitmap( add_junction_xpm ) );
 
     text = AddHotkeyName( _( "&Label" ), g_Schematic_Hokeys_Descr,
                           HK_ADD_LABEL, IS_ACCELERATOR );    // add an accelerator, not a shortcut
-    AddMenuItem( placeMenu, ID_LABEL_BUTT, text,
+    AddMenuItem( aParentMenu, ID_MENU_LABEL_BUTT, text,
                  HELP_PLACE_NETLABEL,
                  KiBitmap( add_line_label_xpm ) );
 
     text = AddHotkeyName( _( "Gl&obal Label" ), g_Schematic_Hokeys_Descr,
                           HK_ADD_GLABEL, IS_ACCELERATOR );    // add an accelerator, not a shortcut
-    AddMenuItem( placeMenu, ID_GLABEL_BUTT, text,
+    AddMenuItem( aParentMenu, ID_MENU_GLABEL_BUTT, text,
                  HELP_PLACE_GLOBALLABEL,
                  KiBitmap( add_glabel_xpm ) );
 
-    placeMenu->AppendSeparator();
+    aParentMenu->AppendSeparator();
 
     text = AddHotkeyName( _( "&Hierarchical Label" ), g_Schematic_Hokeys_Descr,
                           HK_ADD_HLABEL, IS_ACCELERATOR );          // add an accelerator, not a shortcut
-    AddMenuItem( placeMenu, ID_HIERLABEL_BUTT,
+    AddMenuItem( aParentMenu, ID_MENU_HIERLABEL_BUTT,
                  text, HELP_PLACE_HIER_LABEL,
                  KiBitmap( add_hierarchical_label_xpm ) );
 
 
-    text = AddHotkeyName( _( "Hierarchical &Sheet" ), g_Schematic_Hokeys_Descr,
+    text = AddHotkeyName( _( "Hierar&chical Sheet" ), g_Schematic_Hokeys_Descr,
                           HK_ADD_HIER_SHEET, IS_ACCELERATOR );    // add an accelerator, not a shortcut
-    AddMenuItem( placeMenu, ID_SHEET_SYMBOL_BUTT, text,
+    AddMenuItem( aParentMenu, ID_MENU_SHEET_SYMBOL_BUTT, text,
                  HELP_PLACE_SHEET,
                  KiBitmap( add_hierarchical_subsheet_xpm ) );
 
-    AddMenuItem( placeMenu,
-                 ID_IMPORT_HLABEL_BUTT,
+    AddMenuItem( aParentMenu,
+                 ID_MENU_IMPORT_HLABEL_BUTT,
                  _( "I&mport Hierarchical Label" ),
                  HELP_IMPORT_SHEETPIN,
                  KiBitmap( import_hierarchical_label_xpm ) );
 
-    AddMenuItem( placeMenu,
-                 ID_SHEET_PIN_BUTT,
+    AddMenuItem( aParentMenu,
+                 ID_MENU_SHEET_PIN_BUTT,
                  _( "Hierarchical Pi&n to Sheet" ),
                  HELP_PLACE_SHEETPIN,
                  KiBitmap( add_hierar_pin_xpm ) );
 
-    placeMenu->AppendSeparator();
+    aParentMenu->AppendSeparator();
 
     text = AddHotkeyName( _( "Graphic Pol&yline" ), g_Schematic_Hokeys_Descr,
                           HK_ADD_GRAPHIC_POLYLINE, IS_ACCELERATOR );    // add an accelerator, not a shortcut
-    AddMenuItem( placeMenu, ID_LINE_COMMENT_BUTT, text,
+    AddMenuItem( aParentMenu, ID_MENU_LINE_COMMENT_BUTT, text,
                  HELP_PLACE_GRAPHICLINES,
                  KiBitmap( add_dashed_line_xpm ) );
 
     text = AddHotkeyName( _( "&Graphic Text" ), g_Schematic_Hokeys_Descr,
                           HK_ADD_GRAPHIC_TEXT, IS_ACCELERATOR );    // add an accelerator, not a shortcut
-    AddMenuItem( placeMenu, ID_TEXT_COMMENT_BUTT, text,
+    AddMenuItem( aParentMenu, ID_MENU_TEXT_COMMENT_BUTT, text,
                  HELP_PLACE_GRAPHICTEXTS,
-                 KiBitmap( add_text_xpm ) );
+                 KiBitmap( text_xpm ) );
 
-    // Graphic image
-    AddMenuItem( placeMenu, ID_ADD_IMAGE_BUTT, _( "&Image" ),
+    // Add graphic image
+    AddMenuItem( aParentMenu, ID_MENU_ADD_IMAGE_BUTT, _( "&Image" ),
                  HELP_PLACE_GRAPHICIMAGES,
                  KiBitmap( image_xpm ) );
-
-    // Menu Preferences:
-    wxMenu* preferencesMenu = new wxMenu;
-
-    // Library
-    AddMenuItem( preferencesMenu,
-                 ID_CONFIG_REQ,
-                 _( "Component &Libraries" ),
-                 _( "Configure component libraries and paths" ),
-                 KiBitmap( library_xpm ) );
-
-    // Colors
-    AddMenuItem( preferencesMenu,
-                 ID_COLORS_SETUP,
-                 _( "Set &Colors Scheme" ),
-                 _( "Set color preferences" ),
-                 KiBitmap( palette_xpm ) );
-
-    // Options (Preferences on WXMAC)
-
-#ifdef __WXMAC__
-    preferencesMenu->Append( wxID_PREFERENCES );
-#else
-    AddMenuItem( preferencesMenu,
-                 wxID_PREFERENCES,
-                 _( "Schematic Editor &Options" ),
-                 _( "Set Eeschema preferences" ),
-                 KiBitmap( preference_xpm ) );
-#endif // __WXMAC__
+}
 
 
-    // Language submenu
-    Pgm().AddMenuLanguageList( preferencesMenu );
+void prepareFilesMenu( wxMenu* aParentMenu, bool aIsOutsideProject )
+{
+    wxString text;
 
-    // Hotkey submenu
-    AddHotkeyConfigMenu( preferencesMenu );
+    // @todo: static probably not OK in multiple open projects.
+    // Open Recent submenu
+    static wxMenu* openRecentMenu;
 
-    // Separator
-    preferencesMenu->AppendSeparator();
+    // Add this menu to list menu managed by m_fileHistory
+    // (the file history will be updated when adding/removing files in history
+    if( openRecentMenu )
+        Kiface().GetFileHistory().RemoveMenu( openRecentMenu );
 
-    AddMenuItem( preferencesMenu,
-                 ID_CONFIG_SAVE,
-                 _( "&Save Preferences" ),
-                 _( "Save application preferences" ),
-                 KiBitmap( save_setup_xpm ) );
+    openRecentMenu = new wxMenu();
 
-    AddMenuItem( preferencesMenu,
-                 ID_CONFIG_READ,
-                 _( "Load Prefe&rences" ),
-                 _( "Load application preferences" ),
-                 KiBitmap( read_setup_xpm ) );
+    Kiface().GetFileHistory().UseMenu( openRecentMenu );
+    Kiface().GetFileHistory().AddFilesToMenu( openRecentMenu );
 
-    // Menu Tools:
-    wxMenu* toolsMenu = new wxMenu;
+    if( aIsOutsideProject )   // not when under a project mgr
+    {
+        text = AddHotkeyName( _( "&New..." ), g_Schematic_Hokeys_Descr, HK_NEW );
+        AddMenuItem( aParentMenu, ID_NEW_PROJECT, text,
+                     _( "Clear current schematic hierarchy and start new schematic root sheet" ),
+                     KiBitmap( new_document_xpm ) );
 
-    AddMenuItem( toolsMenu,
-                 ID_RUN_LIBRARY,
-                 _( "Library &Editor" ), HELP_RUN_LIB_EDITOR,
-                 KiBitmap( libedit_xpm ) );
+        text = AddHotkeyName( _( "&Open..." ), g_Schematic_Hokeys_Descr, HK_OPEN );
+        AddMenuItem( aParentMenu, ID_LOAD_PROJECT, text,
+                     _( "Open existing schematic" ),
+                     KiBitmap( open_document_xpm ) );
 
-    AddMenuItem( toolsMenu,
-                 ID_TO_LIBVIEW,
-                 _( "Library &Browser" ),  HELP_RUN_LIB_VIEWER,
-                 KiBitmap( library_browse_xpm ) );
+        AddMenuItem( aParentMenu, openRecentMenu,
+                     -1, _( "Open &Recent" ),
+                     _( "Open recently opened schematic" ),
+                     KiBitmap( recent_xpm ) );
 
-    AddMenuItem( toolsMenu,
-                 ID_RESCUE_CACHED,
-                 _( "&Rescue Old Components" ),
-                 _( "Find old components in the project and rename/rescue them" ),
-                 KiBitmap( copycomponent_xpm ) );
+        aParentMenu->AppendSeparator();
+    }
 
-    toolsMenu->AppendSeparator();
+    text = AddHotkeyName( _( "&Save" ), g_Schematic_Hokeys_Descr, HK_SAVE );
+    AddMenuItem( aParentMenu,
+                 ID_SAVE_PROJECT, text,
+                 _( "Save all sheets in schematic" ),
+                 KiBitmap( save_xpm ) );
 
-    AddMenuItem( toolsMenu,
-                 ID_GET_ANNOTATE,
-                 _( "&Annotate Schematic" ), HELP_ANNOTATE,
-                 KiBitmap( annotate_xpm ) );
+    AddMenuItem( aParentMenu,
+                 ID_UPDATE_ONE_SHEET,
+                 _( "Save &Current Sheet" ),
+                 _( "Save only current schematic sheet" ),
+                 KiBitmap( save_xpm ) );
 
-    // ERC
-    AddMenuItem( toolsMenu,
-                 ID_GET_ERC,
+    if( aIsOutsideProject )   // not when under a project mgr
+    {
+        text = AddHotkeyName( _( "Save C&urrent Sheet As..." ),
+                              g_Schematic_Hokeys_Descr, HK_SAVEAS );
+        AddMenuItem( aParentMenu,
+                     ID_SAVE_ONE_SHEET_UNDER_NEW_NAME, text,
+                     _( "Save current schematic sheet with new name" ),
+                     KiBitmap( save_as_xpm ) );
+    }
+
+    aParentMenu->AppendSeparator();
+
+    AddMenuItem( aParentMenu, ID_APPEND_PROJECT,
+                 _( "App&end Schematic Sheet..." ),
+                 _( "Import schematic sheet content from another project to current sheet" ),
+                 KiBitmap( add_document_xpm ) );
+
+    AddMenuItem( aParentMenu, ID_IMPORT_NON_KICAD_SCH,
+                 _( "&Import Non KiCad Schematic File..." ),
+                 _( "Import schematic file from other applications" ),
+                 KiBitmap( import_document_xpm ) );   // TODO needs a different icon
+
+    aParentMenu->AppendSeparator();
+
+    // Import submenu
+    wxMenu* submenuImport = new wxMenu();
+
+    AddMenuItem( submenuImport, ID_BACKANNO_ITEMS,
+                 _( "&Footprint Association File..." ),
+                 HELP_IMPORT_FOOTPRINTS,
+                 KiBitmap( import_footprint_names_xpm ) );
+
+    AddMenuItem( aParentMenu, submenuImport,
+                 ID_GEN_IMPORT_FILE,
+                 _( "&Import" ),
+                 _( "Import files" ),
+                 KiBitmap( import_xpm ) );
+
+
+    // Export submenu
+    wxMenu* submenuExport = new wxMenu();
+
+    AddMenuItem( submenuExport, ID_GEN_COPY_SHEET_TO_CLIPBOARD,
+                 _( "Drawing to C&lipboard" ),
+                 _( "Export drawings to clipboard" ),
+                 KiBitmap( copy_xpm ) );
+
+    AddMenuItem( aParentMenu, submenuExport,
+                 ID_GEN_EXPORT_FILE,
+                 _( "E&xport" ),
+                 _( "Export files" ),
+                 KiBitmap( export_xpm ) );
+
+    aParentMenu->AppendSeparator();
+
+    // Edit page layout:
+    AddMenuItem( aParentMenu, ID_SHEET_SET,
+                 _( "Page S&ettings..." ),
+                 _( "Settings for sheet size and frame references" ),
+                 KiBitmap( sheetset_xpm ) );
+
+    text = AddHotkeyName( _( "&Print..." ), g_Schematic_Hokeys_Descr, HK_PRINT );
+    AddMenuItem( aParentMenu, wxID_PRINT, text,
+                 _( "Print schematic sheet" ),
+                 KiBitmap( print_button_xpm ) );
+
+    AddMenuItem( aParentMenu, ID_GEN_PLOT_SCHEMATIC, _( "P&lot..." ),
+                 _( "Plot schematic sheet in PostScript, PDF, SVG, DXF or HPGL format" ),
+                 KiBitmap( plot_xpm ) );
+
+    aParentMenu->AppendSeparator();
+
+    // Quit
+    AddMenuItem( aParentMenu, wxID_EXIT, _( "&Exit" ), _( "Close Eeschema" ),
+                 KiBitmap( exit_xpm ) );
+}
+
+
+void prepareEditMenu( wxMenu* aParentMenu )
+{
+    wxString text;
+
+    // Undo
+    text = AddHotkeyName( _( "&Undo" ), g_Schematic_Hokeys_Descr, HK_UNDO );
+
+    AddMenuItem( aParentMenu, wxID_UNDO, text, HELP_UNDO, KiBitmap( undo_xpm ) );
+
+    // Redo
+    text = AddHotkeyName( _( "&Redo" ), g_Schematic_Hokeys_Descr, HK_REDO );
+
+    AddMenuItem( aParentMenu, wxID_REDO, text, HELP_REDO, KiBitmap( redo_xpm ) );
+
+    aParentMenu->AppendSeparator();
+
+    text = AddHotkeyName( _( "&Cut" ), g_Schematic_Hokeys_Descr, HK_EDIT_CUT );
+    AddMenuItem( aParentMenu, wxID_CUT, text,
+                 _( "Cuts the selected item(s) to the Clipboard" ),
+                 KiBitmap( cut_xpm ) );
+
+    text = AddHotkeyName( _( "&Copy" ), g_Schematic_Hokeys_Descr, HK_EDIT_COPY );
+    AddMenuItem( aParentMenu, wxID_COPY, text,
+                 _( "Copies the selected item(s) to the Clipboard" ),
+                 KiBitmap( copy_xpm ) );
+
+    text = AddHotkeyName( _( "&Paste" ), g_Schematic_Hokeys_Descr, HK_EDIT_PASTE );
+    AddMenuItem( aParentMenu, wxID_PASTE, text,
+                 _( "Pastes item(s) from the Clipboard" ),
+                 KiBitmap( paste_xpm ) );
+
+    // Delete
+    aParentMenu->AppendSeparator();
+    AddMenuItem( aParentMenu, ID_MENU_DELETE_ITEM_BUTT,
+                 _( "&Delete" ), HELP_DELETE_ITEMS,
+                 KiBitmap( delete_xpm ) );
+
+    // Find
+    aParentMenu->AppendSeparator();
+    text = AddHotkeyName( _( "&Find..." ), g_Schematic_Hokeys_Descr, HK_FIND_ITEM );
+    AddMenuItem( aParentMenu, ID_FIND_ITEMS, text, HELP_FIND, KiBitmap( find_xpm ) );
+
+    // Find/Replace
+    text = AddHotkeyName( _( "Find and Re&place..." ), g_Schematic_Hokeys_Descr,
+                          HK_FIND_REPLACE );
+    AddMenuItem( aParentMenu, wxID_REPLACE, text, HELP_REPLACE,
+                 KiBitmap( find_replace_xpm ) );
+
+    aParentMenu->AppendSeparator();
+
+    // Update field values
+    AddMenuItem( aParentMenu, ID_UPDATE_FIELDS,
+                 _( "Update Field Values..." ),
+                 _( "Sets symbol fields to original library values" ),
+                 KiBitmap( update_fields_xpm ) );
+}
+
+
+void prepareInspectMenu( wxMenu* aParentMenu )
+{
+    AddMenuItem( aParentMenu, ID_GET_ERC,
                  _( "Electrical Rules &Checker" ),
                  _( "Perform electrical rules check" ),
                  KiBitmap( erc_xpm ) );
+}
 
-    AddMenuItem( toolsMenu,
-                 ID_GET_NETLIST,
-                 _( "Generate &Netlist File" ),
-                 _( "Generate the component netlist file" ),
-                 KiBitmap( netlist_xpm ) );
 
-    AddMenuItem( toolsMenu,
-                 ID_GET_TOOLS,
-                 _( "Generate Bill of &Materials" ),
-                 HELP_GENERATE_BOM,
-                 KiBitmap( bom_xpm ) );
+void prepareToolsMenu( wxMenu* aParentMenu )
+{
+    wxString text;
 
-    toolsMenu->AppendSeparator();
+    text = AddHotkeyName( _( "Update PCB from Schematic..." ), g_Schematic_Hokeys_Descr,
+                          HK_UPDATE_PCB_FROM_SCH );
 
-    // Run CvPcb
-    AddMenuItem( toolsMenu,
-                 ID_RUN_CVPCB,
-                 _( "A&ssign Component Footprint" ),
-                 _( "Run CvPcb" ),
-                 KiBitmap( cvpcb_xpm ) );
+    AddMenuItem( aParentMenu,
+                 ID_UPDATE_PCB_FROM_SCH,
+                 text, _( "Updates PCB design with current schematic (forward annotation)." ),
+                 KiBitmap( import_brd_file_xpm ) );
 
     // Run Pcbnew
-    AddMenuItem( toolsMenu,
+    AddMenuItem( aParentMenu,
                  ID_RUN_PCB,
-                 _( "&Layout Printed Circuit Board" ),
+                 _( "&Open PCB Editor" ),
                  _( "Run Pcbnew" ),
                  KiBitmap( pcbnew_xpm ) );
 
-    // Help Menu:
-    wxMenu* helpMenu = new wxMenu;
+    aParentMenu->AppendSeparator();
 
-    // Version info
-    AddHelpVersionInfoMenuEntry( helpMenu );
+    AddMenuItem( aParentMenu,
+                 ID_RUN_LIBRARY,
+                 _( "Symbol Library &Editor" ), HELP_RUN_LIB_EDITOR,
+                 KiBitmap( libedit_xpm ) );
 
-    AddMenuItem( helpMenu,
+    AddMenuItem( aParentMenu,
+                 ID_RESCUE_CACHED,
+                 _( "&Rescue Symbols..." ),
+                 _( "Find old symbols in project and rename/rescue them" ),
+                 KiBitmap( rescue_xpm ) );
+
+    AddMenuItem( aParentMenu,
+                 ID_REMAP_SYMBOLS,
+                 _( "Remap Symbols..." ),
+                 _( "Remap legacy library symbols to symbol library table" ),
+                 KiBitmap( rescue_xpm ) );
+
+    aParentMenu->AppendSeparator();
+
+    AddMenuItem( aParentMenu,
+                 ID_OPEN_CMP_TABLE,
+                 _( "Edit Symbol Field&s..." ),
+                 KiBitmap( spreadsheet_xpm ) );
+
+    AddMenuItem( aParentMenu,
+                 ID_EDIT_COMPONENTS_TO_SYMBOLS_LIB_ID,
+                 _( "Edit Symbol Library References..." ),
+                 _( "Edit links between schematic symbols and library symbols" ),
+                 KiBitmap( edit_cmp_symb_links_xpm ) );
+
+    aParentMenu->AppendSeparator();
+
+    AddMenuItem( aParentMenu,
+                 ID_GET_ANNOTATE,
+                 _( "&Annotate Schematic..." ), HELP_ANNOTATE,
+                 KiBitmap( annotate_xpm ) );
+
+    AddMenuItem( aParentMenu,
+                 ID_GET_NETLIST,
+                 _( "Generate &Netlist File..." ),
+                 _( "Generate netlist file" ),
+                 KiBitmap( netlist_xpm ) );
+
+    AddMenuItem( aParentMenu,
+                 ID_GET_TOOLS,
+                 _( "Generate Bill of &Materials..." ),
+                 HELP_GENERATE_BOM,
+                 KiBitmap( bom_xpm ) );
+
+    aParentMenu->AppendSeparator();
+
+    // Run CvPcb
+    AddMenuItem( aParentMenu,
+                 ID_RUN_CVPCB,
+                 _( "A&ssign Footprints..." ),
+                 _( "Assign PCB footprints to schematic symbols" ),
+                 KiBitmap( cvpcb_xpm ) );
+
+    aParentMenu->AppendSeparator();
+
+#ifdef KICAD_SPICE
+    // Simulator
+    AddMenuItem( aParentMenu,
+                 ID_SIM_SHOW,
+                 _("Simula&tor"), _( "Simulate circuit" ),
+                 KiBitmap( simulator_xpm ) );
+#endif /* KICAD_SPICE */
+
+}
+
+
+void prepareHelpMenu( wxMenu* aParentMenu )
+{
+    AddMenuItem( aParentMenu,
                  wxID_HELP,
                  _( "Eeschema &Manual" ),
                  _( "Open Eeschema Manual" ),
                  KiBitmap( online_help_xpm ) );
 
-    AddMenuItem( helpMenu,
+    AddMenuItem( aParentMenu,
                  wxID_INDEX,
                  _( "&Getting Started in KiCad" ),
                  _( "Open \"Getting Started in KiCad\" guide for beginners" ),
                  KiBitmap( help_xpm ) );
 
-    helpMenu->AppendSeparator();
-    AddMenuItem( helpMenu,
+    wxString text = AddHotkeyName( _( "&List Hotkeys..." ), g_Eeschema_Hokeys_Descr, HK_HELP );
+    AddMenuItem( aParentMenu,
+                 ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST,
+                 text,
+                 _( "Displays current hotkeys table and corresponding commands" ),
+                 KiBitmap( hotkeys_xpm ) );
+
+    aParentMenu->AppendSeparator();
+    AddMenuItem( aParentMenu, ID_HELP_GET_INVOLVED,
+                 _( "Get &Involved" ),
+                 _( "Contribute to KiCad (opens a web browser)" ),
+                 KiBitmap( info_xpm ) );
+
+    aParentMenu->AppendSeparator();
+    AddMenuItem( aParentMenu,
                  wxID_ABOUT,
                  _( "&About KiCad" ),
                  _( "About KiCad" ),
-                 KiBitmap( info_xpm ) );
+                 KiBitmap( about_xpm ) );
+}
 
-    // Create the menubar and append all submenus
-    menuBar->Append( fileMenu, _( "&File" ) );
-    menuBar->Append( editMenu, _( "&Edit" ) );
-    menuBar->Append( viewMenu, _( "&View" ) );
-    menuBar->Append( placeMenu, _( "&Place" ) );
-    menuBar->Append( preferencesMenu, _( "P&references" ) );
-    menuBar->Append( toolsMenu, _( "&Tools" ) );
-    menuBar->Append( helpMenu, _( "&Help" ) );
 
-    menuBar->Thaw();
+static void preparePreferencesMenu( SCH_EDIT_FRAME* aFrame, wxMenu* aParentMenu )
+{
+    // Path configuration edit dialog.
+    AddMenuItem( aParentMenu,
+                 ID_PREFERENCES_CONFIGURE_PATHS,
+                 _( "Configure Pa&ths..." ),
+                 _( "Edit path configuration environment variables" ),
+                 KiBitmap( path_xpm ) );
 
-    // Associate the menu bar with the frame, if no previous menubar
-    if( GetMenuBar() == NULL )
-        SetMenuBar( menuBar );
-    else
-        menuBar->Refresh();
+    // Library
+    AddMenuItem( aParentMenu,
+                 ID_EDIT_SYM_LIB_TABLE,
+                 _( "Manage Symbol Libraries..." ),
+                 _( "Edit the global and project symbol library lists" ),
+                 KiBitmap( library_table_xpm ) );
+
+    // Options (Preferences on WXMAC)
+#ifdef __WXMAC__
+    aParentMenu->Append( wxID_PREFERENCES );
+#else
+    AddMenuItem( aParentMenu,
+                 wxID_PREFERENCES,
+                 _( "General &Options" ),
+                 _( "Edit Eeschema preferences" ),
+                 KiBitmap( preference_xpm ) );
+#endif // __WXMAC__
+
+    aParentMenu->AppendSeparator();
+
+    // Icons options submenu
+    aFrame->AddMenuIconsOptions( aParentMenu );
+
+    aParentMenu->AppendSeparator();
+
+    // Language submenu
+    Pgm().AddMenuLanguageList( aParentMenu );
+
+    // Hotkeys submenu
+    wxMenu* HotkeySubmenu = new wxMenu;
+    AddMenuItem( HotkeySubmenu, ID_PREFERENCES_HOTKEY_EXPORT_CONFIG,
+                 _( "E&xport Hotkeys..." ),
+                 _( "Export current hotkeys into configuration file" ),
+                 KiBitmap( hotkeys_export_xpm ) );
+
+    // Reload hotkey file
+    AddMenuItem( HotkeySubmenu, ID_PREFERENCES_HOTKEY_IMPORT_CONFIG,
+                 _( "&Import Hotkeys..." ),
+                 _( "Load existing hotkey configuration file" ),
+                 KiBitmap( hotkeys_import_xpm ) );
+
+    AddMenuItem( aParentMenu, HotkeySubmenu, -1,
+                 _( "&Hotkeys Options" ),
+                 _( "Edit hotkeys configuration and preferences" ),
+                 KiBitmap( hotkeys_xpm ) );
+
+
+    aParentMenu->AppendSeparator();
+
+    // Import/export
+    AddMenuItem( aParentMenu,
+                 ID_CONFIG_SAVE,
+                 _( "&Save Project File..." ),
+                 _( "Save project preferences into a project file" ),
+                 KiBitmap( save_setup_xpm ) );
+
+    AddMenuItem( aParentMenu,
+                 ID_CONFIG_READ,
+                 _( "Load P&roject File..." ),
+                 _( "Load project preferences from a project file" ),
+                 KiBitmap( import_setup_xpm ) );
 }

@@ -5,8 +5,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,17 +27,27 @@
  */
 
 #include <fctsys.h>
+#include <wx/fs_zip.h>
+#include <wx/wfstream.h>
+#include <wx/zipstrm.h>
+
 #include <common.h>
 #include <class_drawpanel.h>
-#include <confirm.h>
-#include <gestfich.h>
+#include <reporter.h>
+#include <html_messagebox.h>
 
-#include <gerbview.h>
 #include <gerbview_frame.h>
 #include <gerbview_id.h>
-#include <class_gerbview_layer_widget.h>
+#include <gerber_file_image.h>
+#include <gerber_file_image_list.h>
+#include <gerbview_layer_widget.h>
 #include <wildcards_and_files_ext.h>
+#include <widgets/progress_reporter.h>
 
+// HTML Messages used more than one time:
+#define MSG_NO_MORE_LAYER\
+    _( "<b>No more available free graphic layer</b> in Gerbview to load files" )
+#define MSG_NOT_LOADED _( "\n<b>Not loaded:</b> <i>%s</i>" )
 
 void GERBVIEW_FRAME::OnGbrFileHistory( wxCommandEvent& event )
 {
@@ -67,6 +77,31 @@ void GERBVIEW_FRAME::OnDrlFileHistory( wxCommandEvent& event )
 }
 
 
+void GERBVIEW_FRAME::OnZipFileHistory( wxCommandEvent& event )
+{
+    wxString filename;
+    filename = GetFileFromHistory( event.GetId(), _( "Zip files" ), &m_zipFileHistory );
+
+    if( !filename.IsEmpty() )
+    {
+        Erase_Current_DrawLayer( false );
+        LoadZipArchiveFile( filename );
+    }
+}
+
+
+void GERBVIEW_FRAME::OnJobFileHistory( wxCommandEvent& event )
+{
+    wxString filename;
+    filename = GetFileFromHistory( event.GetId(), _( "Job files" ), &m_jobFileHistory );
+
+    if( !filename.IsEmpty() )
+    {
+        LoadGerberJobFile( filename );
+    }
+}
+
+
 /* File commands. */
 void GERBVIEW_FRAME::Files_io( wxCommandEvent& event )
 {
@@ -75,7 +110,6 @@ void GERBVIEW_FRAME::Files_io( wxCommandEvent& event )
     switch( id )
     {
     case wxID_FILE:
-        Erase_Current_DrawLayer( false );
         LoadGerberFiles( wxEmptyString );
         break;
 
@@ -84,11 +118,20 @@ void GERBVIEW_FRAME::Files_io( wxCommandEvent& event )
         Zoom_Automatique( false );
         m_canvas->Refresh();
         ClearMsgPanel();
-        ReFillLayerWidget();
         break;
 
     case ID_GERBVIEW_LOAD_DRILL_FILE:
         LoadExcellonFiles( wxEmptyString );
+        m_canvas->Refresh();
+        break;
+
+    case ID_GERBVIEW_LOAD_ZIP_ARCHIVE_FILE:
+        LoadZipArchiveFile( wxEmptyString );
+        m_canvas->Refresh();
+        break;
+
+    case ID_GERBVIEW_LOAD_JOB_FILE:
+        LoadGerberJobFile( wxEmptyString );
         m_canvas->Refresh();
         break;
 
@@ -115,7 +158,7 @@ bool GERBVIEW_FRAME::LoadGerberFiles( const wxString& aFullFileName )
          * Because the first letter is usually g, we accept g* as extension
          * (Mainly internal copper layers do not have specific extension,
          *  and filenames are like *.g1, *.g2 *.gb1 ...).
-         * Now (2014) Ucamco (the company which manager the Gerber format) encourage
+         * Now (2014) Ucamco (the company which manages the Gerber format) encourages
          * use of .gbr only and the Gerber X2 file format.
          */
         filetypes = _( "Gerber files (.g* .lgr .pho)" );
@@ -137,17 +180,23 @@ bool GERBVIEW_FRAME::LoadGerberFiles( const wxString& aFullFileName )
         filetypes += _( "Top Pad Master (*.GPT)|*.GPT;*.gpt|" );
         filetypes += _( "Bottom Pad Master (*.GPB)|*.GPB;*.gpb|" );
 
-        /* All filetypes */
+        // All filetypes
         filetypes += AllFilesWildcard;
 
-        /* Use the current working directory if the file name path does not exist. */
+        // Use the current working directory if the file name path does not exist.
         if( filename.DirExists() )
             currentPath = filename.GetPath();
         else
+        {
             currentPath = m_mruPath;
 
-        wxFileDialog dlg( this,
-                          _( "Open Gerber File" ),
+            // On wxWidgets 3.1 (bug?) the path in wxFileDialog is ignored when
+            // finishing by the dir separator. Remove it if any:
+            if( currentPath.EndsWith( '\\' ) || currentPath.EndsWith( '/' ) )
+                currentPath.RemoveLast();
+        }
+
+        wxFileDialog dlg( this, _( "Open Gerber File(s)" ),
                           currentPath,
                           filename.GetFullName(),
                           filetypes,
@@ -157,62 +206,128 @@ bool GERBVIEW_FRAME::LoadGerberFiles( const wxString& aFullFileName )
             return false;
 
         dlg.GetPaths( filenamesList );
-
-        // @todo Take a closer look at the CWD switching here.  The current working directory
-        // gets changed by wxFileDialog because the wxFD_CHANGE_DIR flag is set.  Is this the
-        // appropriate behavior?  The current working directory is not returned to the previous
-        // value so this may be an issue elsewhere.
-        currentPath = wxGetCwd();
-        m_mruPath = currentPath;
+        m_mruPath = currentPath = dlg.GetDirectory();
     }
     else
     {
-        wxFileName filename = aFullFileName;
         filenamesList.Add( aFullFileName );
-        currentPath = filename.GetPath();
-        m_mruPath = currentPath;
+        m_mruPath = currentPath = filename.GetPath();
     }
 
-    // Read gerber files: each file is loaded on a new GerbView layer
-    int layer = getActiveLayer();
+    Erase_Current_DrawLayer( false );
 
-    for( unsigned ii = 0; ii < filenamesList.GetCount(); ii++ )
+    // Set the busy cursor
+    wxBusyCursor wait;
+
+    return loadListOfGerberFiles( currentPath, filenamesList );
+}
+
+
+bool GERBVIEW_FRAME::loadListOfGerberFiles( const wxString& aPath,
+                                            const wxArrayString& aFilenameList )
+{
+    wxFileName filename;
+
+    // Read gerber files: each file is loaded on a new GerbView layer
+    bool success = true;
+    int layer = GetActiveLayer();
+    int visibility = GetVisibleLayers();
+
+    // Manage errors when loading files
+    wxString msg;
+    WX_STRING_REPORTER reporter( &msg );
+
+    // Show progress dialog after 1 second of loading
+    static const long long progressShowDelay = 1000;
+
+    auto startTime = wxGetUTCTimeMillis();
+    std::unique_ptr<WX_PROGRESS_REPORTER> progress = nullptr;
+
+    for( unsigned ii = 0; ii < aFilenameList.GetCount(); ii++ )
     {
-        wxFileName filename = filenamesList[ii];
+        if( !progress && wxGetUTCTimeMillis() - startTime > progressShowDelay )
+        {
+            progress = std::make_unique<WX_PROGRESS_REPORTER>( this,
+                            _( "Loading Gerber files..." ), 1, false );
+            progress->SetMaxProgress( aFilenameList.GetCount() - 1 );
+            progress->Report( _("Loading Gerber files..." ) );
+        }
+        else if( progress )
+        {
+            progress->KeepRefreshing();
+        }
+
+        filename = aFilenameList[ii];
 
         if( !filename.IsAbsolute() )
-            filename.SetPath( currentPath );
+            filename.SetPath( aPath );
 
         m_lastFileName = filename.GetFullPath();
 
-        setActiveLayer( layer, false );
+        SetActiveLayer( layer, false );
 
-        if( Read_GERBER_File( filename.GetFullPath(), filename.GetFullPath() ) )
+        visibility |= ( 1 << layer );
+
+        if( Read_GERBER_File( filename.GetFullPath() ) )
         {
             UpdateFileHistory( m_lastFileName );
 
             layer = getNextAvailableLayer( layer );
 
-            if( layer == NO_AVAILABLE_LAYERS )
+            if( layer == NO_AVAILABLE_LAYERS && ii < aFilenameList.GetCount()-1 )
             {
-                wxString msg = wxT( "No more empty available layers.\n"
-                                    "The remaining gerber files will not be loaded." );
-                wxMessageBox( msg );
+                success = false;
+                reporter.Report( MSG_NO_MORE_LAYER, REPORTER::RPT_ERROR );
+
+                // Report the name of not loaded files:
+                ii += 1;
+                while( ii < aFilenameList.GetCount() )
+                {
+                    filename = aFilenameList[ii++];
+                    wxString txt;
+                    txt.Printf( MSG_NOT_LOADED,
+                                GetChars( filename.GetFullName() ) );
+                    reporter.Report( txt, REPORTER::RPT_ERROR );
+                }
                 break;
             }
 
-            setActiveLayer( layer, false );
+            SetActiveLayer( layer, false );
         }
+
+        if( progress )
+            progress->AdvanceProgress();
     }
+
+    if( !success )
+    {
+        wxSafeYield();  // Allows slice of time to redraw the screen
+                        // to refresh widgets, before displaying messages
+        HTML_MESSAGE_BOX mbox( this, _( "Errors" ) );
+        mbox.ListSet( msg );
+        mbox.ShowModal();
+    }
+
+    SetVisibleLayers( visibility );
 
     Zoom_Automatique( false );
 
     // Synchronize layers tools with actual active layer:
     ReFillLayerWidget();
-    setActiveLayer( getActiveLayer() );
+
+    // TODO: it would be nice if we could set the active layer to one of the
+    // ones that was just loaded, but to maintain the previous user experience
+    // we need to set it to a blank layer in case they load another file.
+    // We can't start with the next available layer when loading files because
+    // some users expect the behavior of overwriting the active layer on load.
+    SetActiveLayer( getNextAvailableLayer( layer ), true );
+
     m_LayersManager->UpdateLayerIcons();
-    syncLayerBox();
-    return true;
+    syncLayerBox( true );
+
+    GetGalCanvas()->Refresh();
+
+    return success;
 }
 
 
@@ -225,8 +340,9 @@ bool GERBVIEW_FRAME::LoadExcellonFiles( const wxString& aFullFileName )
 
     if( !filename.IsOk() )
     {
-        filetypes = wxGetTranslation( DrillFileWildcard );
-        filetypes << wxT("|");
+        filetypes = DrillFileWildcard();
+        filetypes << wxT( "|" );
+
         /* All filetypes */
         filetypes += wxGetTranslation( AllFilesWildcard );
 
@@ -236,11 +352,8 @@ bool GERBVIEW_FRAME::LoadExcellonFiles( const wxString& aFullFileName )
         else
             currentPath = m_mruPath;
 
-        wxFileDialog dlg( this,
-                          _( "Open Drill File" ),
-                          currentPath,
-                          filename.GetFullName(),
-                          filetypes,
+        wxFileDialog dlg( this, _( "Open Excellon Drill File(s)" ),
+                          currentPath, filename.GetFullName(), filetypes,
                           wxFD_OPEN | wxFD_FILE_MUST_EXIST | wxFD_MULTIPLE | wxFD_CHANGE_DIR );
 
         if( dlg.ShowModal() == wxID_CANCEL )
@@ -252,25 +365,29 @@ bool GERBVIEW_FRAME::LoadExcellonFiles( const wxString& aFullFileName )
     }
     else
     {
-        wxFileName filename = aFullFileName;
         filenamesList.Add( aFullFileName );
         currentPath = filename.GetPath();
         m_mruPath = currentPath;
     }
 
-    // Read gerber files: each file is loaded on a new GerbView layer
-    int layer = getActiveLayer();
+    // Read Excellon drill files: each file is loaded on a new GerbView layer
+    bool success = true;
+    int layer = GetActiveLayer();
+
+    // Manage errors when loading files
+    wxString msg;
+    WX_STRING_REPORTER reporter( &msg );
 
     for( unsigned ii = 0; ii < filenamesList.GetCount(); ii++ )
     {
-        wxFileName filename = filenamesList[ii];
+        filename = filenamesList[ii];
 
         if( !filename.IsAbsolute() )
             filename.SetPath( currentPath );
 
         m_lastFileName = filename.GetFullPath();
 
-        setActiveLayer( layer, false );
+        SetActiveLayer( layer, false );
 
         if( Read_EXCELLON_File( filename.GetFullPath() ) )
         {
@@ -279,25 +396,253 @@ bool GERBVIEW_FRAME::LoadExcellonFiles( const wxString& aFullFileName )
 
             layer = getNextAvailableLayer( layer );
 
-            if( layer == NO_AVAILABLE_LAYERS )
+            if( layer == NO_AVAILABLE_LAYERS && ii < filenamesList.GetCount()-1 )
             {
-                wxString msg = wxT( "No more empty available layers.\n"
-                                    "The remaining gerber files will not be loaded." );
-                wxMessageBox( msg );
+                success = false;
+                reporter.Report( MSG_NO_MORE_LAYER, REPORTER::RPT_ERROR );
+
+                // Report the name of not loaded files:
+                ii += 1;
+                while( ii < filenamesList.GetCount() )
+                {
+                    filename = filenamesList[ii++];
+                    wxString txt;
+                    txt.Printf( MSG_NOT_LOADED,
+                                GetChars( filename.GetFullName() ) );
+                    reporter.Report( txt, REPORTER::RPT_ERROR );
+                }
                 break;
             }
 
-            setActiveLayer( layer, false );
+            SetActiveLayer( layer, false );
         }
+    }
+
+    if( !success )
+    {
+        HTML_MESSAGE_BOX mbox( this, _( "Errors" ) );
+        mbox.ListSet( msg );
+        mbox.ShowModal();
     }
 
     Zoom_Automatique( false );
 
     // Synchronize layers tools with actual active layer:
     ReFillLayerWidget();
-    setActiveLayer( getActiveLayer() );
+    SetActiveLayer( GetActiveLayer() );
     m_LayersManager->UpdateLayerIcons();
     syncLayerBox();
+
+    return success;
+}
+
+
+bool GERBVIEW_FRAME::unarchiveFiles( const wxString& aFullFileName, REPORTER* aReporter )
+{
+    wxString msg;
+
+    // Extract the path of aFullFileName. We use it to store temporary files
+    wxFileName fn( aFullFileName );
+    wxString unzipDir = fn.GetPath();
+
+    wxFFileInputStream zipFile( aFullFileName );
+
+    if( !zipFile.IsOk() )
+    {
+        if( aReporter )
+        {
+            msg.Printf( _( "Zip file \"%s\" cannot be opened" ), GetChars( aFullFileName ) );
+            aReporter->Report( msg, REPORTER::RPT_ERROR );
+        }
+
+        return false;
+    }
+
+    // Update the list of recent zip files.
+    UpdateFileHistory( aFullFileName, &m_zipFileHistory );
+
+    // The unzipped file in only a temporary file. Give it a filename
+    // which cannot conflict with an usual filename.
+    // TODO: make Read_GERBER_File() and Read_EXCELLON_File() able to
+    // accept a stream, and avoid using a temp file.
+    wxFileName temp_fn( "$tempfile.tmp" );
+    temp_fn.MakeAbsolute( unzipDir );
+    wxString unzipped_tempfile = temp_fn.GetFullPath();
+
+
+    bool success = true;
+    wxZipInputStream zipArchive( zipFile );
+    wxZipEntry* entry;
+    bool reported_no_more_layer = false;
+
+    while( ( entry = zipArchive.GetNextEntry() ) )
+    {
+        wxString fname = entry->GetName();
+        wxFileName uzfn = fname;
+        wxString curr_ext = uzfn.GetExt().Lower();
+
+        // The archive contains Gerber and/or Excellon drill files. Use the right loader.
+        // However it can contain a few other files (reports, pdf files...),
+        // which will be skipped.
+        // Gerber files ext is usually "gbr", but can be also another value, starting by "g"
+        // old gerber files ext from kicad is .pho
+        // drill files do not have a well defined ext
+        // It is .drl in kicad, but .txt in Altium for instance
+        // Allows only .drl for drill files.
+        if( curr_ext[0] != 'g' && curr_ext != "pho" && curr_ext != "drl" )
+        {
+            if( aReporter )
+            {
+                msg.Printf( _( "Info: skip file <i>\"%s\"</i> (unknown type)\n" ),
+                            GetChars( entry->GetName() ) );
+                aReporter->Report( msg, REPORTER::RPT_WARNING );
+            }
+
+            continue;
+        }
+
+        int layer = GetActiveLayer();
+
+        if( layer == NO_AVAILABLE_LAYERS )
+        {
+            success = false;
+
+            if( aReporter )
+            {
+                if( !reported_no_more_layer )
+                    aReporter->Report( MSG_NO_MORE_LAYER, REPORTER::RPT_ERROR );
+
+                reported_no_more_layer = true;
+
+                // Report the name of not loaded files:
+                msg.Printf( MSG_NOT_LOADED, GetChars( entry->GetName() ) );
+                aReporter->Report( msg, REPORTER::RPT_ERROR );
+            }
+
+            delete entry;
+            continue;
+        }
+
+        // Create the unzipped temporary file:
+        {
+            wxFFileOutputStream temporary_ofile( unzipped_tempfile );
+
+            if( temporary_ofile.Ok() )
+                temporary_ofile.Write( zipArchive );
+            else
+            {
+                success = false;
+
+                if( aReporter )
+                {
+                    msg.Printf( _( "<b>Unable to create temporary file \"%s\"</b>\n"),
+                                GetChars( unzipped_tempfile ) );
+                    aReporter->Report( msg, REPORTER::RPT_ERROR );
+                }
+            }
+        }
+
+        bool read_ok = true;
+
+        if( curr_ext[0] == 'g' || curr_ext == "pho" )
+        {
+            // Read gerber files: each file is loaded on a new GerbView layer
+            read_ok = Read_GERBER_File( unzipped_tempfile );
+        }
+        else // if( curr_ext == "drl" )
+        {
+            read_ok = Read_EXCELLON_File( unzipped_tempfile );
+        }
+
+        delete entry;
+
+        // The unzipped file is only a temporary file, delete it.
+        wxRemoveFile( unzipped_tempfile );
+
+        if( !read_ok )
+        {
+            success = false;
+
+            if( aReporter )
+            {
+                msg.Printf( _("<b>unzipped file %s read error</b>\n"),
+                            GetChars( unzipped_tempfile ) );
+                aReporter->Report( msg, REPORTER::RPT_ERROR );
+            }
+        }
+        else
+        {
+            GERBER_FILE_IMAGE* gerber_image = GetGbrImage( layer );
+
+            if( gerber_image )
+                gerber_image->m_FileName = fname;
+
+            layer = getNextAvailableLayer( layer );
+            SetActiveLayer( layer, false );
+        }
+    }
+
+    return success;
+}
+
+
+bool GERBVIEW_FRAME::LoadZipArchiveFile( const wxString& aFullFileName )
+{
+#define ZipFileExtension "zip"
+
+    wxFileName filename = aFullFileName;
+    wxString currentPath;
+
+    if( !filename.IsOk() )
+    {
+        // Use the current working directory if the file name path does not exist.
+        if( filename.DirExists() )
+            currentPath = filename.GetPath();
+        else
+            currentPath = m_mruPath;
+
+        wxFileDialog dlg( this,
+                          _( "Open Zip File" ),
+                          currentPath,
+                          filename.GetFullName(),
+                          ZipFileWildcard(),
+                          wxFD_OPEN | wxFD_FILE_MUST_EXIST | wxFD_CHANGE_DIR );
+
+        if( dlg.ShowModal() == wxID_CANCEL )
+            return false;
+
+        filename = dlg.GetPath();
+        currentPath = wxGetCwd();
+        m_mruPath = currentPath;
+    }
+    else
+    {
+        currentPath = filename.GetPath();
+        m_mruPath = currentPath;
+    }
+
+    wxString msg;
+    WX_STRING_REPORTER reporter( &msg );
+
+    if( filename.IsOk() )
+        unarchiveFiles( filename.GetFullPath(), &reporter );
+
+    Zoom_Automatique( false );
+
+    // Synchronize layers tools with actual active layer:
+    ReFillLayerWidget();
+    SetActiveLayer( GetActiveLayer() );
+    m_LayersManager->UpdateLayerIcons();
+    syncLayerBox();
+
+    if( !msg.IsEmpty() )
+    {
+        wxSafeYield();  // Allows slice of time to redraw the screen
+                        // to refresh widgets, before displaying messages
+        HTML_MESSAGE_BOX mbox( this, _( "Messages" ) );
+        mbox.ListSet( msg );
+        mbox.ShowModal();
+    }
 
     return true;
 }

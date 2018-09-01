@@ -1,13 +1,8 @@
-/**
- * @file kicad/kicad.h
- * @brief KICAD_MANAGER_FRAME is the KiCad main frame.
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2013 CERN (www.cern.ch)
- * Copyright (C) 2015 KiCad Developers, see CHANGELOG.txt for contributors.
+ * Copyright (C) 2017 KiCad Developers, see CHANGELOG.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,18 +22,20 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+/**
+ * @file kicad/kicad.h
+ * @brief KICAD_MANAGER_FRAME is the KiCad main frame.
+ */
+
 #ifndef KICAD_H
 #define KICAD_H
 
-#include <vector>
 
-#include <wx/treectrl.h>
-#include <wx/dragimag.h>
-#include <wx/filename.h>
 #include <wx/process.h>
 
 #include <id.h>
-#include <wxstruct.h>
+#include <eda_base_frame.h>
+
 
 #define KICAD_MANAGER_FRAME_NAME   wxT( "KicadFrame" )
 
@@ -46,7 +43,7 @@ class LAUNCHER_PANEL;
 class TREEPROJECTFILES;
 class TREE_PROJECT_FRAME;
 
-// Enum to identify the type of files handled by Kicad manager
+// Identify the type of files handled by Kicad manager
 //
 // When changing this enum  please verify (and perhaps update)
 // TREE_PROJECT_FRAME::GetFileExt(),
@@ -126,6 +123,7 @@ enum id_kicad_frm {
     ID_SAVE_AND_ZIP_FILES,
     ID_READ_ZIP_ARCHIVE,
     ID_INIT_WATCHED_PATHS,
+    ID_IMPORT_EAGLE_PROJECT,
 
     // Please, verify: the number of items in this list should be
     // less than ROOM_FOR_KICADMANAGER (see id.h)
@@ -134,14 +132,13 @@ enum id_kicad_frm {
 
 
 /**
- * Class KICAD_MANAGER_FRAME
- * is the main KiCad project manager frame.  It is not a KIWAY_PLAYER.
+ * The main KiCad project manager frame.  It is not a KIWAY_PLAYER.
  */
 class KICAD_MANAGER_FRAME : public EDA_BASE_FRAME
 {
 public:
     KICAD_MANAGER_FRAME( wxWindow* parent, const wxString& title,
-                             const wxPoint& pos, const wxSize& size );
+                         const wxPoint& pos, const wxSize& size );
 
     ~KICAD_MANAGER_FRAME();
 
@@ -149,22 +146,26 @@ public:
     void OnSize( wxSizeEvent& event );
 
     /**
-     * Function OnLoadProject
-     * loads an exiting or creates a new project (.pro) file.
+     * Select the current icons options in menus (or toolbars) in Kicad
+     * (the default for toolbars/menus is 26x26 pixels, and shows icons in menus).
+     */
+    void OnChangeIconsOptions( wxCommandEvent& event ) override;
+
+    /**
+     * Load an exiting project (.pro) file.
      */
     void OnLoadProject( wxCommandEvent& event );
 
     /**
-     * Function OnCreateProjectFromTemplate
      * Creates a new project folder, copy a template into this new folder.
      * and open this new projrct as working project
      */
     void OnCreateProjectFromTemplate( wxCommandEvent& event );
 
+    void OnNewProject( wxCommandEvent& aEvent );
+
     /**
-     * Function OnSaveProject
-     * is the command event hendler to Save the project (.pro) file containing the top level
-     * configuration parameters.
+     * Save the project (.pro) file containing the top level configuration parameters.
      */
     void OnSaveProject( wxCommandEvent& event );
 
@@ -191,25 +192,27 @@ public:
 
     void Process_Config( wxCommandEvent& event );
 
-    void ReCreateMenuBar();
+    void ReCreateMenuBar() override;
     void RecreateBaseHToolbar();
 
     /**
-     * Function PrintMsg
-     * displays \a aText in the text panel.
+     *  Open dialog to import Eagle schematic and board files.
+     */
+    void OnImportEagleFiles( wxCommandEvent& event );
+
+    /**
+     * Displays \a aText in the text panel.
      *
      * @param aText The text to display.
      */
     void PrintMsg( const wxString& aText );
 
     /**
-     * a minor helper function:
-     * Prints the Current Working Dir name and the projet name on the text panel.
+     * Prints the current working directory name and the projet name on the text panel.
      */
     void PrintPrjInfo();
 
     /**
-     * a minor helper function:
      * Erase the text panel.
      */
     void ClearMsg();
@@ -222,15 +225,27 @@ public:
     void OnUpdatePreferredPdfBrowser( wxUpdateUIEvent& event );
     void OnUpdateRequiresProject( wxUpdateUIEvent& event );
 
-    void CreateNewProject( const wxString& aPrjFullFileName, bool aTemplateSelector );
+    /**
+     * Creates a new project by setting up and initial project, schematic, and board files.
+     *
+     * The project file is copied from the kicad.pro template file if possible.  Otherwise,
+     * a minimal project file is created from an empty project.  A minimal schematic and
+     * board file are created to prevent the schematic and board editors from complaining.
+     * If any of these files already exist, they are not overwritten.
+     *
+     * @param aProjectFileName is the absolute path of the project file name.
+     */
+    void CreateNewProject( const wxFileName& aProjectFileName );
+    void LoadProject( const wxFileName& aProjectFileName );
 
-    void LoadSettings( wxConfigBase* aCfg );
 
-    void SaveSettings( wxConfigBase* aCfg );
+    void LoadSettings( wxConfigBase* aCfg ) override;
+
+    void SaveSettings( wxConfigBase* aCfg ) override;
 
     /**
-     * Function Execute
-     * opens another KiCad application and logs a message.
+     * Open another KiCad application and logs a message.
+     *
      * @param frame = owner frame.
      * @param execFile = name of the executable file.
      * @param param = parameters to be passed to the executable.
@@ -241,22 +256,22 @@ public:
     class TERMINATE_HANDLER : public wxProcess
     {
     private:
-        wxString appName;
+        wxString m_appName;
 
     public:
         TERMINATE_HANDLER( const wxString& appName ) :
-            appName(appName)
+            m_appName( appName )
         {
         }
 
-        void OnTerminate( int pid, int status );
+        void OnTerminate( int pid, int status ) override;
     };
 
     /**
      * Called by sending a event with id = ID_INIT_WATCHED_PATHS
      * rebuild the list of wahtched paths
      */
-    void OnChangeWatchedPaths(wxCommandEvent& aEvent );
+    void OnChangeWatchedPaths( wxCommandEvent& aEvent );
 
 
     void SetProjectFileName( const wxString& aFullProjectProFileName );
@@ -280,12 +295,11 @@ public:
     DECLARE_EVENT_TABLE()
 
 private:
+    wxConfigBase*       config() override;
 
-    wxConfigBase*       config();       // override EDA_BASE_FRAME virtual
+    const SEARCH_STACK& sys_search() override;
 
-    const SEARCH_STACK& sys_search();   // override EDA_BASE_FRAME virtual
-
-    wxString help_name();               // override EDA_BASE_FRAME virtual
+    wxString help_name() override;
 
     TREE_PROJECT_FRAME* m_LeftWin;
     LAUNCHER_PANEL*     m_Launcher;
@@ -306,18 +320,16 @@ private:
 class LAUNCHER_PANEL : public wxPanel
 {
 private:
-    int     m_buttonSeparation;             // button distance in pixels
-    wxPoint m_buttonsListPosition;          /* position of the left bottom corner
-                                             *  of the first bitmap button
-                                             */
-    wxPoint m_buttonLastPosition;           // position of the last button in the window
-    int     m_bitmapButtons_maxHeigth;      // height of bigger bitmap buttons
-                                            // Used to calculate the height of the panel.
+    wxBoxSizer* m_buttonSizer;
+
+    int m_height = 0;
+    int m_width  = 0;
 
 public: LAUNCHER_PANEL( wxWindow* parent );
     ~LAUNCHER_PANEL() { };
 
     int GetPanelHeight() const;
+    int GetPanelWidth() const;
 
 private:
 
@@ -327,7 +339,7 @@ private:
      */
     void            CreateCommandToolbar( void );
 
-    wxBitmapButton* AddBitmapButton( wxWindowID aId, const wxBitmap& aBitmap );
+    void AddButton( wxWindowID aId, const wxBitmap& aBitmap, const wxString& aToolTip );
 };
 
 // The C++ project manager includes a single PROJECT in its link image.

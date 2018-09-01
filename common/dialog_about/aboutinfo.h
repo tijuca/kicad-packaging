@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2014 Rafael Sokolowski <Rafael.Sokolowski@web.de>
- * Copyright (C) 2014-2015 KiCad Developers, see CHANGELOG.TXT for contributors.
+ * Copyright (C) 2014-2017 KiCad Developers, see CHANGELOG.TXT for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,9 +29,11 @@
 #include <wx/bitmap.h>
 #include <wx/dynarray.h>
 
-class Contributor;
+#include "bitmap_types.h"
 
-WX_DECLARE_OBJARRAY( Contributor, Contributors );
+class CONTRIBUTOR;
+
+WX_DECLARE_OBJARRAY( CONTRIBUTOR, CONTRIBUTORS );
 
 
 /**
@@ -39,47 +41,47 @@ WX_DECLARE_OBJARRAY( Contributor, Contributors );
  * like who has contributed in which area of the application, the license, copyright
  * and other descriptive information.
  */
-class AboutAppInfo
+class ABOUT_APP_INFO
 {
 public:
-    AboutAppInfo() {};
-    virtual ~AboutAppInfo() {};
+    ABOUT_APP_INFO() {};
+    virtual ~ABOUT_APP_INFO() {};
 
-    void AddDeveloper( const Contributor* developer )
+    void AddDeveloper( const CONTRIBUTOR* developer )
     {
         if( developer != NULL )
             developers.Add( developer );
     }
 
-    void AddDocWriter( const Contributor* docwriter )
+    void AddDocWriter( const CONTRIBUTOR* docwriter )
     {
         if( docwriter != NULL )
             docwriters.Add( docwriter );
     }
 
-    void AddArtist( const Contributor* artist )
+    void AddArtist( const CONTRIBUTOR* artist )
     {
         if( artist != NULL )
             artists.Add( artist );
     }
 
-    void AddTranslator( const Contributor* translator )
+    void AddTranslator( const CONTRIBUTOR* translator )
     {
         if( translator != NULL )
             translators.Add( translator );
     }
 
-    void AddPackager( const Contributor* packager )
+    void AddPackager( const CONTRIBUTOR* packager )
     {
         if( packager   != NULL )
             packagers.Add( packager );
     }
 
-    Contributors GetDevelopers()  { return developers; }
-    Contributors GetDocWriters()  { return docwriters; }
-    Contributors GetArtists()     { return artists; }
-    Contributors GetTranslators() { return translators; }
-    Contributors GetPackagers()   { return packagers; }
+    CONTRIBUTORS GetDevelopers()  { return developers; }
+    CONTRIBUTORS GetDocWriters()  { return docwriters; }
+    CONTRIBUTORS GetArtists()     { return artists; }
+    CONTRIBUTORS GetTranslators() { return translators; }
+    CONTRIBUTORS GetPackagers()   { return packagers; }
 
     void SetDescription( const wxString& text ) { description = text; }
     wxString& GetDescription() { return description; }
@@ -88,18 +90,7 @@ public:
     wxString& GetLicense() { return license; }
 
     void SetCopyright( const wxString& text ) { copyright = text; }
-    wxString GetCopyright()
-    {
-        wxString       copyrightText = copyright;
-
-#if wxUSE_UNICODE
-        const wxString utf8_copyrightSign = wxString::FromUTF8( "\xc2\xa9" );
-        copyrightText.Replace( _T( "(c)" ), utf8_copyrightSign );
-        copyrightText.Replace( _T( "(C)" ), utf8_copyrightSign );
-#endif // wxUSE_UNICODE
-
-        return copyrightText;
-    }
+    wxString GetCopyright() { return copyright; }
 
     void SetAppName( const wxString& name ) { appName = name; }
     wxString& GetAppName() { return appName; }
@@ -110,25 +101,35 @@ public:
     void SetLibVersion( const wxString& version ) { libVersion = version; }
     wxString& GetLibVersion() { return libVersion; }
 
-    void SetIcon( const wxIcon& icon ) { appIcon = icon; }
-    wxIcon& GetIcon() { return appIcon; }
+    void SetAppIcon( const wxIcon& aIcon ) { m_appIcon = aIcon; }
+    wxIcon& GetAppIcon() { return m_appIcon; }
+
+    ///> Wrapper to manage memory allocation for bitmaps
+    wxBitmap* CreateKiBitmap( BITMAP_DEF aBitmap )
+    {
+        m_bitmaps.emplace_back( KiBitmapNew( aBitmap ) );
+        return m_bitmaps.back().get();
+    }
 
 private:
-    Contributors developers;
-    Contributors docwriters;
-    Contributors artists;
-    Contributors translators;
-    Contributors packagers;
+    CONTRIBUTORS developers;
+    CONTRIBUTORS docwriters;
+    CONTRIBUTORS artists;
+    CONTRIBUTORS translators;
+    CONTRIBUTORS packagers;
 
     wxString     description;
     wxString     license;
 
-    wxString     copyright; // Todo: copyright sign in unicode
+    wxString     copyright;
     wxString     appName;
     wxString     buildVersion;
     wxString     libVersion;
 
-    wxIcon       appIcon;
+    wxIcon       m_appIcon;
+
+    ///> Bitmaps to be freed when the dialog is closed
+    std::vector<std::unique_ptr<wxBitmap>> m_bitmaps;
 };
 
 
@@ -138,26 +139,34 @@ private:
  *
  * A contributor consists of the following mandatory information:
  * - Name
- * - EMail address
  *
  * Each contributor can have optional information assigned like:
+ * - EMail address
  * - A category
  * - A category specific icon
  */
-class Contributor
+class CONTRIBUTOR
 {
 public:
-    Contributor( const wxString& name,
-                 const wxString& email,
-                 const wxString& category = wxEmptyString,
-                 wxBitmap*       icon = NULL ) :
-        m_checked( false )
-    { m_name = name; m_email = email; m_category = category; m_icon = icon; }
+    CONTRIBUTOR( const wxString& aName,
+                 const wxString& aEmail = wxEmptyString,
+                 const wxString& aUrl = wxEmptyString,
+                 const wxString& aCategory = wxEmptyString,
+                 wxBitmap*       aIcon = NULL )
+    {
+        m_checked = false;
+        m_name = aName;
+        m_url = aUrl,
+        m_email = aEmail;
+        m_category = aCategory;
+        m_icon = aIcon;
+    }
 
-    virtual ~Contributor() {}
+    virtual ~CONTRIBUTOR() {}
 
     wxString& GetName()     { return m_name; }
     wxString& GetEMail()    { return m_email; }
+    wxString& GetUrl()      { return m_url; }
     wxString& GetCategory() { return m_category; }
     wxBitmap* GetIcon()     { return m_icon; }
     void SetChecked( bool status ) { m_checked = status; }
@@ -166,6 +175,7 @@ public:
 private:
     wxString  m_name;
     wxString  m_email;
+    wxString  m_url;
     wxString  m_category;
     wxBitmap* m_icon;
     bool      m_checked;

@@ -14,6 +14,7 @@
         <property name="file">dialog_dimension_editor_base</property>
         <property name="first_id">1000</property>
         <property name="help_provider">none</property>
+        <property name="indent_with_spaces"></property>
         <property name="internationalize">1</property>
         <property name="name">dialog_dimension_editor_base</property>
         <property name="namespace"></property>
@@ -125,7 +126,7 @@
                         <property name="gripper">0</property>
                         <property name="hidden">0</property>
                         <property name="id">wxID_ANY</property>
-                        <property name="label">Text</property>
+                        <property name="label">Text:</property>
                         <property name="max_size"></property>
                         <property name="maximize_button">0</property>
                         <property name="maximum_size"></property>
@@ -285,11 +286,11 @@
                                 <property name="name">bSizerLeft</property>
                                 <property name="orient">wxVERTICAL</property>
                                 <property name="permission">none</property>
-                                <object class="sizeritem" expanded="1">
+                                <object class="sizeritem" expanded="0">
                                     <property name="border">5</property>
                                     <property name="flag">wxTOP|wxRIGHT|wxLEFT</property>
                                     <property name="proportion">0</property>
-                                    <object class="wxStaticText" expanded="1">
+                                    <object class="wxStaticText" expanded="0">
                                         <property name="BottomDockable">1</property>
                                         <property name="LeftDockable">1</property>
                                         <property name="RightDockable">1</property>
@@ -317,7 +318,7 @@
                                         <property name="gripper">0</property>
                                         <property name="hidden">0</property>
                                         <property name="id">wxID_ANY</property>
-                                        <property name="label">Text Width</property>
+                                        <property name="label">Text width:</property>
                                         <property name="max_size"></property>
                                         <property name="maximize_button">0</property>
                                         <property name="maximum_size"></property>
@@ -368,11 +369,11 @@
                                         <event name="OnUpdateUI"></event>
                                     </object>
                                 </object>
-                                <object class="sizeritem" expanded="1">
+                                <object class="sizeritem" expanded="0">
                                     <property name="border">5</property>
                                     <property name="flag">wxBOTTOM|wxRIGHT|wxLEFT|wxEXPAND</property>
                                     <property name="proportion">0</property>
-                                    <object class="wxTextCtrl" expanded="1">
+                                    <object class="wxTextCtrl" expanded="0">
                                         <property name="BottomDockable">1</property>
                                         <property name="LeftDockable">1</property>
                                         <property name="RightDockable">1</property>
@@ -419,7 +420,7 @@
                                         <property name="show">1</property>
                                         <property name="size"></property>
                                         <property name="style"></property>
-                                        <property name="subclass"></property>
+                                        <property name="subclass">TEXT_CTRL_EVAL; widgets/text_ctrl_eval.h</property>
                                         <property name="toolbar_pane">0</property>
                                         <property name="tooltip"></property>
                                         <property name="validator_data_type"></property>
@@ -453,17 +454,17 @@
                                         <event name="OnSetFocus"></event>
                                         <event name="OnSize"></event>
                                         <event name="OnText"></event>
-                                        <event name="OnTextEnter"></event>
+                                        <event name="OnTextEnter">OnOKClick</event>
                                         <event name="OnTextMaxLen"></event>
                                         <event name="OnTextURL"></event>
                                         <event name="OnUpdateUI"></event>
                                     </object>
                                 </object>
-                                <object class="sizeritem" expanded="1">
+                                <object class="sizeritem" expanded="0">
                                     <property name="border">5</property>
                                     <property name="flag">wxRIGHT|wxLEFT</property>
                                     <property name="proportion">0</property>
-                                    <object class="wxStaticText" expanded="1">
+                                    <object class="wxStaticText" expanded="0">
                                         <property name="BottomDockable">1</property>
                                         <property name="LeftDockable">1</property>
                                         <property name="RightDockable">1</property>
@@ -491,7 +492,7 @@
                                         <property name="gripper">0</property>
                                         <property name="hidden">0</property>
                                         <property name="id">wxID_ANY</property>
-                                        <property name="label">Text Height</property>
+                                        <property name="label">Text height:</property>
                                         <property name="max_size"></property>
                                         <property name="maximize_button">0</property>
                                         <property name="maximum_size"></property>
@@ -542,11 +543,11 @@
                                         <event name="OnUpdateUI"></event>
                                     </object>
                                 </object>
-                                <object class="sizeritem" expanded="1">
+                                <object class="sizeritem" expanded="0">
                                     <property name="border">5</property>
                                     <property name="flag">wxBOTTOM|wxRIGHT|wxLEFT|wxEXPAND</property>
                                     <property name="proportion">0</property>
-                                    <object class="wxTextCtrl" expanded="1">
+                                    <object class="wxTextCtrl" expanded="0">
                                         <property name="BottomDockable">1</property>
                                         <property name="LeftDockable">1</property>
                                         <property name="RightDockable">1</property>
@@ -593,7 +594,7 @@
                                         <property name="show">1</property>
                                         <property name="size"></property>
                                         <property name="style"></property>
-                                        <property name="subclass"></property>
+                                        <property name="subclass">TEXT_CTRL_EVAL; widgets/text_ctrl_eval.h</property>
                                         <property name="toolbar_pane">0</property>
                                         <property name="tooltip"></property>
                                         <property name="validator_data_type"></property>
@@ -627,17 +628,17 @@
                                         <event name="OnSetFocus"></event>
                                         <event name="OnSize"></event>
                                         <event name="OnText"></event>
-                                        <event name="OnTextEnter"></event>
+                                        <event name="OnTextEnter">OnOKClick</event>
                                         <event name="OnTextMaxLen"></event>
                                         <event name="OnTextURL"></event>
                                         <event name="OnUpdateUI"></event>
                                     </object>
                                 </object>
-                                <object class="sizeritem" expanded="1">
+                                <object class="sizeritem" expanded="0">
                                     <property name="border">5</property>
                                     <property name="flag">wxTOP|wxRIGHT|wxLEFT</property>
                                     <property name="proportion">0</property>
-                                    <object class="wxStaticText" expanded="1">
+                                    <object class="wxStaticText" expanded="0">
                                         <property name="BottomDockable">1</property>
                                         <property name="LeftDockable">1</property>
                                         <property name="RightDockable">1</property>
@@ -665,7 +666,7 @@
                                         <property name="gripper">0</property>
                                         <property name="hidden">0</property>
                                         <property name="id">wxID_ANY</property>
-                                        <property name="label">Text Thickness</property>
+                                        <property name="label">Text thickness:</property>
                                         <property name="max_size"></property>
                                         <property name="maximize_button">0</property>
                                         <property name="maximum_size"></property>
@@ -716,11 +717,11 @@
                                         <event name="OnUpdateUI"></event>
                                     </object>
                                 </object>
-                                <object class="sizeritem" expanded="1">
+                                <object class="sizeritem" expanded="0">
                                     <property name="border">5</property>
                                     <property name="flag">wxBOTTOM|wxRIGHT|wxLEFT|wxEXPAND</property>
                                     <property name="proportion">0</property>
-                                    <object class="wxTextCtrl" expanded="1">
+                                    <object class="wxTextCtrl" expanded="0">
                                         <property name="BottomDockable">1</property>
                                         <property name="LeftDockable">1</property>
                                         <property name="RightDockable">1</property>
@@ -767,7 +768,7 @@
                                         <property name="show">1</property>
                                         <property name="size"></property>
                                         <property name="style"></property>
-                                        <property name="subclass"></property>
+                                        <property name="subclass">TEXT_CTRL_EVAL; widgets/text_ctrl_eval.h</property>
                                         <property name="toolbar_pane">0</property>
                                         <property name="tooltip"></property>
                                         <property name="validator_data_type"></property>
@@ -801,17 +802,17 @@
                                         <event name="OnSetFocus"></event>
                                         <event name="OnSize"></event>
                                         <event name="OnText"></event>
-                                        <event name="OnTextEnter"></event>
+                                        <event name="OnTextEnter">OnOKClick</event>
                                         <event name="OnTextMaxLen"></event>
                                         <event name="OnTextURL"></event>
                                         <event name="OnUpdateUI"></event>
                                     </object>
                                 </object>
-                                <object class="sizeritem" expanded="1">
+                                <object class="sizeritem" expanded="0">
                                     <property name="border">5</property>
                                     <property name="flag">wxTOP|wxRIGHT|wxLEFT</property>
                                     <property name="proportion">0</property>
-                                    <object class="wxStaticText" expanded="1">
+                                    <object class="wxStaticText" expanded="0">
                                         <property name="BottomDockable">1</property>
                                         <property name="LeftDockable">1</property>
                                         <property name="RightDockable">1</property>
@@ -839,7 +840,7 @@
                                         <property name="gripper">0</property>
                                         <property name="hidden">0</property>
                                         <property name="id">wxID_ANY</property>
-                                        <property name="label">Text Position X</property>
+                                        <property name="label">Text position X:</property>
                                         <property name="max_size"></property>
                                         <property name="maximize_button">0</property>
                                         <property name="maximum_size"></property>
@@ -890,11 +891,11 @@
                                         <event name="OnUpdateUI"></event>
                                     </object>
                                 </object>
-                                <object class="sizeritem" expanded="1">
+                                <object class="sizeritem" expanded="0">
                                     <property name="border">5</property>
                                     <property name="flag">wxBOTTOM|wxRIGHT|wxLEFT|wxEXPAND</property>
                                     <property name="proportion">0</property>
-                                    <object class="wxTextCtrl" expanded="1">
+                                    <object class="wxTextCtrl" expanded="0">
                                         <property name="BottomDockable">1</property>
                                         <property name="LeftDockable">1</property>
                                         <property name="RightDockable">1</property>
@@ -941,7 +942,7 @@
                                         <property name="show">1</property>
                                         <property name="size"></property>
                                         <property name="style"></property>
-                                        <property name="subclass"></property>
+                                        <property name="subclass">TEXT_CTRL_EVAL; widgets/text_ctrl_eval.h</property>
                                         <property name="toolbar_pane">0</property>
                                         <property name="tooltip"></property>
                                         <property name="validator_data_type"></property>
@@ -975,17 +976,17 @@
                                         <event name="OnSetFocus"></event>
                                         <event name="OnSize"></event>
                                         <event name="OnText"></event>
-                                        <event name="OnTextEnter"></event>
+                                        <event name="OnTextEnter">OnOKClick</event>
                                         <event name="OnTextMaxLen"></event>
                                         <event name="OnTextURL"></event>
                                         <event name="OnUpdateUI"></event>
                                     </object>
                                 </object>
-                                <object class="sizeritem" expanded="1">
+                                <object class="sizeritem" expanded="0">
                                     <property name="border">5</property>
                                     <property name="flag">wxRIGHT|wxLEFT</property>
                                     <property name="proportion">0</property>
-                                    <object class="wxStaticText" expanded="1">
+                                    <object class="wxStaticText" expanded="0">
                                         <property name="BottomDockable">1</property>
                                         <property name="LeftDockable">1</property>
                                         <property name="RightDockable">1</property>
@@ -1013,7 +1014,7 @@
                                         <property name="gripper">0</property>
                                         <property name="hidden">0</property>
                                         <property name="id">wxID_ANY</property>
-                                        <property name="label">Text Position Y</property>
+                                        <property name="label">Text position Y:</property>
                                         <property name="max_size"></property>
                                         <property name="maximize_button">0</property>
                                         <property name="maximum_size"></property>
@@ -1064,11 +1065,11 @@
                                         <event name="OnUpdateUI"></event>
                                     </object>
                                 </object>
-                                <object class="sizeritem" expanded="1">
+                                <object class="sizeritem" expanded="0">
                                     <property name="border">5</property>
                                     <property name="flag">wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT</property>
                                     <property name="proportion">0</property>
-                                    <object class="wxTextCtrl" expanded="1">
+                                    <object class="wxTextCtrl" expanded="0">
                                         <property name="BottomDockable">1</property>
                                         <property name="LeftDockable">1</property>
                                         <property name="RightDockable">1</property>
@@ -1115,7 +1116,7 @@
                                         <property name="show">1</property>
                                         <property name="size"></property>
                                         <property name="style"></property>
-                                        <property name="subclass"></property>
+                                        <property name="subclass">TEXT_CTRL_EVAL; widgets/text_ctrl_eval.h</property>
                                         <property name="toolbar_pane">0</property>
                                         <property name="tooltip"></property>
                                         <property name="validator_data_type"></property>
@@ -1149,7 +1150,7 @@
                                         <event name="OnSetFocus"></event>
                                         <event name="OnSize"></event>
                                         <event name="OnText"></event>
-                                        <event name="OnTextEnter"></event>
+                                        <event name="OnTextEnter">OnOKClick</event>
                                         <event name="OnTextMaxLen"></event>
                                         <event name="OnTextURL"></event>
                                         <event name="OnUpdateUI"></event>
@@ -1157,20 +1158,20 @@
                                 </object>
                             </object>
                         </object>
-                        <object class="sizeritem" expanded="1">
+                        <object class="sizeritem" expanded="0">
                             <property name="border">5</property>
-                            <property name="flag">wxALIGN_CENTER_VERTICAL</property>
+                            <property name="flag">wxALIGN_CENTER_VERTICAL|wxALL</property>
                             <property name="proportion">0</property>
-                            <object class="wxBoxSizer" expanded="1">
+                            <object class="wxBoxSizer" expanded="0">
                                 <property name="minimum_size"></property>
                                 <property name="name">bSizerRight</property>
                                 <property name="orient">wxVERTICAL</property>
                                 <property name="permission">none</property>
-                                <object class="sizeritem" expanded="1">
+                                <object class="sizeritem" expanded="0">
                                     <property name="border">5</property>
                                     <property name="flag">wxALL|wxEXPAND</property>
                                     <property name="proportion">0</property>
-                                    <object class="wxRadioBox" expanded="1">
+                                    <object class="wxRadioBox" expanded="0">
                                         <property name="BottomDockable">1</property>
                                         <property name="LeftDockable">1</property>
                                         <property name="RightDockable">1</property>
@@ -1199,7 +1200,7 @@
                                         <property name="gripper">0</property>
                                         <property name="hidden">0</property>
                                         <property name="id">wxID_ANY</property>
-                                        <property name="label">Display</property>
+                                        <property name="label">Display:</property>
                                         <property name="majorDimension">1</property>
                                         <property name="max_size"></property>
                                         <property name="maximize_button">0</property>
@@ -1256,11 +1257,11 @@
                                         <event name="OnUpdateUI"></event>
                                     </object>
                                 </object>
-                                <object class="sizeritem" expanded="1">
+                                <object class="sizeritem" expanded="0">
                                     <property name="border">5</property>
                                     <property name="flag">wxTOP|wxRIGHT|wxLEFT</property>
                                     <property name="proportion">0</property>
-                                    <object class="wxStaticText" expanded="1">
+                                    <object class="wxStaticText" expanded="0">
                                         <property name="BottomDockable">1</property>
                                         <property name="LeftDockable">1</property>
                                         <property name="RightDockable">1</property>
@@ -1288,7 +1289,7 @@
                                         <property name="gripper">0</property>
                                         <property name="hidden">0</property>
                                         <property name="id">wxID_ANY</property>
-                                        <property name="label">Layer</property>
+                                        <property name="label">Layer:</property>
                                         <property name="max_size"></property>
                                         <property name="maximize_button">0</property>
                                         <property name="maximum_size"></property>
@@ -1339,11 +1340,11 @@
                                         <event name="OnUpdateUI"></event>
                                     </object>
                                 </object>
-                                <object class="sizeritem" expanded="1">
+                                <object class="sizeritem" expanded="0">
                                     <property name="border">5</property>
                                     <property name="flag">wxBOTTOM|wxRIGHT|wxLEFT</property>
                                     <property name="proportion">0</property>
-                                    <object class="wxBitmapComboBox" expanded="1">
+                                    <object class="wxBitmapComboBox" expanded="0">
                                         <property name="BottomDockable">1</property>
                                         <property name="LeftDockable">1</property>
                                         <property name="RightDockable">1</property>
@@ -1391,7 +1392,7 @@
                                         <property name="show">1</property>
                                         <property name="size"></property>
                                         <property name="style"></property>
-                                        <property name="subclass">PCB_LAYER_BOX_SELECTOR; class_pcb_layer_box_selector.h</property>
+                                        <property name="subclass">PCB_LAYER_BOX_SELECTOR; pcb_layer_box_selector.h</property>
                                         <property name="toolbar_pane">0</property>
                                         <property name="tooltip"></property>
                                         <property name="validator_data_type"></property>
@@ -1532,7 +1533,7 @@
                         <property name="name">m_sdbSizerBts</property>
                         <property name="permission">protected</property>
                         <event name="OnApplyButtonClick"></event>
-                        <event name="OnCancelButtonClick">OnCancelClick</event>
+                        <event name="OnCancelButtonClick"></event>
                         <event name="OnContextHelpButtonClick"></event>
                         <event name="OnHelpButtonClick"></event>
                         <event name="OnNoButtonClick"></event>

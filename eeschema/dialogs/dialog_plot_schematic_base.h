@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun  6 2014)
+// C++ code generated with wxFormBuilder (version Apr 19 2018)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_PLOT_SCHEMATIC_BASE_H__
@@ -11,7 +11,6 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
 class WX_HTML_REPORT_PANEL;
 
 #include "dialog_shim.h"
@@ -22,6 +21,10 @@ class WX_HTML_REPORT_PANEL;
 #include <wx/colour.h>
 #include <wx/settings.h>
 #include <wx/textctrl.h>
+#include <wx/bitmap.h>
+#include <wx/image.h>
+#include <wx/icon.h>
+#include <wx/bmpbuttn.h>
 #include <wx/button.h>
 #include <wx/sizer.h>
 #include <wx/radiobox.h>
@@ -49,8 +52,9 @@ class DIALOG_PLOT_SCHEMATIC_BASE : public DIALOG_SHIM
 		
 		wxStaticText* m_staticTextOutputDirectory;
 		wxTextCtrl* m_outputDirectoryName;
-		wxButton* m_browseButton;
+		wxBitmapButton* m_browseButton;
 		wxBoxSizer* m_optionsSizer;
+		wxRadioBox* m_plotFormatOpt;
 		wxStaticBoxSizer* m_paperOptionsSizer;
 		wxRadioBox* m_PaperSizeOption;
 		wxStaticBoxSizer* m_paperHPGLSizer;
@@ -59,7 +63,6 @@ class DIALOG_PLOT_SCHEMATIC_BASE : public DIALOG_SHIM
 		wxRadioBox* m_plotOriginOpt;
 		wxStaticText* m_penHPLGWidthTitle;
 		wxTextCtrl* m_penHPGLWidthCtrl;
-		wxRadioBox* m_plotFormatOpt;
 		wxStaticText* m_defaultLineWidthTitle;
 		wxTextCtrl* m_DefaultLineSizeCtrl;
 		wxRadioBox* m_ModeColorOption;
@@ -68,14 +71,13 @@ class DIALOG_PLOT_SCHEMATIC_BASE : public DIALOG_SHIM
 		wxButton* m_buttonPlotCurrent;
 		wxButton* m_buttonPlotAll;
 		wxButton* m_buttonQuit;
-		wxStaticText* m_staticText2;
 		WX_HTML_REPORT_PANEL* m_MessagesBox;
 		
 		// Virtual event handlers, overide them in your derived class
 		virtual void OnCloseWindow( wxCloseEvent& event ) { event.Skip(); }
 		virtual void OnOutputDirectoryBrowseClicked( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnHPGLPageSelected( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnPlotFormatSelection( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnHPGLPageSelected( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnButtonPlotCurrentClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnButtonPlotAllClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnButtonCancelClick( wxCommandEvent& event ) { event.Skip(); }
@@ -83,7 +85,7 @@ class DIALOG_PLOT_SCHEMATIC_BASE : public DIALOG_SHIM
 	
 	public:
 		
-		DIALOG_PLOT_SCHEMATIC_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Plot Schematic"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_PLOT_SCHEMATIC_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Plot Schematic Options"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_PLOT_SCHEMATIC_BASE();
 	
 };

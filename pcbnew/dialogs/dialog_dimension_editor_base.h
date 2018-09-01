@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun  5 2014)
+// C++ code generated with wxFormBuilder (version Apr 19 2018)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_DIMENSION_EDITOR_BASE_H__
@@ -11,8 +11,8 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
 class PCB_LAYER_BOX_SELECTOR;
+class TEXT_CTRL_EVAL;
 
 #include "dialog_shim.h"
 #include <wx/string.h>
@@ -43,15 +43,15 @@ class DIALOG_DIMENSION_EDITOR_BASE : public DIALOG_SHIM
 		wxStaticText* m_staticTextDim;
 		wxTextCtrl* m_Name;
 		wxStaticText* m_staticTextSizeX;
-		wxTextCtrl* m_TxtSizeXCtrl;
+		TEXT_CTRL_EVAL* m_TxtSizeXCtrl;
 		wxStaticText* m_staticTextSizeY;
-		wxTextCtrl* m_TxtSizeYCtrl;
+		TEXT_CTRL_EVAL* m_TxtSizeYCtrl;
 		wxStaticText* m_staticTextWidth;
-		wxTextCtrl* m_TxtWidthCtrl;
+		TEXT_CTRL_EVAL* m_TxtWidthCtrl;
 		wxStaticText* m_staticTextPosX;
-		wxTextCtrl* m_textCtrlPosX;
+		TEXT_CTRL_EVAL* m_textCtrlPosX;
 		wxStaticText* m_staticTextPosY;
-		wxTextCtrl* m_textCtrlPosY;
+		TEXT_CTRL_EVAL* m_textCtrlPosY;
 		wxRadioBox* m_rbMirror;
 		wxStaticText* m_staticTextLayer;
 		PCB_LAYER_BOX_SELECTOR* m_SelLayerBox;
@@ -61,7 +61,6 @@ class DIALOG_DIMENSION_EDITOR_BASE : public DIALOG_SHIM
 		wxButton* m_sdbSizerBtsCancel;
 		
 		// Virtual event handlers, overide them in your derived class
-		virtual void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnOKClick( wxCommandEvent& event ) { event.Skip(); }
 		
 	

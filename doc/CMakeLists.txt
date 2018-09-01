@@ -42,12 +42,7 @@ add_a2x_option( -f pdf )
 
 # Add a2x options depending on which PDF generator we're using
 if( ${PDF_GENERATOR} MATCHES DBLATEX )
-    # When the a2x target macro knows we're using dblatex, it adds in the
-    # --dblatex-opts command and uses the following options for that
-    add_dblatex_option( -P latex.output.revhistory=0 )
-    add_dblatex_option( -P doc.publisher.show=0 )
-    add_dblatex_option( -s ${PROJECT_SOURCE_DIR}/CMakeSupport/pdf-cover-dblatex.sty )
-
+    set_dblatex_common_options()
     find_package( DBLATEX REQUIRED )
 endif()
 
@@ -100,30 +95,19 @@ if( GIT_FOUND )
         ERROR_VARIABLE git_branch_error
         OUTPUT_STRIP_TRAILING_WHITESPACE )
 
+    message (STATUS "On branch ${git_branch_output} with tag ${git_tags_output}" )
     # Due to how tags work in Git it's necessary for us to ensure a few things. For a start, if we
     # create a new branch, switch to it and create a tag, that tag becomes visible in the master
     # branch. Make sure if we're on the master branch that we use that in the
     if( "${git_branch_output}" STREQUAL "master" )
         # TODO: Should we include a 6-digit hash here too?
-        set( CPACK_PACKAGE_VERSION "master" )
+        set( CPACK_PACKAGE_VERSION "HEAD" )
     else()
         if( NOT "${git_tags_output}" STREQUAL "" )
-            # Make sure the tag is associated with the current branch. Otherwise we'll use the branch
-            # name instead. The tag and branch schema means we need branches in the format 1.0, 2.0,
-            # etc. and tags in the format 1.0.1, 2.0.1, etc. to match
-
-            string( SUBSTRING "${git_tags_output}" 0 3 GIT_TAG )
-
-            if( "${GIT_TAG}" STREQUAL "${git_branch_output}" )
-                # The tag matches the branch so use the tag as the package version
-                set( CPACK_PACKAGE_VERSION ${git_tags_output} )
-            else()
-                # Tag didn't match so assume it's there in error and use the more generic branch
-                # name as the package version instead
-                set( CPACK_PACKAGE_VERSION ${git_branch_output} )
-            endif()
+            set( CPACK_PACKAGE_VERSION ${git_tags_output} )
         endif()
     endif()
+    message (STATUS "Setting package version to ${CPACK_PACKAGE_VERSION}")
 endif()
 
 # Everything without leading / is relative to CMAKE_INSTALL_PREFIX.
@@ -147,8 +131,8 @@ else()
     set( PACKAGE_BUILD_FORMAT "-${BUILD_FORMATS}" )
 endif()
 
-# Generate both .tar.gz and .zip package targets
-set( CPACK_GENERATOR "TGZ;ZIP" )
+# Generate both .tar.gz package target
+set( CPACK_GENERATOR "TGZ" )
 set( CPACK_PACKAGE_FILE_NAME "kicad-doc${PACKAGE_BUILD_FORMAT}${PACKAGE_LANGUAGE}-${CPACK_PACKAGE_VERSION}" )
 include( CPack )
 

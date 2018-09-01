@@ -1,54 +1,107 @@
-# Changed footprint libraries between KiCad 4.0.4 and 4.0.5 #
+KiCad 5, Changes to the global Symbol and Footprint Table
+---------------------------------------------------------
 
-Upstream has changed some footprint libraries on top of the version 4.0.5. The
-libraries that got renamed are symlinked by the old names to the recent changed
-library.
+The KiCad application stores global settings for the schematic symbols in the
+file
 
-Renamed libraries:
-    Buttons_Switches_ThroughHole.pretty -> Buttons_Switches_THT.pretty
-    Capacitors_ThroughHole.pretty       -> Capacitors_THT.pretty
-    Connect.pretty                      -> Connectors.pretty
-    Diodes_ThroughHole.pretty           -> Diodes_THT.pretty
-    Display.pretty                      -> Displays.pretty
-    Relays_ThroughHole.pretty           -> Relays_THT.pretty
-    Resistors_ThroughHole.pretty        -> Resistors_THT.pretty
-    Sockets_BNC.pretty                  -> Connectors_TE-Connectivity.pretty
-    Sockets_Mini-Universal.pretty       -> Connectors_Mini-Universal.pretty
-    Sockets_WAGO734.pretty              -> Connectors_WAGO.pretty
-    Terminal_Blocks.pretty              -> Connectors_Terminal_Blocks.pretty
+ $(HOME)/.config/kicad/sym-lib-table
 
-# Changed footprint libraries between KiCad 4.0.5 and 4.0.6 #
+and for the footprints within
 
-Upstream added some new footprint libraries on top of the version 4.0.6. You
-likely need to adust library settings if needed.
-This upstream change is in preparation for removing some other older libraries.
+ $(HOME)/.config/kicad/fp-lib-table
 
-Those libraries were added:
-    Enclosures.pretty
-    Housings_BGA.pretty
-    Housings_LCC.pretty
-    Housings_LGA.pretty
-    Housings_PGA.pretty
-    Inductors_SMD.pretty
-    Inductors_THT.pretty
-    Modules.pretty
-    Transformers_SMD.pretty
-    Transformers_THT.pretty
+Both default settings have been changed in KiCad 5 due the chnaged names of the
+libraries, unfortunately the kicad application isn't doing any automatic
+migration. You need to make the adjustments by yourself within the editor for
+the 'Symbol Librarries' (in Eeschema within the menu 'Preferences - Manage
+Symbol Libraries...') and the editor for the 'Footprint Libraries" (in
+Footprint Editor in the menu 'Preferences - Manage Footprint Libraries...')
 
-# Changed footprint libraries between KiCad 4.0.6 and 4.0.7 #
+Note:
+It's mostly easier to backup the old files an re-adjust just your local needs
+after a restart of KiCad. KiCad will recreate new default files if it can't
+find any of the files in the .config folder.
 
-Those libraries were added:
-    Connectors_Card.pretty
-	Connectors_HDMI.pretty
-	Relays_SMD.pretty
-	RF_Antennas.pretty
-	TerminalBlocks_Phoenix.pretty
-	TerminalBlocks_WAGO.pretty
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Mo, 23 Apr 2018 15:00:00 +0800
 
-Renamed libraries:
-    Mechanical_Sockets.pretty -> Connectors_IEC_DIN.pretty
-	Discret.pretty            -> discret.pretty
-	Divers.pretty             -> divers.pretty
-	Labels.pretty             -> labels.pretty
+KiCad 5, GTK+2 vs GTK+3 Restrictions
+------------------------------------
 
- -- Carsten Schoenert <c.schoenert@t-online.de>  Sun, 15 Sep 2017 21:33:00 +0200
+Right now KiCad 5.x isn't fully ready for using GTK+3 bindings through
+wxWidgets3 and related additional packages which depend somehow on wxWidget3
+like the package wxpython.
+
+What are the problems?
+There are two bigger issues that resulting in some restricted behavior of
+the KiCad binaries.
+
+ 1.) First the wxWidget GUI binding against GTK+3 aren't fully
+     ready for a full productive usage of the KiCad suite and KiCad is becoming
+     significantly sluggish if the GTK+3 libraries of wxWidget would be used.
+     Also some sporadic segfaults can happen. To use GTK+3 some more source
+     code improvements needs to be done by upstream. Maybe a series of
+     KiCad 5.1.x will be released later to fix this problem.
+     So currently KiCad is build to use still GTK+2 bindings.
+
+ 2.) The usage of the scripting features of wxpython isn't possible as the
+     wxpython package isn't available anymore for usage with GTK2+. This
+     unfortunately is resulting in a turned off support of SCRIPTING_WXPYTHON
+     and the Pcbnew application hasn't a Python scripting interface for now.
+     This should be usable again once a full GTK3+ support is built into KiCad.
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sat, 26 May 2018 12:00:00 +0200
+
+KiCad 5, the 'Modern Toolset (Accelerated)' in Gerbview or Pcbnew and Wayland
+-----------------------------------------------------------------------------
+
+If you running your DE (Desktop Environment) under Wayland [1], a planned
+replacement for X [2], and you have turned on the 'Modern Toolset (Accelerated)'
+in Pcbnew or Gerbview you probably experience some strange things like crashes
+of your complete DE session.
+
+This happen due a issue within the wxWidget3.0 framework while running in a
+Wayland session together with the GTK3 bindings against the wxWidget framework.
+This is no problem inside KiCad. The bugtracker for KiCad is tracking this
+issue on Launchpad in the bug report 1755360 [3] and the KiCad project has
+made an announcement about the problem on the project website [4]. The origin
+of the problem is tracked on the TRAC instance on wxwidgets.org [5].
+
+Right now there is no easy solution for this regression. You can use some
+workarounds to get KiCad working nevertheless.
+
+1. Do not use the 'Modern Toolset (Accelerated)' and use instead the 'Modern
+   Toolset (Fallback)' option.
+
+2. Run KiCad within a X11 session.
+   To do so you have also two options.
+
+   Option 1: Switch over to use X11 instead of the Wayland as base for your
+   DE. This requires a complete log off from your running DE session and
+   select 'X11' from the settings in your window manager before start the
+   window manager itself.
+
+   Option 2: Start KiCad (or the standalone applications) within a dedicated
+   X11 session by setting the environment variable 'GDK_BACKEND' to 'x11'
+   while calling pcbnew or gerbview. e.g.
+
+     $ GDK_BACKEND=x11 kicad
+      or
+     $ GDK_BACKEND=x11 pcbnew
+
+How to check if I'm running a x11 or a Wayland session?
+You can use this oneliner to detect your session you running on. Please adjust
+'YOUR_USER_NAME' with your login name.
+
+  $ loginctl show-session `loginctl|grep YOUR_USER_NAME|awk '{print $1}'` -p Type
+
+If you get the following output your session is running within Wayland.
+
+  $ Type=wayland
+
+[1] https://wiki.gnome.org/Initiatives/Wayland
+[2] https://en.wikipedia.org/wiki/X_Window_System
+[3] https://bugs.launchpad.net/kicad/+bug/1755360
+[4] http://kicad-pcb.org/help/known-system-related-issues/#_wayland
+[5] https://trac.wxwidgets.org/ticket/17702
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sun, 8 Apr 2018 18:00:00 +0200

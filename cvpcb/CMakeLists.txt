@@ -1,9 +1,6 @@
-# the map generation creates on Windows/gcc a lot of useless warnings
-# so disable it on windows
-if( WIN32 AND NOT CMAKE_CROSSCOMPILING )
-    set( MAKE_LINK_MAPS false )
-else()
-    set( MAKE_LINK_MAPS true )
+# .cpp files are compiled with extra ${WSHADOW_FLAGS}
+if( COMPILER_SUPPORTS_WSHADOW )
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WSHADOW_FLAGS}")
 endif()
 
 add_definitions( -DCVPCB )
@@ -16,6 +13,7 @@ include_directories(
     ../pcbnew/dialogs
     ../polygon
     ../common
+    ${GLM_INCLUDE_DIR}
     ${INC_AFTER}
     )
 
@@ -31,22 +29,21 @@ set( CVPCB_DIALOGS
     ../pcbnew/dialogs/dialog_fp_lib_table_base.cpp
     ../pcbnew/dialogs/dialog_fp_plugin_options.cpp
     ../pcbnew/dialogs/dialog_fp_plugin_options_base.cpp
-    ../pcbnew/dialogs/wizard_add_fplib_base.cpp
-    ../pcbnew/dialogs/wizard_add_fplib.cpp
     )
 
 set( CVPCB_SRCS
     ../common/base_units.cpp
     ../pcbnew/board_items_to_polygon_shape_transform.cpp
-    ../pcbnew/class_drc_item.cpp
-    autosel.cpp
+    ../pcbnew/pcb_general_settings.cpp
+    ../pcbnew/drc_item.cpp
+    auto_associate.cpp
     cfg.cpp
-    class_components_listbox.cpp
-    class_DisplayFootprintsFrame.cpp
-    class_footprints_listbox.cpp
-    class_library_listbox.cpp
-    cvframe.cpp
-    listboxes.cpp
+    components_listbox.cpp
+    display_footprints_frame.cpp
+    footprints_listbox.cpp
+    library_listbox.cpp
+    cvpcb_mainframe.cpp
+    listbox_base.cpp
     menubar.cpp
     readwrite_dlgs.cpp
     tool_cvpcb.cpp
@@ -136,15 +133,16 @@ add_library( cvpcb_kiface MODULE
     ${CVPCB_SRCS}
     ${CVPCB_DIALOGS}
     )
+
 set_target_properties( cvpcb_kiface PROPERTIES
     OUTPUT_NAME     cvpcb
     PREFIX          ${KIFACE_PREFIX}
     SUFFIX          ${KIFACE_SUFFIX}
     )
 target_link_libraries( cvpcb_kiface
-    3d-viewer
     pcbcommon
     pcad2kicadpcb
+    3d-viewer
     common
     bitmaps
     polygon

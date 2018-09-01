@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -46,7 +46,9 @@ class ZONE_CONTAINER;
 class BOARD;
 class REPORTER;
 
-// Shared Config keys for plot and print
+///@{
+/// \ingroup config
+
 #define OPTKEY_LAYERBASE             wxT( "PlotLayer_%d" )
 #define OPTKEY_PRINT_X_FINESCALE_ADJ wxT( "PrintXFineScaleAdj" )
 #define OPTKEY_PRINT_Y_FINESCALE_ADJ wxT( "PrintYFineScaleAdj" )
@@ -59,6 +61,9 @@ class REPORTER;
 #define OPTKEY_PLOT_X_FINESCALE_ADJ  wxT( "PlotXFineScaleAdj" )
 #define OPTKEY_PLOT_Y_FINESCALE_ADJ  wxT( "PlotYFineScaleAdj" )
 #define CONFIG_PS_FINEWIDTH_ADJ      wxT( "PSPlotFineWidthAdj" )
+#define OPTKEY_PLOT_CHECK_ZONES      wxT( "CheckZonesBeforePlotting" )
+
+///@}
 
 // Define min and max reasonable values for plot/print scale
 #define PLOT_MIN_SCALE 0.01
@@ -100,7 +105,7 @@ public:
     void SetLayerSet( LSET aLayerMask )     { m_layerMask = aLayerMask; }
     void Plot_Edges_Modules();
     void Plot_1_EdgeModule( EDGE_MODULE* aEdge );
-    void PlotTextModule( TEXTE_MODULE* aTextMod, EDA_COLOR_T aColor );
+    void PlotTextModule( TEXTE_MODULE* aTextMod, COLOR4D aColor );
 
     /*
      * Plot field of a module (footprint)
@@ -123,7 +128,7 @@ public:
      * and be drawn as a non filled item although the plot mode is filled
      * color and plot mode are needed by this function
      */
-    void PlotPad( D_PAD* aPad, EDA_COLOR_T aColor, EDA_DRAW_MODE_T aPlotMode );
+    void PlotPad( D_PAD* aPad, COLOR4D aColor, EDA_DRAW_MODE_T aPlotMode );
 
     /**
      * plot items like text and graphics,
@@ -147,7 +152,7 @@ public:
      * and in B&W mode, is plotted as white but other colors are plotted in BLACK
      * so the returned color is LIGHTGRAY when the layer color is WHITE
      */
-    EDA_COLOR_T getColor( LAYER_NUM aLayer );
+    COLOR4D getColor( LAYER_NUM aLayer );
 
 private:
     /** Helper function to plot a single drill mark. It compensate and clamp
@@ -176,7 +181,7 @@ PLOTTER* StartPlotBoard( BOARD* aBoard,
  * @param aLayer = the layer id to plot
  * @param aPlotOpt = the plot options (files, sketch). Has meaning for some formats only
  */
-void PlotOneBoardLayer( BOARD *aBoard, PLOTTER* aPlotter, LAYER_ID aLayer,
+void PlotOneBoardLayer( BOARD *aBoard, PLOTTER* aPlotter, PCB_LAYER_ID aLayer,
                         const PCB_PLOT_PARAMS& aPlotOpt );
 
 /**
@@ -260,22 +265,44 @@ const wxString GetGerberProtelExtension( LAYER_NUM aLayer );
  * the "%TF.FileFunction" attribute prefix and the "*%" suffix.
  * @param aBoard = the board, needed to get the total count of copper layers
  * @param aLayer = the layer number to create the attribute for
- * @param aUseX1CompatibilityMode = true to use a file function attribute like G04 comment
- *      , compatible with X1 (rx274) notation (G04#@!TF.FileFunction)
  * @return The attribute, as a text string
  */
-extern wxString GetGerberFileFunctionAttribute( const BOARD *aBoard,
-                LAYER_NUM aLayer, bool aUseX1CompatibilityMode );
+const wxString GetGerberFileFunctionAttribute( const BOARD *aBoard, LAYER_NUM aLayer );
 
 /**
- * Function AddGerberX2Attribute
  * Calculates some X2 attributes, as defined in the
  * Gerber file format specification J4 (chapter 5) and add them
- * the to the gerber file header
- * @param aPlotter, the current plotter.
+ * the to the gerber file header:
+ * TF.GenerationSoftware
+ * TF.CreationDate
+ * TF.ProjectId
+ * file format attribute is not added
+ * @param aPlotter = the current plotter.
+ * @param aBoard = the board, needed to extract some info
+ * @param aUseX1CompatibilityMode = false to generate X2 attributes, true to
+ * use X1 compatibility (X2 attributes added as structured comments,
+ * starting by "G04 #@! " followed by the X2 attribute
+ */
+void AddGerberX2Header( PLOTTER * aPlotter,
+            const BOARD *aBoard, bool aUseX1CompatibilityMode = false );
+
+/**
+ * Calculates some X2 attributes, as defined in the Gerber file format
+ * specification and add them to the gerber file header:
+ * TF.GenerationSoftware
+ * TF.CreationDate
+ * TF.ProjectId
+ * TF.FileFunction
+ * TF.FilePolarity
+ *
+ * @param aPlotter = the current plotter.
  * @param aBoard = the board, needed to extract some info
  * @param aLayer = the layer number to create the attribute for
+ * @param aUseX1CompatibilityMode = false to generate X2 attributes, true to
+ * use X1 compatibility (X2 attributes added as structured comments,
+ * starting by "G04 #@! " followed by the X2 attribute
  */
-extern void AddGerberX2Attribute( PLOTTER * aPlotter, const BOARD *aBoard, LAYER_NUM aLayer );
+void AddGerberX2Attribute( PLOTTER * aPlotter, const BOARD *aBoard,
+                           LAYER_NUM aLayer, bool aUseX1CompatibilityMode );
 
 #endif // PCBPLOT_H_

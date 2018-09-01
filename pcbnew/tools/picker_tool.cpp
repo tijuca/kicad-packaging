@@ -23,35 +23,71 @@
  */
 
 #include "picker_tool.h"
-#include "common_actions.h"
+#include "pcb_actions.h"
+#include "grid_helper.h"
 
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <view/view_controls.h>
 #include <tool/tool_manager.h>
+#include "tool_event_utils.h"
+#include "selection_tool.h"
+
+
+TOOL_ACTION PCB_ACTIONS::pickerTool( "pcbnew.Picker", AS_GLOBAL, 0, "", "", NULL, AF_ACTIVATE );
+
 
 PICKER_TOOL::PICKER_TOOL()
-    : TOOL_INTERACTIVE( "pcbnew.Picker" )
+    : PCB_TOOL( "pcbnew.Picker" )
 {
     reset();
+}
+
+
+bool PICKER_TOOL::Init()
+{
+    auto activeToolCondition = [ this ] ( const SELECTION& aSel ) {
+        return ( frame()->GetToolId() != ID_NO_TOOL_SELECTED );
+    };
+
+    SELECTION_TOOL* selTool = m_toolMgr->GetTool<SELECTION_TOOL>();
+
+    // We delegate our context menu to the Selection tool, so make sure it has a
+    // "Cancel" item at the top.
+    if( selTool )
+    {
+        auto& toolMenu = selTool->GetToolMenu();
+        auto& menu = toolMenu.GetMenu();
+
+        menu.AddItem( ACTIONS::cancelInteractive, activeToolCondition, 1000 );
+        menu.AddSeparator( activeToolCondition, 1000 );
+    }
+
+    return true;
 }
 
 
 int PICKER_TOOL::Main( const TOOL_EVENT& aEvent )
 {
     KIGFX::VIEW_CONTROLS* controls = getViewControls();
+    GRID_HELPER grid( frame() );
 
     assert( !m_picking );
     m_picking = true;
-    m_picked = boost::none;
+    m_picked = NULLOPT;
 
     setControls();
 
     while( OPT_TOOL_EVENT evt = Wait() )
     {
+        auto mousePos = controls->GetMousePosition();
+        auto p = grid.BestSnapAnchor( mousePos, nullptr );
+        controls->ForceCursorPosition( true, p );
+
         if( evt->IsClick( BUT_LEFT ) )
         {
             bool getNext = false;
-            m_picked = controls->GetCursorPosition();
+
+            m_picked = VECTOR2D( p );
 
             if( m_clickHandler )
             {
@@ -69,10 +105,10 @@ int PICKER_TOOL::Main( const TOOL_EVENT& aEvent )
             if( !getNext )
                 break;
             else
-                m_toolMgr->PassEvent();
+                setControls();
         }
 
-        else if( evt->IsCancel() || evt->IsActivate() )
+        else if( evt->IsCancel() || TOOL_EVT_UTILS::IsCancelInteractive( *evt ) || evt->IsActivate() )
             break;
 
         else
@@ -80,15 +116,16 @@ int PICKER_TOOL::Main( const TOOL_EVENT& aEvent )
     }
 
     reset();
-    getEditFrame<PCB_BASE_FRAME>()->SetToolID( ID_NO_TOOL_SELECTED, wxCURSOR_DEFAULT, wxEmptyString );
+    controls->ForceCursorPosition( false );
+    getEditFrame<PCB_BASE_FRAME>()->SetNoToolSelected();
 
     return 0;
 }
 
 
-void PICKER_TOOL::SetTransitions()
+void PICKER_TOOL::setTransitions()
 {
-    Go( &PICKER_TOOL::Main, COMMON_ACTIONS::pickerTool.MakeEvent() );
+    Go( &PICKER_TOOL::Main, PCB_ACTIONS::pickerTool.MakeEvent() );
 }
 
 
@@ -100,7 +137,7 @@ void PICKER_TOOL::reset()
     m_autoPanning = false;
 
     m_picking = false;
-    m_clickHandler = boost::none;
+    m_clickHandler = NULLOPT;
 }
 
 

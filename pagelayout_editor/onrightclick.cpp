@@ -6,7 +6,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2013 CERN
  *
  * This program is free software; you can redistribute it and/or
@@ -36,24 +36,23 @@
 #include <properties_frame.h>
 #include <menus_helpers.h>
 #include <worksheet_shape_builder.h>
-#include <class_worksheet_dataitem.h>
+#include <worksheet_dataitem.h>
 #include <hotkeys.h>
 
 // Helper function to add menuitems relative to items creation
 void AddNewItemsCommand( wxMenu* aMainMenu )
 {
-    AddMenuItem( aMainMenu, ID_POPUP_ITEM_ADD_LINE, _( "Add Line" ),
+    AddMenuItem( aMainMenu, ID_POPUP_ITEM_ADD_LINE, _( "Add Line..." ),
                  KiBitmap( add_dashed_line_xpm ) );
-    AddMenuItem( aMainMenu, ID_POPUP_ITEM_ADD_RECT, _( "Add Rectangle" ),
+    AddMenuItem( aMainMenu, ID_POPUP_ITEM_ADD_RECT, _( "Add Rectangle..." ),
                  KiBitmap( add_rectangle_xpm ) );
-    AddMenuItem( aMainMenu, ID_POPUP_ITEM_ADD_TEXT, _( "Add Text" ),
-                 KiBitmap( add_text_xpm ) );
-    AddMenuItem( aMainMenu, ID_POPUP_ITEM_APPEND_PAGE_LAYOUT,
-                 _( "Append Page Layout Descr File" ),
-                 KiBitmap( import_xpm ) );
-    AddMenuItem( aMainMenu, ID_POPUP_ITEM_ADD_BITMAP,
-                 _( "Add Bitmap" ),
+    AddMenuItem( aMainMenu, ID_POPUP_ITEM_ADD_TEXT, _( "Add Text..." ),
+                 KiBitmap( text_xpm ) );
+    AddMenuItem( aMainMenu, ID_POPUP_ITEM_ADD_BITMAP, _( "Add Bitmap..." ),
                  KiBitmap( image_xpm ) );
+    AddMenuItem( aMainMenu, ID_POPUP_ITEM_APPEND_PAGE_LAYOUT,
+                 _( "Append Existing Page Layout Design File..." ),
+                 KiBitmap( pagelayout_load_xpm ) );
 }
 
 /* Prepare the right-click pullup menu.
@@ -62,7 +61,25 @@ void AddNewItemsCommand( wxMenu* aMainMenu )
 bool PL_EDITOR_FRAME::OnRightClick( const wxPoint& aPosition, wxMenu* aPopMenu )
 {
     bool busy = GetScreen()->GetCurItem() != NULL;
+    bool blockActive = GetScreen()->IsBlockActive();
     wxString msg;
+
+    if( blockActive )
+    {
+
+        AddMenuItem( aPopMenu, ID_POPUP_CANCEL_CURRENT_COMMAND, _( "Cancel Block" ),
+                     KiBitmap( cancel_xpm ) );
+        aPopMenu->AppendSeparator();
+        return true;
+    }
+
+    // If the tool ID_ZOOM_SELECTION is currently in use, add a close command menu
+    if( GetToolId() == ID_ZOOM_SELECTION && !busy )
+    {
+        AddMenuItem( aPopMenu, ID_POPUP_CLOSE_CURRENT_TOOL, _( "End Tool" ),
+                     KiBitmap( cursor_xpm ) );
+        aPopMenu->AppendSeparator();
+    }
 
     if( ! busy )     // No item currently edited
     {

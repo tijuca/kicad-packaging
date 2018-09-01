@@ -39,13 +39,19 @@ public:
 
     // -----<PUBLIC PLUGIN API>--------------------------------------------------
 
-    const wxString  PluginName() const;
+    const wxString  PluginName() const override;
 
     BOARD*          Load( const wxString&   aFileName,
                           BOARD*            aAppendToMe,
-                          const PROPERTIES* aProperties = NULL );
+                          const PROPERTIES* aProperties = NULL ) override;
 
-    const wxString  GetFileExtension() const;
+    const wxString  GetFileExtension() const override;
+
+    long long GetLibraryTimestamp( const wxString& aLibraryPath ) const override
+    {
+        // No support for libraries....
+        return 0;
+    }
 
     // -----</PUBLIC PLUGIN API>-------------------------------------------------
 

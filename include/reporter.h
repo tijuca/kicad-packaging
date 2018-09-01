@@ -1,13 +1,3 @@
-#ifndef _REPORTER_H_
-#define _REPORTER_H_
-
-/**
- * @file reporter.h
- * @author Wayne Stambaugh
- * @note A special thanks to Dick Hollenbeck who came up with the idea that inspired
- *       me to write this.
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
@@ -32,8 +22,18 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#ifndef _REPORTER_H_
+#define _REPORTER_H_
 
-class wxString;
+#include <wx/string.h>
+
+/**
+ * @file reporter.h
+ * @author Wayne Stambaugh
+ * @note A special thanks to Dick Hollenbeck who came up with the idea that inspired
+ *       me to write this.
+ */
+
 class wxTextCtrl;
 class wxHtmlListbox;
 class WX_HTML_REPORT_PANEL;
@@ -61,13 +61,34 @@ class WX_HTML_REPORT_PANEL;
 class REPORTER {
 
 public:
-    ///> Severity of the reported messages.
+    /**
+     *  Severity of the reported messages.
+     *  Undefined are default status messages
+     *  Info are processing messages for which no action is taken
+     *  Action messages are items that modify the file(s) as expected
+     *  Warning messages are items that might be problematic but don't prevent
+     *    the process from completing
+     *  Error messages are items that prevent the process from completing
+     */
+    //
     enum SEVERITY {
         RPT_UNDEFINED = 0x0,
         RPT_INFO      = 0x1,
-        RPT_WARNING   = 0x2,
-        RPT_ERROR     = 0x4,
-        RPT_ACTION    = 0x8
+        RPT_ACTION    = 0x2,
+        RPT_WARNING   = 0x4,
+        RPT_ERROR     = 0x8
+    };
+
+    /**
+     * Location where the message is to be reported.
+     * LOC_HEAD messages are printed before all others (typically intro messages)
+     * LOC_BODY messages are printed in the middle
+     * LOC_TAIL messages are printed after all others (typically status messages)
+     */
+    enum LOCATION {
+        LOC_HEAD = 0,
+        LOC_BODY,
+        LOC_TAIL
     };
 
     /**
@@ -75,19 +96,42 @@ public:
      * is a pure virtual function to override in the derived object.
      *
      * @param aText is the string to report.
+     * @param aSeverity is an indicator ( RPT_UNDEFINED, RPT_INFO, RPT_WARNING,
+     * RPT_ERROR, RPT_ACTION ) used to filter and format messages
      */
 
     virtual REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED ) = 0;
 
+    /**
+     * Function ReportTail
+     * Places the report at the end of the list, for objects that support report ordering
+     */
+    virtual REPORTER& ReportTail( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED )
+    {
+        return Report( aText, aSeverity );
+    }
+
+    /**
+     * Function ReportHead
+     * Places the report at the beginning of the list for objects that support ordering
+     */
+    virtual REPORTER& ReportHead( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED )
+    {
+        return Report( aText, aSeverity );
+    }
+
     REPORTER& Report( const char* aText, SEVERITY aSeverity = RPT_UNDEFINED );
 
     REPORTER& operator <<( const wxString& aText ) { return Report( aText ); }
-
     REPORTER& operator <<( const wxChar* aText ) { return Report( wxString( aText ) ); }
-
     REPORTER& operator <<( wxChar aChar ) { return Report( wxString( aChar ) ); }
-
     REPORTER& operator <<( const char* aText ) { return Report( aText ); }
+
+    /**
+     * Function HasMessage
+     * Returns true if the reporter client is non-empty.
+     */
+    virtual bool HasMessage() const = 0;
 };
 
 
@@ -106,7 +150,9 @@ public:
     {
     }
 
-    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED );
+    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED ) override;
+
+    bool HasMessage() const override;
 };
 
 
@@ -125,7 +171,9 @@ public:
     {
     }
 
-    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED );
+    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED ) override;
+
+    bool HasMessage() const override;
 };
 
 
@@ -144,7 +192,13 @@ public:
     {
     }
 
-    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED );
+    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED ) override;
+
+    REPORTER& ReportTail( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED ) override;
+
+    REPORTER& ReportHead( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED ) override;
+
+    bool HasMessage() const override;
 };
 
 /**
@@ -155,14 +209,35 @@ public:
  */
 class NULL_REPORTER : public REPORTER
 {
-    public:
-        NULL_REPORTER()
-        {
-        };
+public:
+    NULL_REPORTER()
+    {
+    }
 
-        static REPORTER& GetInstance();
+    static REPORTER& GetInstance();
 
-        REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED );
+    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED ) override;
+
+    bool HasMessage() const override { return false; }
+};
+
+/**
+ * Class STDOUT_REPORTER
+ *
+ * Debug type reporter, forwarding messages to std::cout.
+ */
+class STDOUT_REPORTER : public REPORTER
+{
+public:
+    STDOUT_REPORTER()
+    {
+    }
+
+    static REPORTER& GetInstance();
+
+    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_UNDEFINED ) override;
+
+    bool HasMessage() const override { return false; }
 };
 
 #endif     // _REPORTER_H_

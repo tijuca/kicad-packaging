@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2011-2013 Lorenzo Marcantonio <l.marcantonio@logossrl.com>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,10 +32,11 @@
 #include <confirm.h>
 #include <gestfich.h>
 #include <kiface_i.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <trigo.h>
 #include <build_version.h>
 #include <macros.h>
+#include <wildcards_and_files_ext.h>
 
 #include <pcbnew.h>
 
@@ -104,7 +105,7 @@ static int compute_pad_access_code( BOARD *aPcb, LSET aLayerMask )
 /* Convert and clamp a size from IU to decimils */
 static int iu_to_d356(int iu, int clamp)
 {
-    int val = KiROUND( iu / IU_PER_DECIMILS );
+    int val = KiROUND( iu / ( IU_PER_MILS / 10 ) );
     if( val > clamp ) return clamp;
     if( val < -clamp ) return -clamp;
     return val;
@@ -116,10 +117,10 @@ static void build_pad_testpoints( BOARD *aPcb,
 {
     wxPoint origin = aPcb->GetAuxOrigin();
 
-    for( MODULE *module = aPcb->m_Modules;
+    for( MODULE* module = aPcb->m_Modules;
         module; module = module->Next() )
     {
-        for( D_PAD *pad = module->Pads();  pad; pad = pad->Next() )
+        for( D_PAD* pad = module->PadsList();  pad; pad = pad->Next() )
         {
             D356_RECORD rk;
             rk.access = compute_pad_access_code( aPcb, pad->GetLayerSet() );
@@ -128,8 +129,8 @@ static void build_pad_testpoints( BOARD *aPcb,
             if( rk.access != -1 )
             {
                 rk.netname = pad->GetNetname();
+                rk.pin = pad->GetName();
                 rk.refdes = module->GetReference();
-                pad->StringPadName( rk.pin );
                 rk.midpoint = false; // XXX MAYBE need to be computed (how?)
                 const wxSize& drill = pad->GetDrillSize();
                 rk.drill = std::min( drill.x, drill.y );
@@ -212,7 +213,7 @@ static void build_via_testpoints( BOARD *aPcb,
             rk.drill = via->GetDrillValue();
             rk.mechanical = false;
 
-            LAYER_ID top_layer, bottom_layer;
+            PCB_LAYER_ID top_layer, bottom_layer;
 
             via->LayerPair( &top_layer, &bottom_layer );
 
@@ -234,13 +235,15 @@ static const wxString intern_new_d356_netname( const wxString &aNetname,
         std::map<wxString, wxString> &aMap, std::set<wxString> &aSet )
 {
     wxString canon;
-    for (wxString::const_iterator i = aNetname.begin();
-            i != aNetname.end(); ++i)
+
+    for( size_t ii = 0; ii < aNetname.Len(); ++ii )
     {
         // Rule: we can only use the standard ASCII, control excluded
-        char ch = *i;
-        if( ch > 126 || !std::isgraph( ch ) )
+        wxUniChar ch = aNetname[ii];
+
+        if( ch > 126 || !std::isgraph( static_cast<unsigned char>( ch ) ) )
             ch = '?';
+
         canon += ch;
     }
 
@@ -355,8 +358,8 @@ void PCB_EDIT_FRAME::GenD356File( wxCommandEvent& aEvent )
     wxString    msg, ext, wildcard;
     FILE*       file;
 
-    ext = wxT( "d356" );
-    wildcard = _( "IPC-D-356 Test Files (.d356)|*.d356" );
+    ext = IpcD356FileExtension;
+    wildcard = IpcD356FileWildcard();
     fn.SetExt( ext );
 
     wxString pro_dir = wxPathOnly( Prj().GetProjectFullName() );
@@ -394,4 +397,3 @@ void PCB_EDIT_FRAME::GenD356File( wxCommandEvent& aEvent )
 
     fclose( file );
 }
-

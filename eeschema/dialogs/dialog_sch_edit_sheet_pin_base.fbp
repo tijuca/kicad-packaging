@@ -41,10 +41,10 @@
             <property name="hidden">0</property>
             <property name="id">wxID_ANY</property>
             <property name="maximum_size"></property>
-            <property name="minimum_size">350,-1</property>
+            <property name="minimum_size">-1,-1</property>
             <property name="name">DIALOG_SCH_EDIT_SHEET_PIN_BASE</property>
             <property name="pos"></property>
-            <property name="size">350,189</property>
+            <property name="size">-1,-1</property>
             <property name="style">wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER</property>
             <property name="subclass">DIALOG_SHIM; dialog_shim.h</property>
             <property name="title">Sheet Pin Properties</property>
@@ -203,7 +203,7 @@
                                 </object>
                                 <object class="sizeritem" expanded="1">
                                     <property name="border">6</property>
-                                    <property name="flag">wxALL|wxEXPAND</property>
+                                    <property name="flag">wxALIGN_CENTER_VERTICAL|wxALL|wxEXPAND</property>
                                     <property name="proportion">0</property>
                                     <object class="wxTextCtrl" expanded="1">
                                         <property name="BottomDockable">1</property>
@@ -255,10 +255,10 @@
                                         <property name="subclass"></property>
                                         <property name="toolbar_pane">0</property>
                                         <property name="tooltip"></property>
-                                        <property name="validator_data_type"></property>
-                                        <property name="validator_style">wxFILTER_NONE</property>
-                                        <property name="validator_type">wxDefaultValidator</property>
-                                        <property name="validator_variable"></property>
+                                        <property name="validator_data_type">wxString</property>
+                                        <property name="validator_style">wxFILTER_EXCLUDE_CHAR_LIST</property>
+                                        <property name="validator_type">wxTextValidator</property>
+                                        <property name="validator_variable">m_labelString</property>
                                         <property name="value"></property>
                                         <property name="window_extra_style"></property>
                                         <property name="window_name"></property>
@@ -387,7 +387,7 @@
                                 </object>
                                 <object class="sizeritem" expanded="1">
                                     <property name="border">6</property>
-                                    <property name="flag">wxBOTTOM|wxEXPAND|wxLEFT|wxRIGHT</property>
+                                    <property name="flag">wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxEXPAND|wxLEFT|wxRIGHT</property>
                                     <property name="proportion">0</property>
                                     <object class="wxTextCtrl" expanded="1">
                                         <property name="BottomDockable">1</property>
@@ -644,7 +644,7 @@
                                 </object>
                                 <object class="sizeritem" expanded="1">
                                     <property name="border">6</property>
-                                    <property name="flag">wxBOTTOM|wxEXPAND|wxLEFT|wxRIGHT</property>
+                                    <property name="flag">wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxEXPAND|wxLEFT|wxRIGHT</property>
                                     <property name="proportion">0</property>
                                     <object class="wxTextCtrl" expanded="1">
                                         <property name="BottomDockable">1</property>
@@ -1032,7 +1032,7 @@
                         <event name="OnContextHelpButtonClick"></event>
                         <event name="OnHelpButtonClick"></event>
                         <event name="OnNoButtonClick"></event>
-                        <event name="OnOKButtonClick"></event>
+                        <event name="OnOKButtonClick">onOKButton</event>
                         <event name="OnSaveButtonClick"></event>
                         <event name="OnYesButtonClick"></event>
                     </object>

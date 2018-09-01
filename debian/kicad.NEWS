@@ -1,0 +1,30 @@
+kicad (5.0.0+dfsg1-1) unstable; urgency=medium
+
+  Changes introduced by kicad 5.0.0
+  ---------------------------------
+
+  By updating the kicad package from 4.0.7 to 5.x.x some important changes need
+  to be noted.
+
+  The way symbol libraries are defined and accessed has been modified since
+  4.0.7, this brings in that old schematics will need a remapping. This will
+  happen while open old schematics within a 5.x.x version.
+  !!! Please backup your data before open and modifying your projects !!!
+
+  The official libraries have got a complete rework and aren't backward
+  compatible, once you have used the new libraries your project can't be open
+  in older versions of kicad without a high risk of damage the project.
+
+  The old environment variable KICAD_PTEMPLATES has been replaced by
+  KICAD_TEMPLATE_DIR, you may need adjust the old used name to the new one. A
+  new environment variable KICAD_USER_TEMPLATE_DIR was added which is dedicated
+  for pointing to personal templates from users.
+
+  Please read also README.Debian and also Blogposts and News from the KiCad
+  website. If you not already have visit the KiCad forum you should give it a
+  try.
+
+    http://kicad-pcb.org
+    https://forum.kicad.info/
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sun, 22 Jul 2018 11:02:00 +0800

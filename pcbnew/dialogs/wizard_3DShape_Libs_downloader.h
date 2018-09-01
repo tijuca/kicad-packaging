@@ -65,16 +65,21 @@ public:
     // Wizard event handlers
     void OnSourceCheck( wxCommandEvent& aEvent );
     void OnCheckGithubList( wxCommandEvent& aEvent );
-    void OnPageChanged( wxWizardEvent& aEvent );
-    void OnSelectAll3Dlibs( wxCommandEvent& aEvent );
-    void OnUnselectAll3Dlibs( wxCommandEvent& aEvent );
-    void OnChangeSearch( wxCommandEvent& aEvent );
-    void OnWizardFinished( wxWizardEvent& aEvent );
-    void OnBrowseButtonClick( wxCommandEvent& aEvent );
+    void OnPageChanged( wxWizardEvent& aEvent ) override;
+    void OnSelectAll3Dlibs( wxCommandEvent& aEvent ) override;
+    void OnUnselectAll3Dlibs( wxCommandEvent& aEvent ) override;
+
+    /** Called when the content of m_searchCtrl3Dlibs has changed.
+     * Rebuild the list of libraries, lib cacdidate first
+     */
+    void OnChangeSearch( wxCommandEvent& aEvent ) override;
+
+    void OnWizardFinished( wxWizardEvent& aEvent ) override;
+    void OnBrowseButtonClick( wxCommandEvent& aEvent ) override;
     void OnCheckSaveCopy( wxCommandEvent& aEvent );
-	void OnDefault3DPathButtonClick( wxCommandEvent& event );
-	void OnGridLibReviewSize( wxSizeEvent& event );
-    void OnLocalFolderChange( wxCommandEvent& event );
+    void OnDefault3DPathButtonClick( wxCommandEvent& event ) override;
+    void OnGridLibReviewSize( wxSizeEvent& event ) override;
+    void OnLocalFolderChange( wxCommandEvent& event ) override;
 
 protected:
     // Initialization of wizard pages
@@ -122,7 +127,12 @@ protected:
     // A callback function to filter 3D filenames
     static bool filter3dshapesfiles( const wxString& aData )
     {
-        return aData.Contains( wxT( ".wrl" ) ) || aData.Contains( wxT( ".wings" ) );
+        return aData.Contains( wxT( ".wrl" ) ) ||
+               aData.Contains( wxT( ".wings" ) ) ||
+               aData.Contains( wxT( ".stp" ) ) ||
+               aData.Contains( wxT( ".step" ) ) ||
+               aData.Contains( wxT( ".STP" ) ) ||
+               aData.Contains( wxT( ".STEP" ) );
     }
 
     // A callback function to filter 3D folders names

@@ -8,7 +8,7 @@
  *
  * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.com
  * Copyright (C) 2016 Wayne Stambaugh, stambaughw@gmail.com
- * Copyright (C) 2004-2016 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2018 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -89,8 +89,8 @@ DIALOG_EDIT_ONE_FIELD::DIALOG_EDIT_ONE_FIELD( SCH_BASE_FRAME* aParent, const wxS
     m_text = aTextItem->GetText();
     m_style = aTextItem->IsItalic() ? 1 : 0;
     m_style += aTextItem->IsBold() ? 2 : 0;
-    m_size = aTextItem->GetSize().x;
-    m_orientation = ( aTextItem->GetOrientation() == TEXT_ORIENT_VERT );
+    m_size = aTextItem->GetTextWidth();
+    m_orientation = ( aTextItem->GetTextAngle() == TEXT_ANGLE_VERT );
     m_verticalJustification = aTextItem->GetVertJustify() + 1;
     m_horizontalJustification = aTextItem->GetHorizJustify() + 1;
     m_isVisible = aTextItem->IsVisible();
@@ -142,8 +142,6 @@ void DIALOG_EDIT_ONE_FIELD::init()
 
     m_sdbSizerButtonsOK->SetDefault();
 
-    FixOSXCancelButtonIssue();
-
     // Now all widgets have the size fixed, call FinishDialogSettings
     FinishDialogSettings();
 }
@@ -152,7 +150,7 @@ void DIALOG_EDIT_ONE_FIELD::init()
 void DIALOG_EDIT_ONE_FIELD::OnTextValueSelectButtonClick( wxCommandEvent& aEvent )
 {
     // pick a footprint using the footprint picker.
-    wxString fpid;
+    wxString fpid = m_TextValue->GetValue();
 
     KIWAY_PLAYER* frame = Kiway().Player( FRAME_PCB_MODULE_VIEWER_MODAL, true );
 
@@ -167,9 +165,40 @@ void DIALOG_EDIT_ONE_FIELD::OnTextValueSelectButtonClick( wxCommandEvent& aEvent
 
 bool DIALOG_EDIT_ONE_FIELD::TransferDataToWindow()
 {
-    wxLogDebug( "In DIALOG_EDIT_ONE_FIELD::TransferDataToWindow()" );
-
     m_TextValue->SetValue( m_text );
+
+    if( m_fieldId == REFERENCE )
+    {
+        if( m_text.find_first_of( '?' ) != m_text.npos )
+        {
+            m_TextValue->SetSelection( m_text.find_first_of( '?' ),
+                                       m_text.find_last_of( '?' ) + 1 );
+        }
+        else
+        {
+            wxString num = m_text;
+
+            while( !num.IsEmpty() && ( !isdigit( num.Last() ) ||
+                                       !isdigit( num.GetChar( 0 ) ) ) )
+            {
+                if( !isdigit( num.Last() ) )
+                    num.RemoveLast();
+                if( !isdigit( num.GetChar ( 0 ) ) )
+                    num = num.Right( num.Length() - 1);
+            }
+
+            m_TextValue->SetSelection( m_text.Find( num ),
+                                       m_text.Find( num ) + num.Length() );
+
+            if( num.IsEmpty() )
+                m_TextValue->SetSelection( -1, -1 );
+        }
+    }
+    else
+    {
+        m_TextValue->SetSelection( -1, -1 );
+    }
+
     m_Orient->SetValue( m_orientation );
     m_TextSize->SetValue( StringFromValue( g_UserUnit, m_size ) );
     m_TextHJustificationOpt->SetSelection( m_horizontalJustification );
@@ -183,8 +212,6 @@ bool DIALOG_EDIT_ONE_FIELD::TransferDataToWindow()
 
 bool DIALOG_EDIT_ONE_FIELD::TransferDataFromWindow()
 {
-    wxLogDebug( "In DIALOG_EDIT_ONE_FIELD::TransferDataFromWindow()" );
-
     m_text = m_TextValue->GetValue();
 
     // There are lots of specific tests required to validate field text.
@@ -211,9 +238,9 @@ bool DIALOG_EDIT_ONE_FIELD::TransferDataFromWindow()
 
 void DIALOG_EDIT_ONE_FIELD::updateText( EDA_TEXT* aText )
 {
-    aText->SetSize( wxSize( m_size, m_size ) );
+    aText->SetTextSize( wxSize( m_size, m_size ) );
     aText->SetVisible( m_isVisible );
-    aText->SetOrientation( m_orientation ? TEXT_ORIENT_VERT : TEXT_ORIENT_HORIZ );
+    aText->SetTextAngle( m_orientation ? TEXT_ANGLE_VERT : TEXT_ANGLE_HORIZ );
     aText->SetItalic( (m_style & 1) != 0 );
     aText->SetBold( (m_style & 2) != 0 );
     aText->SetHorizJustify( IntToEdaTextHorizJustify( m_horizontalJustification - 1 ) );
@@ -246,12 +273,13 @@ DIALOG_SCH_EDIT_ONE_FIELD::DIALOG_SCH_EDIT_ONE_FIELD( SCH_BASE_FRAME* aParent,
     wxASSERT_MSG( component != NULL && component->Type() == SCH_COMPONENT_T,
                   wxT( "Invalid schematic field parent item." ) );
 
-    const LIB_PART* part = GetParent()->Prj().SchLibs()->FindLibPart( component->GetPartName() );
+    // The library symbol may have been removed so using SCH_COMPONENT::GetPartRef() here
+    // could result in a segfault.  If the library symbol is no longer available, the
+    // schematic fields can still edit so set the power symbol flag to false.  This may not
+    // be entirely accurate if the power library is missing but it's better then a segfault.
+    const LIB_PART* part = GetParent()->GetLibPart( component->GetLibId(), true );
 
-    wxASSERT_MSG( part, wxT( "Library part for component <" ) +
-                  component->GetPartName() + wxT( "> could not be found." ) );
-
-    m_isPower = part->IsPower();
+    m_isPower = ( part ) ? part->IsPower() : false;
 
     init();
 }
@@ -273,6 +301,25 @@ void DIALOG_SCH_EDIT_ONE_FIELD::UpdateField( SCH_FIELD* aField, SCH_SHEET_PATH* 
             component->SetRef( aSheetPath, m_text );
     }
 
+    bool modified = false;
+
+    modified = ( modified ||
+                 ( ( aField->GetTextAngle() == TEXT_ANGLE_VERT ) != m_orientation ) );
+
+    modified = ( modified ||
+                 ( ( aField->GetHorizJustify() !=
+                     IntToEdaTextHorizJustify( m_horizontalJustification - 1 ) ) ) );
+
+    modified = ( modified ||
+                 ( ( aField->GetVertJustify() !=
+                     IntToEdaTextVertJustify( m_verticalJustification - 1 ) ) ) );
+
     aField->SetText( m_text );
     updateText( aField );
+
+    if( modified )
+    {
+        auto component = static_cast< SCH_COMPONENT* >( aField->GetParent() );
+        component->ClearFieldsAutoplaced();
+    }
 }

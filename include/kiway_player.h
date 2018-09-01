@@ -1,11 +1,8 @@
-#ifndef KIWAY_PLAYER_H_
-#define KIWAY_PLAYER_H_
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2014 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2014 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,9 +22,12 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#ifndef KIWAY_PLAYER_H_
+#define KIWAY_PLAYER_H_
+
 #include <wx/frame.h>
 #include <vector>
-#include <wxstruct.h>
+#include <eda_base_frame.h>
 
 
 class KIWAY;
@@ -105,7 +105,11 @@ class WX_EVENT_LOOP;
  * EDA_BASE_FRAME would not have sufficed because BM2CMP_FRAME_BASE is not
  * derived from it.
  */
+#ifdef SWIG
+class KIWAY_PLAYER : public wxFrame, public KIWAY_HOLDER
+#else
 class KIWAY_PLAYER : public EDA_BASE_FRAME, public KIWAY_HOLDER
+#endif
 {
 public:
     KIWAY_PLAYER( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrameType,
@@ -118,7 +122,7 @@ public:
             const wxPoint& aPos, const wxSize& aSize, long aStyle,
             const wxString& aWdoName = wxFrameNameStr );
 
-    ~KIWAY_PLAYER();
+    ~KIWAY_PLAYER() throw();
 
     //----<Cross Module API>-----------------------------------------------------
 
@@ -175,6 +179,7 @@ public:
         return false;
     }
 
+
     /**
      * Function ShowModal
      * puts up this wxFrame as if it were a modal dialog, with all other instantiated
@@ -205,12 +210,12 @@ public:
     /**
      * Our version of Destroy() which is virtual from wxWidgets
      */
-    bool Destroy();
+    bool Destroy() override;
 
 protected:
 
     bool IsModal()                      { return m_modal; }
-    void SetModal( bool IsModal )       { m_modal = IsModal; }
+    void SetModal( bool aIsModal )       { m_modal = aIsModal; }
 
     /**
      * Function IsDismissed
@@ -231,6 +236,13 @@ protected:
      */
     void language_change( wxCommandEvent& event );
 
+    /**
+     * Function OnChangeIconsOptions
+     * is an event handler called on a icons options in menus or toolbars
+     * menu selection.
+     */
+    void OnChangeIconsOptions( wxCommandEvent& event ) override;
+
     // variables for modal behavior support, only used by a few derivatives.
     bool            m_modal;        // true if frame is intended to be modal, not modeless
     WX_EVENT_LOOP*  m_modal_loop;   // points to nested event_loop, NULL means not modal and dismissed
@@ -238,7 +250,9 @@ protected:
     wxString        m_modal_string;
     bool            m_modal_ret_val;    // true if a selection was made
 
+#ifndef SWIG
     DECLARE_EVENT_TABLE()
+#endif
 };
 
 

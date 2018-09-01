@@ -29,12 +29,13 @@
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
-#include <module_editor_frame.h>
+#include <pcb_edit_frame.h>
+#include <footprint_edit_frame.h>
 #include <pcbplot.h>
 
 #include <dialog_print_for_modedit_base.h>
 #include <printout_controler.h>
+#include <enabler.h>
 
 static double s_scaleList[] =
 { 0, 0.5, 0.7, 1.0, 1.4, 2.0, 3.0, 4.0, 8.0, 16.0 };
@@ -59,17 +60,27 @@ private:
     PCB_BASE_FRAME* m_parent;
     wxConfigBase*       m_config;
 
-    void OnCloseWindow( wxCloseEvent& event );
+    void OnCloseWindow( wxCloseEvent& event ) override;
 
     /// Open a dialog box for printer setup (printer options, page size ...)
-    void OnPageSetup( wxCommandEvent& event );
+    void OnPageSetup( wxCommandEvent& event ) override;
 
-    void OnPrintPreview( wxCommandEvent& event );
+    void OnPrintPreview( wxCommandEvent& event ) override;
 
     /// Called on activate Print button
-    void OnPrintButtonClick( wxCommandEvent& event );
+    void OnPrintButtonClick( wxCommandEvent& event ) override;
 
-    void OnButtonCancelClick( wxCommandEvent& event ) { Close(); }
+    void OnButtonCancelClick( wxCommandEvent& event ) override { Close(); }
+
+    void OnInitDlg( wxInitDialogEvent& event )
+    {
+        // Call the default wxDialog handler of a wxInitDialogEvent
+        TransferDataToWindow();
+
+        // Now all widgets have the size fixed, call FinishDialogSettings
+        FinishDialogSettings();
+    }
+
     void InitValues( );
 };
 
@@ -222,14 +233,16 @@ void DIALOG_PRINT_FOR_MODEDIT::OnPrintButtonClick( wxCommandEvent& event )
     wxPrintDialogData printDialogData( *s_PrintData );
     wxPrinter         printer( &printDialogData );
 
-    BOARD_PRINTOUT_CONTROLLER      printout( s_Parameters, m_parent, _( "Print Footprint" ) );
+    BOARD_PRINTOUT_CONTROLLER printout( s_Parameters, m_parent, _( "Print Footprint" ) );
+
+    // Disable 'Print' button to prevent issuing another print
+    // command before the previous one is finished (causes problems on Windows)
+    ENABLER printBtnDisable( *m_buttonPrint, false );
 
     if( !printer.Print( this, &printout, true ) )
     {
         if( wxPrinter::GetLastError() == wxPRINTER_ERROR )
             DisplayError( this, _( "There was a problem printing." ) );
-
-        return;
     }
     else
     {

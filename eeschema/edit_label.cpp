@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2004-2013 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,10 +30,10 @@
 #include <fctsys.h>
 #include <gr_basic.h>
 #include <base_struct.h>
-#include <drawtxt.h>
+#include <draw_graphic_text.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <schframe.h>
+#include <sch_edit_frame.h>
 #include <kicad_device_context.h>
 
 #include <general.h>
@@ -41,29 +41,25 @@
 #include <eeschema_id.h>
 
 
-static int       lastGlobalLabelShape = (int) NET_INPUT;
-static int       lastTextOrientation = 0;
-static bool      lastTextBold = false;
-static bool      lastTextItalic = false;
+static PINSHEETLABEL_SHAPE  lastGlobalLabelShape = NET_INPUT;
+static int                  lastTextOrientation = 0;
+static bool                 lastTextBold = false;
+static bool                 lastTextItalic = false;
 
 
-void SCH_EDIT_FRAME::ChangeTextOrient( SCH_TEXT* aTextItem, wxDC* aDC )
+void SCH_EDIT_FRAME::ChangeTextOrient( SCH_TEXT* aTextItem )
 {
     wxCHECK_RET( (aTextItem != NULL) && aTextItem->CanIncrementLabel(),
                  wxT( "Invalid schematic text item." )  );
 
-    int orient = ( aTextItem->GetOrientation() + 1 ) & 3;
+    int orient = ( aTextItem->GetLabelSpinStyle() + 1 ) & 3;
 
     // Save current text orientation in undo list if is not already in edit.
     if( aTextItem->GetFlags() == 0 )
         SaveCopyInUndoList( aTextItem, UR_CHANGED );
 
-    m_canvas->CrossHairOff( aDC );
-    aTextItem->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
-    aTextItem->SetOrientation( orient );
+    aTextItem->SetLabelSpinStyle( orient );
     OnModify();
-    aTextItem->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
-    m_canvas->CrossHairOn( aDC );
 }
 
 
@@ -100,8 +96,8 @@ SCH_TEXT* SCH_EDIT_FRAME::CreateNewText( wxDC* aDC, int aType )
 
     textItem->SetBold( lastTextBold );
     textItem->SetItalic( lastTextItalic );
-    textItem->SetOrientation( lastTextOrientation );
-    textItem->SetSize( wxSize( GetDefaultTextSize(), GetDefaultTextSize() ) );
+    textItem->SetLabelSpinStyle( lastTextOrientation );
+    textItem->SetTextSize( wxSize( GetDefaultTextSize(), GetDefaultTextSize() ) );
     textItem->SetFlags( IS_NEW | IS_MOVED );
 
     EditSchematicText( textItem );
@@ -114,7 +110,7 @@ SCH_TEXT* SCH_EDIT_FRAME::CreateNewText( wxDC* aDC, int aType )
 
     lastTextBold = textItem->IsBold();
     lastTextItalic = textItem->IsItalic();
-    lastTextOrientation = textItem->GetOrientation();
+    lastTextOrientation = textItem->GetLabelSpinStyle();
 
     if( ( textItem->Type() == SCH_GLOBAL_LABEL_T ) ||
         ( textItem->Type() == SCH_HIERARCHICAL_LABEL_T ) )
@@ -131,7 +127,7 @@ SCH_TEXT* SCH_EDIT_FRAME::CreateNewText( wxDC* aDC, int aType )
 
 
 /*
- * OnConvertTextType is a command event handler to change a text type to an other one.
+ * OnConvertTextType is a command event handler to change a text type to another one.
  * The new text, label, hierarchical label, or global label is created from the old text
  * The old text is deleted.
  * A tricky case is when the 'old" text is being edited (i.e. moving)
@@ -209,8 +205,8 @@ void SCH_EDIT_FRAME::OnConvertTextType( wxCommandEvent& aEvent )
      */
     newtext->SetFlags( text->GetFlags() );
     newtext->SetShape( text->GetShape() );
-    newtext->SetOrientation( text->GetOrientation() );
-    newtext->SetSize( text->GetSize() );
+    newtext->SetLabelSpinStyle( text->GetLabelSpinStyle() );
+    newtext->SetTextSize( text->GetTextSize() );
     newtext->SetThickness( text->GetThickness() );
     newtext->SetItalic( text->IsItalic() );
     newtext->SetBold( text->IsBold() );

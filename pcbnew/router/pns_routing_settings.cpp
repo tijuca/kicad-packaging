@@ -2,6 +2,7 @@
  * KiRouter - a push-and-(sometimes-)shove PCB router
  *
  * Copyright (C) 2013-2014 CERN
+ * Copyright (C) 2016 KiCad Developers, see AUTHORS.txt for contributors.
  * Author: Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -20,10 +21,13 @@
 
 #include <tool/tool_settings.h>
 
-#include "pns_routing_settings.h"
-#include "direction.h"
+#include <geometry/direction45.h>
 
-PNS_ROUTING_SETTINGS::PNS_ROUTING_SETTINGS()
+#include "pns_routing_settings.h"
+
+namespace PNS {
+
+ROUTING_SETTINGS::ROUTING_SETTINGS()
 {
     m_routingMode = RM_Walkaround;
     m_optimizerEffort = OE_MEDIUM;
@@ -41,10 +45,12 @@ PNS_ROUTING_SETTINGS::PNS_ROUTING_SETTINGS()
     m_canViolateDRC = false;
     m_freeAngleMode = false;
     m_inlineDragEnabled = false;
+    m_snapToTracks = false;
+    m_snapToPads = false;
 }
 
 
-void PNS_ROUTING_SETTINGS::Save( TOOL_SETTINGS& aSettings ) const
+void ROUTING_SETTINGS::Save( TOOL_SETTINGS& aSettings ) const
 {
     aSettings.Set( "Mode", (int) m_routingMode );
     aSettings.Set( "OptimizerEffort", (int) m_optimizerEffort );
@@ -64,7 +70,7 @@ void PNS_ROUTING_SETTINGS::Save( TOOL_SETTINGS& aSettings ) const
 }
 
 
-void PNS_ROUTING_SETTINGS::Load( const TOOL_SETTINGS& aSettings )
+void ROUTING_SETTINGS::Load( const TOOL_SETTINGS& aSettings )
 {
     m_routingMode = (PNS_MODE) aSettings.Get( "Mode", (int) RM_Walkaround );
     m_optimizerEffort = (PNS_OPTIMIZATION_EFFORT) aSettings.Get( "OptimizerEffort", (int) OE_MEDIUM );
@@ -84,7 +90,7 @@ void PNS_ROUTING_SETTINGS::Load( const TOOL_SETTINGS& aSettings )
 }
 
 
-const DIRECTION_45 PNS_ROUTING_SETTINGS::InitialDirection() const
+const DIRECTION_45 ROUTING_SETTINGS::InitialDirection() const
 {
     if( m_startDiagonal )
         return DIRECTION_45( DIRECTION_45::NE );
@@ -93,13 +99,15 @@ const DIRECTION_45 PNS_ROUTING_SETTINGS::InitialDirection() const
 }
 
 
-TIME_LIMIT PNS_ROUTING_SETTINGS::ShoveTimeLimit() const
+TIME_LIMIT ROUTING_SETTINGS::ShoveTimeLimit() const
 {
     return TIME_LIMIT ( m_shoveTimeLimit );
 }
 
 
-int PNS_ROUTING_SETTINGS::ShoveIterationLimit() const
+int ROUTING_SETTINGS::ShoveIterationLimit() const
 {
     return m_shoveIterationLimit;
+}
+
 }

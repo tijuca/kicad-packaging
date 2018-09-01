@@ -2,8 +2,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 Miguel Angel Ajo Pelayo, miguelangel@nbee.es
- * Copyright (C) 2012 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,15 +32,20 @@
 
 
 #include <wx/gdicmn.h>
-#include <class_footprint_wizard.h>
+#include <footprint_wizard.h>
 class wxSashLayoutWindow;
 class wxListBox;
 class wxGrid;
 class wxGridEvent;
 class FOOTPRINT_EDIT_FRAME;
 
-// A helper class to display messages when building a footprin
-class FOOTPRINT_WIZARD_MESSAGES;
+
+enum WizardParameterColumnNames
+{
+    WIZ_COL_NAME = 0,
+    WIZ_COL_VALUE,
+    WIZ_COL_UNITS
+};
 
 /**
  * Class FOOTPRINT_WIZARD_FRAME
@@ -48,16 +53,15 @@ class FOOTPRINT_WIZARD_MESSAGES;
 class FOOTPRINT_WIZARD_FRAME : public PCB_BASE_FRAME
 {
 private:
+    wxPanel*        m_parametersPanel;      ///< Panel for the page list and parameter grid
     wxListBox*      m_pageList;             ///< The list of pages
-    int             m_pageListWidth;        ///< width of the window
     wxGrid*         m_parameterGrid;        ///< The list of parameters
-    int             m_parameterGridWidth;   ///< size of the grid
-    FOOTPRINT_WIZARD_MESSAGES* m_messagesFrame;
+    int             m_parameterGridPage;    ///< the page currently displayed by m_parameterGrid
+                                            ///< it is most of time the m_pageList selection, but can differ
+                                            ///< during transitions between pages.
+    wxTextCtrl*     m_buildMessageBox;
 
-    // Column index to display parameters in m_parameterGrid
-    static int      m_columnPrmName;
-    static int      m_columnPrmValue;
-    static int      m_columnPrmUnit;
+    wxString        m_auiPerspective;       ///< Encoded string describing the AUI layout
 
 protected:
     wxString        m_wizardName;           ///< name of the current wizard
@@ -72,9 +76,18 @@ public:
 
     MODULE*             GetBuiltFootprint();
 
+    /**
+     * Reload the Python plugins if they are newer than
+     * the already loaded, and load new plugins if any
+     * Do nothing if KICAD_SCRIPTING is not defined
+     */
+    void PythonPluginsReload();
+
 private:
 
-    void                OnSize( wxSizeEvent& event );
+    void                OnSize( wxSizeEvent& event ) override;
+
+    void                OnGridSize( wxSizeEvent& aSizeEvent );
 
     /**
      * Function ExportSelectedFootprint();
@@ -102,6 +115,11 @@ private:
      * Creates the list of parameters for the current page
      */
     void                ReCreateParameterList();
+
+    /**
+     * Expand the 'Value' column to fill available
+     */
+    void                ResizeParamColumns();
 
     /**
      * Function initParameterGrid
@@ -143,30 +161,32 @@ private:
     void                DisplayWizardInfos();
 
 
-    void                RedrawActiveWindow( wxDC* DC, bool EraseBg );
-    void                OnCloseWindow( wxCloseEvent& Event );
-    void                ReCreateHToolbar();
-    void                ReCreateVToolbar();
-    void                OnLeftClick( wxDC* DC, const wxPoint& MousePos );
+    void                RedrawActiveWindow( wxDC* DC, bool EraseBg ) override;
+    void                OnCloseWindow( wxCloseEvent& Event ) override;
+    void                ReCreateHToolbar() override;
+    void                ReCreateVToolbar() override;
+    void                OnLeftClick( wxDC* DC, const wxPoint& MousePos ) override;
     void                ClickOnPageList( wxCommandEvent& event );
     void                OnSetRelativeOffset( wxCommandEvent& event );
 
-    bool                GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey = 0 );
+    bool                GeneralControl( wxDC* aDC, const wxPoint& aPosition, EDA_KEY aHotKey = 0 ) override;
 
-    void                LoadSettings( wxConfigBase* aCfg ); // override virtual
-    void                SaveSettings( wxConfigBase* aCfg ); // override virtual
+    void                LoadSettings( wxConfigBase* aCfg ) override;
+    void                SaveSettings( wxConfigBase* aCfg ) override;
 
     ///> @copydoc EDA_DRAW_FRAME::GetHotKeyDescription()
-    EDA_HOTKEY* GetHotKeyDescription( int ) const { return NULL; }
+    EDA_HOTKEY* GetHotKeyDescription( int aCommand ) const override { return NULL; }
 
     /**
      * Function OnActivate
      * is called when the frame frame is activate to reload the libraries and component lists
      * that can be changed by the schematic editor or the library editor.
      */
-    virtual void        OnActivate( wxActivateEvent& event );
+    virtual void        OnActivate( wxActivateEvent& event ) override;
 
     void                SelectCurrentWizard( wxCommandEvent& event );
+
+    void                DefaultParameters( wxCommandEvent& event );
 
     /**
      * Function ParametersUpdated
@@ -174,13 +194,13 @@ private:
      */
     void                ParametersUpdated( wxGridEvent& event );
 
-    bool                OnRightClick( const wxPoint& MousePos, wxMenu* PopMenu );
+    bool                OnRightClick( const wxPoint& MousePos, wxMenu* PopMenu ) override;
 
     /**
      * Function Show3D_Frame (virtual)
      * displays 3D view of the footprint (module) being edited.
      */
-    void                Show3D_Frame( wxCommandEvent& event );
+    void                Show3D_Frame( wxCommandEvent& event ) override;
 
     /**
      * Function Update3D_Frame
@@ -195,36 +215,14 @@ private:
      * Virtual functions, not used here, but needed by PCB_BASE_FRAME
      * (virtual pure functions )
      */
-    void OnLeftDClick( wxDC*, const wxPoint& ) {}
-    void SaveCopyInUndoList( BOARD_ITEM*, UNDO_REDO_T, const wxPoint& ) {}
-    void SaveCopyInUndoList( const PICKED_ITEMS_LIST&, UNDO_REDO_T, const wxPoint& ) {}
+    void OnLeftDClick( wxDC*, const wxPoint& ) override {}
+    void SaveCopyInUndoList( BOARD_ITEM*, UNDO_REDO_T, const wxPoint& ) override {}
+    void SaveCopyInUndoList( const PICKED_ITEMS_LIST&, UNDO_REDO_T, const wxPoint& ) override {}
 
 
     DECLARE_EVENT_TABLE()
 };
 
 
-// A miniframe to display messages from the builder
-class FOOTPRINT_WIZARD_MESSAGES: public wxMiniFrame
-{
-public:
-    FOOTPRINT_WIZARD_MESSAGES( FOOTPRINT_WIZARD_FRAME* aParent, wxConfigBase* aCfg );
-    ~FOOTPRINT_WIZARD_MESSAGES();
-    void PrintMessage( const wxString& aMessage );
-    void ClearScreen();
-    void SaveSettings();
-    void LoadSettings();
-
-private:
-    wxTextCtrl* m_messageWindow;
-    wxPoint m_position;
-    wxSize m_size;
-    wxConfigBase* m_config;
-    bool m_canClose;        // false to veto a close event, true to allow it
-
-    void OnCloseMsgWindow( wxCloseEvent& aEvent );
-
-    DECLARE_EVENT_TABLE()
-};
 
 #endif    // FOOTPRINT_WIZARD_FRM_H_

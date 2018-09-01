@@ -2,8 +2,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2010-2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2012-2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2012-2016 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 2012-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,241 +25,48 @@
 
 
 #include <fctsys.h>
-#include <wx/config.h>      // wxExpandEnvVars()
-#include <wx/filename.h>
-#include <wx/stdpaths.h>
-
-#include <set>
-
-//#include <pgm_base.h>
+#include <common.h>
 #include <kiface_i.h>
-#include <search_stack.h>
-#include <pcb_netlist.h>
-#include <reporter.h>
 #include <footprint_info.h>
-#include <wildcards_and_files_ext.h>
-#include <fpid.h>
-#include <fp_lib_table_lexer.h>
+#include <lib_id.h>
+#include <lib_table_lexer.h>
 #include <fp_lib_table.h>
 #include <class_module.h>
 
-using namespace FP_LIB_TABLE_T;
+#define OPT_SEP     '|'         ///< options separator character
+
+using namespace LIB_TABLE_T;
 
 
 static const wxChar global_tbl_name[] = wxT( "fp-lib-table" );
 
 
-void FP_LIB_TABLE::ROW::SetType( const wxString& aType )
+bool FP_LIB_TABLE_ROW::operator==( const FP_LIB_TABLE_ROW& aRow ) const
+{
+    return LIB_TABLE_ROW::operator == ( aRow ) && type == aRow.type;
+}
+
+
+void FP_LIB_TABLE_ROW::SetType( const wxString& aType )
 {
     type = IO_MGR::EnumFromStr( aType );
 
     if( IO_MGR::PCB_FILE_T( -1 ) == type )
-        type = IO_MGR::KICAD;
-}
-
-
-void FP_LIB_TABLE::ROW::SetFullURI( const wxString& aFullURI )
-{
-    uri_user = aFullURI;
-
-#if !FP_LATE_ENVVAR
-    uri_expanded = FP_LIB_TABLE::ExpandSubstitutions( aFullURI );
-#endif
-}
-
-
-const wxString FP_LIB_TABLE::ROW::GetFullURI( bool aSubstituted ) const
-{
-    if( aSubstituted )
-    {
-#if !FP_LATE_ENVVAR         // early expansion
-        return uri_expanded;
-
-#else   // late expansion
-        return FP_LIB_TABLE::ExpandSubstitutions( uri_user );
-#endif
-    }
-    else
-        return uri_user;
-}
-
-
-FP_LIB_TABLE::ROW::ROW( const ROW& a ) :
-    nickName( a.nickName ),
-    type( a.type ),
-    options( a.options ),
-    description( a.description ),
-    properties( 0 )
-{
-    // may call ExpandSubstitutions()
-    SetFullURI( a.uri_user );
-
-    if( a.properties )
-        properties = new PROPERTIES( *a.properties );
-}
-
-
-FP_LIB_TABLE::ROW& FP_LIB_TABLE::ROW::operator=( const ROW& r )
-{
-    nickName     = r.nickName;
-    type         = r.type;
-    options      = r.options;
-    description  = r.description;
-    properties   = r.properties ? new PROPERTIES( *r.properties ) : NULL;
-
-    // may call ExpandSubstitutions()
-    SetFullURI( r.uri_user );
-
-    // Do not copy the PLUGIN, it is lazily created.  Delete any existing
-    // destination plugin.
-    setPlugin( NULL );
-
-    return *this;
-}
-
-
-bool FP_LIB_TABLE::ROW::operator==( const ROW& r ) const
-{
-    return nickName == r.nickName
-        && uri_user == r.uri_user
-        && type == r.type
-        && options == r.options
-        && description == r.description
-        ;
+        type = IO_MGR::KICAD_SEXP;
 }
 
 
 FP_LIB_TABLE::FP_LIB_TABLE( FP_LIB_TABLE* aFallBackTable ) :
-    fallBack( aFallBackTable )
+    LIB_TABLE( aFallBackTable )
 {
     // not copying fall back, simply search aFallBackTable separately
     // if "nickName not found".
 }
 
 
-FP_LIB_TABLE::~FP_LIB_TABLE()
+void FP_LIB_TABLE::Parse( LIB_TABLE_LEXER* in )
 {
-    // *fallBack is not owned here.
-}
-
-
-wxArrayString FP_LIB_TABLE::FootprintEnumerate( const wxString& aNickname )
-{
-    const ROW* row = FindRow( aNickname );
-    wxASSERT( (PLUGIN*) row->plugin );
-    return row->plugin->FootprintEnumerate( row->GetFullURI( true ), row->GetProperties() );
-}
-
-
-MODULE* FP_LIB_TABLE::FootprintLoad( const wxString& aNickname, const wxString& aFootprintName )
-{
-    const ROW* row = FindRow( aNickname );
-    wxASSERT( (PLUGIN*) row->plugin );
-
-    MODULE* ret = row->plugin->FootprintLoad( row->GetFullURI( true ), aFootprintName, row->GetProperties() );
-
-    // The library cannot know its own name, because it might have been renamed or moved.
-    // Therefore footprints cannot know their own library nickname when residing in
-    // a footprint library.
-    // Only at this API layer can we tell the footprint about its actual library nickname.
-    if( ret )
-    {
-        // remove "const"-ness, I really do want to set nickname without
-        // having to copy the FPID and its two strings, twice each.
-        FPID& fpid = (FPID&) ret->GetFPID();
-
-        // Catch any misbehaving plugin, which should be setting internal footprint name properly:
-        wxASSERT( aFootprintName == (wxString) fpid.GetFootprintName() );
-
-        // and clearing nickname
-        wxASSERT( !fpid.GetLibNickname().size() );
-
-        fpid.SetLibNickname( row->GetNickName() );
-    }
-
-    return ret;
-}
-
-
-FP_LIB_TABLE::SAVE_T FP_LIB_TABLE::FootprintSave( const wxString& aNickname, const MODULE* aFootprint, bool aOverwrite )
-{
-    const ROW* row = FindRow( aNickname );
-    wxASSERT( (PLUGIN*) row->plugin );
-
-    if( !aOverwrite )
-    {
-        // Try loading the footprint to see if it already exists, caller wants overwrite
-        // protection, which is atypical, not the default.
-
-        wxString fpname = aFootprint->GetFPID().GetFootprintName();
-
-        std::auto_ptr<MODULE>   m( row->plugin->FootprintLoad( row->GetFullURI( true ), fpname, row->GetProperties() ) );
-
-        if( m.get() )
-            return SAVE_SKIPPED;
-    }
-
-    row->plugin->FootprintSave( row->GetFullURI( true ), aFootprint, row->GetProperties() );
-
-    return SAVE_OK;
-}
-
-
-void FP_LIB_TABLE::FootprintDelete( const wxString& aNickname, const wxString& aFootprintName )
-{
-    const ROW* row = FindRow( aNickname );
-    wxASSERT( (PLUGIN*) row->plugin );
-    return row->plugin->FootprintDelete( row->GetFullURI( true ), aFootprintName, row->GetProperties() );
-}
-
-
-bool FP_LIB_TABLE::IsFootprintLibWritable( const wxString& aNickname )
-{
-    const ROW* row = FindRow( aNickname );
-    wxASSERT( (PLUGIN*) row->plugin );
-    return row->plugin->IsFootprintLibWritable( row->GetFullURI( true ) );
-}
-
-
-void FP_LIB_TABLE::FootprintLibDelete( const wxString& aNickname )
-{
-    const ROW* row = FindRow( aNickname );
-    wxASSERT( (PLUGIN*) row->plugin );
-    row->plugin->FootprintLibDelete( row->GetFullURI( true ), row->GetProperties() );
-}
-
-
-void FP_LIB_TABLE::FootprintLibCreate( const wxString& aNickname )
-{
-    const ROW* row = FindRow( aNickname );
-    wxASSERT( (PLUGIN*) row->plugin );
-    row->plugin->FootprintLibCreate( row->GetFullURI( true ), row->GetProperties() );
-}
-
-
-const wxString FP_LIB_TABLE::GetDescription( const wxString& aNickname )
-{
-    // use "no exception" form of find row:
-    const ROW* row = findRow( aNickname );
-    if( row )
-        return row->description;
-    else
-        return wxEmptyString;
-}
-
-
-void FP_LIB_TABLE::Parse( FP_LIB_TABLE_LEXER* in ) throw( IO_ERROR, PARSE_ERROR )
-{
-    /*
-        (fp_lib_table
-            (lib (name NICKNAME)(descr DESCRIPTION)(type TYPE)(full_uri FULL_URI)(options OPTIONS))
-            :
-        )
-
-        Elements after (name) are order independent.
-    */
-
-    T       tok;
+    T        tok;
     wxString errMsg;    // to collect error messages
 
     // This table may be nested within a larger s-expression, or not.
@@ -267,19 +74,23 @@ void FP_LIB_TABLE::Parse( FP_LIB_TABLE_LEXER* in ) throw( IO_ERROR, PARSE_ERROR 
     if( in->CurTok() != T_fp_lib_table )
     {
         in->NeedLEFT();
+
         if( ( tok = in->NextTok() ) != T_fp_lib_table )
             in->Expecting( T_fp_lib_table );
     }
 
     while( ( tok = in->NextTok() ) != T_RIGHT )
     {
-        ROW     row;        // reconstructed for each row in input stream.
+        std::unique_ptr< FP_LIB_TABLE_ROW > row( new FP_LIB_TABLE_ROW );
 
         if( tok == T_EOF )
             in->Expecting( T_RIGHT );
 
         if( tok != T_LEFT )
             in->Expecting( T_LEFT );
+
+        // in case there is a "row integrity" error, tell where later.
+        int lineNum = in->CurLineNumber();
 
         if( ( tok = in->NextTok() ) != T_lib )
             in->Expecting( T_lib );
@@ -292,16 +103,17 @@ void FP_LIB_TABLE::Parse( FP_LIB_TABLE_LEXER* in ) throw( IO_ERROR, PARSE_ERROR 
 
         in->NeedSYMBOLorNUMBER();
 
-        row.SetNickName( in->FromUTF8() );
+        row->SetNickName( in->FromUTF8() );
 
         in->NeedRIGHT();
 
         // After (name), remaining (lib) elements are order independent, and in
         // some cases optional.
-        bool    sawType = false;
-        bool    sawOpts = false;
-        bool    sawDesc = false;
-        bool    sawUri  = false;
+        bool    sawType     = false;
+        bool    sawOpts     = false;
+        bool    sawDesc     = false;
+        bool    sawUri      = false;
+        bool    sawDisabled = false;
 
         while( ( tok = in->NextTok() ) != T_RIGHT )
         {
@@ -320,17 +132,7 @@ void FP_LIB_TABLE::Parse( FP_LIB_TABLE_LEXER* in ) throw( IO_ERROR, PARSE_ERROR 
                     in->Duplicate( tok );
                 sawUri = true;
                 in->NeedSYMBOLorNUMBER();
-                // Saved path and file names use the Unix notation (separator = '/')
-                // However old files, and files edited by hand can use the windows
-                // separator. Force the unix notation.
-                // (It works on windows, and moreover, wxFileName and wxDir takes care to that
-                // on windows)
-                // moreover, URLs use the '/' as separator
-                {
-                wxString uri = in->FromUTF8();
-                uri.Replace( '\\', '/' );
-                row.SetFullURI( uri );
-                }
+                row->SetFullURI( in->FromUTF8() );
                 break;
 
             case T_type:
@@ -338,7 +140,7 @@ void FP_LIB_TABLE::Parse( FP_LIB_TABLE_LEXER* in ) throw( IO_ERROR, PARSE_ERROR 
                     in->Duplicate( tok );
                 sawType = true;
                 in->NeedSYMBOLorNUMBER();
-                row.SetType( in->FromUTF8() );
+                row->SetType( in->FromUTF8() );
                 break;
 
             case T_options:
@@ -346,7 +148,7 @@ void FP_LIB_TABLE::Parse( FP_LIB_TABLE_LEXER* in ) throw( IO_ERROR, PARSE_ERROR 
                     in->Duplicate( tok );
                 sawOpts = true;
                 in->NeedSYMBOLorNUMBER();
-                row.SetOptions( in->FromUTF8() );
+                row->SetOptions( in->FromUTF8() );
                 break;
 
             case T_descr:
@@ -354,7 +156,14 @@ void FP_LIB_TABLE::Parse( FP_LIB_TABLE_LEXER* in ) throw( IO_ERROR, PARSE_ERROR 
                     in->Duplicate( tok );
                 sawDesc = true;
                 in->NeedSYMBOLorNUMBER();
-                row.SetDescr( in->FromUTF8() );
+                row->SetDescr( in->FromUTF8() );
+                break;
+
+            case T_disabled:
+                if( sawDisabled )
+                    in->Duplicate( tok );
+                sawDisabled = true;
+                row->SetEnabled( false );
                 break;
 
             default:
@@ -374,11 +183,18 @@ void FP_LIB_TABLE::Parse( FP_LIB_TABLE_LEXER* in ) throw( IO_ERROR, PARSE_ERROR 
         // use doReplace in InsertRow().  (However a fallBack table can have a
         // conflicting nickName and ours will supercede that one since in
         // FindLib() we search this table before any fall back.)
-        if( !InsertRow( row ) )
+        wxString nickname = row->GetNickName(); // store it to be able to used it
+                                                // after row deletion if an error occurs
+        LIB_TABLE_ROW* tmp = row.release();
+
+        if( !InsertRow( tmp ) )
         {
+            delete tmp;     // The table did not take ownership of the row.
+
             wxString msg = wxString::Format(
-                                _( "'%s' is a duplicate footprint library nickName" ),
-                                GetChars( row.nickName ) );
+                                _( "Duplicate library nickname \"%s\" found in footprint library "
+                                   "table file line %d" ), GetChars( nickname ), lineNum );
+
             if( !errMsg.IsEmpty() )
                 errMsg << '\n';
 
@@ -391,235 +207,16 @@ void FP_LIB_TABLE::Parse( FP_LIB_TABLE_LEXER* in ) throw( IO_ERROR, PARSE_ERROR 
 }
 
 
-void FP_LIB_TABLE::Format( OUTPUTFORMATTER* out, int nestLevel ) const
-    throw( IO_ERROR, boost::interprocess::lock_exception )
+bool FP_LIB_TABLE::operator==( const FP_LIB_TABLE& aFpTable ) const
 {
-    out->Print( nestLevel, "(fp_lib_table\n" );
-
-    for( ROWS_CITER it = rows.begin();  it != rows.end();  ++it )
-        it->Format( out, nestLevel+1 );
-
-    out->Print( nestLevel, ")\n" );
-}
-
-
-void FP_LIB_TABLE::ROW::Format( OUTPUTFORMATTER* out, int nestLevel ) const
-    throw( IO_ERROR, boost::interprocess::lock_exception )
-{
-    // In Kicad, we save path and file names using the Unix notation (separator = '/')
-    // So ensure separator is always '/' is saved URI string
-    wxString uri = GetFullURI();
-    uri.Replace( '\\', '/' );
-
-    out->Print( nestLevel, "(lib (name %s)(type %s)(uri %s)(options %s)(descr %s))\n",
-                out->Quotew( GetNickName() ).c_str(),
-                out->Quotew( GetType() ).c_str(),
-                out->Quotew( uri ).c_str(),
-                out->Quotew( GetOptions() ).c_str(),
-                out->Quotew( GetDescr() ).c_str()
-                );
-}
-
-#define OPT_SEP     '|'         ///< options separator character
-
-PROPERTIES* FP_LIB_TABLE::ParseOptions( const std::string& aOptionsList )
-{
-    if( aOptionsList.size() )
+    if( rows.size() == aFpTable.rows.size() )
     {
-        const char* cp  = &aOptionsList[0];
-        const char* end = cp + aOptionsList.size();
-
-        PROPERTIES  props;
-        std::string pair;
-
-        // Parse all name=value pairs
-        while( cp < end )
+        for( unsigned i = 0; i < rows.size();  ++i )
         {
-            pair.clear();
-
-            // Skip leading white space.
-            while( cp < end && isspace( *cp )  )
-                ++cp;
-
-            // Find the end of pair/field
-            while( cp < end )
-            {
-                if( *cp=='\\'  &&  cp+1<end  &&  cp[1]==OPT_SEP  )
-                {
-                    ++cp;           // skip the escape
-                    pair += *cp++;  // add the separator
-                }
-                else if( *cp==OPT_SEP )
-                {
-                    ++cp;           // skip the separator
-                    break;          // process the pair
-                }
-                else
-                    pair += *cp++;
-            }
-
-            // stash the pair
-            if( pair.size() )
-            {
-                // first equals sign separates 'name' and 'value'.
-                size_t  eqNdx = pair.find( '=' );
-                if( eqNdx != pair.npos )
-                {
-                    std::string name  = pair.substr( 0, eqNdx );
-                    std::string value = pair.substr( eqNdx + 1 );
-                    props[name] = value;
-                }
-                else
-                    props[pair] = "";       // property is present, but with no value.
-            }
+            if( (FP_LIB_TABLE_ROW&)rows[i] != (FP_LIB_TABLE_ROW&)aFpTable.rows[i] )
+                return false;
         }
 
-        if( props.size() )
-            return new PROPERTIES( props );
-    }
-    return NULL;
-}
-
-
-UTF8 FP_LIB_TABLE::FormatOptions( const PROPERTIES* aProperties )
-{
-    UTF8 ret;
-
-    if( aProperties )
-    {
-        for( PROPERTIES::const_iterator it = aProperties->begin();  it != aProperties->end();  ++it )
-        {
-            const std::string& name  = it->first;
-
-            const UTF8& value = it->second;
-
-            if( ret.size() )
-                ret += OPT_SEP;
-
-            ret += name;
-
-            // the separation between name and value is '='
-            if( value.size() )
-            {
-                ret += '=';
-
-                for( std::string::const_iterator si = value.begin();  si != value.end();  ++si )
-                {
-                    // escape any separator in the value.
-                    if( *si == OPT_SEP )
-                        ret += '\\';
-
-                    ret += *si;
-                }
-            }
-        }
-    }
-
-    return ret;
-}
-
-
-std::vector<wxString> FP_LIB_TABLE::GetLogicalLibs()
-{
-    // Only return unique logical library names.  Use std::set::insert() to
-    // quietly reject any duplicates, which can happen when encountering a duplicate
-    // nickname from one of the fall back table(s).
-
-    std::set<wxString>          unique;
-    std::vector<wxString>       ret;
-    const FP_LIB_TABLE*         cur = this;
-
-    do
-    {
-        for( ROWS_CITER it = cur->rows.begin();  it!=cur->rows.end();  ++it )
-        {
-            unique.insert( it->nickName );
-        }
-
-    } while( ( cur = cur->fallBack ) != 0 );
-
-    ret.reserve( unique.size() );
-
-    // DBG(printf( "%s: count:%zd\n", __func__, unique.size() );)
-
-    // return a sorted, unique set of nicknames in a std::vector<wxString> to caller
-    for( std::set<wxString>::const_iterator it = unique.begin();  it!=unique.end();  ++it )
-    {
-        //DBG(printf( " %s\n", TO_UTF8( *it ) );)
-        ret.push_back( *it );
-    }
-
-    return ret;
-}
-
-
-FP_LIB_TABLE::ROW* FP_LIB_TABLE::findRow( const wxString& aNickName ) const
-{
-    FP_LIB_TABLE* cur = (FP_LIB_TABLE*) this;
-
-    do
-    {
-        cur->ensureIndex();
-
-        INDEX_CITER  it = cur->nickIndex.find( aNickName );
-
-        if( it != cur->nickIndex.end() )
-        {
-            return &cur->rows[it->second];  // found
-        }
-
-        // not found, search fall back table(s), if any
-    } while( ( cur = cur->fallBack ) != 0 );
-
-    return 0;   // not found
-}
-
-
-const FP_LIB_TABLE::ROW* FP_LIB_TABLE::FindRowByURI( const wxString& aURI )
-{
-    FP_LIB_TABLE* cur = this;
-
-    do
-    {
-        cur->ensureIndex();
-
-        for( unsigned i = 0;  i < cur->rows.size();  i++ )
-        {
-            wxString uri = cur->rows[i].GetFullURI( true );
-
-            if( wxFileName::GetPathSeparator() == wxChar( '\\' ) && uri.Find( wxChar( '/' ) ) >= 0 )
-                uri.Replace( wxT( "/" ), wxT( "\\" ) );
-
-            if( (wxFileName::IsCaseSensitive() && uri == aURI)
-              || (!wxFileName::IsCaseSensitive() && uri.Upper() == aURI.Upper() ) )
-            {
-                return &cur->rows[i];  // found
-            }
-        }
-
-        // not found, search fall back table(s), if any
-    } while( ( cur = cur->fallBack ) != 0 );
-
-    return 0;   // not found
-}
-
-
-bool FP_LIB_TABLE::InsertRow( const ROW& aRow, bool doReplace )
-{
-    ensureIndex();
-
-    INDEX_CITER it = nickIndex.find( aRow.nickName );
-
-    if( it == nickIndex.end() )
-    {
-        rows.push_back( aRow );
-        nickIndex.insert( INDEX_VALUE( aRow.nickName, rows.size() - 1 ) );
-        return true;
-    }
-
-    if( doReplace )
-    {
-        rows[it->second] = aRow;
         return true;
     }
 
@@ -627,22 +224,74 @@ bool FP_LIB_TABLE::InsertRow( const ROW& aRow, bool doReplace )
 }
 
 
-const FP_LIB_TABLE::ROW* FP_LIB_TABLE::FindRow( const wxString& aNickname )
-    throw( IO_ERROR )
+void FP_LIB_TABLE::Format( OUTPUTFORMATTER* aOutput, int aIndentLevel ) const
 {
-    ROW* row = findRow( aNickname );
+    aOutput->Print( aIndentLevel, "(fp_lib_table\n" );
+
+    for( LIB_TABLE_ROWS_CITER it = rows.begin();  it != rows.end();  ++it )
+        it->Format( aOutput, aIndentLevel+1 );
+
+    aOutput->Print( aIndentLevel, ")\n" );
+}
+
+
+long long FP_LIB_TABLE::GenerateTimestamp( const wxString* aNickname )
+{
+    if( aNickname )
+    {
+        const FP_LIB_TABLE_ROW* row = FindRow( *aNickname );
+        wxASSERT( (PLUGIN*) row->plugin );
+        return row->plugin->GetLibraryTimestamp( row->GetFullURI( true ) ) + wxHashTable::MakeKey( *aNickname );
+    }
+
+    long long hash = 0;
+    for( wxString const& nickname : GetLogicalLibs() )
+    {
+        const FP_LIB_TABLE_ROW* row = FindRow( nickname );
+        wxASSERT( (PLUGIN*) row->plugin );
+        hash += row->plugin->GetLibraryTimestamp( row->GetFullURI( true ) ) + wxHashTable::MakeKey( nickname );
+    }
+
+    return hash;
+}
+
+
+void FP_LIB_TABLE::FootprintEnumerate( wxArrayString& aFootprintNames, const wxString& aNickname )
+{
+    const FP_LIB_TABLE_ROW* row = FindRow( aNickname );
+    wxASSERT( (PLUGIN*) row->plugin );
+    row->plugin->FootprintEnumerate( aFootprintNames, row->GetFullURI( true ),
+                                     row->GetProperties() );
+}
+
+
+void FP_LIB_TABLE::PrefetchLib( const wxString& aNickname )
+{
+    const FP_LIB_TABLE_ROW* row = FindRow( aNickname );
+    wxASSERT( (PLUGIN*) row->plugin );
+    row->plugin->PrefetchLib( row->GetFullURI( true ), row->GetProperties() );
+}
+
+
+const FP_LIB_TABLE_ROW* FP_LIB_TABLE::FindRow( const wxString& aNickname )
+{
+    // Do not optimize this code.  Is done this way specifically to fix a runtime
+    // error with clang 4.0.1.
+    LIB_TABLE_ROW* ltrow = findRow( aNickname );
+    FP_LIB_TABLE_ROW* row = dynamic_cast< FP_LIB_TABLE_ROW* >( ltrow );
 
     if( !row )
     {
         wxString msg = wxString::Format(
-            _( "fp-lib-table files contain no lib with nickname '%s'" ),
+            _( "fp-lib-table files contain no library with nickname \"%s\"" ),
             GetChars( aNickname ) );
 
         THROW_IO_ERROR( msg );
     }
 
     // We've been 'lazy' up until now, but it cannot be deferred any longer,
-    // instantiate a PLUGIN of the proper kind if it is not already in this ROW.
+    // instantiate a PLUGIN of the proper kind if it is not already in this
+    // FP_LIB_TABLE_ROW.
     if( !row->plugin )
         row->setPlugin( IO_MGR::PluginFind( row->type ) );
 
@@ -650,43 +299,122 @@ const FP_LIB_TABLE::ROW* FP_LIB_TABLE::FindRow( const wxString& aNickname )
 }
 
 
-// wxGetenv( wchar_t* ) is not re-entrant on linux.
-// Put a lock on multithreaded use of wxGetenv( wchar_t* ), called from wxEpandEnvVars(),
-// needed by bool ReadFootprintFiles( FP_LIB_TABLE* aTable, const wxString* aNickname = NULL );
-#include <ki_mutex.h>
-
-const wxString FP_LIB_TABLE::ExpandSubstitutions( const wxString& aString )
+static void setLibNickname( MODULE* aModule,
+                            const wxString& aNickname, const wxString& aFootprintName )
 {
-// Duplicate code: the same is now in common.cpp, due to the fact it is used
-// in many other places than FP_LIB_TABLE
-#if 0
-    static MUTEX    getenv_mutex;
+    // The library cannot know its own name, because it might have been renamed or moved.
+    // Therefore footprints cannot know their own library nickname when residing in
+    // a footprint library.
+    // Only at this API layer can we tell the footprint about its actual library nickname.
+    if( aModule )
+    {
+        // remove "const"-ness, I really do want to set nickname without
+        // having to copy the LIB_ID and its two strings, twice each.
+        LIB_ID& fpid = (LIB_ID&) aModule->GetFPID();
 
-    MUTLOCK lock( getenv_mutex );
+        // Catch any misbehaving plugin, which should be setting internal footprint name properly:
+        wxASSERT( aFootprintName == fpid.GetLibItemName().wx_str() );
 
-    // We reserve the right to do this another way, by providing our own member
-    // function.
-    return wxExpandEnvVars( aString );
-#else
-    return ExpandEnvVarSubstitutions( aString );
-#endif
+        // and clearing nickname
+        wxASSERT( !fpid.GetLibNickname().size() );
+
+        fpid.SetLibNickname( aNickname );
+    }
 }
 
 
-bool FP_LIB_TABLE::IsEmpty( bool aIncludeFallback )
+MODULE* FP_LIB_TABLE::LoadEnumeratedFootprint( const wxString& aNickname,
+                                               const wxString& aFootprintName )
 {
-    if( !aIncludeFallback || !fallBack )
-        return rows.empty();
+    const FP_LIB_TABLE_ROW* row = FindRow( aNickname );
+    wxASSERT( (PLUGIN*) row->plugin );
 
-    return rows.empty() && fallBack->IsEmpty( true );
+    MODULE* ret = row->plugin->LoadEnumeratedFootprint( row->GetFullURI( true ), aFootprintName,
+                                                        row->GetProperties() );
+
+    setLibNickname( ret, row->GetNickName(), aFootprintName );
+
+    return ret;
 }
 
 
-MODULE* FP_LIB_TABLE::FootprintLoadWithOptionalNickname( const FPID& aFootprintId )
-    throw( IO_ERROR, PARSE_ERROR, boost::interprocess::lock_exception )
+MODULE* FP_LIB_TABLE::FootprintLoad( const wxString& aNickname, const wxString& aFootprintName )
+{
+    const FP_LIB_TABLE_ROW* row = FindRow( aNickname );
+    wxASSERT( (PLUGIN*) row->plugin );
+
+    MODULE* ret = row->plugin->FootprintLoad( row->GetFullURI( true ), aFootprintName,
+                                              row->GetProperties() );
+
+    setLibNickname( ret, row->GetNickName(), aFootprintName );
+
+    return ret;
+}
+
+
+FP_LIB_TABLE::SAVE_T FP_LIB_TABLE::FootprintSave( const wxString& aNickname,
+                                                  const MODULE* aFootprint, bool aOverwrite )
+{
+    const FP_LIB_TABLE_ROW* row = FindRow( aNickname );
+    wxASSERT( (PLUGIN*) row->plugin );
+
+    if( !aOverwrite )
+    {
+        // Try loading the footprint to see if it already exists, caller wants overwrite
+        // protection, which is atypical, not the default.
+
+        wxString fpname = aFootprint->GetFPID().GetLibItemName();
+
+        std::unique_ptr<MODULE> footprint( row->plugin->FootprintLoad( row->GetFullURI( true ),
+                                           fpname, row->GetProperties() ) );
+
+        if( footprint.get() )
+            return SAVE_SKIPPED;
+    }
+
+    row->plugin->FootprintSave( row->GetFullURI( true ), aFootprint, row->GetProperties() );
+
+    return SAVE_OK;
+}
+
+
+void FP_LIB_TABLE::FootprintDelete( const wxString& aNickname, const wxString& aFootprintName )
+{
+    const FP_LIB_TABLE_ROW* row = FindRow( aNickname );
+    wxASSERT( (PLUGIN*) row->plugin );
+    return row->plugin->FootprintDelete( row->GetFullURI( true ), aFootprintName,
+                                         row->GetProperties() );
+}
+
+
+bool FP_LIB_TABLE::IsFootprintLibWritable( const wxString& aNickname )
+{
+    const FP_LIB_TABLE_ROW* row = FindRow( aNickname );
+    wxASSERT( (PLUGIN*) row->plugin );
+    return row->plugin->IsFootprintLibWritable( row->GetFullURI( true ) );
+}
+
+
+void FP_LIB_TABLE::FootprintLibDelete( const wxString& aNickname )
+{
+    const FP_LIB_TABLE_ROW* row = FindRow( aNickname );
+    wxASSERT( (PLUGIN*) row->plugin );
+    row->plugin->FootprintLibDelete( row->GetFullURI( true ), row->GetProperties() );
+}
+
+
+void FP_LIB_TABLE::FootprintLibCreate( const wxString& aNickname )
+{
+    const FP_LIB_TABLE_ROW* row = FindRow( aNickname );
+    wxASSERT( (PLUGIN*) row->plugin );
+    row->plugin->FootprintLibCreate( row->GetFullURI( true ), row->GetProperties() );
+}
+
+
+MODULE* FP_LIB_TABLE::FootprintLoadWithOptionalNickname( const LIB_ID& aFootprintId )
 {
     wxString   nickname = aFootprintId.GetLibNickname();
-    wxString   fpname   = aFootprintId.GetFootprintName();
+    wxString   fpname   = aFootprintId.GetLibItemName();
 
     if( nickname.size() )
     {
@@ -699,11 +427,12 @@ MODULE* FP_LIB_TABLE::FootprintLoadWithOptionalNickname( const FPID& aFootprintI
         std::vector<wxString> nicks = GetLogicalLibs();
 
         // Search each library going through libraries alphabetically.
-        for( unsigned i = 0;  i<nicks.size();  ++i )
+        for( unsigned i = 0;  i < nicks.size();  ++i )
         {
             // FootprintLoad() returns NULL on not found, does not throw exception
             // unless there's an IO_ERROR.
             MODULE* ret = FootprintLoad( nicks[i], fpname );
+
             if( ret )
                 return ret;
         }
@@ -715,12 +444,11 @@ MODULE* FP_LIB_TABLE::FootprintLoadWithOptionalNickname( const FPID& aFootprintI
 
 const wxString FP_LIB_TABLE::GlobalPathEnvVariableName()
 {
-    return  wxT( "KISYSMOD" );
+    return  "KISYSMOD";
 }
 
 
 bool FP_LIB_TABLE::LoadGlobalTable( FP_LIB_TABLE& aTable )
-    throw (IO_ERROR, PARSE_ERROR, boost::interprocess::lock_exception )
 {
     bool        tableExists = true;
     wxFileName  fn = GetGlobalTableFileName();
@@ -731,7 +459,7 @@ bool FP_LIB_TABLE::LoadGlobalTable( FP_LIB_TABLE& aTable )
 
         if( !fn.DirExists() && !fn.Mkdir( 0x777, wxPATH_MKDIR_FULL ) )
         {
-            THROW_IO_ERROR( wxString::Format( _( "Cannot create global library table path '%s'." ),
+            THROW_IO_ERROR( wxString::Format( _( "Cannot create global library table path \"%s\"." ),
                                               GetChars( fn.GetPath() ) ) );
         }
 
@@ -763,27 +491,3 @@ wxString FP_LIB_TABLE::GetGlobalTableFileName()
 
     return fn.GetFullPath();
 }
-
-// prefer wxString filename so it can be seen in a debugger easier than wxFileName.
-
-void FP_LIB_TABLE::Load( const wxString& aFileName )
-    throw( IO_ERROR )
-{
-    // It's OK if footprint library tables are missing.
-    if( wxFileName::IsFileReadable( aFileName ) )
-    {
-        FILE_LINE_READER    reader( aFileName );
-        FP_LIB_TABLE_LEXER  lexer( &reader );
-
-        Parse( &lexer );
-    }
-}
-
-
-void FP_LIB_TABLE::Save( const wxString& aFileName )
-    const throw( IO_ERROR, boost::interprocess::lock_exception )
-{
-    FILE_OUTPUTFORMATTER sf( aFileName );
-    Format( &sf, 0 );
-}
-

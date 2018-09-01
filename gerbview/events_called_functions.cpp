@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2011-2014 Jean-Pierre Charras  jp.charras at wanadoo.fr
- * Copyright (C) 1992-2014 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,19 +30,24 @@
 #include <fctsys.h>
 #include <pgm_base.h>
 #include <class_drawpanel.h>
-#include <confirm.h>
-#include <common.h>
 #include <gestfich.h>
 
 #include <gerbview.h>
 #include <gerbview_frame.h>
 #include <kicad_device_context.h>
 #include <gerbview_id.h>
-#include <class_GERBER.h>
+#include <gerber_file_image.h>
+#include <gerber_file_image_list.h>
 #include <dialog_helpers.h>
-#include <class_DCodeSelectionbox.h>
-#include <class_gerbview_layer_widget.h>
+#include <DCodeSelectionbox.h>
+#include <gerbview_layer_widget.h>
 #include <dialog_show_page_borders.h>
+
+#include <gerbview_draw_panel_gal.h>
+#include <gal/graphics_abstraction_layer.h>
+#include <tool/tool_manager.h>
+#include <gerbview_painter.h>
+#include <view/view.h>
 
 
 // Event table:
@@ -54,18 +59,26 @@ BEGIN_EVENT_TABLE( GERBVIEW_FRAME, EDA_DRAW_FRAME )
     EVT_TOOL( wxID_FILE, GERBVIEW_FRAME::Files_io )
     EVT_TOOL( ID_GERBVIEW_ERASE_ALL, GERBVIEW_FRAME::Files_io )
     EVT_TOOL( ID_GERBVIEW_LOAD_DRILL_FILE, GERBVIEW_FRAME::Files_io )
+    EVT_TOOL( ID_GERBVIEW_LOAD_ZIP_ARCHIVE_FILE, GERBVIEW_FRAME::Files_io )
+    EVT_TOOL( ID_GERBVIEW_LOAD_JOB_FILE, GERBVIEW_FRAME::Files_io )
     EVT_TOOL( ID_NEW_BOARD, GERBVIEW_FRAME::Files_io )
     EVT_TOOL( ID_GERBVIEW_SET_PAGE_BORDER, GERBVIEW_FRAME::Process_Special_Functions )
 
     // Menu Files:
     EVT_MENU( wxID_FILE, GERBVIEW_FRAME::Files_io )
     EVT_MENU( ID_NEW_BOARD, GERBVIEW_FRAME::Files_io )
-    EVT_MENU( ID_GEN_PLOT, GERBVIEW_FRAME::ToPlotter )
     EVT_MENU( ID_GERBVIEW_EXPORT_TO_PCBNEW, GERBVIEW_FRAME::ExportDataInPcbnewFormat )
 
     EVT_MENU_RANGE( wxID_FILE1, wxID_FILE9, GERBVIEW_FRAME::OnGbrFileHistory )
+
     EVT_MENU_RANGE( ID_GERBVIEW_DRILL_FILE1, ID_GERBVIEW_DRILL_FILE9,
                     GERBVIEW_FRAME::OnDrlFileHistory )
+
+    EVT_MENU_RANGE( ID_GERBVIEW_ZIP_FILE1, ID_GERBVIEW_ZIP_FILE9,
+                    GERBVIEW_FRAME::OnZipFileHistory )
+
+    EVT_MENU_RANGE( ID_GERBVIEW_JOB_FILE1, ID_GERBVIEW_JOB_FILE9,
+                    GERBVIEW_FRAME::OnJobFileHistory )
 
     EVT_MENU( wxID_EXIT, GERBVIEW_FRAME::OnQuit )
 
@@ -73,9 +86,13 @@ BEGIN_EVENT_TABLE( GERBVIEW_FRAME, EDA_DRAW_FRAME )
     EVT_MENU_RANGE( ID_PREFERENCES_HOTKEY_START, ID_PREFERENCES_HOTKEY_END,
                     GERBVIEW_FRAME::Process_Config )
 
-    EVT_MENU( ID_MENU_GERBVIEW_SHOW_HIDE_LAYERS_MANAGER_DIALOG,
-              GERBVIEW_FRAME::OnSelectOptionToolbar )
     EVT_MENU( wxID_PREFERENCES, GERBVIEW_FRAME::InstallGerberOptionsDialog )
+    EVT_UPDATE_UI( ID_MENU_CANVAS_LEGACY, GERBVIEW_FRAME::OnUpdateSwitchCanvas )
+    EVT_UPDATE_UI( ID_MENU_CANVAS_CAIRO, GERBVIEW_FRAME::OnUpdateSwitchCanvas )
+    EVT_UPDATE_UI( ID_MENU_CANVAS_OPENGL, GERBVIEW_FRAME::OnUpdateSwitchCanvas )
+    EVT_MENU( ID_MENU_CANVAS_LEGACY, GERBVIEW_FRAME::OnSwitchCanvas )
+    EVT_MENU( ID_MENU_CANVAS_CAIRO, GERBVIEW_FRAME::OnSwitchCanvas )
+    EVT_MENU( ID_MENU_CANVAS_OPENGL, GERBVIEW_FRAME::OnSwitchCanvas )
 
     // menu Postprocess
     EVT_MENU( ID_GERBVIEW_SHOW_LIST_DCODES, GERBVIEW_FRAME::Process_Special_Functions )
@@ -84,11 +101,12 @@ BEGIN_EVENT_TABLE( GERBVIEW_FRAME, EDA_DRAW_FRAME )
               EDA_BASE_FRAME::OnSelectPreferredEditor )
 
     // menu Miscellaneous
-    EVT_MENU( ID_GERBVIEW_GLOBAL_DELETE, GERBVIEW_FRAME::Process_Special_Functions )
+    EVT_MENU( ID_GERBVIEW_ERASE_CURR_LAYER, GERBVIEW_FRAME::Process_Special_Functions )
 
     // Menu Help
     EVT_MENU( wxID_HELP, EDA_DRAW_FRAME::GetKicadHelp )
     EVT_MENU( wxID_INDEX, EDA_DRAW_FRAME::GetKicadHelp )
+    EVT_MENU( ID_HELP_GET_INVOLVED, EDA_DRAW_FRAME::GetKicadContribute )
     EVT_MENU( wxID_ABOUT, EDA_DRAW_FRAME::GetKicadAbout )
 
     EVT_TOOL( wxID_UNDO, GERBVIEW_FRAME::Process_Special_Functions )
@@ -98,6 +116,8 @@ BEGIN_EVENT_TABLE( GERBVIEW_FRAME, EDA_DRAW_FRAME )
 
     EVT_SELECT_DCODE( ID_TOOLBARH_GERBER_SELECT_ACTIVE_DCODE, GERBVIEW_FRAME::OnSelectActiveDCode )
 
+    EVT_MENU( ID_MENU_ZOOM_SELECTION, GERBVIEW_FRAME::Process_Special_Functions )
+
     // Vertical toolbar:
     EVT_TOOL( ID_NO_TOOL_SELECTED, GERBVIEW_FRAME::Process_Special_Functions )
 
@@ -105,26 +125,48 @@ BEGIN_EVENT_TABLE( GERBVIEW_FRAME, EDA_DRAW_FRAME )
                     GERBVIEW_FRAME::Process_Special_Functions )
 
     // Option toolbar
-    EVT_TOOL( ID_TB_OPTIONS_SHOW_POLAR_COORD, GERBVIEW_FRAME::OnSelectOptionToolbar )
-    EVT_TOOL( ID_TB_OPTIONS_SHOW_POLYGONS_SKETCH, GERBVIEW_FRAME::OnSelectOptionToolbar )
-    EVT_TOOL( ID_TB_OPTIONS_SHOW_FLASHED_ITEMS_SKETCH, GERBVIEW_FRAME::OnSelectOptionToolbar )
-    EVT_TOOL( ID_TB_OPTIONS_SHOW_LINES_SKETCH, GERBVIEW_FRAME::OnSelectOptionToolbar )
+    //EVT_TOOL( ID_NO_TOOL_SELECTED, GERBVIEW_FRAME::Process_Special_Functions ) // mentioned below
+    EVT_TOOL( ID_ZOOM_SELECTION, GERBVIEW_FRAME::Process_Special_Functions )
+    EVT_TOOL( ID_TB_MEASUREMENT_TOOL, GERBVIEW_FRAME::Process_Special_Functions )
+    EVT_TOOL( ID_TB_OPTIONS_SHOW_POLAR_COORD, GERBVIEW_FRAME::OnToggleCoordType )
+    EVT_TOOL( ID_TB_OPTIONS_SHOW_POLYGONS_SKETCH, GERBVIEW_FRAME::OnTogglePolygonDrawMode )
+    EVT_TOOL( ID_TB_OPTIONS_SHOW_FLASHED_ITEMS_SKETCH, GERBVIEW_FRAME::OnToggleFlashItemDrawMode )
+    EVT_TOOL( ID_TB_OPTIONS_SHOW_LINES_SKETCH, GERBVIEW_FRAME::OnToggleLineDrawMode )
     EVT_TOOL( ID_TB_OPTIONS_SHOW_LAYERS_MANAGER_VERTICAL_TOOLBAR,
-              GERBVIEW_FRAME::OnSelectOptionToolbar )
+              GERBVIEW_FRAME::OnToggleShowLayerManager )
     EVT_TOOL( ID_TB_OPTIONS_SHOW_DCODES, GERBVIEW_FRAME::OnSelectOptionToolbar )
     EVT_TOOL( ID_TB_OPTIONS_SHOW_NEGATIVE_ITEMS, GERBVIEW_FRAME::OnSelectOptionToolbar )
     EVT_TOOL_RANGE( ID_TB_OPTIONS_SHOW_GBR_MODE_0, ID_TB_OPTIONS_SHOW_GBR_MODE_2,
                     GERBVIEW_FRAME::OnSelectDisplayMode )
+    EVT_TOOL( ID_TB_OPTIONS_DIFF_MODE, GERBVIEW_FRAME::OnSelectOptionToolbar )
+    EVT_TOOL( ID_TB_OPTIONS_HIGH_CONTRAST_MODE, GERBVIEW_FRAME::OnSelectOptionToolbar )
 
+    // Auxiliary horizontal toolbar
+    EVT_CHOICE( ID_GBR_AUX_TOOLBAR_PCB_CMP_CHOICE, GERBVIEW_FRAME::OnSelectHighlightChoice )
+    EVT_CHOICE( ID_GBR_AUX_TOOLBAR_PCB_NET_CHOICE, GERBVIEW_FRAME::OnSelectHighlightChoice )
+    EVT_CHOICE( ID_GBR_AUX_TOOLBAR_PCB_APERATTRIBUTES_CHOICE,
+                GERBVIEW_FRAME::OnSelectHighlightChoice )
+
+    // Right click context menu
+    EVT_MENU( ID_HIGHLIGHT_CMP_ITEMS, GERBVIEW_FRAME::Process_Special_Functions )
+    EVT_MENU( ID_HIGHLIGHT_NET_ITEMS, GERBVIEW_FRAME::Process_Special_Functions )
+    EVT_MENU( ID_HIGHLIGHT_APER_ATTRIBUTE_ITEMS, GERBVIEW_FRAME::Process_Special_Functions )
+    EVT_MENU( ID_HIGHLIGHT_REMOVE_ALL, GERBVIEW_FRAME::Process_Special_Functions )
+
+    EVT_UPDATE_UI( ID_NO_TOOL_SELECTED, GERBVIEW_FRAME::OnUpdateSelectTool )
+    EVT_UPDATE_UI( ID_ZOOM_SELECTION, GERBVIEW_FRAME::OnUpdateSelectTool )
+    EVT_UPDATE_UI( ID_TB_MEASUREMENT_TOOL, GERBVIEW_FRAME::OnUpdateSelectTool )
     EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_POLAR_COORD, GERBVIEW_FRAME::OnUpdateCoordType )
     EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_FLASHED_ITEMS_SKETCH,
                    GERBVIEW_FRAME::OnUpdateFlashedItemsDrawMode )
-    EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_LINES_SKETCH, GERBVIEW_FRAME::OnUpdateLinesDrawMode )
-    EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_POLYGONS_SKETCH, GERBVIEW_FRAME::OnUpdatePolygonsDrawMode )
+    EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_LINES_SKETCH, GERBVIEW_FRAME::OnUpdateLineDrawMode )
+    EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_POLYGONS_SKETCH, GERBVIEW_FRAME::OnUpdatePolygonDrawMode )
     EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_DCODES, GERBVIEW_FRAME::OnUpdateShowDCodes )
     EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_NEGATIVE_ITEMS, GERBVIEW_FRAME::OnUpdateShowNegativeItems )
     EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_LAYERS_MANAGER_VERTICAL_TOOLBAR,
                    GERBVIEW_FRAME::OnUpdateShowLayerManager )
+    EVT_UPDATE_UI( ID_TB_OPTIONS_DIFF_MODE, GERBVIEW_FRAME::OnUpdateDiffMode )
+    EVT_UPDATE_UI( ID_TB_OPTIONS_HIGH_CONTRAST_MODE, GERBVIEW_FRAME::OnUpdateHighContrastMode )
 
     EVT_UPDATE_UI( ID_TOOLBARH_GERBER_SELECT_ACTIVE_DCODE, GERBVIEW_FRAME::OnUpdateSelectDCode )
     EVT_UPDATE_UI( ID_TOOLBARH_GERBVIEW_SELECT_ACTIVE_LAYER,
@@ -159,7 +201,7 @@ void GERBVIEW_FRAME::Process_Special_Functions( wxCommandEvent& event )
         }
 
         if( GetToolId() == ID_NO_TOOL_SELECTED )
-            SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
+            SetNoToolSelected();
         else
             m_canvas->SetCursor( (wxStockCursor) m_canvas->GetCurrentCursor() );
         break;
@@ -169,7 +211,7 @@ void GERBVIEW_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
     }
 
-    INSTALL_UNBUFFERED_DC( dc, m_canvas );
+    GERBER_DRAW_ITEM* currItem = (GERBER_DRAW_ITEM*) GetScreen()->GetCurItem();
 
     switch( id )
     {
@@ -182,13 +224,26 @@ void GERBVIEW_FRAME::Process_Special_Functions( wxCommandEvent& event )
         }
         break;
 
-    case ID_GERBVIEW_GLOBAL_DELETE:
+    case ID_GERBVIEW_ERASE_CURR_LAYER:
         Erase_Current_DrawLayer( true );
         ClearMsgPanel();
         break;
 
     case ID_NO_TOOL_SELECTED:
-        SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
+        SetNoToolSelected();
+        break;
+
+    case ID_MENU_ZOOM_SELECTION:
+    case ID_ZOOM_SELECTION:
+        // This tool is located on the main toolbar: switch it on or off on click
+        if( GetToolId() != ID_ZOOM_SELECTION )
+            SetToolID( ID_ZOOM_SELECTION, wxCURSOR_MAGNIFIER, _( "Zoom to selection" ) );
+        else
+            SetNoToolSelected();
+        break;
+
+    case ID_TB_MEASUREMENT_TOOL:
+        SetToolID( id, wxCURSOR_DEFAULT, _( "Unsupported tool in this canvas" ) );
         break;
 
     case ID_POPUP_CLOSE_CURRENT_TOOL:
@@ -203,15 +258,52 @@ void GERBVIEW_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_PLACE_BLOCK:
-        GetScreen()->m_BlockLocate.SetCommand( BLOCK_MOVE );
-        m_canvas->SetAutoPanRequest( false );
-        HandleBlockPlace( &dc );
+        if( !IsGalCanvasActive() )
+        {
+            INSTALL_UNBUFFERED_DC( dc, m_canvas );
+            GetScreen()->m_BlockLocate.SetCommand( BLOCK_MOVE );
+            m_canvas->SetAutoPanRequest( false );
+            HandleBlockPlace( &dc );
+        }
         break;
 
     case ID_POPUP_ZOOM_BLOCK:
-        GetScreen()->m_BlockLocate.SetCommand( BLOCK_ZOOM );
-        GetScreen()->m_BlockLocate.SetMessageBlock( this );
-        HandleBlockEnd( &dc );
+        if( !IsGalCanvasActive() )
+        {
+            INSTALL_UNBUFFERED_DC( dc, m_canvas );
+            GetScreen()->m_BlockLocate.SetCommand( BLOCK_ZOOM );
+            GetScreen()->m_BlockLocate.SetMessageBlock( this );
+            HandleBlockEnd( &dc );
+        }
+        break;
+
+    case ID_HIGHLIGHT_CMP_ITEMS:
+        if( m_SelComponentBox->SetStringSelection( currItem->GetNetAttributes().m_Cmpref ) )
+            m_canvas->Refresh();
+        break;
+
+    case ID_HIGHLIGHT_NET_ITEMS:
+        if( m_SelNetnameBox->SetStringSelection( currItem->GetNetAttributes().m_Netname ) )
+            m_canvas->Refresh();
+        break;
+
+    case ID_HIGHLIGHT_APER_ATTRIBUTE_ITEMS:
+        {
+        D_CODE* apertDescr = currItem->GetDcodeDescr();
+        if( m_SelAperAttributesBox->SetStringSelection( apertDescr->m_AperFunction ) )
+            m_canvas->Refresh();
+        }
+        break;
+
+    case ID_HIGHLIGHT_REMOVE_ALL:
+        m_SelComponentBox->SetSelection( 0 );
+        m_SelNetnameBox->SetSelection( 0 );
+        m_SelAperAttributesBox->SetSelection( 0 );
+
+        if( GetGbrImage( GetActiveLayer() ) )
+            GetGbrImage( GetActiveLayer() )->m_Selected_Tool = 0;
+
+        m_canvas->Refresh();
         break;
 
     default:
@@ -221,9 +313,39 @@ void GERBVIEW_FRAME::Process_Special_Functions( wxCommandEvent& event )
 }
 
 
+void GERBVIEW_FRAME::OnSelectHighlightChoice( wxCommandEvent& event )
+{
+    if( IsGalCanvasActive() )
+    {
+        auto settings = static_cast<KIGFX::GERBVIEW_PAINTER*>( GetGalCanvas()->GetView()->GetPainter() )->GetSettings();
+
+        switch( event.GetId() )
+        {
+        case ID_GBR_AUX_TOOLBAR_PCB_CMP_CHOICE:
+            settings->m_componentHighlightString = m_SelComponentBox->GetStringSelection();
+            break;
+
+        case ID_GBR_AUX_TOOLBAR_PCB_NET_CHOICE:
+            settings->m_netHighlightString = m_SelNetnameBox->GetStringSelection();
+            break;
+
+        case ID_GBR_AUX_TOOLBAR_PCB_APERATTRIBUTES_CHOICE:
+            settings->m_attributeHighlightString = m_SelAperAttributesBox->GetStringSelection();
+            break;
+
+        }
+
+        GetGalCanvas()->GetView()->UpdateAllItems( KIGFX::COLOR );
+        GetGalCanvas()->Refresh();
+    }
+    else
+        m_canvas->Refresh();
+}
+
+
 void GERBVIEW_FRAME::OnSelectActiveDCode( wxCommandEvent& event )
 {
-    GERBER_IMAGE* gerber_image = g_GERBER_List.GetGbrImage( getActiveLayer() );
+    GERBER_FILE_IMAGE* gerber_image = GetGbrImage( GetActiveLayer() );
 
     if( gerber_image )
     {
@@ -240,35 +362,39 @@ void GERBVIEW_FRAME::OnSelectActiveDCode( wxCommandEvent& event )
 
 void GERBVIEW_FRAME::OnSelectActiveLayer( wxCommandEvent& event )
 {
-    int layer = getActiveLayer();
-
-    setActiveLayer( event.GetSelection() );
-
-    if( layer != getActiveLayer() )
-    {
-        if( m_LayersManager->OnLayerSelected() )
-            m_canvas->Refresh();
-    }
+    SetActiveLayer( event.GetSelection(), true );
 }
 
 
 void GERBVIEW_FRAME::OnShowGerberSourceFile( wxCommandEvent& event )
 {
-    int     layer = getActiveLayer();
-    GERBER_IMAGE* gerber_layer = g_GERBER_List.GetGbrImage( layer );
+    int     layer = GetActiveLayer();
+    GERBER_FILE_IMAGE* gerber_layer = GetGbrImage( layer );
 
     if( gerber_layer )
     {
         wxString editorname = Pgm().GetEditorName();
+
         if( !editorname.IsEmpty() )
         {
             wxFileName fn( gerber_layer->m_FileName );
-            ExecuteFile( this, editorname, QuoteFullPath( fn ) );
+
+            // Call the editor only if the Gerber/drill source file is available.
+            // This is not always the case, because it can be a temporary file
+            // if it comes from a zip archive.
+            if( !fn.FileExists() )
+            {
+                wxString msg;
+                msg.Printf( _( "Source file \"%s\" is not available" ),
+                            GetChars( fn.GetFullPath() ) );
+                wxMessageBox( msg );
+            }
+            else
+                ExecuteFile( this, editorname, QuoteFullPath( fn ) );
         }
         else
             wxMessageBox( _( "No editor defined. Please select one" ) );
     }
-
     else
     {
         wxString msg;
@@ -323,68 +449,134 @@ void GERBVIEW_FRAME::ShowChangedLanguage()
 }
 
 
+void GERBVIEW_FRAME::OnToggleShowLayerManager( wxCommandEvent& aEvent )
+{
+    m_show_layer_manager_tools = !m_show_layer_manager_tools;
+
+    // show/hide auxiliary Vertical layers and visibility manager toolbar
+    m_auimgr.GetPane( wxT( "m_LayersManagerToolBar" ) ).Show( m_show_layer_manager_tools );
+    m_auimgr.Update();
+}
+
+
 void GERBVIEW_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
 {
     int     id = event.GetId();
-    bool    state;
+    bool    needs_refresh = false;
+
+    GBR_DISPLAY_OPTIONS options = m_DisplayOptions;
 
     switch( id )
     {
-        case ID_MENU_GERBVIEW_SHOW_HIDE_LAYERS_MANAGER_DIALOG:
-            state = ! m_show_layer_manager_tools;
-            id = ID_TB_OPTIONS_SHOW_LAYERS_MANAGER_VERTICAL_TOOLBAR;
-            break;
-
-        default:
-            state = m_optionsToolBar->GetToolToggled( id );
-            break;
-    }
-
-    switch( id )
-    {
-    case ID_TB_OPTIONS_SHOW_POLAR_COORD:
-        m_DisplayOptions.m_DisplayPolarCood = state;
-        break;
-
-    case ID_TB_OPTIONS_SHOW_FLASHED_ITEMS_SKETCH:
-        m_DisplayOptions.m_DisplayFlashedItemsFill = not state;
-        m_canvas->Refresh( true );
-        break;
-
-    case ID_TB_OPTIONS_SHOW_LINES_SKETCH:
-        m_DisplayOptions.m_DisplayLinesFill = not state;
-        m_canvas->Refresh( true );
-        break;
-
-    case ID_TB_OPTIONS_SHOW_POLYGONS_SKETCH:
-        m_DisplayOptions.m_DisplayPolygonsFill = not state;
-        m_canvas->Refresh( true );
-        break;
-
     case ID_TB_OPTIONS_SHOW_DCODES:
-        SetElementVisibility( DCODES_VISIBLE, state );
+        SetElementVisibility( LAYER_DCODES, !IsElementVisible( LAYER_DCODES ) );
         m_canvas->Refresh( true );
         break;
 
     case ID_TB_OPTIONS_SHOW_NEGATIVE_ITEMS:
-        SetElementVisibility( NEGATIVE_OBJECTS_VISIBLE, state );
+        SetElementVisibility( LAYER_NEGATIVE_OBJECTS, !IsElementVisible( LAYER_NEGATIVE_OBJECTS ) );
         m_canvas->Refresh( true );
         break;
 
-    case ID_TB_OPTIONS_SHOW_LAYERS_MANAGER_VERTICAL_TOOLBAR:
+    case ID_TB_OPTIONS_DIFF_MODE:
+        options.m_DiffMode = !options.m_DiffMode;
+        needs_refresh = true;
+        break;
 
-        // show/hide auxiliary Vertical layers and visibility manager toolbar
-        m_show_layer_manager_tools = state;
-        m_auimgr.GetPane( wxT( "m_LayersManagerToolBar" ) ).Show( m_show_layer_manager_tools );
-        m_auimgr.Update();
-        GetMenuBar()->SetLabel( ID_MENU_GERBVIEW_SHOW_HIDE_LAYERS_MANAGER_DIALOG,
-                                m_show_layer_manager_tools ?
-                                _("Hide &Layers Manager" ) : _("Show &Layers Manager" ));
+    case ID_TB_OPTIONS_HIGH_CONTRAST_MODE:
+        options.m_HighContrastMode = !options.m_HighContrastMode;
+        needs_refresh = true;
+        break;
+
+    // collect GAL-only tools here:
+    case ID_TB_MEASUREMENT_TOOL:
+        SetToolID( id, wxCURSOR_DEFAULT, _( "Unsupported tool in this canvas" ) );
         break;
 
     default:
         wxMessageBox( wxT( "GERBVIEW_FRAME::OnSelectOptionToolbar error" ) );
         break;
     }
+
+    if( needs_refresh )
+        UpdateDisplayOptions( options );
 }
 
+
+void GERBVIEW_FRAME::OnTogglePolygonDrawMode( wxCommandEvent& aEvent )
+{
+    GBR_DISPLAY_OPTIONS options = m_DisplayOptions;
+    options.m_DisplayPolygonsFill = !m_DisplayOptions.m_DisplayPolygonsFill;
+
+    UpdateDisplayOptions( options );
+}
+
+
+void GERBVIEW_FRAME::OnToggleLineDrawMode( wxCommandEvent& aEvent )
+{
+    GBR_DISPLAY_OPTIONS options = m_DisplayOptions;
+    options.m_DisplayLinesFill = !m_DisplayOptions.m_DisplayLinesFill;
+
+    UpdateDisplayOptions( options );
+}
+
+
+void GERBVIEW_FRAME::OnToggleFlashItemDrawMode( wxCommandEvent& aEvent )
+{
+    GBR_DISPLAY_OPTIONS options = m_DisplayOptions;
+    options.m_DisplayFlashedItemsFill = !m_DisplayOptions.m_DisplayFlashedItemsFill;
+
+    UpdateDisplayOptions( options );
+}
+
+
+void GERBVIEW_FRAME::OnUpdateSelectTool( wxUpdateUIEvent& aEvent )
+{
+    aEvent.Check( GetToolId() == aEvent.GetId() );
+}
+
+
+void GERBVIEW_FRAME::OnSwitchCanvas( wxCommandEvent& aEvent )
+{
+    switch( aEvent.GetId() )
+    {
+    case ID_MENU_CANVAS_LEGACY:
+        SwitchCanvas( EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE );
+        break;
+
+    case ID_MENU_CANVAS_CAIRO:
+        SwitchCanvas( EDA_DRAW_PANEL_GAL::GAL_TYPE_CAIRO );
+        break;
+
+    case ID_MENU_CANVAS_OPENGL:
+        SwitchCanvas( EDA_DRAW_PANEL_GAL::GAL_TYPE_OPENGL );
+        break;
+    }
+}
+
+
+void GERBVIEW_FRAME::OnUpdateSwitchCanvas( wxUpdateUIEvent& aEvent )
+{
+    wxMenuBar* menuBar = GetMenuBar();
+    EDA_DRAW_PANEL_GAL* gal_canvas = GetGalCanvas();
+    EDA_DRAW_PANEL_GAL::GAL_TYPE canvasType = EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE;
+
+    if( IsGalCanvasActive() && gal_canvas )
+        canvasType = gal_canvas->GetBackend();
+
+    struct { int menuId; int galType; } menuList[] =
+    {
+        { ID_MENU_CANVAS_LEGACY,    EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE },
+        { ID_MENU_CANVAS_OPENGL,    EDA_DRAW_PANEL_GAL::GAL_TYPE_OPENGL },
+        { ID_MENU_CANVAS_CAIRO,     EDA_DRAW_PANEL_GAL::GAL_TYPE_CAIRO },
+    };
+
+    for( auto ii: menuList )
+    {
+        wxMenuItem* item = menuBar->FindItem( ii.menuId );
+        if( ii.galType == canvasType )
+        {
+            item->Check( true );
+        }
+    }
+}

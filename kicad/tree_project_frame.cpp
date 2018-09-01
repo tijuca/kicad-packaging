@@ -1,14 +1,9 @@
-/**
- * @file tree_project_frame.cpp
- * @brief Function to build the tree of files in the current project directory
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2016 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,23 +23,28 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <fctsys.h>
-#include <confirm.h>
-#include <gestfich.h>
-#include <pgm_base.h>
-#include <macros.h>
+/**
+ * @file tree_project_frame.cpp
+ * @brief Function to build the tree of files in the current project directory
+ */
 
-#include <tree_project_frame.h>
-#include <class_treeprojectfiles.h>
-#include <class_treeproject_item.h>
-#include <wildcards_and_files_ext.h>
+
+#include <stack>
 
 #include <wx/regex.h>
-#include <wx/dir.h>
-#include <wx/imaglist.h>
 #include <wx/stdpaths.h>
+#include <wx/string.h>
+
+#include <bitmaps.h>
+#include <gestfich.h>
 #include <menus_helpers.h>
-#include <stack>
+#include <wildcards_and_files_ext.h>
+
+#include "treeproject_item.h"
+#include "treeprojectfiles.h"
+#include "pgm_kicad.h"
+
+#include "tree_project_frame.h"
 
 
 /* Note about the tree project build process:
@@ -69,14 +69,16 @@ static const wxChar* s_allowedExtensionsToList[] =
     wxT( "^[^$].*\\.kicad_pcb$" ),  // S format Pcbnew board files
     wxT( "^[^$].*\\.kicad_wks$" ),  // S format kicad page layout descr files
     wxT( "^[^$].*\\.kicad_mod$" ),  // S format kicad footprint files, currently not listed
-    wxT( "^.*\\.net$" ),
+    wxT( "^.*\\.net$" ),            // pcbnew netlist file
+    wxT( "^.*\\.cir$" ),            // Spice netlist file
     wxT( "^.*\\.lib$" ),            // Schematic library file
     wxT( "^.*\\.txt$" ),
     wxT( "^.*\\.pho$" ),            // Gerber file (Old Kicad extension)
     wxT( "^.*\\.gbr$" ),            // Gerber file
-    wxT( "^.*\\.gb[alops]$" ),      // Gerber back (or bottom) layer file
-    wxT( "^.*\\.gt[alops]$" ),      // Gerber front (or top) layer file
-    wxT( "^.*\\.g[0-9]{1,2}$" ),    // Gerber inner layer file
+    wxT( "^.*\\.gbrjob$" ),         // Gerber job file
+    wxT( "^.*\\.gb[alops]$" ),      // Gerber back (or bottom) layer file (deprecated Protel ext)
+    wxT( "^.*\\.gt[alops]$" ),      // Gerber front (or top) layer file (deprecated Protel ext)
+    wxT( "^.*\\.g[0-9]{1,2}$" ),    // Gerber inner layer file (deprecated Protel ext)
     wxT( "^.*\\.odt$" ),
     wxT( "^.*\\.htm$" ),
     wxT( "^.*\\.html$" ),
@@ -98,8 +100,8 @@ static const wxChar* s_allowedExtensionsToList[] =
 // File extension definitions.
 const wxChar  TextFileExtension[] = wxT( "txt" );
 
-// File wildcard definitions.
-const wxChar  TextFileWildcard[] = wxT( "Text files (*.txt)|*.txt" );
+// Gerber file extension wildcard.
+const wxString GerberFileExtensionWildCard( ".((gbr|gbrjob|(gb|gt)[alops])|pho)" );
 
 
 /**
@@ -122,11 +124,9 @@ END_EVENT_TABLE()
 
 
 TREE_PROJECT_FRAME::TREE_PROJECT_FRAME( KICAD_MANAGER_FRAME* parent ) :
-    wxSashLayoutWindow( parent,
-                        ID_LEFT_FRAME,
-                        wxDefaultPosition,
-                        wxDefaultSize,
-                        wxNO_BORDER | wxSW_3D | wxTAB_TRAVERSAL )
+    wxSashLayoutWindow( parent, ID_LEFT_FRAME,
+                        wxDefaultPosition, wxDefaultSize,
+                        wxNO_BORDER | wxTAB_TRAVERSAL )
 {
     m_Parent = parent;
     m_TreeProject = NULL;
@@ -256,7 +256,7 @@ wxString TREE_PROJECT_FRAME::GetFileExt( TreeFileType type )
         break;
 
     case TREE_GERBER:
-        ext = GerberFileExtension;
+        ext = GerberFileExtensionWildCard;
         break;
 
     case TREE_HTML:
@@ -325,68 +325,68 @@ wxString TREE_PROJECT_FRAME::GetFileWildcard( TreeFileType type )
     switch( type )
     {
     case TREE_PROJECT:
-        ext = ProjectFileWildcard;
+        ext = ProjectFileWildcard();
         break;
 
     case TREE_SCHEMA:
-        ext = SchematicFileWildcard;
+        ext = SchematicFileWildcard();
         break;
 
     case TREE_LEGACY_PCB:
     case TREE_SEXP_PCB:
-        ext = PcbFileWildcard;
+        ext = PcbFileWildcard();
         break;
 
     case TREE_GERBER:
-        ext = GerberFileWildcard;
+        ext = GerberFileWildcard();
         break;
 
     case TREE_HTML:
-        ext = HtmlFileWildcard;
+        ext = HtmlFileWildcard();
         break;
 
     case TREE_PDF:
-        ext = PdfFileWildcard;
+        ext = PdfFileWildcard();
         break;
 
     case TREE_TXT:
-        ext = TextFileWildcard;
+        ext = TextFileWildcard();
         break;
 
     case TREE_NET:
-        ext = NetlistFileWildcard;
+        ext = NetlistFileWildcard();
         break;
 
     case TREE_CMP_LINK:
-        ext = ComponentFileWildcard;
+        ext = ComponentFileWildcard();
         break;
 
     case TREE_REPORT:
-        ext = ReportFileWildcard;
+        ext = ReportFileWildcard();
         break;
 
     case TREE_FP_PLACE:
-        ext = FootprintPlaceFileWildcard;
+        ext = FootprintPlaceFileWildcard();
         break;
 
     case TREE_DRILL:
-        ext = DrillFileWildcard;
+        ext = DrillFileWildcard();
         break;
 
     case TREE_SVG:
-        ext = SVGFileWildcard;
+        ext = SVGFileWildcard();
         break;
 
     case TREE_PAGE_LAYOUT_DESCR:
-        ext = PageLayoutDescrFileWildcard;
+        ext = PageLayoutDescrFileWildcard();
         break;
 
     case TREE_FOOTPRINT_FILE:
-        ext = KiCadFootprintLibFileWildcard;
+        ext = KiCadFootprintLibFileWildcard();
         break;
 
     case TREE_SCHEMATIC_LIBFILE:
-        ext = SchematicLibraryFileWildcard;
+        ext = SchematicLibraryFileWildcard();
         break;
 
      default:                       // Eliminates unnecessary GCC warning.
@@ -623,8 +623,8 @@ void TREE_PROJECT_FRAME::ReCreateTreePrj()
     // Now adding all current files if available
     if( prjOpened )
     {
-        wxString    pro_dir = wxPathOnly( m_Parent->GetProjectFileName() );
-        wxDir       dir( pro_dir );
+        pro_dir = wxPathOnly( m_Parent->GetProjectFileName() );
+        wxDir dir( pro_dir );
 
         if( dir.IsOpened() )    // protected dirs will not open, see "man opendir()"
         {
@@ -679,14 +679,14 @@ void TREE_PROJECT_FRAME::OnRight( wxTreeEvent& Event )
     {
         case TREE_PROJECT:
             AddMenuItem( &popupMenu, ID_PROJECT_NEWDIR,
-                         _( "New D&irectory" ),
+                         _( "New D&irectory..." ),
                          _( "Create a New Directory" ),
                          KiBitmap( directory_xpm ) );
             break;
 
         case TREE_DIRECTORY:
             AddMenuItem( &popupMenu, ID_PROJECT_NEWDIR,
-                         _( "New D&irectory" ),
+                         _( "New D&irectory..." ),
                          _( "Create a New Directory" ),
                          KiBitmap( directory_xpm ) );
             AddMenuItem( &popupMenu,  ID_PROJECT_DELETE,
@@ -697,11 +697,11 @@ void TREE_PROJECT_FRAME::OnRight( wxTreeEvent& Event )
 
         default:
             AddMenuItem( &popupMenu, ID_PROJECT_TXTEDIT,
-                         _( "&Edit in a text editor" ),
+                         _( "&Edit in a Text Editor" ),
                          _( "Open the file in a Text Editor" ),
-                         KiBitmap( icon_txt_xpm ) );
+                         KiBitmap( editor_xpm ) );
             AddMenuItem( &popupMenu, ID_PROJECT_RENAME,
-                         _( "&Rename file" ),
+                         _( "&Rename File..." ),
                          _( "Rename file" ),
                          KiBitmap( right_xpm ) );
             AddMenuItem( &popupMenu,  ID_PROJECT_DELETE,
@@ -755,7 +755,7 @@ void TREE_PROJECT_FRAME::OnRenameFile( wxCommandEvent& )
 
     wxString buffer = m_TreeProject->GetItemText( curr_item );
     wxString msg = wxString::Format(
-                    _( "Change filename: '%s'" ),
+                    _( "Change filename: \"%s\"" ),
                     GetChars( tree_data->GetFileName() ) );
 
     wxTextEntryDialog   dlg( this, msg, _( "Change filename" ), buffer );
@@ -919,7 +919,7 @@ wxTreeItemId TREE_PROJECT_FRAME::findSubdirTreeItem( const wxString& aSubDir )
 
 void TREE_PROJECT_FRAME::OnFileSystemEvent( wxFileSystemWatcherEvent& event )
 {
-    wxFileName pathModified = event.GetPath();
+    const wxFileName& pathModified = event.GetPath();
     wxString subdir = pathModified.GetPath();
     wxString fn = pathModified.GetFullPath();
 
@@ -970,8 +970,8 @@ void TREE_PROJECT_FRAME::OnFileSystemEvent( wxFileSystemWatcherEvent& event )
 
     case wxFSW_EVENT_RENAME :
         {
-            wxFileName  newpath = event.GetNewPath();
-            wxString    newfn = newpath.GetFullPath();
+            const wxFileName& newpath = event.GetNewPath();
+            wxString newfn = newpath.GetFullPath();
 
             while( kid.IsOk() )
             {
@@ -1057,7 +1057,7 @@ void TREE_PROJECT_FRAME::FileWatcherReset()
         if( itemData && itemData->GetType() == TREE_DIRECTORY )
         {
             // we can see wxString under a debugger, not a wxFileName
-            wxString path = itemData->GetFileName();
+            const wxString& path = itemData->GetFileName();
 
             wxLogDebug( "%s: add '%s'\n", __func__, TO_UTF8( path ) );
 

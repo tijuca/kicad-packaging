@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2007-2014 Jean-Pierre Charras  jp.charras at wanadoo.fr
- * Copyright (C) 1992-2014 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2007-2018 Jean-Pierre Charras  jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,12 +32,11 @@
 #include <base_units.h>
 
 #include <gerbview.h>
-#include <class_GERBER.h>
-#include <class_X2_gerber_attributes.h>
+#include <gerber_file_image.h>
+#include <X2_gerber_attributes.h>
 
 extern int ReadInt( char*& text, bool aSkipSeparator = true );
 extern double ReadDouble( char*& text, bool aSkipSeparator = true );
-extern bool GetEndOfBlock( char buff[GERBER_BUFZ], char*& text, FILE* gerber_file );
 
 
 #define CODE( x, y ) ( ( (x) << 8 ) + (y) )
@@ -66,13 +65,12 @@ enum RS274X_PARAMETERS {
     SCALE_FACTOR   = CODE( 'S', 'F' ),          // Default:  A = 1.0, B = 1.0
 
     // Image parameters:
-    // commands used only once at the beginning of the file
+    // commands used only once at the beginning of the file, and are deprecated
     IMAGE_JUSTIFY  = CODE( 'I', 'J' ),          // Default: no justification
     IMAGE_NAME     = CODE( 'I', 'N' ),          // Default: void
     IMAGE_OFFSET   = CODE( 'I', 'O' ),          // Default: A = 0, B = 0
     IMAGE_POLARITY = CODE( 'I', 'P' ),          // Default: Positive
     IMAGE_ROTATION = CODE( 'I', 'R' ),          // Default: 0
-    PLOTTER_FILM   = CODE( 'P', 'M' ),
 
     // Aperture parameters:
     // Usually for the whole file
@@ -82,83 +80,140 @@ enum RS274X_PARAMETERS {
     // X2 extention attribute commands
     // Mainly are found standard attributes and user attributes
     // standard attributes commands are:
-    // TF (file attribute)
+    // TF (file attribute) TO (net attribute)
     // TA (aperture attribute) and TD (delete aperture attribute)
     FILE_ATTRIBUTE   = CODE( 'T', 'F' ),
+
+    // X2 extention Net attribute info
+    // Net attribute options are:
+    // TO (net attribute data): TO.CN or TO.P TO.N or TO.C
+    NET_ATTRIBUTE   = CODE( 'T', 'O' ),
+
+    // X2 extention Aperture attribute TA
+    APERTURE_ATTRIBUTE   = CODE( 'T', 'A' ),
+
+    // TD (delete aperture/object attribute):
+    // Delete aperture attribute added by %TA or Oblect attribute added b %TO
+    // TD (delete all) or %TD<attr name> to delete <attr name>.
+    // eg: TD.P or TD.N or TD.C ...
+    REMOVE_APERTURE_ATTRIBUTE   = CODE( 'T', 'D' ),
 
     // Layer specific parameters
     // May be used singly or may be layer specfic
     // theses parameters are at the beginning of the file or layer
     // and reset some layer parameters (like interpolation)
-    LAYER_NAME      = CODE( 'L', 'N' ),         // Default: Positive
-    LAYER_POLARITY  = CODE( 'L', 'P' ),
     KNOCKOUT = CODE( 'K', 'O' ),                // Default: off
     STEP_AND_REPEAT = CODE( 'S', 'R' ),         //  Default: A = 1, B = 1
     ROTATE = CODE( 'R', 'O' ),                  //  Default: 0
 
-    // Miscellaneous parameters:
-    INCLUDE_FILE   = CODE( 'I', 'F' )
+    LOAD_POLARITY  = CODE( 'L', 'P' ),          //LPC or LPD. Default: Dark (LPD)
+    LOAD_NAME      = CODE( 'L', 'N' ),          // Deprecated: equivalent to G04
 };
 
 
-/**
- * Function ReadXCommand
- * reads in two bytes of data and assembles them into an int with the first
- * byte in the sequence put into the most significant part of a 16 bit value
- * and the second byte put into the least significant part of the 16 bit value.
- * @param text A reference to a pointer to read bytes from and to advance as
- *             they are read.
- * @return int - with 16 bits of data in the ls bits, upper bits zeroed.
- */
-static int ReadXCommand( char*& text )
+int GERBER_FILE_IMAGE::ReadXCommandID( char*& text )
 {
+    /* reads  two bytes of data and assembles them into an int with the first
+     * byte in the sequence put into the most significant part of a 16 bit value
+     */
     int result;
+    int currbyte;
 
     if( text && *text )
-        result = *text++ << 8;
+    {
+        currbyte = *text++;
+        result = ( currbyte & 0xFF ) << 8;
+    }
     else
         return -1;
 
     if( text && *text )
-        result += *text++;
+    {
+        currbyte = *text++;
+        result += currbyte & 0xFF;
+    }
     else
         return -1;
 
     return result;
 }
 
+/**
+ * Convert a string read from a gerber file to an unicode string
+ * Usual chars (ASCII7 values) are the only values allowed in Gerber files,
+ * and are just copied.
+ * However Gerber format allows using non ASCII7 values by coding them in a
+ * sequence of 4 hexadecimal chars (16 bits hexadecimal value)
+ * Hexadecimal coded values ("\hhhh") are converted to
+ * the unicode char value
+ */
+static const wxString fromGerberString( const wxString& aGbrString )
+{
+    wxString text;
 
-bool GERBER_IMAGE::ReadRS274XCommand( char buff[GERBER_BUFZ], char*& text )
+    for( unsigned ii = 0; ii < aGbrString.size(); ++ii )
+    {
+        if( aGbrString[ii] == '\\' )
+        {
+            unsigned value = 0;
+
+            for( int jj = 0; jj < 4; jj++ )
+            {   // Convert 4 hexa digits to binary value:
+                ii++;
+                value <<= 4;
+                int digit = aGbrString[ii];
+
+                if( digit >= '0' && digit <= '9' )
+                    digit -= '0';
+                else if( digit >= 'A' && digit <= 'F' )
+                    digit -= 'A' - 10;
+                else if( digit >= 'a' && digit <= 'f' )
+                    digit -= 'a' - 10;
+                else digit = 0;
+
+                value += digit & 0xF;
+            }
+
+            text.Append( wxUniChar( value ) );
+        }
+        else
+            text.Append( aGbrString[ii] );
+    }
+
+    return text;
+}
+
+bool GERBER_FILE_IMAGE::ReadRS274XCommand( char *aBuff, unsigned int aBuffSize, char*& aText )
 {
     bool ok = true;
     int  code_command;
 
-    text++;
+    aText++;
 
     for( ; ; )
     {
-        while( *text )
+        while( *aText )
         {
-            switch( *text )
+            switch( *aText )
             {
             case '%':       // end of command
-                text++;
+                aText++;
                 m_CommandState = CMD_IDLE;
                 goto exit;  // success completion
 
             case ' ':
             case '\r':
             case '\n':
-                text++;
+                aText++;
                 break;
 
             case '*':
-                text++;
+                aText++;
                 break;
 
             default:
-                code_command = ReadXCommand( text );
-                ok = ExecuteRS274XCommand( code_command, buff, text );
+                code_command = ReadXCommandID( aText );
+                ok = ExecuteRS274XCommand( code_command, aBuff, aBuffSize, aText );
                 if( !ok )
                     goto exit;
                 break;
@@ -166,14 +221,14 @@ bool GERBER_IMAGE::ReadRS274XCommand( char buff[GERBER_BUFZ], char*& text )
         }
 
         // end of current line, read another one.
-        if( fgets( buff, GERBER_BUFZ, m_Current_File ) == NULL )
+        if( fgets( aBuff, aBuffSize, m_Current_File ) == NULL )
         {
             // end of file
             ok = false;
             break;
         }
-
-        text = buff;
+        m_LineNum++;
+        aText = aBuff;
     }
 
 exit:
@@ -181,15 +236,13 @@ exit:
 }
 
 
-bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
-                                   char buff[GERBER_BUFZ],
-                                   char*&    text )
+bool GERBER_FILE_IMAGE::ExecuteRS274XCommand( int aCommand, char* aBuff,
+                                              unsigned int aBuffSize, char*& aText )
 {
     int      code;
     int      seq_len;    // not used, just provided
     int      seq_char;
     bool     ok = true;
-    char     line[GERBER_BUFZ];
     wxString msg;
     double   fcoord;
     bool     x_fmt_known = false;
@@ -202,73 +255,76 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
 
 //    DBG( printf( "%22s: Command <%c%c>\n", __func__, (command >> 8) & 0xFF, command & 0xFF ); )
 
-    switch( command )
+    switch( aCommand )
     {
     case FORMAT_STATEMENT:
         seq_len = 2;
 
-        while( *text != '*' )
+        while( *aText != '*' )
         {
-            switch( *text )
+            switch( *aText )
             {
             case ' ':
-                text++;
+                aText++;
                 break;
 
+            case 'D':       // Non-standard option for all zeros (leading + tailing)
+                msg.Printf( _( "RS274X: Invalid GERBER format command '%c' at line %d: \"%s\"" ),
+                        'D', m_LineNum, aBuff );
+                AddMessageToList( msg );
+                msg.Printf( _("GERBER file \"%s\" may not display as intended." ),
+                        m_FileName.ToAscii() );
+                AddMessageToList( msg );
+                // Fallthrough
+
             case 'L':       // No Leading 0
-                m_DecimalFormat = false;
                 m_NoTrailingZeros = false;
-                text++;
+                aText++;
                 break;
 
             case 'T':       // No trailing 0
-                m_DecimalFormat = false;
                 m_NoTrailingZeros = true;
-                text++;
+                aText++;
                 break;
 
             case 'A':       // Absolute coord
                 m_Relative = false;
-                text++;
+                aText++;
                 break;
 
             case 'I':       // Relative coord
                 m_Relative = true;
-                text++;
+                aText++;
                 break;
 
             case 'G':
             case 'N':       // Sequence code (followed by one digit: the sequence len)
                             // (sometimes found before the X,Y sequence)
                             // Obscure option
-                text++;
-                seq_char = *text++;
+                aText++;
+                seq_char = *aText++;
                 if( (seq_char >= '0') && (seq_char <= '9') )
                     seq_len = seq_char - '0';
                 break;
 
-            case 'D':
             case 'M':       // Sequence code (followed by one digit: the sequence len)
                             // (sometimes found after the X,Y sequence)
                             // Obscure option
-                code = *text++;
-                if( ( *text >= '0' ) && ( *text<= '9' ) )
-                    text++;     // skip the digit
-                else if( code == 'D' )
-                    // Decimal format: sometimes found, but not really documented
-                    m_DecimalFormat = true;
+                code = *aText++;
+                if( ( *aText >= '0' ) && ( *aText<= '9' ) )
+                    aText++;     // skip the digit
                 break;
 
             case 'X':
             case 'Y':
             {
-                code = *(text++);
-                char ctmp = *(text++) - '0';
+                code = *(aText++);
+                char ctmp = *(aText++) - '0';
                 if( code == 'X' )
                 {
                     x_fmt_known = true;
                     // number of digits after the decimal point (0 to 7 allowed)
-                    m_FmtScale.x = *text - '0';
+                    m_FmtScale.x = *aText - '0';
                     m_FmtLen.x   = ctmp + m_FmtScale.x;
 
                     // m_FmtScale is 0 to 7
@@ -281,14 +337,14 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                 else
                 {
                     y_fmt_known = true;
-                    m_FmtScale.y = *text - '0';
+                    m_FmtScale.y = *aText - '0';
                     m_FmtLen.y   = ctmp + m_FmtScale.y;
                     if( m_FmtScale.y < 0 )
                         m_FmtScale.y = 0;
                     if( m_FmtScale.y > 7 )
                         m_FmtScale.y = 7;
                 }
-                text++;
+                aText++;
             }
             break;
 
@@ -297,51 +353,51 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
 
             default:
                 msg.Printf( wxT( "Unknown id (%c) in FS command" ),
-                           *text );
-                ReportMessage( msg );
-                GetEndOfBlock( buff, text, m_Current_File );
+                           *aText );
+                AddMessageToList( msg );
+                GetEndOfBlock( aBuff, aBuffSize, aText, m_Current_File );
                 ok = false;
                 break;
             }
         }
         if( !x_fmt_known || !y_fmt_known )
-            ReportMessage( wxT( "RS274X: Format Statement (FS) without X or Y format" ) );
+            AddMessageToList( wxT( "RS274X: Format Statement (FS) without X or Y format" ) );
 
         break;
 
     case AXIS_SELECT:       // command ASAXBY*% or %ASAYBX*%
         m_SwapAxis = false;
-        if( strnicmp( text, "AYBX", 4 ) == 0 )
+        if( strncasecmp( aText, "AYBX", 4 ) == 0 )
             m_SwapAxis = true;
         break;
 
     case MIRROR_IMAGE:      // command %MIA0B0*%, %MIA0B1*%, %MIA1B0*%, %MIA1B1*%
         m_MirrorA = m_MirrorB = 0;
-        while( *text && *text != '*' )
+        while( *aText && *aText != '*' )
         {
-            switch( *text )
+            switch( *aText )
             {
             case 'A':       // Mirror A axis ?
-                text++;
-                if( *text == '1' )
+                aText++;
+                if( *aText == '1' )
                     m_MirrorA = true;
                 break;
 
             case 'B':       // Mirror B axis ?
-                text++;
-                if( *text == '1' )
+                aText++;
+                if( *aText == '1' )
                     m_MirrorB = true;
                 break;
 
             default:
-                text++;
+                aText++;
                 break;
             }
         }
         break;
 
     case MODE_OF_UNITS:
-        code = ReadXCommand( text );
+        code = ReadXCommandID( aText );
         if( code == INCH )
             m_GerbMetric = false;
         else if( code == MILLIMETER )
@@ -353,7 +409,8 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
         m_IsX2_file = true;
     {
         X2_ATTRIBUTE dummy;
-        dummy.ParseAttribCmd( m_Current_File, buff, GERBER_BUFZ, text );
+        dummy.ParseAttribCmd( m_Current_File, aBuff, aBuffSize, aText, m_LineNum );
+
         if( dummy.IsFileFunction() )
         {
             delete m_FileFunction;
@@ -370,21 +427,70 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
      }
         break;
 
+    case APERTURE_ATTRIBUTE:    // Command %TA
+        {
+        X2_ATTRIBUTE dummy;
+        dummy.ParseAttribCmd( m_Current_File, aBuff, aBuffSize, aText, m_LineNum );
+
+        if( dummy.GetAttribute() == ".AperFunction" )
+        {
+            m_AperFunction = dummy.GetPrm( 1 );
+
+            // A few function values can have other parameters. Add them
+            for( int ii = 2; ii < dummy.GetPrmCount(); ii++ )
+                m_AperFunction << "," << dummy.GetPrm( ii );
+        }
+        }
+        break;
+
+    case NET_ATTRIBUTE:    // Command %TO currently %TO.P %TO.N and %TO.C
+        {
+        X2_ATTRIBUTE dummy;
+
+        dummy.ParseAttribCmd( m_Current_File, aBuff, aBuffSize, aText, m_LineNum );
+
+        if( dummy.GetAttribute() == ".N" )
+        {
+            m_NetAttributeDict.m_NetAttribType |= GBR_NETLIST_METADATA::GBR_NETINFO_NET;
+            m_NetAttributeDict.m_Netname = fromGerberString( dummy.GetPrm( 1 ) );
+        }
+        else if( dummy.GetAttribute() == ".C" )
+        {
+            m_NetAttributeDict.m_NetAttribType |= GBR_NETLIST_METADATA::GBR_NETINFO_CMP;
+            m_NetAttributeDict.m_Cmpref = fromGerberString( dummy.GetPrm( 1 ) );
+        }
+        else if( dummy.GetAttribute() == ".P" )
+        {
+            m_NetAttributeDict.m_NetAttribType |= GBR_NETLIST_METADATA::GBR_NETINFO_PAD;
+            m_NetAttributeDict.m_Cmpref = fromGerberString( dummy.GetPrm( 1 ) );
+            m_NetAttributeDict.m_Padname = fromGerberString( dummy.GetPrm( 2 ) );
+        }
+        }
+        break;
+
+    case REMOVE_APERTURE_ATTRIBUTE:    // Command %TD ...
+        {
+        X2_ATTRIBUTE dummy;
+        dummy.ParseAttribCmd( m_Current_File, aBuff, aBuffSize, aText, m_LineNum );
+        RemoveAttribute( dummy );
+        }
+        break;
+
     case OFFSET:        // command: OFAnnBnn (nn = float number) = layer Offset
         m_Offset.x = m_Offset.y = 0;
-        while( *text != '*' )
+        while( *aText != '*' )
         {
-            switch( *text )
+            switch( *aText )
             {
             case 'A':       // A axis offset in current unit (inch or mm)
-                text++;
-                fcoord     = ReadDouble( text );
+                aText++;
+                fcoord     = ReadDouble( aText );
                 m_Offset.x = KiROUND( fcoord * conv_scale );
                 break;
 
             case 'B':       // B axis offset in current unit (inch or mm)
-                text++;
-                fcoord     = ReadDouble( text );
+                aText++;
+                fcoord     = ReadDouble( aText );
                 m_Offset.y = KiROUND( fcoord * conv_scale );
                 break;
             }
@@ -393,18 +499,18 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
 
     case SCALE_FACTOR:
         m_Scale.x = m_Scale.y = 1.0;
-        while( *text != '*' )
+        while( *aText != '*' )
         {
-            switch( *text )
+            switch( *aText )
             {
             case 'A':       // A axis scale
-                text++;
-                m_Scale.x = ReadDouble( text );
+                aText++;
+                m_Scale.x = ReadDouble( aText );
                 break;
 
             case 'B':       // B axis scale
-                text++;
-                m_Scale.y = ReadDouble( text );
+                aText++;
+                m_Scale.y = ReadDouble( aText );
                 break;
             }
         }
@@ -412,19 +518,19 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
 
     case IMAGE_OFFSET:  // command: IOAnnBnn (nn = float number) = Image Offset
         m_ImageOffset.x = m_ImageOffset.y = 0;
-        while( *text != '*' )
+        while( *aText != '*' )
         {
-            switch( *text )
+            switch( *aText )
             {
             case 'A':       // A axis offset in current unit (inch or mm)
-                text++;
-                fcoord     = ReadDouble( text );
+                aText++;
+                fcoord     = ReadDouble( aText );
                 m_ImageOffset.x = KiROUND( fcoord * conv_scale );
                 break;
 
             case 'B':       // B axis offset in current unit (inch or mm)
-                text++;
-                fcoord     = ReadDouble( text );
+                aText++;
+                fcoord     = ReadDouble( aText );
                 m_ImageOffset.y = KiROUND( fcoord * conv_scale );
                 break;
             }
@@ -432,16 +538,16 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
         break;
 
     case IMAGE_ROTATION:    // command IR0* or IR90* or IR180* or IR270*
-        if( strnicmp( text, "0*", 2 ) == 0 )
+        if( strncasecmp( aText, "0*", 2 ) == 0 )
             m_ImageRotation = 0;
-        else if( strnicmp( text, "90*", 3 ) == 0 )
+        else if( strncasecmp( aText, "90*", 3 ) == 0 )
             m_ImageRotation = 90;
-        else if( strnicmp( text, "180*", 4 ) == 0 )
+        else if( strncasecmp( aText, "180*", 4 ) == 0 )
             m_ImageRotation = 180;
-        else if( strnicmp( text, "270*", 4 ) == 0 )
+        else if( strncasecmp( aText, "270*", 4 ) == 0 )
             m_ImageRotation = 270;
         else
-            ReportMessage( _( "RS274X: Command \"IR\" rotation value not allowed" ) );
+            AddMessageToList( _( "RS274X: Command \"IR\" rotation value not allowed" ) );
         break;
 
     case STEP_AND_REPEAT:   // command SR, like %SRX3Y2I5.0J2*%
@@ -451,31 +557,31 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
         GetLayerParams().m_XRepeatCount = 1;
         GetLayerParams().m_YRepeatCount = 1;            // The repeat count
         GetLayerParams().m_StepForRepeatMetric = m_GerbMetric;  // the step units
-        while( *text && *text != '*' )
+        while( *aText && *aText != '*' )
         {
-            switch( *text )
+            switch( *aText )
             {
             case 'I':       // X axis offset
-                text++;
-                GetLayerParams().m_StepForRepeat.x = ReadDouble( text );
+                aText++;
+                GetLayerParams().m_StepForRepeat.x = ReadDouble( aText );
                 break;
 
             case 'J':       // Y axis offset
-                text++;
-                GetLayerParams().m_StepForRepeat.y = ReadDouble( text );
+                aText++;
+                GetLayerParams().m_StepForRepeat.y = ReadDouble( aText );
                 break;
 
             case 'X':       // X axis repeat count
-                text++;
-                GetLayerParams().m_XRepeatCount = ReadInt( text );
+                aText++;
+                GetLayerParams().m_XRepeatCount = ReadInt( aText );
                 break;
 
             case 'Y':       // Y axis offset
-                text++;
-                GetLayerParams().m_YRepeatCount = ReadInt( text );
+                aText++;
+                GetLayerParams().m_YRepeatCount = ReadInt( aText );
                 break;
             default:
-                text++;
+                aText++;
                 break;
             }
         }
@@ -485,42 +591,42 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
         m_ImageJustifyXCenter = false;          // Image Justify Center on X axis (default = false)
         m_ImageJustifyYCenter = false;          // Image Justify Center on Y axis (default = false)
         m_ImageJustifyOffset = wxPoint(0,0);    // Image Justify Offset on XY axis (default = 0,0)
-        while( *text && *text != '*' )
+        while( *aText && *aText != '*' )
         {
             // IJ command is (for A or B axis) AC or AL or A<coordinate>
-            switch( *text )
+            switch( *aText )
             {
             case 'A':       // A axis justify
-                text++;
-                if( *text == 'C' )
+                aText++;
+                if( *aText == 'C' )
                 {
                     m_ImageJustifyXCenter = true;
-                    text++;
+                    aText++;
                 }
-                else if( *text == 'L' )
+                else if( *aText == 'L' )
                 {
                     m_ImageJustifyXCenter = true;
-                    text++;
+                    aText++;
                 }
-                else m_ImageJustifyOffset.x = KiROUND( ReadDouble( text ) * conv_scale);
+                else m_ImageJustifyOffset.x = KiROUND( ReadDouble( aText ) * conv_scale);
                 break;
 
             case 'B':       // B axis justify
-                text++;
-                if( *text == 'C' )
+                aText++;
+                if( *aText == 'C' )
                 {
                     m_ImageJustifyYCenter = true;
-                    text++;
+                    aText++;
                 }
-                else if( *text == 'L' )
+                else if( *aText == 'L' )
                 {
                     m_ImageJustifyYCenter = true;
-                    text++;
+                    aText++;
                 }
-                else m_ImageJustifyOffset.y = KiROUND( ReadDouble( text ) * conv_scale);
+                else m_ImageJustifyOffset.y = KiROUND( ReadDouble( aText ) * conv_scale);
                 break;
             default:
-                text++;
+                aText++;
                 break;
             }
         }
@@ -533,46 +639,34 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
     case KNOCKOUT:
         m_Iterpolation = GERB_INTERPOL_LINEAR_1X;       // Start a new Gerber layer
         msg = _( "RS274X: Command KNOCKOUT ignored by GerbView" ) ;
-        ReportMessage( msg );
-        break;
-
-    case PLOTTER_FILM:  // Command PF <string>
-        // This is an info about film that must be used to plot this file
-        // Has no meaning here. We just display this string
-        msg = wxT( "Plotter Film info:<br>" );
-        while( *text != '*' )
-        {
-           msg.Append( *text++ );
-        }
-        ReportMessage( msg );
+        AddMessageToList( msg );
         break;
 
     case ROTATE:        // Layer rotation: command like %RO45*%
         m_Iterpolation = GERB_INTERPOL_LINEAR_1X;       // Start a new Gerber layer
-        m_LocalRotation =ReadDouble( text );             // Store layer rotation in degrees
+        m_LocalRotation =ReadDouble( aText );             // Store layer rotation in degrees
         break;
 
     case IMAGE_NAME:
         m_ImageName.Empty();
-        while( *text != '*' )
+        while( *aText != '*' )
         {
-            m_ImageName.Append( *text++ );
+            m_ImageName.Append( *aText++ );
         }
 
         break;
 
-    case LAYER_NAME:
-        m_Iterpolation = GERB_INTERPOL_LINEAR_1X;       // Start a new Gerber layer
-        GetLayerParams( ).m_LayerName.Empty();
-        while( *text != '*' )
+    case LOAD_NAME:
+        // %LN is a (deprecated) equivalentto G04: a comment
+        while( *aText && *aText != '*' )
         {
-            GetLayerParams( ).m_LayerName.Append( *text++ );
+            aText++; // Skip text
         }
 
         break;
 
     case IMAGE_POLARITY:
-        if( strnicmp( text, "NEG", 3 ) == 0 )
+        if( strncasecmp( aText, "NEG", 3 ) == 0 )
             m_ImageNegative = true;
         else
             m_ImageNegative = false;
@@ -580,50 +674,21 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                    m_ImageNegative ? "true" : "false" ); )
         break;
 
-    case LAYER_POLARITY:
-        if( *text == 'C' )
+    case LOAD_POLARITY:
+        if( *aText == 'C' )
             GetLayerParams().m_LayerNegative = true;
-
         else
             GetLayerParams().m_LayerNegative = false;
-        DBG( printf( "%22s: LAYER_POLARITY m_LayerNegative=%s\n", __func__,
-                   GetLayerParams().m_LayerNegative ? "true" : "false" ); )
-        break;
 
-    case INCLUDE_FILE:
-        if( m_FilesPtr >= INCLUDE_FILES_CNT_MAX )
-        {
-            ok = false;
-            ReportMessage( _( "Too many include files!!" ) );
-            break;
-        }
-
-        strncpy( line, text, sizeof(line)-1 );
-        line[sizeof(line)-1] = '\0';
-
-        strtok( line, "*%%\n\r" );
-        m_FilesList[m_FilesPtr] = m_Current_File;
-
-        m_Current_File = fopen( line, "rt" );
-        if( m_Current_File == 0 )
-        {
-            msg.Printf( wxT( "include file <%s> not found." ), line );
-            ReportMessage( msg );
-            ok = false;
-            m_Current_File = m_FilesList[m_FilesPtr];
-            break;
-        }
-        m_FilesPtr++;
         break;
 
     case AP_MACRO:  // lines like %AMMYMACRO*
                     // 5,1,8,0,0,1.08239X$1,22.5*
                     // %
-        /*ok = */ReadApertureMacro( buff, text, m_Current_File );
+        /*ok = */ReadApertureMacro( aBuff, aBuffSize, aText, m_Current_File );
         break;
 
     case AP_DEFINITION:
-
         /* input example:  %ADD30R,0.081800X0.101500*%
          * Aperture definition has 4 options: C, R, O, P
          * (Circle, Rect, Oval, regular Polygon)
@@ -631,7 +696,7 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
          * All optional parameters values start by X
          * at this point, text points to 2nd 'D'
          */
-        if( *text++ != 'D' )
+        if( *aText++ != 'D' )
         {
             ok = false;
             break;
@@ -639,48 +704,51 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
 
         m_Has_DCode = true;
 
-        code = ReadInt( text );
+        code = ReadInt( aText );
 
         D_CODE* dcode;
-        dcode = GetDCODE( code );
+        dcode = GetDCODEOrCreate( code );
+
         if( dcode == NULL )
             break;
 
+        dcode->m_AperFunction = m_AperFunction;
+
         // at this point, text points to character after the ADD<num>,
-        // i.e. R in example above.  If text[0] is one of the usual
+        // i.e. R in example above.  If aText[0] is one of the usual
         // apertures: (C,R,O,P), there is a comma after it.
-        if( text[1] == ',' )
+        if( aText[1] == ',' )
         {
-            char stdAperture = *text;
+            char stdAperture = *aText;
 
-            text += 2;              // skip "C," for example
+            aText += 2;              // skip "C," for example
 
-            dcode->m_Size.x = KiROUND( ReadDouble( text ) * conv_scale );
+            dcode->m_Size.x = KiROUND( ReadDouble( aText ) * conv_scale );
             dcode->m_Size.y = dcode->m_Size.x;
 
             switch( stdAperture )   // Aperture desceiption has optional parameters. Read them
             {
             case 'C':               // Circle
                 dcode->m_Shape = APT_CIRCLE;
-                while( *text == ' ' )
-                    text++;
+                while( *aText == ' ' )
+                    aText++;
 
-                if( *text == 'X' )
+                if( *aText == 'X' )
                 {
-                    text++;
+                    aText++;
                     dcode->m_Drill.x = dcode->m_Drill.y =
-                                           KiROUND( ReadDouble( text ) * conv_scale );
+                                           KiROUND( ReadDouble( aText ) * conv_scale );
                     dcode->m_DrillShape = APT_DEF_ROUND_HOLE;
                 }
 
-                while( *text == ' ' )
-                    text++;
+                while( *aText == ' ' )
+                    aText++;
 
-                if( *text == 'X' )
+                if( *aText == 'X' )
                 {
-                    text++;
+                    aText++;
                     dcode->m_Drill.y =
-                        KiROUND( ReadDouble( text ) * conv_scale );
+                        KiROUND( ReadDouble( aText ) * conv_scale );
 
                     dcode->m_DrillShape = APT_DEF_RECT_HOLE;
                 }
@@ -691,35 +759,35 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
             case 'R':               // rect
                 dcode->m_Shape = (stdAperture == 'O') ? APT_OVAL : APT_RECT;
 
-                while( *text == ' ' )
-                    text++;
+                while( *aText == ' ' )
+                    aText++;
 
-                if( *text == 'X' )
+                if( *aText == 'X' )
                 {
-                    text++;
+                    aText++;
                     dcode->m_Size.y =
-                        KiROUND( ReadDouble( text ) * conv_scale );
+                        KiROUND( ReadDouble( aText ) * conv_scale );
                 }
 
-                while( *text == ' ' )
-                    text++;
+                while( *aText == ' ' )
+                    aText++;
 
-                if( *text == 'X' )
+                if( *aText == 'X' )
                 {
-                    text++;
-                    dcode->m_Drill.x = KiROUND( ReadDouble( text ) * conv_scale );
+                    aText++;
+                    dcode->m_Drill.x = KiROUND( ReadDouble( aText ) * conv_scale );
                     dcode->m_Drill.y = dcode->m_Drill.x;
                     dcode->m_DrillShape = APT_DEF_ROUND_HOLE;
                 }
 
-                while( *text == ' ' )
-                    text++;
+                while( *aText == ' ' )
+                    aText++;
 
-                if( *text == 'X' )
+                if( *aText == 'X' )
                 {
-                    text++;
+                    aText++;
                     dcode->m_Drill.y =
-                        KiROUND( ReadDouble( text ) * conv_scale );
+                        KiROUND( ReadDouble( aText ) * conv_scale );
                     dcode->m_DrillShape = APT_DEF_RECT_HOLE;
                 }
                 dcode->m_Defined = true;
@@ -731,84 +799,91 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
                  * params are: <diameter>, X<edge count>, X<Rotation>, X<X hole dim>, X<Y hole dim>
                  */
                 dcode->m_Shape = APT_POLYGON;
-                while( *text == ' ' )
-                    text++;
+                while( *aText == ' ' )
+                    aText++;
 
-                if( *text == 'X' )
+                if( *aText == 'X' )
                 {
-                    text++;
-                    dcode->m_EdgesCount = ReadInt( text );
+                    aText++;
+                    dcode->m_EdgesCount = ReadInt( aText );
                 }
 
-                while( *text == ' ' )
-                    text++;
+                while( *aText == ' ' )
+                    aText++;
 
-                if( *text == 'X' )
+                if( *aText == 'X' )
                 {
-                    text++;
-                    dcode->m_Rotation = ReadDouble( text );
+                    aText++;
+                    dcode->m_Rotation = ReadDouble( aText );
                 }
 
-                while( *text == ' ' )
-                    text++;
+                while( *aText == ' ' )
+                    aText++;
 
-                if( *text == 'X' )
+                if( *aText == 'X' )
                 {
-                    text++;
-                    dcode->m_Drill.x = KiROUND( ReadDouble( text ) * conv_scale );
-                    dcode->m_Drill.y = dcode->m_Drill.x =
+                    aText++;
+                    dcode->m_Drill.x = KiROUND( ReadDouble( aText ) * conv_scale );
+                    dcode->m_Drill.y = dcode->m_Drill.x;
                     dcode->m_DrillShape = APT_DEF_ROUND_HOLE;
                 }
 
-                while( *text == ' ' )
-                    text++;
+                while( *aText == ' ' )
+                    aText++;
 
-                if( *text == 'X' )
+                if( *aText == 'X' )
                 {
-                    text++;
-                    dcode->m_Drill.y = KiROUND( ReadDouble( text ) * conv_scale );
+                    aText++;
+                    dcode->m_Drill.y = KiROUND( ReadDouble( aText ) * conv_scale );
                     dcode->m_DrillShape = APT_DEF_RECT_HOLE;
                 }
                 dcode->m_Defined = true;
                 break;
             }
         }
-        else    // text[0] starts an aperture macro name
+        else    // aText[0] starts an aperture macro name
         {
             APERTURE_MACRO am_lookup;
 
-            while( *text && *text != '*' && *text != ',' )
-                am_lookup.name.Append( *text++ );
+            while( *aText && *aText != '*' && *aText != ',' )
+                am_lookup.name.Append( *aText++ );
 
             // When an aperture definition is like %AMLINE2* 22,1,$1,$2,0,0,-45*
             // the ADDxx<MACRO_NAME> command has parameters, like %ADD14LINE2,0.8X0.5*%
-            if( *text == ',' )
+            if( *aText == ',' )
             {   // Read aperture macro parameters and store them
-                text++;     // text points the first parameter
-                while( *text && *text != '*' )
+                aText++;     // aText points the first parameter
+
+                while( *aText && *aText != '*' )
                 {
-                    double param = ReadDouble( text );
+                    double param = ReadDouble( aText );
                     dcode->AppendParam( param );
-                    while( isspace( *text ) ) text++;
-                    if( *text == 'X' )
-                        ++text;
+
+                    while( isspace( *aText ) )
+                        aText++;
+
+                    // Skip 'X' separator:
+                    if( *aText == 'X' || *aText == 'x' )
+                        aText++;
                 }
             }
 
             // lookup the aperture macro here.
             APERTURE_MACRO* pam = FindApertureMacro( am_lookup );
+
             if( !pam )
             {
                 msg.Printf( wxT( "RS274X: aperture macro %s not found\n" ),
                            TO_UTF8( am_lookup.name ) );
-                ReportMessage( msg );
+                AddMessageToList( msg );
                 ok = false;
                 break;
             }
 
             dcode->m_Shape = APT_MACRO;
-            dcode->SetMacro( (APERTURE_MACRO*) pam );
+            dcode->SetMacro( pam );
         }
+
         break;
 
     default:
@@ -818,49 +893,39 @@ bool GERBER_IMAGE::ExecuteRS274XCommand( int       command,
 
     (void) seq_len;     // quiet g++, or delete the unused variable.
 
-    ok = GetEndOfBlock( buff, text, m_Current_File );
+    ok = GetEndOfBlock( aBuff, aBuffSize, aText, m_Current_File );
 
     return ok;
 }
 
 
-bool GetEndOfBlock( char buff[GERBER_BUFZ], char*& text, FILE* gerber_file )
+bool GERBER_FILE_IMAGE::GetEndOfBlock( char* aBuff, unsigned int aBuffSize, char*& aText, FILE* gerber_file )
 {
     for( ; ; )
     {
-        while( (text < buff + GERBER_BUFZ) && *text )
+        while( (aText < aBuff + aBuffSize) && *aText )
         {
-            if( *text == '*' )
+            if( *aText == '*' )
                 return true;
 
-            if( *text == '%' )
+            if( *aText == '%' )
                 return true;
 
-            text++;
+            aText++;
         }
 
-        if( fgets( buff, GERBER_BUFZ, gerber_file ) == NULL )
+        if( fgets( aBuff, aBuffSize, gerber_file ) == NULL )
             break;
 
-        text = buff;
+        m_LineNum++;
+        aText = aBuff;
     }
 
     return false;
 }
 
 
-/**
- * Function GetNextLine
- * test for an end of line
- * if an end of line is found:
- *   read a new line
- * @param aBuff = buffer (size = GERBER_BUFZ) to fill with a new line
- * @param aText = pointer to the last useful char in aBuff
- *          on return: points the beginning of the next line.
- * @param aFile = the opened GERBER file to read
- * @return a pointer to the beginning of the next line or NULL if end of file
-*/
-static char* GetNextLine(  char aBuff[GERBER_BUFZ], char* aText, FILE* aFile  )
+char* GERBER_FILE_IMAGE::GetNextLine( char *aBuff, unsigned int aBuffSize, char* aText, FILE* aFile )
 {
     for( ; ; )
     {
@@ -873,8 +938,10 @@ static char* GetNextLine(  char aBuff[GERBER_BUFZ], char* aText, FILE* aFile  )
                 break;
 
             case 0:    // End of text found in aBuff: Read a new string
-                if( fgets( aBuff, GERBER_BUFZ, aFile ) == NULL )
+                if( fgets( aBuff, aBuffSize, aFile ) == NULL )
                     return NULL;
+
+                m_LineNum++;
                 aText = aBuff;
                 return aText;
 
@@ -886,81 +953,87 @@ static char* GetNextLine(  char aBuff[GERBER_BUFZ], char* aText, FILE* aFile  )
 }
 
 
-bool GERBER_IMAGE::ReadApertureMacro( char buff[GERBER_BUFZ],
-                                char*&    text,
+bool GERBER_FILE_IMAGE::ReadApertureMacro( char *aBuff, unsigned int aBuffSize,
+                                char*&    aText,
                                 FILE*     gerber_file )
 {
     wxString       msg;
     APERTURE_MACRO am;
 
     // read macro name
-    while( *text )
+    while( *aText )
     {
-        if( *text == '*' )
+        if( *aText == '*' )
         {
-            ++text;
+            ++aText;
             break;
         }
 
-        am.name.Append( *text++ );
+        am.name.Append( *aText++ );
     }
 
     // Read aperture macro parameters
     for( ; ; )
     {
-        if( *text == '*' )
-            ++text;
+        if( *aText == '*' )
+            ++aText;
 
-        text = GetNextLine( buff, text, gerber_file );  // Get next line
-        if( text == NULL )  // End of File
+        aText = GetNextLine( aBuff, aBuffSize, aText, gerber_file );
+
+        if( aText == NULL )  // End of File
             return false;
 
-        // text points the beginning of a new line.
+        // aText points the beginning of a new line.
 
         // Test for the last line in aperture macro lis:
         // last line is % or *% sometime found.
-        if( *text == '*' )
-            ++text;
-        if( *text == '%' )
-            break;      // exit with text still pointing at %
+        if( *aText == '*' )
+            ++aText;
 
-        int paramCount = 0;
+        if( *aText == '%' )
+            break;      // exit with aText still pointing at %
+
+        int paramCount = 0; // will be set to the minimal parameters count,
+                            // depending on the actual primitive
         int primitive_type = AMP_UNKNOWN;
         // Test for a valid symbol at the beginning of a description:
         // it can be: a parameter declaration like $1=$2/4
         // or a digit (macro primitive selection)
         // all other symbols are illegal.
-        if( *text == '$' )  // local parameter declaration, inside the aperture macro
+        if( *aText == '$' )  // local parameter declaration, inside the aperture macro
         {
             am.m_localparamStack.push_back( AM_PARAM() );
             AM_PARAM& param = am.m_localparamStack.back();
-            text = GetNextLine(  buff, text, gerber_file );
-            if( text == NULL)   // End of File
+            aText = GetNextLine(  aBuff, aBuffSize, aText, gerber_file );
+            if( aText == NULL)   // End of File
                 return false;
-            param.ReadParam( text );
+            param.ReadParam( aText );
             continue;
         }
-        else if( !isdigit(*text)  )     // Ill. symbol
+        else if( !isdigit(*aText)  )     // Ill. symbol
         {
             msg.Printf( wxT( "RS274X: Aperture Macro \"%s\": ill. symbol, line: \"%s\"" ),
-                        GetChars( am.name ), GetChars( FROM_UTF8( buff ) ) );
-            ReportMessage( msg );
+                        GetChars( am.name ), GetChars( FROM_UTF8( aBuff ) ) );
+            AddMessageToList( msg );
             primitive_type = AMP_COMMENT;
         }
         else
-            primitive_type = ReadInt( text );
+            primitive_type = ReadInt( aText );
+
+        bool is_comment = false;
 
         switch( primitive_type )
         {
         case AMP_COMMENT:     // lines starting by 0 are a comment
             paramCount = 0;
+            is_comment = true;
             // Skip comment
-            while( *text && (*text != '*') )
-                text++;
+            while( *aText && ( *aText != '*' ) )
+                aText++;
             break;
 
         case AMP_CIRCLE:
-            paramCount = 4;
+            paramCount = 4; // minimal count. can have a optional parameter (rotation)
             break;
 
         case AMP_LINE2:
@@ -994,38 +1067,39 @@ bool GERBER_IMAGE::ReadApertureMacro( char buff[GERBER_BUFZ],
             break;
 
         default:
-            // @todo, there needs to be a way of reporting the line number
-            msg.Printf( wxT( "RS274X: Aperture Macro \"%s\": Invalid primitive id code %d, line: \"%s\"" ),
-                        GetChars( am.name ), primitive_type,  GetChars( FROM_UTF8( buff ) ) );
-            ReportMessage( msg );
+            msg.Printf( wxT( "RS274X: Aperture Macro \"%s\": Invalid primitive id code %d, line %d: \"%s\"" ),
+                        GetChars( am.name ), primitive_type, m_LineNum, GetChars( FROM_UTF8( aBuff ) ) );
+            AddMessageToList( msg );
             return false;
         }
 
+        if( is_comment )
+            continue;
+
         AM_PRIMITIVE prim( m_GerbMetric );
         prim.primitive_id = (AM_PRIMITIVE_ID) primitive_type;
-        int i;
+        int ii;
 
-        for( i = 0; i < paramCount && *text && *text != '*'; ++i )
+        for( ii = 0; ii < paramCount && *aText && *aText != '*'; ++ii )
         {
             prim.params.push_back( AM_PARAM() );
 
             AM_PARAM& param = prim.params.back();
 
-            text = GetNextLine(  buff, text, gerber_file );
+            aText = GetNextLine( aBuff, aBuffSize, aText, gerber_file );
 
-            if( text == NULL)   // End of File
+            if( aText == NULL)   // End of File
                 return false;
 
-            param.ReadParam( text );
+            param.ReadParam( aText );
         }
 
-        if( i < paramCount )
+        if( ii < paramCount )
         {
             // maybe some day we can throw an exception and track a line number
             msg.Printf( wxT( "RS274X: read macro descr type %d: read %d parameters, insufficient parameters\n" ),
-                        prim.primitive_id, i );
-            ReportMessage( msg );
-
+                        prim.primitive_id, ii );
+            AddMessageToList( msg );
         }
         // there are more parameters to read if this is an AMP_OUTLINE
         if( prim.primitive_id == AMP_OUTLINE )
@@ -1039,18 +1113,18 @@ bool GERBER_IMAGE::ReadApertureMacro( char buff[GERBER_BUFZ],
 
             paramCount = (int) prim.params[1].GetValue( 0 ) * 2 + 1;
 
-            for( int i = 0; i < paramCount && *text != '*'; ++i )
+            for( int jj = 0; jj < paramCount && *aText != '*'; ++jj )
             {
                 prim.params.push_back( AM_PARAM() );
 
                 AM_PARAM& param = prim.params.back();
 
-                text = GetNextLine(  buff, text, gerber_file );
+                aText = GetNextLine( aBuff, aBuffSize, aText, gerber_file );
 
-                if( text == NULL )  // End of File
+                if( aText == NULL )  // End of File
                     return false;
 
-                param.ReadParam( text );
+                param.ReadParam( aText );
             }
         }
 

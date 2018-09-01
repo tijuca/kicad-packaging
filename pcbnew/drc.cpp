@@ -1,10 +1,9 @@
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004-2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2014 Dick Hollenbeck, dick@softplc.com
- * Copyright (C) 2016 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2017-2018 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,10 +28,10 @@
  */
 
 #include <fctsys.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <trigo.h>
 #include <base_units.h>
-#include <class_board_design_settings.h>
+#include <board_design_settings.h>
 
 #include <class_module.h>
 #include <class_track.h>
@@ -42,35 +41,80 @@
 #include <class_draw_panel_gal.h>
 #include <view/view.h>
 #include <geometry/seg.h>
+#include <math_for_graphics.h>
+
+#include <connectivity_data.h>
+#include <connectivity_algo.h>
 
 #include <tool/tool_manager.h>
-#include <tools/common_actions.h>
+#include <tools/pcb_actions.h>
 
 #include <pcbnew.h>
-#include <drc_stuff.h>
+#include <drc.h>
 
 #include <dialog_drc.h>
 #include <wx/progdlg.h>
+#include <board_commit.h>
 
-
-void DRC::ShowDialog()
+void DRC::ShowDRCDialog( wxWindow* aParent )
 {
+    bool show_dlg_modal = true;
+
+    // the dialog needs a parent frame. if it is not specified, this is
+    // the PCB editor frame specified in DRC class.
+    if( aParent == NULL )
+    {
+        // if any parent is specified, the dialog is modal.
+        // if this is the default PCB editor frame, it is not modal
+        show_dlg_modal = false;
+        aParent = m_pcbEditorFrame;
+    }
+
+    TOOL_MANAGER* toolMgr = m_pcbEditorFrame->GetToolManager();
+    toolMgr->RunAction( ACTIONS::cancelInteractive, true );
+    toolMgr->DeactivateTool();
+    toolMgr->RunAction( PCB_ACTIONS::selectionClear, true );
+
     if( !m_drcDialog )
     {
-        m_mainWindow->GetToolManager()->RunAction( COMMON_ACTIONS::selectionClear, true );
-        m_drcDialog = new DIALOG_DRC_CONTROL( this, m_mainWindow );
+        m_drcDialog = new DIALOG_DRC_CONTROL( this, m_pcbEditorFrame, aParent );
         updatePointers();
 
-        m_drcDialog->SetRptSettings( m_doCreateRptFile, m_rptFilename);
+        m_drcDialog->SetRptSettings( m_doCreateRptFile, m_rptFilename );
+
+        if( show_dlg_modal )
+            m_drcDialog->ShowModal();
+        else
+            m_drcDialog->Show( true );
     }
-    else
+    else    // The dialog is just not visible (because the user has double clicked on an error item)
+    {
         updatePointers();
-
-    m_drcDialog->Show( true );
+        m_drcDialog->Show( true );
+    }
 }
 
 
-void DRC::DestroyDialog( int aReason )
+void DRC::addMarkerToPcb( MARKER_PCB* aMarker )
+{
+    // In legacy routing mode, do not add markers to the board.
+    // only shows the drc error message
+    if( m_drcInLegacyRoutingMode )
+    {
+        m_pcbEditorFrame->SetMsgPanel( aMarker );
+        delete aMarker;
+        m_currentMarker = nullptr;
+    }
+    else
+    {
+        BOARD_COMMIT commit( m_pcbEditorFrame );
+        commit.Add( aMarker );
+        commit.Push( wxEmptyString, false, false );
+    }
+}
+
+
+void DRC::DestroyDRCDialog( int aReason )
 {
     if( m_drcDialog )
     {
@@ -88,18 +132,22 @@ void DRC::DestroyDialog( int aReason )
 
 DRC::DRC( PCB_EDIT_FRAME* aPcbWindow )
 {
-    m_mainWindow = aPcbWindow;
+    m_pcbEditorFrame = aPcbWindow;
     m_pcb = aPcbWindow->GetBoard();
     m_drcDialog  = NULL;
 
     // establish initial values for everything:
+    m_drcInLegacyRoutingMode = false;
     m_doPad2PadTest     = true;     // enable pad to pad clearance tests
     m_doUnconnectedTest = true;     // enable unconnected tests
     m_doZonesTest = true;           // enable zone to items clearance tests
     m_doKeepoutTest = true;         // enable keepout areas to items clearance tests
+    m_doFootprintOverlapping = true; // enable courtyards areas overlap tests
+    m_doNoCourtyardDefined = true;  // enable missing courtyard in footprint warning
     m_abortDRC = false;
     m_drcInProgress = false;
-
+    m_refillZones = false;            // Only fill zones if requested by user.
+    m_reportAllTrackErrors = false;
     m_doCreateRptFile = false;
 
     // m_rptFilename set to empty by its constructor
@@ -124,15 +172,23 @@ DRC::~DRC()
 }
 
 
-int DRC::Drc( TRACK* aRefSegm, TRACK* aList )
+int DRC::DrcOnCreatingTrack( TRACK* aRefSegm, TRACK* aList )
 {
     updatePointers();
 
+    // Set right options for this on line drc
+    int drc_state = m_drcInLegacyRoutingMode;
+    m_drcInLegacyRoutingMode = true;
+    int rpt_state = m_reportAllTrackErrors;
+    m_reportAllTrackErrors = false;
+
     if( !doTrackDrc( aRefSegm, aList, true ) )
     {
-        wxASSERT( m_currentMarker );
+        if( m_currentMarker )
+            m_pcbEditorFrame->SetMsgPanel( m_currentMarker );
 
-        m_mainWindow->SetMsgPanel( m_currentMarker );
+        m_drcInLegacyRoutingMode = drc_state;
+        m_reportAllTrackErrors = rpt_state;
         return BAD_DRC;
     }
 
@@ -140,25 +196,204 @@ int DRC::Drc( TRACK* aRefSegm, TRACK* aList )
     {
         wxASSERT( m_currentMarker );
 
-        m_mainWindow->SetMsgPanel( m_currentMarker );
+        m_pcbEditorFrame->SetMsgPanel( m_currentMarker );
+        delete m_currentMarker;
+        m_currentMarker = nullptr;
+        m_drcInLegacyRoutingMode = drc_state;
+        m_reportAllTrackErrors = rpt_state;
         return BAD_DRC;
     }
 
+    m_drcInLegacyRoutingMode = drc_state;
+    m_reportAllTrackErrors = rpt_state;
     return OK_DRC;
 }
 
 
-int DRC::Drc( ZONE_CONTAINER* aArea, int aCornerIndex )
+int DRC::TestZoneToZoneOutline( ZONE_CONTAINER* aZone, bool aCreateMarkers )
+{
+    BOARD* board = m_pcbEditorFrame->GetBoard();
+    BOARD_COMMIT commit( m_pcbEditorFrame );
+    int nerrors = 0;
+
+    // iterate through all areas
+    for( int ia = 0; ia < board->GetAreaCount(); ia++ )
+    {
+        ZONE_CONTAINER* zoneRef = board->GetArea( ia );
+        SHAPE_POLY_SET refSmoothedPoly;
+
+        zoneRef->BuildSmoothedPoly( refSmoothedPoly );
+
+        if( !zoneRef->IsOnCopperLayer() )
+            continue;
+
+        // When testing only a single area, skip all others
+        if( aZone && ( aZone != zoneRef) )
+            continue;
+
+        for( int ia2 = 0; ia2 < board->GetAreaCount(); ia2++ )
+        {
+            ZONE_CONTAINER* zoneToTest = board->GetArea( ia2 );
+            SHAPE_POLY_SET testSmoothedPoly;
+
+            zoneToTest->BuildSmoothedPoly( testSmoothedPoly );
+
+            if( zoneRef == zoneToTest )
+                continue;
+
+            // test for same layer
+            if( zoneRef->GetLayer() != zoneToTest->GetLayer() )
+                continue;
+
+            // Test for same net
+            if( zoneRef->GetNetCode() == zoneToTest->GetNetCode() && zoneRef->GetNetCode() >= 0 )
+                continue;
+
+            // test for different priorities
+            if( zoneRef->GetPriority() != zoneToTest->GetPriority() )
+                continue;
+
+            // test for different types
+            if( zoneRef->GetIsKeepout() != zoneToTest->GetIsKeepout() )
+                continue;
+
+            // Examine a candidate zone: compare zoneToTest to zoneRef
+
+            // Get clearance used in zone to zone test.  The policy used to
+            // obtain that value is now part of the zone object itself by way of
+            // ZONE_CONTAINER::GetClearance().
+            int zone2zoneClearance = zoneRef->GetClearance( zoneToTest );
+
+            // Keepout areas have no clearance, so set zone2zoneClearance to 1
+            // ( zone2zoneClearance = 0  can create problems in test functions)
+            if( zoneRef->GetIsKeepout() )
+                zone2zoneClearance = 1;
+
+            // test for some corners of zoneRef inside zoneToTest
+            for( auto iterator = refSmoothedPoly.IterateWithHoles(); iterator; iterator++ )
+            {
+                VECTOR2I currentVertex = *iterator;
+
+                if( testSmoothedPoly.Contains( currentVertex ) )
+                {
+                    // COPPERAREA_COPPERAREA error: copper area ref corner inside copper area
+                    if( aCreateMarkers )
+                    {
+                        wxPoint pt( currentVertex.x, currentVertex.y );
+                        wxString msg1 = zoneRef->GetSelectMenuText();
+                        wxString msg2 = zoneToTest->GetSelectMenuText();
+                        MARKER_PCB* marker = new MARKER_PCB( COPPERAREA_INSIDE_COPPERAREA,
+                                                             pt, msg1, pt, msg2, pt );
+                        commit.Add( marker );
+                    }
+
+                    nerrors++;
+                }
+            }
+
+            // test for some corners of zoneToTest inside zoneRef
+            for( auto iterator = testSmoothedPoly.IterateWithHoles(); iterator; iterator++ )
+            {
+                VECTOR2I currentVertex = *iterator;
+
+                if( refSmoothedPoly.Contains( currentVertex ) )
+                {
+                    // COPPERAREA_COPPERAREA error: copper area corner inside copper area ref
+                    if( aCreateMarkers )
+                    {
+                        wxPoint pt( currentVertex.x, currentVertex.y );
+                        wxString msg1 = zoneToTest->GetSelectMenuText();
+                        wxString msg2 = zoneRef->GetSelectMenuText();
+                        MARKER_PCB* marker = new MARKER_PCB( COPPERAREA_INSIDE_COPPERAREA,
+                                                              pt, msg1, pt, msg2, pt );
+                        commit.Add( marker );
+                    }
+
+                    nerrors++;
+                }
+            }
+
+            // Iterate through all the segments of refSmoothedPoly
+            for( auto refIt = refSmoothedPoly.IterateSegmentsWithHoles(); refIt; refIt++ )
+            {
+                // Build ref segment
+                SEG refSegment = *refIt;
+
+                // Iterate through all the segments in testSmoothedPoly
+                for( auto testIt = testSmoothedPoly.IterateSegmentsWithHoles(); testIt; testIt++ )
+                {
+                    // Build test segment
+                    SEG testSegment = *testIt;
+                    wxPoint pt;
+
+                    int ax1, ay1, ax2, ay2;
+                    ax1 = refSegment.A.x;
+                    ay1 = refSegment.A.y;
+                    ax2 = refSegment.B.x;
+                    ay2 = refSegment.B.y;
+
+                    int bx1, by1, bx2, by2;
+                    bx1 = testSegment.A.x;
+                    by1 = testSegment.A.y;
+                    bx2 = testSegment.B.x;
+                    by2 = testSegment.B.y;
+
+                    int d = GetClearanceBetweenSegments( bx1, by1, bx2, by2,
+                                                         0,
+                                                         ax1, ay1, ax2, ay2,
+                                                         0,
+                                                         zone2zoneClearance,
+                                                         &pt.x, &pt.y );
+
+                    if( d < zone2zoneClearance )
+                    {
+                        // COPPERAREA_COPPERAREA error : intersect or too close
+                        if( aCreateMarkers )
+                        {
+                            wxString msg1 = zoneRef->GetSelectMenuText();
+                            wxString msg2 = zoneToTest->GetSelectMenuText();
+                            MARKER_PCB* marker = new MARKER_PCB( COPPERAREA_CLOSE_TO_COPPERAREA,
+                                                                 pt, msg1, pt, msg2, pt );
+                            commit.Add( marker );
+                        }
+
+                        nerrors++;
+                    }
+                }
+            }
+        }
+    }
+
+    if( aCreateMarkers )
+        commit.Push( wxEmptyString, false, false );
+
+    return nerrors;
+}
+
+
+int DRC::DrcOnCreatingZone( ZONE_CONTAINER* aArea, int aCornerIndex )
 {
     updatePointers();
+
+    // Set right options for this on line drc
+    int drc_state = m_drcInLegacyRoutingMode;
+    m_drcInLegacyRoutingMode = true;
+    int rpt_state = m_reportAllTrackErrors;
+    m_reportAllTrackErrors = false;
 
     if( !doEdgeZoneDrc( aArea, aCornerIndex ) )
     {
         wxASSERT( m_currentMarker );
-        m_mainWindow->SetMsgPanel( m_currentMarker );
+        m_pcbEditorFrame->SetMsgPanel( m_currentMarker );
+        delete m_currentMarker;
+        m_currentMarker = nullptr;
+        m_drcInLegacyRoutingMode = drc_state;
+        m_reportAllTrackErrors = rpt_state;
         return BAD_DRC;
     }
 
+    m_drcInLegacyRoutingMode = drc_state;
+    m_reportAllTrackErrors = rpt_state;
     return OK_DRC;
 }
 
@@ -167,19 +402,7 @@ void DRC::RunTests( wxTextCtrl* aMessages )
 {
     // be sure m_pcb is the current board, not a old one
     // ( the board can be reloaded )
-    m_pcb = m_mainWindow->GetBoard();
-
-    // Ensure ratsnest is up to date:
-    if( (m_pcb->m_Status_Pcb & LISTE_RATSNEST_ITEM_OK) == 0 )
-    {
-        if( aMessages )
-        {
-            aMessages->AppendText( _( "Compile ratsnest...\n" ) );
-            wxSafeYield();
-        }
-
-        m_mainWindow->Compile_Ratsnest( NULL, true );
-    }
+    m_pcb = m_pcbEditorFrame->GetBoard();
 
     // someone should have cleared the two lists before calling this.
 
@@ -217,23 +440,30 @@ void DRC::RunTests( wxTextCtrl* aMessages )
         wxSafeYield();
     }
 
-    testTracks( aMessages ? aMessages->GetParent() : m_mainWindow, true );
+    testTracks( aMessages ? aMessages->GetParent() : m_pcbEditorFrame, true );
 
-    // Before testing segments and unconnected, refill all zones:
-    // this is a good caution, because filled areas can be outdated.
-    if( aMessages )
+    // caller (a wxTopLevelFrame) is the wxDialog or the Pcb Editor frame that call DRC:
+    wxWindow* caller = aMessages ? aMessages->GetParent() : m_pcbEditorFrame;
+
+    if( m_refillZones )
     {
-        aMessages->AppendText( _( "Fill zones...\n" ) );
-        wxSafeYield();
-    }
+        if( aMessages )
+            aMessages->AppendText( _( "Refilling all zones...\n" ) );
 
-    m_mainWindow->Fill_All_Zones( aMessages ? aMessages->GetParent() : m_mainWindow,
-                                  false );
+        m_pcbEditorFrame->Fill_All_Zones( caller );
+    }
+    else
+    {
+        if( aMessages )
+            aMessages->AppendText( _( "Checking zone fills...\n" ) );
+
+        m_pcbEditorFrame->Check_All_Zones( caller );
+    }
 
     // test zone clearances to other zones
     if( aMessages )
     {
-        aMessages->AppendText( _( "Test zones...\n" ) );
+        aMessages->AppendText( _( "Zone to zone clearances...\n" ) );
         wxSafeYield();
     }
 
@@ -272,6 +502,27 @@ void DRC::RunTests( wxTextCtrl* aMessages )
 
     testTexts();
 
+    // find overlapping courtyard ares.
+    if( m_doFootprintOverlapping || m_doNoCourtyardDefined )
+    {
+        if( aMessages )
+        {
+            aMessages->AppendText( _( "Courtyard areas...\n" ) );
+            aMessages->Refresh();
+        }
+
+        doFootprintOverlappingDrc();
+    }
+
+    // Check if there are items on disabled layers
+    testDisabledLayers();
+
+    if( aMessages )
+    {
+        aMessages->AppendText( _( "Items on disabled layers...\n" ) );
+        aMessages->Refresh();
+    }
+
     // update the m_drcDialog listboxes
     updatePointers();
 
@@ -295,18 +546,20 @@ void DRC::ListUnconnectedPads()
 
 void DRC::updatePointers()
 {
-    // update my pointers, m_mainWindow is the only unchangeable one
-    m_pcb = m_mainWindow->GetBoard();
+    // update my pointers, m_pcbEditorFrame is the only unchangeable one
+    m_pcb = m_pcbEditorFrame->GetBoard();
 
     if( m_drcDialog )  // Use diag list boxes only in DRC dialog
     {
         m_drcDialog->m_ClearanceListBox->SetList( new DRC_LIST_MARKERS( m_pcb ) );
         m_drcDialog->m_UnconnectedListBox->SetList( new DRC_LIST_UNCONNECTED( &m_unconnected ) );
+
+        m_drcDialog->UpdateDisplayedCounts();
     }
 }
 
 
-bool DRC::doNetClass( NETCLASSPTR nc, wxString& msg )
+bool DRC::doNetClass( const NETCLASSPTR& nc, wxString& msg )
 {
     bool ret = true;
 
@@ -317,92 +570,80 @@ bool DRC::doNetClass( NETCLASSPTR nc, wxString& msg )
 #if 0   // set to 1 when (if...) BOARD_DESIGN_SETTINGS has a m_MinClearance value
     if( nc->GetClearance() < g.m_MinClearance )
     {
-        msg.Printf( _( "NETCLASS: '%s' has Clearance:%s which is less than global:%s" ),
+        msg.Printf( _( "NETCLASS: \"%s\" has Clearance:%s which is less than global:%s" ),
                     GetChars( nc->GetName() ),
                     FmtVal( nc->GetClearance() ),
                     FmtVal( g.m_TrackClearance )
                     );
 
-        m_currentMarker = fillMarker( DRCE_NETCLASS_CLEARANCE, msg, m_currentMarker );
-        m_pcb->Add( m_currentMarker );
-        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
-        m_currentMarker = 0;
+        addMarkerToPcb( fillMarker( DRCE_NETCLASS_CLEARANCE, msg, m_currentMarker ) );
+        m_currentMarker = nullptr;
         ret = false;
     }
 #endif
 
     if( nc->GetTrackWidth() < g.m_TrackMinWidth )
     {
-        msg.Printf( _( "NETCLASS: '%s' has TrackWidth:%s which is less than global:%s" ),
+        msg.Printf( _( "NETCLASS: \"%s\" has TrackWidth:%s which is less than global:%s" ),
                     GetChars( nc->GetName() ),
                     FmtVal( nc->GetTrackWidth() ),
                     FmtVal( g.m_TrackMinWidth )
                     );
 
-        m_currentMarker = fillMarker( DRCE_NETCLASS_TRACKWIDTH, msg, m_currentMarker );
-        m_pcb->Add( m_currentMarker );
-        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
-        m_currentMarker = 0;
+        addMarkerToPcb( fillMarker( DRCE_NETCLASS_TRACKWIDTH, msg, m_currentMarker ) );
+        m_currentMarker = nullptr;
         ret = false;
     }
 
     if( nc->GetViaDiameter() < g.m_ViasMinSize )
     {
-        msg.Printf( _( "NETCLASS: '%s' has Via Dia:%s which is less than global:%s" ),
+        msg.Printf( _( "NETCLASS: \"%s\" has Via Dia:%s which is less than global:%s" ),
                     GetChars( nc->GetName() ),
                     FmtVal( nc->GetViaDiameter() ),
                     FmtVal( g.m_ViasMinSize )
                     );
 
-        m_currentMarker = fillMarker( DRCE_NETCLASS_VIASIZE, msg, m_currentMarker );
-        m_pcb->Add( m_currentMarker );
-        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
-        m_currentMarker = 0;
+        addMarkerToPcb( fillMarker( DRCE_NETCLASS_VIASIZE, msg, m_currentMarker ) );
+        m_currentMarker = nullptr;
         ret = false;
     }
 
     if( nc->GetViaDrill() < g.m_ViasMinDrill )
     {
-        msg.Printf( _( "NETCLASS: '%s' has Via Drill:%s which is less than global:%s" ),
+        msg.Printf( _( "NETCLASS: \"%s\" has Via Drill:%s which is less than global:%s" ),
                     GetChars( nc->GetName() ),
                     FmtVal( nc->GetViaDrill() ),
                     FmtVal( g.m_ViasMinDrill )
                     );
 
-        m_currentMarker = fillMarker( DRCE_NETCLASS_VIADRILLSIZE, msg, m_currentMarker );
-        m_pcb->Add( m_currentMarker );
-        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
-        m_currentMarker = 0;
+        addMarkerToPcb( fillMarker( DRCE_NETCLASS_VIADRILLSIZE, msg, m_currentMarker ) );
+        m_currentMarker = nullptr;
         ret = false;
     }
 
     if( nc->GetuViaDiameter() < g.m_MicroViasMinSize )
     {
-        msg.Printf( _( "NETCLASS: '%s' has uVia Dia:%s which is less than global:%s" ),
+        msg.Printf( _( "NETCLASS: \"%s\" has uVia Dia:%s which is less than global:%s" ),
                     GetChars( nc->GetName() ),
                     FmtVal( nc->GetuViaDiameter() ),
                     FmtVal( g.m_MicroViasMinSize )
                     );
 
-        m_currentMarker = fillMarker( DRCE_NETCLASS_uVIASIZE, msg, m_currentMarker );
-        m_pcb->Add( m_currentMarker );
-        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
-        m_currentMarker = 0;
+        addMarkerToPcb( fillMarker( DRCE_NETCLASS_uVIASIZE, msg, m_currentMarker ) );
+        m_currentMarker = nullptr;
         ret = false;
     }
 
     if( nc->GetuViaDrill() < g.m_MicroViasMinDrill )
     {
-        msg.Printf( _( "NETCLASS: '%s' has uVia Drill:%s which is less than global:%s" ),
+        msg.Printf( _( "NETCLASS: \"%s\" has uVia Drill:%s which is less than global:%s" ),
                     GetChars( nc->GetName() ),
                     FmtVal( nc->GetuViaDrill() ),
                     FmtVal( g.m_MicroViasMinDrill )
                     );
 
-        m_currentMarker = fillMarker( DRCE_NETCLASS_uVIADRILLSIZE, msg, m_currentMarker );
-        m_pcb->Add( m_currentMarker );
-        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
-        m_currentMarker = 0;
+        addMarkerToPcb( fillMarker( DRCE_NETCLASS_uVIADRILLSIZE, msg, m_currentMarker ) );
+        m_currentMarker = nullptr;
         ret = false;
     }
 
@@ -439,6 +680,9 @@ void DRC::testPad2Pad()
 
     m_pcb->GetSortedPadListByXthenYCoord( sortedPads );
 
+    if( sortedPads.size() == 0 )
+        return;
+
     // find the max size of the pads (used to stop the test)
     int max_size = 0;
 
@@ -448,13 +692,15 @@ void DRC::testPad2Pad()
 
         // GetBoundingRadius() is the radius of the minimum sized circle fully containing the pad
         int radius = pad->GetBoundingRadius();
+
         if( radius > max_size )
             max_size = radius;
     }
 
-    // Test the pads
-    D_PAD** listEnd = &sortedPads[ sortedPads.size() ];
+    // Upper limit of pad list (limit not included)
+    D_PAD** listEnd = &sortedPads[0] + sortedPads.size();
 
+    // Test the pads
     for( unsigned i = 0; i< sortedPads.size(); ++i )
     {
         D_PAD* pad = sortedPads[i];
@@ -465,9 +711,8 @@ void DRC::testPad2Pad()
         if( !doPadToPadsDrc( pad, &sortedPads[i], listEnd, x_limit ) )
         {
             wxASSERT( m_currentMarker );
-            m_pcb->Add( m_currentMarker );
-            m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
-            m_currentMarker = 0;
+            addMarkerToPcb ( m_currentMarker );
+            m_currentMarker = nullptr;
         }
     }
 }
@@ -479,6 +724,7 @@ void DRC::testTracks( wxWindow *aActiveWindow, bool aShowProgressBar )
     const int delta = 500;  // This is the number of tests between 2 calls to the
                             // progress bar
     int count = 0;
+
     for( TRACK* segm = m_pcb->m_Track; segm && segm->Next(); segm = segm->Next() )
         count++;
 
@@ -486,19 +732,20 @@ void DRC::testTracks( wxWindow *aActiveWindow, bool aShowProgressBar )
 
     if( aShowProgressBar && deltamax > 3 )
     {
+        // Do not use wxPD_APP_MODAL style here: it is not necessary and create issues
+        // on OSX
         progressDialog = new wxProgressDialog( _( "Track clearances" ), wxEmptyString,
                                                deltamax, aActiveWindow,
-                                               wxPD_AUTO_HIDE | wxPD_CAN_ABORT |
-                                               wxPD_APP_MODAL | wxPD_ELAPSED_TIME );
+                                               wxPD_AUTO_HIDE | wxPD_CAN_ABORT | wxPD_ELAPSED_TIME );
         progressDialog->Update( 0, wxEmptyString );
     }
 
     int ii = 0;
     count = 0;
 
-    for( TRACK* segm = m_pcb->m_Track; segm && segm->Next(); segm = segm->Next() )
+    for( TRACK* segm = m_pcb->m_Track; segm; segm = segm->Next() )
     {
-        if ( ii++ > delta )
+        if( ii++ > delta )
         {
             ii = 0;
             count++;
@@ -517,10 +764,11 @@ void DRC::testTracks( wxWindow *aActiveWindow, bool aShowProgressBar )
 
         if( !doTrackDrc( segm, segm->Next(), true ) )
         {
-            wxASSERT( m_currentMarker );
-            m_pcb->Add( m_currentMarker );
-            m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
-            m_currentMarker = 0;
+            if( m_currentMarker )
+            {
+                addMarkerToPcb ( m_currentMarker );
+                m_currentMarker = nullptr;
+            }
         }
     }
 
@@ -531,35 +779,30 @@ void DRC::testTracks( wxWindow *aActiveWindow, bool aShowProgressBar )
 
 void DRC::testUnconnected()
 {
-    if( (m_pcb->m_Status_Pcb & LISTE_RATSNEST_ITEM_OK) == 0 )
+
+    auto connectivity = m_pcb->GetConnectivity();
+
+    connectivity->Clear();
+    connectivity->Build( m_pcb ); // just in case. This really needs to be reliable.
+    connectivity->RecalculateRatsnest();
+
+    std::vector<CN_EDGE> edges;
+    connectivity->GetUnconnectedEdges( edges );
+
+    for( const auto& edge : edges )
     {
-        wxClientDC dc( m_mainWindow->GetCanvas() );
-        m_mainWindow->Compile_Ratsnest( &dc, true );
-    }
+        wxString t_src = edge.GetSourceNode()->Parent()->GetSelectMenuText();
+        wxString t_dst = edge.GetTargetNode()->Parent()->GetSelectMenuText();
+        auto src = edge.GetSourcePos();
+        auto dst = edge.GetTargetPos();
 
-    if( m_pcb->GetRatsnestsCount() == 0 )
-        return;
 
-    wxString msg;
-
-    for( unsigned ii = 0; ii < m_pcb->GetRatsnestsCount();  ++ii )
-    {
-        RATSNEST_ITEM& rat = m_pcb->m_FullRatsnest[ii];
-
-        if( (rat.m_Status & CH_ACTIF) == 0 )
-            continue;
-
-        D_PAD*    padStart = rat.m_PadStart;
-        D_PAD*    padEnd   = rat.m_PadEnd;
-
-        msg = padStart->GetSelectMenuText() + wxT( " net " ) + padStart->GetNetname();
-
-        DRC_ITEM* uncItem = new DRC_ITEM( DRCE_UNCONNECTED_PADS,
-                                          msg,
-                                          padEnd->GetSelectMenuText(),
-                                          padStart->GetPosition(), padEnd->GetPosition() );
-
+        DRC_ITEM* uncItem = new DRC_ITEM( DRCE_UNCONNECTED_ITEMS,
+                                          t_src,
+                                          t_dst,
+                                          wxPoint( src.x, src.y ), wxPoint( dst.x, dst.y ) );
         m_unconnected.push_back( uncItem );
+
     }
 }
 
@@ -572,7 +815,7 @@ void DRC::testZones()
     // This is allowed, but i am not sure this is a good idea
     //
     // In recent Pcbnew versions, the netcode is always >= 0, but an internal net name
-    // is stored, and initalized from the file or the zone properpies editor.
+    // is stored, and initialized from the file or the zone properties editor.
     // if it differs from the net name from net code, there is a DRC issue
     for( int ii = 0; ii < m_pcb->GetAreaCount(); ii++ )
     {
@@ -587,20 +830,18 @@ void DRC::testZones()
         // perhaps a "dead" net, which happens when all pads in this net were removed
         // Remark: a netcode < 0 should not happen (this is more a bug somewhere)
         int pads_in_net = (test_area->GetNetCode() > 0) ?
-                            test_area->GetNet()->GetNodesCount() : 1;
+                            m_pcb->GetConnectivity()->GetPadCount( test_area->GetNetCode() ) : 1;
 
         if( ( netcode < 0 ) || pads_in_net == 0 )
         {
-            m_currentMarker = fillMarker( test_area,
-                                          DRCE_SUSPICIOUS_NET_FOR_ZONE_OUTLINE, m_currentMarker );
-            m_pcb->Add( m_currentMarker );
-            m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
-            m_currentMarker = NULL;
+            addMarkerToPcb( fillMarker( test_area,
+                                        DRCE_SUSPICIOUS_NET_FOR_ZONE_OUTLINE, m_currentMarker ) );
+            m_currentMarker = nullptr;
         }
     }
 
     // Test copper areas outlines, and create markers when needed
-    m_pcb->Test_Drc_Areas_Outlines_To_Areas_Outlines( NULL, true );
+    TestZoneToZoneOutline( NULL, true );
 }
 
 
@@ -612,26 +853,27 @@ void DRC::testKeepoutAreas()
         ZONE_CONTAINER* area = m_pcb->GetArea( ii );
 
         if( !area->GetIsKeepout() )
+        {
             continue;
+        }
 
         for( TRACK* segm = m_pcb->m_Track; segm != NULL; segm = segm->Next() )
         {
             if( segm->Type() == PCB_TRACE_T )
             {
-                if( ! area->GetDoNotAllowTracks()  )
+                if( !area->GetDoNotAllowTracks()  )
                     continue;
 
-                if( segm->GetLayer() != area->GetLayer() )
+                // Ignore if the keepout zone is not on the same layer
+                if( !area->IsOnLayer( segm->GetLayer() ) )
                     continue;
 
-                if( area->Outline()->Distance( segm->GetStart(), segm->GetEnd(),
+                if( area->Outline()->Distance( SEG( segm->GetStart(), segm->GetEnd() ),
                                                segm->GetWidth() ) == 0 )
                 {
-                    m_currentMarker = fillMarker( segm, NULL,
-                                                  DRCE_TRACK_INSIDE_KEEPOUT, m_currentMarker );
-                    m_pcb->Add( m_currentMarker );
-                    m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
-                    m_currentMarker = 0;
+                    addMarkerToPcb( fillMarker( segm, NULL,
+                                                DRCE_TRACK_INSIDE_KEEPOUT, m_currentMarker ) );
+                    m_currentMarker = nullptr;
                 }
             }
             else if( segm->Type() == PCB_VIA_T )
@@ -639,16 +881,16 @@ void DRC::testKeepoutAreas()
                 if( ! area->GetDoNotAllowVias()  )
                     continue;
 
-                if( ! ((VIA*)segm)->IsOnLayer( area->GetLayer() ) )
+                auto viaLayers = segm->GetLayerSet();
+
+                if( !area->CommonLayerExists( viaLayers ) )
                     continue;
 
                 if( area->Outline()->Distance( segm->GetPosition() ) < segm->GetWidth()/2 )
                 {
-                    m_currentMarker = fillMarker( segm, NULL,
-                                                  DRCE_VIA_INSIDE_KEEPOUT, m_currentMarker );
-                    m_pcb->Add( m_currentMarker );
-                    m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
-                    m_currentMarker = 0;
+                    addMarkerToPcb( fillMarker( segm, NULL,
+                                                DRCE_VIA_INSIDE_KEEPOUT, m_currentMarker ) );
+                    m_currentMarker = nullptr;
                 }
             }
         }
@@ -663,10 +905,10 @@ void DRC::testTexts()
     std::vector<D_PAD*> padList = m_pcb->GetPads();
 
     // Test text areas for vias, tracks and pads inside text areas
-    for( BOARD_ITEM* item = m_pcb->m_Drawings; item; item = item->Next() )
+    for( auto item : m_pcb->Drawings() )
     {
         // Drc test only items on copper layers
-        if( ! IsCopperLayer( item->GetLayer() ) )
+        if( !IsCopperLayer( item->GetLayer() ) )
             continue;
 
         // only texts on copper layers are tested
@@ -684,7 +926,7 @@ void DRC::testTexts()
 
         for( TRACK* track = m_pcb->m_Track; track != NULL; track = track->Next() )
         {
-            if( ! track->IsOnLayer( item->GetLayer() ) )
+            if( !track->IsOnLayer( item->GetLayer() ) )
                     continue;
 
             // Test the distance between each segment and the current track/via
@@ -704,12 +946,10 @@ void DRC::testTexts()
 
                     if( dist < min_dist )
                     {
-                        m_currentMarker = fillMarker( track, text,
-                                                      DRCE_TRACK_INSIDE_TEXT,
-                                                      m_currentMarker );
-                        m_pcb->Add( m_currentMarker );
-                        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
-                        m_currentMarker = NULL;
+                        addMarkerToPcb( fillMarker( track, text,
+                                                    DRCE_TRACK_INSIDE_TEXT,
+                                                    m_currentMarker ) );
+                        m_currentMarker = nullptr;
                         break;
                     }
                 }
@@ -724,11 +964,9 @@ void DRC::testTexts()
 
                     if( segtest.PointCloserThan( track->GetPosition(), min_dist ) )
                     {
-                        m_currentMarker = fillMarker( track, text,
-                                                      DRCE_VIA_INSIDE_TEXT, m_currentMarker );
-                        m_pcb->Add( m_currentMarker );
-                        m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
-                        m_currentMarker = NULL;
+                        addMarkerToPcb( fillMarker( track, text,
+                                                    DRCE_VIA_INSIDE_TEXT, m_currentMarker ) );
+                        m_currentMarker = nullptr;
                         break;
                     }
                 }
@@ -740,7 +978,7 @@ void DRC::testTexts()
         {
             D_PAD* pad = padList[ii];
 
-            if( ! pad->IsOnLayer( item->GetLayer() ) )
+            if( !pad->IsOnLayer( item->GetLayer() ) )
                     continue;
 
             wxPoint shape_pos = pad->ShapePos();
@@ -774,15 +1012,51 @@ void DRC::testTexts()
                 if( !checkClearanceSegmToPad( pad, text->GetThickness(),
                                               pad->GetClearance(NULL) ) )
                 {
-                    m_currentMarker = fillMarker( pad, text,
-                                                  DRCE_PAD_INSIDE_TEXT, m_currentMarker );
-                    m_pcb->Add( m_currentMarker );
-                    m_mainWindow->GetGalCanvas()->GetView()->Add( m_currentMarker );
-                    m_currentMarker = NULL;
+                    addMarkerToPcb( fillMarker( pad, text,
+                                                DRCE_PAD_INSIDE_TEXT, m_currentMarker ) );
+                    m_currentMarker = nullptr;
                     break;
                 }
             }
         }
+    }
+}
+
+
+void DRC::testDisabledLayers()
+{
+    BOARD* board = m_pcbEditorFrame->GetBoard();
+    wxCHECK( board, /*void*/ );
+    LSET disabledLayers = board->GetEnabledLayers().flip();
+
+    auto createMarker = [&]( BOARD_ITEM* aItem )
+    {
+        wxString msg;
+        msg.Printf( _( "\"%s\" is on a disabled layer" ), aItem->GetSelectMenuText() );
+        m_currentMarker = fillMarker( aItem->GetPosition(), DRCE_DISABLED_LAYER_ITEM,
+                msg, m_currentMarker );
+        addMarkerToPcb( m_currentMarker );
+        m_currentMarker = nullptr;
+    };
+
+    for( auto track : board->Tracks() )
+    {
+        if( disabledLayers.test( track->GetLayer() ) )
+            createMarker( track );
+    }
+
+    for( auto module : board->Modules() )
+    {
+        module->RunOnChildren( [&]( BOARD_ITEM* aItem ) {
+            if( disabledLayers.test( aItem->GetLayer() ) )
+                createMarker( aItem );
+        } );
+    }
+
+    for( auto zone : board->Zones() )
+    {
+        if( disabledLayers.test( zone->GetLayer() ) )
+            createMarker( zone );
     }
 }
 
@@ -799,13 +1073,13 @@ bool DRC::doTrackKeepoutDrc( TRACK* aRefSeg )
 
         if( aRefSeg->Type() == PCB_TRACE_T )
         {
-            if( ! area->GetDoNotAllowTracks()  )
+            if( !area->GetDoNotAllowTracks()  )
                 continue;
 
-            if( aRefSeg->GetLayer() != area->GetLayer() )
+            if( !area->IsOnLayer( aRefSeg->GetLayer() ) )
                 continue;
 
-            if( area->Outline()->Distance( aRefSeg->GetStart(), aRefSeg->GetEnd(),
+            if( area->Outline()->Distance( SEG( aRefSeg->GetStart(), aRefSeg->GetEnd() ),
                                            aRefSeg->GetWidth() ) == 0 )
             {
                 m_currentMarker = fillMarker( aRefSeg, NULL,
@@ -815,10 +1089,12 @@ bool DRC::doTrackKeepoutDrc( TRACK* aRefSeg )
         }
         else if( aRefSeg->Type() == PCB_VIA_T )
         {
-            if( ! area->GetDoNotAllowVias()  )
+            if( !area->GetDoNotAllowVias() )
                 continue;
 
-            if( ! ((VIA*)aRefSeg)->IsOnLayer( area->GetLayer() ) )
+            auto viaLayers = aRefSeg->GetLayerSet();
+
+            if( !area->CommonLayerExists( viaLayers ) )
                 continue;
 
             if( area->Outline()->Distance( aRefSeg->GetPosition() ) < aRefSeg->GetWidth()/2 )
@@ -965,4 +1241,129 @@ bool DRC::doPadToPadsDrc( D_PAD* aRefPad, D_PAD** aStart, D_PAD** aEnd, int x_li
     }
 
     return true;
+}
+
+
+bool DRC::doFootprintOverlappingDrc()
+{
+    // Detects missing (or malformed) footprint courtyard,
+    // and for footprint with courtyard, courtyards overlap.
+    wxString msg;
+    bool success = true;
+
+    // Update courtyard polygons, and test for missing courtyard definition:
+    for( MODULE* footprint = m_pcb->m_Modules; footprint; footprint = footprint->Next() )
+    {
+        bool is_ok = footprint->BuildPolyCourtyard();
+
+        if( !is_ok && m_doFootprintOverlapping )
+        {
+            msg.Printf( _( "footprint \"%s\" has malformed courtyard" ),
+                        footprint->GetReference().GetData() );
+            m_currentMarker = fillMarker( footprint->GetPosition(),
+                                          DRCE_MALFORMED_COURTYARD_IN_FOOTPRINT,
+                                          msg, m_currentMarker );
+            addMarkerToPcb( m_currentMarker );
+            m_currentMarker = nullptr;
+            success = false;
+        }
+
+        if( !m_doNoCourtyardDefined )
+            continue;
+
+        if( footprint->GetPolyCourtyardFront().OutlineCount() == 0 &&
+            footprint->GetPolyCourtyardBack().OutlineCount() == 0 &&
+            is_ok )
+        {
+            msg.Printf( _( "footprint \"%s\" has no courtyard defined" ),
+                        footprint->GetReference().GetData() );
+            m_currentMarker = fillMarker( footprint->GetPosition(),
+                                          DRCE_MISSING_COURTYARD_IN_FOOTPRINT,
+                                          msg, m_currentMarker );
+            addMarkerToPcb( m_currentMarker );
+            m_currentMarker = nullptr;
+            success = false;
+        }
+    }
+
+    if( !m_doFootprintOverlapping )
+        return success;
+
+    // Now test for overlapping on top layer:
+    SHAPE_POLY_SET courtyard;   // temporary storage of the courtyard of current footprint
+
+    for( MODULE* footprint = m_pcb->m_Modules; footprint; footprint = footprint->Next() )
+    {
+        if( footprint->GetPolyCourtyardFront().OutlineCount() == 0 )
+            continue;           // No courtyard defined
+
+        for( MODULE* candidate = footprint->Next(); candidate; candidate = candidate->Next() )
+        {
+            if( candidate->GetPolyCourtyardFront().OutlineCount() == 0 )
+                continue;       // No courtyard defined
+
+            courtyard.RemoveAllContours();
+            courtyard.Append( footprint->GetPolyCourtyardFront() );
+
+            // Build the common area between footprint and the candidate:
+            courtyard.BooleanIntersection( candidate->GetPolyCourtyardFront(),
+                                           SHAPE_POLY_SET::PM_FAST );
+
+            // If no overlap, courtyard is empty (no common area).
+            // Therefore if a common polygon exists, this is a DRC error
+            if( courtyard.OutlineCount() )
+            {
+                //Overlap between footprint and candidate
+                msg.Printf( _( "footprints \"%s\" and \"%s\" overlap on front (top) layer" ),
+                            footprint->GetReference().GetData(),
+                            candidate->GetReference().GetData() );
+                VECTOR2I& pos = courtyard.Vertex( 0, 0, -1 );
+                wxPoint loc( pos.x, pos.y );
+                m_currentMarker = fillMarker( loc, DRCE_OVERLAPPING_FOOTPRINTS, msg,
+                                              m_currentMarker );
+                addMarkerToPcb( m_currentMarker );
+                m_currentMarker = nullptr;
+                success = false;
+            }
+        }
+    }
+
+    // Test for overlapping on bottom layer:
+    for( MODULE* footprint = m_pcb->m_Modules; footprint; footprint = footprint->Next() )
+    {
+        if( footprint->GetPolyCourtyardBack().OutlineCount() == 0 )
+            continue;           // No courtyard defined
+
+        for( MODULE* candidate = footprint->Next(); candidate; candidate = candidate->Next() )
+        {
+            if( candidate->GetPolyCourtyardBack().OutlineCount() == 0 )
+                continue;       // No courtyard defined
+
+            courtyard.RemoveAllContours();
+            courtyard.Append( footprint->GetPolyCourtyardBack() );
+
+            // Build the common area between footprint and the candidate:
+            courtyard.BooleanIntersection( candidate->GetPolyCourtyardBack(),
+                                           SHAPE_POLY_SET::PM_FAST );
+
+            // If no overlap, courtyard is empty (no common area).
+            // Therefore if a common polygon exists, this is a DRC error
+            if( courtyard.OutlineCount() )
+            {
+                //Overlap between footprint and candidate
+                msg.Printf( _( "footprints \"%s\" and \"%s\" overlap on back (bottom) layer" ),
+                            footprint->GetReference().GetData(),
+                            candidate->GetReference().GetData() );
+                VECTOR2I& pos = courtyard.Vertex( 0, 0, -1 );
+                wxPoint loc( pos.x, pos.y );
+                m_currentMarker = fillMarker( loc, DRCE_OVERLAPPING_FOOTPRINTS, msg,
+                                              m_currentMarker );
+                addMarkerToPcb( m_currentMarker );
+                m_currentMarker = nullptr;
+                success = false;
+            }
+        }
+    }
+
+    return success;
 }

@@ -14,6 +14,7 @@
         <property name="file">dialog_print_using_printer_base</property>
         <property name="first_id">1000</property>
         <property name="help_provider">none</property>
+        <property name="indent_with_spaces"></property>
         <property name="internationalize">1</property>
         <property name="name">DialogPrint_base</property>
         <property name="namespace"></property>
@@ -44,7 +45,7 @@
             <property name="minimum_size">-1,-1</property>
             <property name="name">DIALOG_PRINT_USING_PRINTER_BASE</property>
             <property name="pos"></property>
-            <property name="size">551,314</property>
+            <property name="size">-1,-1</property>
             <property name="style">wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER</property>
             <property name="subclass">DIALOG_SHIM; dialog_shim.h</property>
             <property name="title">Print</property>
@@ -103,6 +104,7 @@
                         <property name="minimum_size"></property>
                         <property name="name">sbLayersSizer</property>
                         <property name="orient">wxVERTICAL</property>
+                        <property name="parent">1</property>
                         <property name="permission">none</property>
                         <event name="OnUpdateUI"></event>
                         <object class="sizeritem" expanded="1">
@@ -120,10 +122,11 @@
                                     <property name="proportion">1</property>
                                     <object class="wxStaticBoxSizer" expanded="1">
                                         <property name="id">wxID_ANY</property>
-                                        <property name="label">Layers:</property>
+                                        <property name="label">Graphic layers:</property>
                                         <property name="minimum_size"></property>
                                         <property name="name">m_leftLayersBoxSizer</property>
                                         <property name="orient">wxVERTICAL</property>
+                                        <property name="parent">1</property>
                                         <property name="permission">protected</property>
                                         <event name="OnUpdateUI"></event>
                                     </object>
@@ -134,10 +137,11 @@
                                     <property name="proportion">1</property>
                                     <object class="wxStaticBoxSizer" expanded="1">
                                         <property name="id">wxID_ANY</property>
-                                        <property name="label">Layers:</property>
+                                        <property name="label">Graphic layers:</property>
                                         <property name="minimum_size"></property>
                                         <property name="name">m_rightLayersBoxSizer</property>
                                         <property name="orient">wxVERTICAL</property>
+                                        <property name="parent">1</property>
                                         <property name="permission">protected</property>
                                         <event name="OnUpdateUI"></event>
                                     </object>
@@ -173,7 +177,7 @@
                                 <property name="caption"></property>
                                 <property name="caption_visible">1</property>
                                 <property name="center_pane">0</property>
-                                <property name="choices">&quot;fit in page&quot; &quot;Scale 0.5&quot; &quot;Scale 0.7&quot; &quot;Approx. Scale 1&quot; &quot;Accurate Scale 1&quot; &quot;Scale 1.4&quot; &quot;Scale 2&quot; &quot;Scale 3&quot; &quot;Scale 4&quot;</property>
+                                <property name="choices">&quot;Fit to page&quot; &quot;Scale 0.5&quot; &quot;Scale 0.7&quot; &quot;Approximate scale 1&quot; &quot;Accurate scale 1&quot; &quot;Scale 1.4&quot; &quot;Scale 2&quot; &quot;Scale 3&quot; &quot;Scale 4&quot;</property>
                                 <property name="close_button">1</property>
                                 <property name="context_help"></property>
                                 <property name="context_menu">1</property>
@@ -188,7 +192,7 @@
                                 <property name="gripper">0</property>
                                 <property name="hidden">0</property>
                                 <property name="id">wxID_ANY</property>
-                                <property name="label">Approx. Scale:</property>
+                                <property name="label">Approximate Scale:</property>
                                 <property name="majorDimension">1</property>
                                 <property name="max_size"></property>
                                 <property name="maximize_button">0</property>
@@ -205,7 +209,7 @@
                                 <property name="pin_button">1</property>
                                 <property name="pos"></property>
                                 <property name="resize">Resizable</property>
-                                <property name="selection">3</property>
+                                <property name="selection">0</property>
                                 <property name="show">1</property>
                                 <property name="size"></property>
                                 <property name="style">wxRA_SPECIFY_COLS</property>
@@ -277,7 +281,7 @@
                                 <property name="gripper">0</property>
                                 <property name="hidden">0</property>
                                 <property name="id">wxID_ANY</property>
-                                <property name="label">X Scale Adjust</property>
+                                <property name="label">X scale:</property>
                                 <property name="max_size"></property>
                                 <property name="maximize_button">0</property>
                                 <property name="maximum_size"></property>
@@ -451,7 +455,7 @@
                                 <property name="gripper">0</property>
                                 <property name="hidden">0</property>
                                 <property name="id">wxID_ANY</property>
-                                <property name="label">Y Scale Adjust</property>
+                                <property name="label">Y scale:</property>
                                 <property name="max_size"></property>
                                 <property name="maximize_button">0</property>
                                 <property name="maximum_size"></property>
@@ -614,6 +618,7 @@
                                 <property name="minimum_size"></property>
                                 <property name="name">sbOptionsSizer</property>
                                 <property name="orient">wxVERTICAL</property>
+                                <property name="parent">1</property>
                                 <property name="permission">none</property>
                                 <event name="OnUpdateUI"></event>
                                 <object class="sizeritem" expanded="1">
@@ -739,7 +744,7 @@
                                 <property name="gripper">0</property>
                                 <property name="hidden">0</property>
                                 <property name="id">wxID_PRINT_MODE</property>
-                                <property name="label">Print Mode</property>
+                                <property name="label">Print Mode:</property>
                                 <property name="majorDimension">1</property>
                                 <property name="max_size"></property>
                                 <property name="maximize_button">0</property>
@@ -1133,7 +1138,7 @@
                                 <property name="window_extra_style"></property>
                                 <property name="window_name"></property>
                                 <property name="window_style"></property>
-                                <event name="OnButtonClick">OnButtonCancelClick</event>
+                                <event name="OnButtonClick">OnButtonCloseClick</event>
                                 <event name="OnChar"></event>
                                 <event name="OnEnterWindow"></event>
                                 <event name="OnEraseBackground"></event>

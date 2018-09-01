@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version May  6 2016)
+// C++ code generated with wxFormBuilder (version Apr 19 2018)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_COPPER_ZONES_BASE_H__
@@ -11,8 +11,7 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
-class wxListView;
+class TEXT_CTRL_EVAL;
 
 #include "dialog_shim.h"
 #include <wx/string.h>
@@ -29,6 +28,10 @@ class wxListView;
 #include <wx/button.h>
 #include <wx/statbox.h>
 #include <wx/spinctrl.h>
+#include <wx/bitmap.h>
+#include <wx/image.h>
+#include <wx/icon.h>
+#include <wx/statbmp.h>
 #include <wx/dialog.h>
 
 ///////////////////////////////////////////////////////////////////////////
@@ -43,6 +46,7 @@ class DIALOG_COPPER_ZONE_BASE : public DIALOG_SHIM
 		
 		// Private event handlers
 		void _wxFB_OnClose( wxCloseEvent& event ){ OnClose( event ); }
+		void _wxFB_OnUpdateUI( wxUpdateUIEvent& event ){ OnUpdateUI( event ); }
 		void _wxFB_OnNetSortingOptionSelected( wxCommandEvent& event ){ OnNetSortingOptionSelected( event ); }
 		void _wxFB_OnRunFiltersButtonClick( wxCommandEvent& event ){ OnRunFiltersButtonClick( event ); }
 		void _wxFB_OnCornerSmoothingModeChoice( wxCommandEvent& event ){ OnCornerSmoothingModeChoice( event ); }
@@ -74,41 +78,44 @@ class DIALOG_COPPER_ZONE_BASE : public DIALOG_SHIM
 		};
 		
 		wxBoxSizer* m_MainBoxSizer;
-		wxStaticText* m_staticText17;
+		wxStaticText* m_staticTextLayers;
 		wxListView* m_LayerSelectionCtrl;
-		wxStaticText* m_staticText2;
+		wxStaticText* m_staticTextNets;
 		wxListBox* m_ListNetNameSelection;
-		wxStaticText* m_staticText16;
+		wxStaticText* m_staticTextDisplay;
 		wxChoice* m_NetDisplayOption;
-		wxStaticText* m_staticText5;
+		wxStaticText* m_staticTextHfilter;
 		wxTextCtrl* m_DoNotShowNetNameFilter;
-		wxStaticText* m_staticText51;
+		wxStaticText* m_staticTextVFilter;
 		wxTextCtrl* m_ShowNetNameFilter;
 		wxButton* m_buttonRunFilter;
 		wxStaticText* m_ClearanceValueTitle;
-		wxTextCtrl* m_ZoneClearanceCtrl;
+		TEXT_CTRL_EVAL* m_ZoneClearanceCtrl;
 		wxStaticText* m_MinThicknessValueTitle;
-		wxTextCtrl* m_ZoneMinThicknessCtrl;
-		wxStaticText* m_staticText151;
+		TEXT_CTRL_EVAL* m_ZoneMinThicknessCtrl;
+		wxStaticText* m_staticTextSmoothing;
 		wxChoice* m_cornerSmoothingChoice;
-		wxStaticText* m_cornerSmoothingTitle;
-		wxTextCtrl* m_cornerSmoothingCtrl;
-		wxStaticText* m_staticText13;
+		wxStaticText* m_cornerSmoothingValue;
+		TEXT_CTRL_EVAL* m_cornerSmoothingCtrl;
+		wxStaticText* m_staticTextPadConnection;
 		wxChoice* m_PadInZoneOpt;
 		wxStaticText* m_AntipadSizeText;
-		wxTextCtrl* m_AntipadSizeValue;
+		TEXT_CTRL_EVAL* m_AntipadSizeValue;
 		wxStaticText* m_CopperBridgeWidthText;
-		wxTextCtrl* m_CopperWidthValue;
-		wxStaticText* m_staticText171;
+		TEXT_CTRL_EVAL* m_CopperWidthValue;
+		wxStaticText* m_staticTextPriorityLevel;
 		wxSpinCtrl* m_PriorityLevelCtrl;
-		wxStaticText* m_staticText11;
+		wxStaticText* m_staticTextFillMode;
 		wxChoice* m_FillModeCtrl;
-		wxStaticText* m_staticText12;
+		wxStaticText* m_staticTextSegmCnt;
 		wxChoice* m_ArcApproximationOpt;
-		wxStaticText* m_staticText14;
+		wxStaticText* m_staticTextSlope;
 		wxChoice* m_OrientEdgesOpt;
-		wxStaticText* m_staticText15;
+		wxStaticText* m_staticTextStyle;
 		wxChoice* m_OutlineAppearanceCtrl;
+		wxBoxSizer* m_bNoNetWarning;
+		wxStaticBitmap* m_bitmapNoNetWarning;
+		wxStaticText* m_staticText18;
 		wxButton* m_ExportSetupButton;
 		wxStdDialogButtonSizer* m_sdbSizer;
 		wxButton* m_sdbSizerOK;
@@ -116,6 +123,7 @@ class DIALOG_COPPER_ZONE_BASE : public DIALOG_SHIM
 		
 		// Virtual event handlers, overide them in your derived class
 		virtual void OnClose( wxCloseEvent& event ) { event.Skip(); }
+		virtual void OnUpdateUI( wxUpdateUIEvent& event ) { event.Skip(); }
 		virtual void OnNetSortingOptionSelected( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnRunFiltersButtonClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnCornerSmoothingModeChoice( wxCommandEvent& event ) { event.Skip(); }
@@ -127,7 +135,7 @@ class DIALOG_COPPER_ZONE_BASE : public DIALOG_SHIM
 	
 	public:
 		
-		DIALOG_COPPER_ZONE_BASE( wxWindow* parent, wxWindowID id = ID_DIALOG_COPPER_ZONE_BASE, const wxString& title = _("Copper Zone Properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 567,507 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_COPPER_ZONE_BASE( wxWindow* parent, wxWindowID id = ID_DIALOG_COPPER_ZONE_BASE, const wxString& title = _("Copper Zone Properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_COPPER_ZONE_BASE();
 	
 };

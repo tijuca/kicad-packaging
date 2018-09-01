@@ -2,8 +2,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2008 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,7 +29,7 @@
 #include <common.h>
 #include <kicad_string.h>
 #include <gestfich.h>
-#include <wxstruct.h>
+#include <eda_base_frame.h>
 #include <config_params.h>
 
 #include <wx/apptrait.h>
@@ -37,15 +37,13 @@
 
 #include <wildcards_and_files_ext.h>
 
-#include <boost/foreach.hpp>
-
 
 void wxConfigLoadParams( wxConfigBase* aCfg,
             const PARAM_CFG_ARRAY& aList, const wxString& aGroup )
 {
     wxASSERT( aCfg );
 
-    BOOST_FOREACH( const PARAM_CFG_BASE& param, aList )
+    for( const PARAM_CFG_BASE& param : aList )
     {
         if( !!param.m_Group )
             aCfg->SetPath( param.m_Group );
@@ -64,7 +62,7 @@ void wxConfigLoadSetups( wxConfigBase* aCfg, const PARAM_CFG_ARRAY& aList )
 {
     wxASSERT( aCfg );
 
-    BOOST_FOREACH( const PARAM_CFG_BASE& param, aList )
+    for( const PARAM_CFG_BASE& param : aList )
     {
         if( !param.m_Setup )
             continue;
@@ -79,7 +77,7 @@ void wxConfigSaveParams( wxConfigBase* aCfg,
 {
     wxASSERT( aCfg );
 
-    BOOST_FOREACH( const PARAM_CFG_BASE& param, aList )
+    for( const PARAM_CFG_BASE& param : aList )
     {
         if( !!param.m_Group )
             aCfg->SetPath( param.m_Group );
@@ -106,7 +104,7 @@ void wxConfigSaveSetups( wxConfigBase* aCfg, const PARAM_CFG_ARRAY& aList )
 {
     wxASSERT( aCfg );
 
-    BOOST_FOREACH( const PARAM_CFG_BASE& param, aList )
+    for( const PARAM_CFG_BASE& param : aList )
     {
         if( !param.m_Setup )
             continue;
@@ -245,8 +243,8 @@ void PARAM_CFG_INT_WITH_SCALE::SaveParam( wxConfigBase* aConfig ) const
 }
 
 
-PARAM_CFG_SETCOLOR::PARAM_CFG_SETCOLOR( const wxString& ident, EDA_COLOR_T* ptparam,
-                                        EDA_COLOR_T default_val,
+PARAM_CFG_SETCOLOR::PARAM_CFG_SETCOLOR( const wxString& ident, COLOR4D* ptparam,
+                                        COLOR4D default_val,
                                         const wxChar* group ) :
     PARAM_CFG_BASE( ident, PARAM_SETCOLOR, group )
 {
@@ -257,8 +255,8 @@ PARAM_CFG_SETCOLOR::PARAM_CFG_SETCOLOR( const wxString& ident, EDA_COLOR_T* ptpa
 
 PARAM_CFG_SETCOLOR::PARAM_CFG_SETCOLOR( bool          Insetup,
                                         const wxString& ident,
-                                        EDA_COLOR_T*  ptparam,
-                                        EDA_COLOR_T   default_val,
+                                        COLOR4D*      ptparam,
+                                        COLOR4D       default_val,
                                         const wxChar* group ) :
     PARAM_CFG_BASE( ident, PARAM_SETCOLOR, group )
 {
@@ -273,11 +271,22 @@ void PARAM_CFG_SETCOLOR::ReadParam( wxConfigBase* aConfig ) const
     if( !m_Pt_param || !aConfig )
         return;
 
-    EDA_COLOR_T itmp = ColorByName( aConfig->Read( m_Ident, wxT("NONE") ) );
+    // First try reading old format
+    EDA_COLOR_T itmp = ColorByName( aConfig->Read( m_Ident, wxT( "NONE" ) ) );
+    COLOR4D wtmp = COLOR4D::UNSPECIFIED;
 
     if( itmp == UNSPECIFIED_COLOR )
-        itmp = m_Default;
-    *m_Pt_param = itmp;
+    {
+        // Next try reading new format
+        if( !wtmp.SetFromWxString( aConfig->Read( m_Ident, wxT( "NONE" ) ) ) )
+            wtmp = m_Default;
+    }
+    else
+    {
+        wtmp = COLOR4D( itmp );
+    }
+
+    *m_Pt_param = wtmp;
 }
 
 
@@ -286,7 +295,7 @@ void PARAM_CFG_SETCOLOR::SaveParam( wxConfigBase* aConfig ) const
     if( !m_Pt_param || !aConfig )
         return;
 
-    aConfig->Write( m_Ident, ColorGetName( *m_Pt_param ) );
+    aConfig->Write( m_Ident, m_Pt_param->ToColour().GetAsString( wxC2S_CSS_SYNTAX ) );
 }
 
 

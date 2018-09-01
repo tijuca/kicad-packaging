@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004-2015 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2015 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2004-2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2008 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -41,17 +41,18 @@
 #include <wx/richmsgdlg.h>
 
 #include <pgm_base.h>
-#include <wxstruct.h>
+#include <eda_base_frame.h>
 #include <macros.h>
 #include <config_params.h>
 #include <id.h>
 #include <build_version.h>
 #include <hotkeys_basic.h>
-#include <online_help.h>
 #include <gestfich.h>
 #include <menus_helpers.h>
 #include <confirm.h>
 #include <dialog_env_var_config.h>
+#include <lockfile.h>
+#include <systemdirsappend.h>
 
 
 #define KICAD_COMMON                     wxT( "kicad_common" )
@@ -64,6 +65,8 @@ static const wxChar languageCfgKey[]   = wxT( "LanguageID" );
 static const wxChar pathEnvVariables[] = wxT( "EnvironmentVariables" );
 static const wxChar showEnvVarWarningDialog[] = wxT( "ShowEnvVarWarningDialog" );
 static const wxChar traceEnvVars[]     = wxT( "KIENVVARS" );
+///< enable/disable icons in menus
+static const wxChar entryUseIconsInMenus[] = wxT( "UseIconsInMenus" );
 
 
 /**
@@ -182,6 +185,14 @@ static LANGUAGE_DESCR s_Languages[] =
         _( "Slovenian" )
     },
 
+    // Slovenian language
+    {
+        wxLANGUAGE_SLOVAK,
+        ID_LANGUAGE_SLOVAK,
+        lang_sk_xpm,
+        _( "Slovak" )
+    },
+
     // Hungarian language
     {
         wxLANGUAGE_HUNGARIAN,
@@ -260,6 +271,14 @@ static LANGUAGE_DESCR s_Languages[] =
         ID_LANGUAGE_BULGARIAN,
         lang_bg_xpm,
         _( "Bulgarian" )
+    },
+
+    // Lithuanian language
+    {
+        wxLANGUAGE_LITHUANIAN,
+        ID_LANGUAGE_LITHUANIAN,
+        lang_lt_xpm,
+        _( "Lithuanian" )
     }
 };
 
@@ -269,8 +288,9 @@ PGM_BASE::PGM_BASE()
     m_pgm_checker = NULL;
     m_locale = NULL;
     m_common_settings = NULL;
+    m_iconsScale = 1.0;
+    m_useIconsInMenus = true;   // will be set later after reading the config
 
-    m_wx_app = NULL;
     m_show_env_var_dialog = true;
 
     setLanguageId( wxLANGUAGE_DEFAULT );
@@ -281,11 +301,11 @@ PGM_BASE::PGM_BASE()
 
 PGM_BASE::~PGM_BASE()
 {
-    destroy();
+    Destroy();
 }
 
 
-void PGM_BASE::destroy()
+void PGM_BASE::Destroy()
 {
     // unlike a normal destructor, this is designed to be called more than once safely:
 
@@ -297,6 +317,13 @@ void PGM_BASE::destroy()
 
     delete m_locale;
     m_locale = 0;
+}
+
+
+wxApp& PGM_BASE::App()
+{
+    wxASSERT( wxTheApp );
+    return *wxTheApp;
 }
 
 
@@ -368,7 +395,7 @@ const wxString PGM_BASE::AskUserForPreferredEditor( const wxString& aDefaultEdit
 }
 
 
-bool PGM_BASE::initPgm()
+bool PGM_BASE::InitPgm()
 {
     wxFileName pgm_name( App().argv[0] );
 
@@ -382,7 +409,7 @@ bool PGM_BASE::initPgm()
     if( m_pgm_checker->IsAnotherRunning() )
     {
         wxString quiz = wxString::Format(
-            _( "%s is already running, Continue?" ),
+            _( "%s is already running. Continue?" ),
             GetChars( pgm_name.GetName() )
             );
 
@@ -427,74 +454,160 @@ bool PGM_BASE::initPgm()
     // OS specific instantiation of wxConfigBase derivative:
     m_common_settings = GetNewConfig( KICAD_COMMON );
 
-    // Only define the default environment variable if they haven't been set in the
-    // .kicad_common configuration file.
-    if( m_common_settings && !m_common_settings->HasGroup( pathEnvVariables ) )
+    wxString envVarName = wxT( "KIGITHUB" );
+    ENV_VAR_ITEM envVarItem;
+    wxString envValue;
+    wxFileName tmpFileName;
+
+    if( wxGetEnv( envVarName, &envValue ) == true && !envValue.IsEmpty() )
     {
-        wxString envVarName = wxT( "KIGITHUB" );
-        ENV_VAR_ITEM envVarItem;
-        wxString envValue;
-        wxFileName tmpFileName;
-
+        tmpFileName.AssignDir( envValue );
+        envVarItem.SetDefinedExternally( true );
+    }
+    else
+    {
         envVarItem.SetValue( wxString( wxT( "https://github.com/KiCad" ) ) );
-        envVarItem.SetDefinedExternally( wxGetEnv( envVarName, NULL ) );
-        m_local_env_vars[ envVarName ] = envVarItem;
+        envVarItem.SetDefinedExternally( false );
+    }
 
-        wxFileName baseSharePath;
-        baseSharePath.AssignDir( wxString( wxT( DEFAULT_INSTALL_PATH ) ) );
+    m_local_env_vars[ envVarName ] = envVarItem;
 
-#if !defined( __WXMAC__ )
-        baseSharePath.AppendDir( wxT( "share" ) );
-        baseSharePath.AppendDir( wxT( "kicad" ) );
+    wxFileName baseSharePath;
+#if defined( __WXMSW__ )
+    // Make the paths relative to the executable dir as KiCad might be installed anywhere
+    // It follows the Windows installer paths scheme, where binaries are installed in
+    // PATH/bin and extra files in PATH/share/kicad
+    baseSharePath.AssignDir( m_bin_dir + "\\.." );
+    baseSharePath.Normalize();
+#else
+    baseSharePath.AssignDir( wxString( wxT( DEFAULT_INSTALL_PATH ) ) );
 #endif
 
-        // KISYSMOD
-        envVarName = wxT( "KISYSMOD" );
-        if( wxGetEnv( envVarName, &envValue ) == true && !envValue.IsEmpty() )
-        {
-            tmpFileName.AssignDir( envValue );
-            envVarItem.SetDefinedExternally( true );
-        }
-        else
-        {
-            tmpFileName = baseSharePath;
-            tmpFileName.AppendDir( wxT( "modules" ) );
-            envVarItem.SetDefinedExternally( false );
-        }
-        envVarItem.SetValue( tmpFileName.GetFullPath() );
-        m_local_env_vars[ envVarName ] = envVarItem;
+#if !defined( __WXMAC__ )
+    baseSharePath.AppendDir( wxT( "share" ) );
+    baseSharePath.AppendDir( wxT( "kicad" ) );
+#endif
 
-        // KISYS3DMOD
-        envVarName = wxT( "KISYS3DMOD" );
-        if( wxGetEnv( envVarName, &envValue ) == true && !envValue.IsEmpty() )
-        {
-            tmpFileName.AssignDir( envValue );
-            envVarItem.SetDefinedExternally( true );
-        }
-        else
-        {
-            tmpFileName.AppendDir( wxT( "packages3d" ) );
-            envVarItem.SetDefinedExternally( false );
-        }
-        envVarItem.SetValue( tmpFileName.GetFullPath() );
-        m_local_env_vars[ envVarName ] = envVarItem;
+    // KISYSMOD
+    envVarName = wxT( "KISYSMOD" );
 
-        // KICAD_PTEMPLATES
-        envVarName = wxT( "KICAD_PTEMPLATES" );
-        if( wxGetEnv( envVarName, &envValue ) == true && !envValue.IsEmpty() )
-        {
-            tmpFileName.AssignDir( envValue );
-            envVarItem.SetDefinedExternally( true );
-        }
-        else
-        {
-            tmpFileName = baseSharePath;
-            tmpFileName.AppendDir( wxT( "template" ) );
-            envVarItem.SetDefinedExternally( false );
-        }
-        envVarItem.SetValue( tmpFileName.GetFullPath() );
-        m_local_env_vars[ envVarName ] = envVarItem;
+    if( wxGetEnv( envVarName, &envValue ) == true && !envValue.IsEmpty() )
+    {
+        tmpFileName.AssignDir( envValue );
+        envVarItem.SetDefinedExternally( true );
     }
+    else
+    {
+        tmpFileName = baseSharePath;
+        tmpFileName.AppendDir( wxT( "modules" ) );
+        envVarItem.SetDefinedExternally( false );
+    }
+
+    envVarItem.SetValue( tmpFileName.GetPath() );
+    m_local_env_vars[ envVarName ] = envVarItem;
+
+    // KISYS3DMOD
+    envVarName = wxT( "KISYS3DMOD" );
+
+    if( wxGetEnv( envVarName, &envValue ) == true && !envValue.IsEmpty() )
+    {
+        tmpFileName.AssignDir( envValue );
+        envVarItem.SetDefinedExternally( true );
+    }
+    else
+    {
+        tmpFileName.AppendDir( wxT( "packages3d" ) );
+        envVarItem.SetDefinedExternally( false );
+    }
+
+    envVarItem.SetValue( tmpFileName.GetFullPath() );
+    m_local_env_vars[ envVarName ] = envVarItem;
+
+    // KICAD_TEMPLATE_DIR
+    envVarName = "KICAD_TEMPLATE_DIR";
+
+    if( wxGetEnv( envVarName, &envValue ) == true && !envValue.IsEmpty() )
+    {
+        tmpFileName.AssignDir( envValue );
+        envVarItem.SetDefinedExternally( true );
+    }
+    else
+    {
+        // Attempt to find the best default template path.
+        SEARCH_STACK bases;
+        SEARCH_STACK templatePaths;
+
+        SystemDirsAppend( &bases );
+
+        for( unsigned i = 0; i < bases.GetCount(); ++i )
+        {
+            wxFileName fn( bases[i], wxEmptyString );
+
+            // Add KiCad template file path to search path list.
+            fn.AppendDir( "template" );
+
+            // Only add path if exists and can be read by the user.
+            if( fn.DirExists() && fn.IsDirReadable() )
+            {
+                wxLogDebug( "Checking template path '%s' exists", fn.GetPath() );
+                templatePaths.AddPaths( fn.GetPath() );
+            }
+        }
+
+        if( templatePaths.IsEmpty() )
+        {
+            tmpFileName = baseSharePath;
+            tmpFileName.AppendDir( "template" );
+        }
+        else
+        {
+            // Take the first one.  There may be more but this will likely be the best option.
+            tmpFileName.AssignDir( templatePaths[0] );
+        }
+
+        envVarItem.SetDefinedExternally( false );
+    }
+
+    envVarItem.SetValue( tmpFileName.GetPath() );
+    m_local_env_vars[ envVarName ] = envVarItem;
+
+    // KICAD_USER_TEMPLATE_DIR
+    envVarName = "KICAD_USER_TEMPLATE_DIR";
+
+    if( wxGetEnv( envVarName, &envValue ) == true && !envValue.IsEmpty() )
+    {
+        tmpFileName.AssignDir( envValue );
+        envVarItem.SetDefinedExternally( true );
+    }
+    else
+    {
+        // Default user template path.
+        tmpFileName = wxStandardPaths::Get().GetDocumentsDir();
+        tmpFileName.AppendDir( "kicad" );
+        tmpFileName.AppendDir( "template" );
+        envVarItem.SetDefinedExternally( false );
+    }
+
+    envVarItem.SetValue( tmpFileName.GetPath() );
+    m_local_env_vars[ envVarName ] = envVarItem;
+
+    // KICAD_SYMBOLS
+    envVarName = wxT( "KICAD_SYMBOL_DIR" );
+
+    if( wxGetEnv( envVarName, &envValue ) == true && !envValue.IsEmpty() )
+    {
+        tmpFileName.AssignDir( envValue );
+        envVarItem.SetDefinedExternally( true );
+    }
+    else
+    {
+        tmpFileName = baseSharePath;
+        tmpFileName.AppendDir( wxT( "library" ) );
+        envVarItem.SetDefinedExternally( false );
+    }
+
+    envVarItem.SetValue( tmpFileName.GetPath() );
+    m_local_env_vars[ envVarName ] = envVarItem;
 
     ReadPdfBrowserInfos();      // needs m_common_settings
 
@@ -562,8 +675,18 @@ void PGM_BASE::loadCommonSettings()
 
     m_help_size.x = 500;
     m_help_size.y = 400;
+    m_iconsScale  = 1.0;
+
+    // This only effect the first time KiCad is run.  The user's setting will be used for all
+    // subsequent runs.  Menu icons are off by default on OSX and on for all other platforms.
+#if defined( __WXMAC__ )
+    m_useIconsInMenus = false;
+#else
+    m_useIconsInMenus = true;
+#endif
 
     m_common_settings->Read( showEnvVarWarningDialog, &m_show_env_var_dialog );
+    m_common_settings->Read( entryUseIconsInMenus, &m_useIconsInMenus, m_useIconsInMenus );
 
     m_editor_name = m_common_settings->Read( wxT( "Editor" ) );
 
@@ -584,6 +707,10 @@ void PGM_BASE::loadCommonSettings()
     for( unsigned i = 0;  i < entries.GetCount();  i++ )
     {
         wxString val = m_common_settings->Read( entries[i], wxEmptyString );
+
+        if( m_local_env_vars[ entries[i] ].GetDefinedExternally() )
+            continue;
+
         m_local_env_vars[ entries[i]  ] = ENV_VAR_ITEM( val, wxGetEnv( entries[i], NULL ) );
     }
 
@@ -594,22 +721,26 @@ void PGM_BASE::loadCommonSettings()
 }
 
 
-void PGM_BASE::saveCommonSettings()
+void PGM_BASE::SaveCommonSettings()
 {
     // m_common_settings is not initialized until fairly late in the
-    // process startup: initPgm(), so test before using:
+    // process startup: InitPgm(), so test before using:
     if( m_common_settings )
     {
         wxString cur_dir = wxGetCwd();
 
         m_common_settings->Write( workingDirKey, cur_dir );
         m_common_settings->Write( showEnvVarWarningDialog, m_show_env_var_dialog );
+        m_common_settings->Write( entryUseIconsInMenus, m_useIconsInMenus);
 
         // Save the local environment variables.
         m_common_settings->SetPath( pathEnvVariables );
 
         for( ENV_VAR_MAP_ITER it = m_local_env_vars.begin(); it != m_local_env_vars.end(); ++it )
         {
+            if( it->second.GetDefinedExternally() )
+                continue;
+
             wxLogTrace( traceEnvVars, wxT( "Saving environment variable config entry %s as %s" ),
                         GetChars( it->first ),  GetChars( it->second.GetValue() ) );
             m_common_settings->Write( it->first, it->second.GetValue() );
@@ -669,13 +800,13 @@ bool PGM_BASE::SetLanguage( bool first_time )
 
     if( !first_time )
     {
-        // If we are here, the user has selected an other language.
+        // If we are here, the user has selected another language.
         // Therefore the new prefered language name is stored in common config.
         // Do NOT store the wxWidgets language Id, it can change between wxWidgets
         // versions, for a given language
         wxString languageSel;
 
-        // Search for the current selection
+        // Search for the current selection language name
         for( unsigned ii = 0; ii < DIM( s_Languages ); ii++ )
         {
             if( s_Languages[ii].m_WX_Lang_Identifier == m_language_id )
@@ -688,7 +819,7 @@ bool PGM_BASE::SetLanguage( bool first_time )
         m_common_settings->Write( languageCfgKey, languageSel );
     }
 
-    // Test if floating point notation is working (bug in cross compilation, using wine)
+    // Test if floating point notation is working (bug encountered in cross compilation)
     // Make a conversion double <=> string
     double dtst = 0.5;
     wxString msg;
@@ -789,8 +920,8 @@ void PGM_BASE::AddMenuLanguageList( wxMenu* MasterMenu )
 
     AddMenuItem( MasterMenu, menu,
                  ID_LANGUAGE_CHOICE,
-                 _( "Language" ),
-                 _( "Select application language (only for testing!)" ),
+                 _( "Set Language" ),
+                 _( "Select application language (only for testing)" ),
                  KiBitmap( language_xpm ) );
 
     // Set Check mark on current selected language
@@ -831,7 +962,7 @@ void PGM_BASE::SetLocalEnvVariables( const ENV_VAR_MAP& aEnvVarMap )
     if( m_common_settings )
         m_common_settings->DeleteGroup( pathEnvVariables );
 
-    saveCommonSettings();
+    SaveCommonSettings();
 
     // Overwrites externally defined environment variable until the next time the application
     // is run.
@@ -846,12 +977,12 @@ void PGM_BASE::SetLocalEnvVariables( const ENV_VAR_MAP& aEnvVarMap )
 
 void PGM_BASE::ConfigurePaths( wxWindow* aParent )
 {
-    DIALOG_ENV_VAR_CONFIG dlg( aParent, GetLocalEnvVariables() );
+    DIALOG_ENV_VAR_CONFIG dlg_envvars( aParent, GetLocalEnvVariables() );
 
-    if( dlg.ShowModal() == wxID_CANCEL )
+    if( dlg_envvars.ShowModal() == wxID_CANCEL )
         return;
 
-    ENV_VAR_MAP envVarMap = dlg.GetEnvVarMap();
+    ENV_VAR_MAP envVarMap = dlg_envvars.GetEnvVarMap();
 
     for( ENV_VAR_MAP_ITER it = envVarMap.begin(); it != envVarMap.end(); ++it )
     {
@@ -863,7 +994,7 @@ void PGM_BASE::ConfigurePaths( wxWindow* aParent )
     // If any of the environment variables are defined externally, warn the user that the
     // next time kicad is run that the externally defined variables will be used instead of
     // the user's settings.  This is by design.
-    if( dlg.ExternalDefsChanged() && m_show_env_var_dialog )
+    if( dlg_envvars.ExternalDefsChanged() && m_show_env_var_dialog )
     {
         wxString msg1 = _( "Warning!  Some of paths you have configured have been defined \n"
                            "externally to the running process and will be temporarily overwritten." );
@@ -879,5 +1010,5 @@ void PGM_BASE::ConfigurePaths( wxWindow* aParent )
         m_show_env_var_dialog = !dlg.IsCheckBoxChecked();
     }
 
-    SetLocalEnvVariables( dlg.GetEnvVarMap() );
+    SetLocalEnvVariables( dlg_envvars.GetEnvVarMap() );
 }

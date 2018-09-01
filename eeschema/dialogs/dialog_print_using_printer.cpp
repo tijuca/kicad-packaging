@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2015 KiCad Developers, see CHANGELOG.TXT for contributors.
+ * Copyright (C) 2015-2016 KiCad Developers, see CHANGELOG.TXT for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,8 +27,8 @@
 #include <gr_basic.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <class_sch_screen.h>
-#include <schframe.h>
+#include <sch_screen.h>
+#include <sch_edit_frame.h>
 #include <base_units.h>
 
 #include <general.h>
@@ -38,7 +38,7 @@
 
 #include <invoke_sch_dialog.h>
 #include <dialog_print_using_printer_base.h>
-
+#include <enabler.h>
 
 
 /**
@@ -58,11 +58,11 @@ public:
     }
 
 private:
-    void OnCloseWindow( wxCloseEvent& event );
-    void OnPageSetup( wxCommandEvent& event );
-    void OnPrintPreview( wxCommandEvent& event );
-    void OnPrintButtonClick( wxCommandEvent& event );
-    void OnButtonCancelClick( wxCommandEvent& event ) { Close(); }
+    void OnCloseWindow( wxCloseEvent& event ) override;
+    void OnPageSetup( wxCommandEvent& event ) override;
+    void OnPrintPreview( wxCommandEvent& event ) override;
+    void OnPrintButtonClick( wxCommandEvent& event ) override;
+    void OnButtonCancelClick( wxCommandEvent& event ) override { Close(); }
 
     void initDialog();
     void GetPrintOptions();
@@ -85,12 +85,13 @@ public:
         wxASSERT( aParent != NULL );
         m_parent = aParent;
     }
-    bool OnPrintPage( int page );
-    bool HasPage( int page );
-    bool OnBeginDocument( int startPage, int endPage );
-    void GetPageInfo( int* minPage, int* maxPage, int* selPageFrom, int* selPageTo );
+    bool OnPrintPage( int page ) override;
+    bool HasPage( int page ) override;
+    bool OnBeginDocument( int startPage, int endPage ) override;
+    void GetPageInfo( int* minPage, int* maxPage, int* selPageFrom, int* selPageTo ) override;
     void DrawPage( SCH_SCREEN* aScreen );
 };
+
 
 /**
  * Custom schematic print preview frame.
@@ -106,7 +107,7 @@ public:
     {
     }
 
-    bool Show( bool show )      // overload
+    bool Show( bool show ) override
     {
         bool        ret;
 
@@ -135,6 +136,7 @@ private:
     static wxPoint  s_pos;
     static wxSize   s_size;
 };
+
 
 wxPoint SCH_PREVIEW_FRAME::s_pos;
 wxSize  SCH_PREVIEW_FRAME::s_size;
@@ -251,7 +253,7 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintPreview( wxCommandEvent& event )
 
     if( preview == NULL )
     {
-        DisplayError( this, wxT( "Print preview error!" ) );
+        DisplayError( this, _( "Print preview error!" ) );
         return;
     }
 
@@ -272,7 +274,7 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintPreview( wxCommandEvent& event )
 
     // We use here wxPreviewFrame_WindowModal option to make the wxPrintPreview frame
     // modal for its caller only.
-    // An other reason is the fact when closing the frame without this option,
+    // another reason is the fact when closing the frame without this option,
     // all top level frames are reenabled.
     // With this option, only the parent is reenabled.
     // Reenabling all top level frames should be made by the parent dialog.
@@ -298,6 +300,10 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintButtonClick( wxCommandEvent& event )
     wxPrinter printer( &printDialogData );
     SCH_PRINTOUT printout( parent, _( "Print Schematic" ) );
 
+    // Disable 'Print' button to prevent issuing another print
+    // command before the previous one is finished (causes problems on Windows)
+    ENABLER printBtnDisable( *m_buttonPrint, false );
+
     if( !printer.Print( this, &printout, true ) )
     {
         if( wxPrinter::GetLastError() == wxPRINTER_ERROR )
@@ -313,6 +319,14 @@ void DIALOG_PRINT_USING_PRINTER::OnPrintButtonClick( wxCommandEvent& event )
 
 bool SCH_PRINTOUT::OnPrintPage( int page )
 {
+    SCH_SHEET_LIST sheetList( g_RootSheet );
+
+    wxCHECK_MSG( page >= 1 && page <= (int)sheetList.size(), false,
+                 wxT( "Cannot print invalid page number." ) );
+
+    wxCHECK_MSG( sheetList[ page - 1].LastScreen() != NULL, false,
+                 wxT( "Cannot print page with NULL screen." ) );
+
     wxString msg;
     msg.Printf( _( "Print page %d" ), page );
     m_parent->ClearMsgPanel();
@@ -320,25 +334,10 @@ bool SCH_PRINTOUT::OnPrintPage( int page )
 
     SCH_SCREEN*     screen       = m_parent->GetScreen();
     SCH_SHEET_PATH  oldsheetpath = m_parent->GetCurrentSheet();
-    SCH_SHEET_PATH  list;
-    SCH_SHEET_LIST  SheetList( NULL );
-    SCH_SHEET_PATH* sheetpath = SheetList.GetSheet( page - 1 );
-
-    if( list.BuildSheetPathInfoFromSheetPathValue( sheetpath->Path() ) )
-    {
-        m_parent->SetCurrentSheet( list );
-        m_parent->GetCurrentSheet().UpdateAllScreenReferences();
-        m_parent->SetSheetNumberAndCount();
-        screen = m_parent->GetCurrentSheet().LastScreen();
-    }
-    else
-    {
-        screen = NULL;
-    }
-
-    if( screen == NULL )
-        return false;
-
+    m_parent->SetCurrentSheet( sheetList[ page - 1 ] );
+    m_parent->GetCurrentSheet().UpdateAllScreenReferences();
+    m_parent->SetSheetNumberAndCount();
+    screen = m_parent->GetCurrentSheet().LastScreen();
     DrawPage( screen );
     m_parent->SetCurrentSheet( oldsheetpath );
     m_parent->GetCurrentSheet().UpdateAllScreenReferences();
@@ -360,6 +359,7 @@ bool SCH_PRINTOUT::HasPage( int pageNum )
     int pageCount;
 
     pageCount = g_RootSheet->CountSheets();
+
     if( pageCount >= pageNum )
         return true;
 
@@ -439,7 +439,7 @@ void SCH_PRINTOUT::DrawPage( SCH_SCREEN* aScreen )
 
     // For an obscure reason, OffsetLogicalOrigin creates issues,
     // under some circumstances, when yoffset is not always null
-    // and changes from a page to an other page
+    // and changes from a page to another page
     // This is only a workaround, not a fix
     // see https://bugs.launchpad.net/kicad/+bug/1464773
     // xoffset does not create issues.
@@ -459,7 +459,7 @@ void SCH_PRINTOUT::DrawPage( SCH_SCREEN* aScreen )
 
     aScreen->m_IsPrinting = true;
 
-    EDA_COLOR_T bg_color = m_parent->GetDrawBgColor();
+    COLOR4D bgColor = m_parent->GetDrawBgColor();
 
     aScreen->Draw( panel, dc, (GR_DRAWMODE) 0 );
 
@@ -467,7 +467,7 @@ void SCH_PRINTOUT::DrawPage( SCH_SCREEN* aScreen )
         m_parent->DrawWorkSheet( dc, aScreen, GetDefaultLineThickness(),
                 IU_PER_MILS, aScreen->GetFileName() );
 
-    m_parent->SetDrawBgColor( bg_color );
+    m_parent->SetDrawBgColor( bgColor );
     aScreen->m_IsPrinting = false;
     panel->SetClipBox( oldClipBox );
 

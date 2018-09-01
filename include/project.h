@@ -1,9 +1,7 @@
-#ifndef PROJECT_H_
-#define PROJECT_H_
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ * Copyright (C) 2014-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,6 +20,12 @@
  * or you may write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
+#ifndef PROJECT_H_
+#define PROJECT_H_
+
+/**
+ * @file project.h
+ */
 
 #include <vector>
 #include <wx/string.h>
@@ -37,6 +41,9 @@ class PARAM_CFG_ARRAY;
 class FP_LIB_TABLE;
 class PART_LIBS;
 class SEARCH_STACK;
+class S3D_CACHE;
+class KIWAY;
+class SYMBOL_LIB_TABLE;
 
 #define VTBL_ENTRY      virtual
 
@@ -108,6 +115,11 @@ public:
     VTBL_ENTRY const wxString FootprintLibTblName() const;
 
     /**
+     * Return the path and file name of this projects symbol library table.
+     */
+    VTBL_ENTRY const wxString SymbolLibTableName() const;
+
+    /**
      * Function ConfigSave
      * saves the current "project" parameters into the wxConfigBase* derivative.
      * Then the wxConfigBase derivative is written to the *.pro file for the project.
@@ -154,9 +166,12 @@ public:
         SCH_LIBEDIT_CUR_PART,        // eeschema/libeditframe.cpp
 
         VIEWER_3D_PATH,
+        VIEWER_3D_FILTER_INDEX,
 
         PCB_LIB_NICKNAME,
         PCB_FOOTPRINT,
+        PCB_FOOTPRINT_EDITOR_FPNAME,
+        PCB_FOOTPRINT_EDITOR_NICKNAME,
         PCB_FOOTPRINT_VIEWER_FPNAME,
         PCB_FOOTPRINT_VIEWER_NICKNAME,
 
@@ -189,6 +204,8 @@ public:
 
         ELEM_SCH_PART_LIBS,
         ELEM_SCH_SEARCH_STACK,
+        ELEM_3DCACHE,
+        ELEM_SYMBOL_LIB_TABLE,
 
         ELEM_COUNT
     };
@@ -231,6 +248,11 @@ public:
      */
     VTBL_ENTRY const wxString AbsolutePath( const wxString& aFileName ) const;
 
+    /**
+     * Return the table of footprint libraries. Requires an active Kiway as
+     * this is fetched from pcbnew.
+     */
+    VTBL_ENTRY FP_LIB_TABLE* PcbFootprintLibs( KIWAY& aKiway );
 
     //-----</Cross Module API>---------------------------------------------------
 
@@ -246,8 +268,20 @@ public:
     // functions can get linked into the KIFACE that needs them, and only there.
     // In fact, the other KIFACEs don't even know they exist.
 #if defined(PCBNEW) || defined(CVPCB)
-    // These are all prefaced with "Pcb"
+    /**
+     * Return the table of footprint libraries without Kiway, only from within
+     * pcbnew.
+     */
     FP_LIB_TABLE* PcbFootprintLibs();
+
+    /**
+     * Function Get3DCacheManager
+     * returns a pointer to an instance of the 3D cache manager;
+     * an instance is created and initialized if appropriate.
+     *
+     * @return a pointer to an instance of the 3D cache manager or NULL on failure
+     */
+    S3D_CACHE* Get3DCacheManager( bool updateProjDir = false );
 #endif
 
 
@@ -257,6 +291,9 @@ public:
 
     /// Accessor for Eeschema search stack.
     SEARCH_STACK*  SchSearchS();
+
+    /// Accessor for project symbol library table.
+    SYMBOL_LIB_TABLE* SchSymbolLibTable();
 #endif
 
     //-----</KIFACE Specific APIs>-----------------------------------------------
@@ -273,6 +310,11 @@ private:
      */
     wxConfigBase* configCreate( const SEARCH_STACK& aSList,
             const wxString& aGroupName, const wxString& aProjectFileName = wxEmptyString );
+
+    /**
+     * Return the full path and file name of the project specific library table \a aLibTableName..
+     */
+    const wxString libTableName( const wxString& aLibTableName ) const;
 
     wxFileName      m_project_name;         ///< \<fullpath\>/\<basename\>.pro
     wxString        m_pro_date_and_time;

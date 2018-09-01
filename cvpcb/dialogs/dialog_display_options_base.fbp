@@ -14,6 +14,7 @@
         <property name="file">dialog_display_options_base</property>
         <property name="first_id">1000</property>
         <property name="help_provider">none</property>
+        <property name="indent_with_spaces"></property>
         <property name="internationalize">1</property>
         <property name="name">dialog_display_options_base</property>
         <property name="namespace"></property>
@@ -44,7 +45,7 @@
             <property name="minimum_size"></property>
             <property name="name">DIALOG_FOOTPRINTS_DISPLAY_OPTIONS_BASE</property>
             <property name="pos"></property>
-            <property name="size">425,206</property>
+            <property name="size">-1,-1</property>
             <property name="style">wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER</property>
             <property name="subclass">DIALOG_SHIM; dialog_shim.h</property>
             <property name="title">Display Options</property>
@@ -108,10 +109,11 @@
                             <property name="proportion">1</property>
                             <object class="wxStaticBoxSizer" expanded="1">
                                 <property name="id">wxID_ANY</property>
-                                <property name="label">Draw options</property>
+                                <property name="label">Draw Options:</property>
                                 <property name="minimum_size"></property>
                                 <property name="name">sbSizerDrawMode</property>
                                 <property name="orient">wxVERTICAL</property>
+                                <property name="parent">1</property>
                                 <property name="permission">none</property>
                                 <event name="OnUpdateUI"></event>
                                 <object class="sizeritem" expanded="1">
@@ -204,7 +206,7 @@
                                 </object>
                                 <object class="sizeritem" expanded="1">
                                     <property name="border">5</property>
-                                    <property name="flag">wxALL</property>
+                                    <property name="flag">wxBOTTOM|wxLEFT|wxRIGHT</property>
                                     <property name="proportion">0</property>
                                     <object class="wxCheckBox" expanded="1">
                                         <property name="BottomDockable">1</property>
@@ -292,7 +294,7 @@
                                 </object>
                                 <object class="sizeritem" expanded="1">
                                     <property name="border">5</property>
-                                    <property name="flag">wxEXPAND|wxALL</property>
+                                    <property name="flag">wxBOTTOM|wxEXPAND|wxLEFT|wxRIGHT</property>
                                     <property name="proportion">0</property>
                                     <object class="wxCheckBox" expanded="1">
                                         <property name="BottomDockable">1</property>
@@ -380,7 +382,7 @@
                                 </object>
                                 <object class="sizeritem" expanded="1">
                                     <property name="border">5</property>
-                                    <property name="flag">wxALL|wxEXPAND</property>
+                                    <property name="flag">wxBOTTOM|wxEXPAND|wxLEFT|wxRIGHT</property>
                                     <property name="proportion">0</property>
                                     <object class="wxCheckBox" expanded="1">
                                         <property name="BottomDockable">1</property>
@@ -471,13 +473,14 @@
                         <object class="sizeritem" expanded="1">
                             <property name="border">5</property>
                             <property name="flag">wxALL|wxEXPAND</property>
-                            <property name="proportion">1</property>
+                            <property name="proportion">0</property>
                             <object class="wxStaticBoxSizer" expanded="1">
                                 <property name="id">wxID_ANY</property>
-                                <property name="label">Pan and Zoom</property>
+                                <property name="label">Pan and Zoom:</property>
                                 <property name="minimum_size"></property>
                                 <property name="name">sbSizerViewOpt</property>
                                 <property name="orient">wxVERTICAL</property>
+                                <property name="parent">1</property>
                                 <property name="permission">none</property>
                                 <event name="OnUpdateUI"></event>
                                 <object class="sizeritem" expanded="1">
@@ -513,7 +516,7 @@
                                         <property name="gripper">0</property>
                                         <property name="hidden">0</property>
                                         <property name="id">wxID_ANY</property>
-                                        <property name="label">Do not center and warp cursor on zoom</property>
+                                        <property name="label">Center and warp cursor on zoom</property>
                                         <property name="max_size"></property>
                                         <property name="maximize_button">0</property>
                                         <property name="maximum_size"></property>
@@ -521,7 +524,7 @@
                                         <property name="minimize_button">0</property>
                                         <property name="minimum_size"></property>
                                         <property name="moveable">1</property>
-                                        <property name="name">m_IsZoomNoCenter</property>
+                                        <property name="name">m_enableZoomNoCenter</property>
                                         <property name="pane_border">1</property>
                                         <property name="pane_position"></property>
                                         <property name="pane_size"></property>
@@ -534,7 +537,7 @@
                                         <property name="style"></property>
                                         <property name="subclass"></property>
                                         <property name="toolbar_pane">0</property>
-                                        <property name="tooltip">Keep the cursor at its current location when zooming</property>
+                                        <property name="tooltip">Center the cursor on screen when zooming.</property>
                                         <property name="validator_data_type"></property>
                                         <property name="validator_style">wxFILTER_NONE</property>
                                         <property name="validator_type">wxDefaultValidator</property>
@@ -570,7 +573,7 @@
                                 </object>
                                 <object class="sizeritem" expanded="1">
                                     <property name="border">5</property>
-                                    <property name="flag">wxEXPAND|wxALL</property>
+                                    <property name="flag">wxALL</property>
                                     <property name="proportion">0</property>
                                     <object class="wxCheckBox" expanded="1">
                                         <property name="BottomDockable">1</property>
@@ -601,7 +604,7 @@
                                         <property name="gripper">0</property>
                                         <property name="hidden">0</property>
                                         <property name="id">wxID_ANY</property>
-                                        <property name="label">Use middle mouse button to pan</property>
+                                        <property name="label">Use touchpad to pan</property>
                                         <property name="max_size"></property>
                                         <property name="maximize_button">0</property>
                                         <property name="maximum_size"></property>
@@ -609,7 +612,7 @@
                                         <property name="minimize_button">0</property>
                                         <property name="minimum_size"></property>
                                         <property name="moveable">1</property>
-                                        <property name="name">m_IsMiddleButtonPan</property>
+                                        <property name="name">m_enableMousewheelPan</property>
                                         <property name="pane_border">1</property>
                                         <property name="pane_position"></property>
                                         <property name="pane_size"></property>
@@ -620,9 +623,9 @@
                                         <property name="show">1</property>
                                         <property name="size"></property>
                                         <property name="style"></property>
-                                        <property name="subclass"></property>
+                                        <property name="subclass">; forward_declare</property>
                                         <property name="toolbar_pane">0</property>
-                                        <property name="tooltip"></property>
+                                        <property name="tooltip">Enable touchpad-friendly controls (pan with scroll action, zoom with Ctrl+scroll).</property>
                                         <property name="validator_data_type"></property>
                                         <property name="validator_style">wxFILTER_NONE</property>
                                         <property name="validator_type">wxDefaultValidator</property>
@@ -631,7 +634,7 @@
                                         <property name="window_name"></property>
                                         <property name="window_style"></property>
                                         <event name="OnChar"></event>
-                                        <event name="OnCheckBox">OnMiddleBtnPanEnbl</event>
+                                        <event name="OnCheckBox"></event>
                                         <event name="OnEnterWindow"></event>
                                         <event name="OnEraseBackground"></event>
                                         <event name="OnKeyDown"></event>
@@ -658,7 +661,7 @@
                                 </object>
                                 <object class="sizeritem" expanded="1">
                                     <property name="border">5</property>
-                                    <property name="flag">wxALL|wxEXPAND</property>
+                                    <property name="flag">wxALL</property>
                                     <property name="proportion">0</property>
                                     <object class="wxCheckBox" expanded="1">
                                         <property name="BottomDockable">1</property>
@@ -689,7 +692,7 @@
                                         <property name="gripper">0</property>
                                         <property name="hidden">0</property>
                                         <property name="id">wxID_ANY</property>
-                                        <property name="label">Limit panning to scroll size</property>
+                                        <property name="label">Pan while moving object</property>
                                         <property name="max_size"></property>
                                         <property name="maximize_button">0</property>
                                         <property name="maximum_size"></property>
@@ -697,7 +700,7 @@
                                         <property name="minimize_button">0</property>
                                         <property name="minimum_size"></property>
                                         <property name="moveable">1</property>
-                                        <property name="name">m_IsMiddleButtonPanLimited</property>
+                                        <property name="name">m_enableAutoPan</property>
                                         <property name="pane_border">1</property>
                                         <property name="pane_position"></property>
                                         <property name="pane_size"></property>
@@ -708,9 +711,9 @@
                                         <property name="show">1</property>
                                         <property name="size"></property>
                                         <property name="style"></property>
-                                        <property name="subclass"></property>
+                                        <property name="subclass">; forward_declare</property>
                                         <property name="toolbar_pane">0</property>
-                                        <property name="tooltip"></property>
+                                        <property name="tooltip">When drawing a track or moving an item, pan when approaching the edge of the display.</property>
                                         <property name="validator_data_type"></property>
                                         <property name="validator_style">wxFILTER_NONE</property>
                                         <property name="validator_type">wxDefaultValidator</property>

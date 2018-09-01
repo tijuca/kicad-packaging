@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Mar 13 2015)
+// C++ code generated with wxFormBuilder (version Nov 22 2017)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_CLEANING_OPTIONS_BASE_H__
@@ -11,8 +11,6 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
-
 #include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/checkbox.h>
@@ -36,6 +34,7 @@ class DIALOG_CLEANING_OPTIONS_BASE : public DIALOG_SHIM
 	private:
 	
 	protected:
+		wxCheckBox* m_cleanShortCircuitOpt;
 		wxCheckBox* m_cleanViasOpt;
 		wxCheckBox* m_mergeSegmOpt;
 		wxCheckBox* m_deleteUnconnectedOpt;
@@ -43,15 +42,10 @@ class DIALOG_CLEANING_OPTIONS_BASE : public DIALOG_SHIM
 		wxStdDialogButtonSizer* m_sdbSizer;
 		wxButton* m_sdbSizerOK;
 		wxButton* m_sdbSizerCancel;
-		
-		// Virtual event handlers, overide them in your derived class
-		virtual void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnOKClick( wxCommandEvent& event ) { event.Skip(); }
-		
 	
 	public:
 		
-		DIALOG_CLEANING_OPTIONS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Cleaning Options"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 257,185 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_CLEANING_OPTIONS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Cleaning Options"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_CLEANING_OPTIONS_BASE();
 	
 };

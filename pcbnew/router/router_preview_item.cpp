@@ -2,6 +2,7 @@
  * KiRouter - a push-and-(sometimes-)shove PCB router
  *
  * Copyright (C) 2013-2014 CERN
+ * Copyright (C) 2016 KiCad Developers, see AUTHORS.txt for contributors.
  * Author: Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -20,30 +21,32 @@
 
 #include <deque>
 #include <gal/color4d.h>
+#include <view/view.h>
 
 #include <geometry/shape_rect.h>
-#include <geometry/shape_convex.h>
-
 #include "class_track.h"
 #include <pcb_painter.h>
-#include <colors.h>
 
 #include "router_preview_item.h"
 
+#include "../../include/geometry/shape_simple.h"
 #include "pns_line.h"
 #include "pns_segment.h"
 #include "pns_via.h"
 
 using namespace KIGFX;
 
-ROUTER_PREVIEW_ITEM::ROUTER_PREVIEW_ITEM( const PNS_ITEM* aItem, VIEW_GROUP* aParent ) :
+ROUTER_PREVIEW_ITEM::ROUTER_PREVIEW_ITEM( const PNS::ITEM* aItem, KIGFX::VIEW* aView ) :
     EDA_ITEM( NOT_USED )
 {
-    m_parent = aParent;
+    m_view = aView;
 
     m_shape = NULL;
     m_clearance = -1;
-    m_originLayer = m_layer = ITEM_GAL_LAYER( GP_OVERLAY );
+    m_originLayer = m_layer = LAYER_GP_OVERLAY ;
+
+    m_showTrackClearance = false;
+    m_showViaClearance = false;
 
     // initialize variables, overwritten by Update( aItem ), if aItem != NULL
     m_router = NULL;
@@ -63,13 +66,13 @@ ROUTER_PREVIEW_ITEM::~ROUTER_PREVIEW_ITEM()
 }
 
 
-void ROUTER_PREVIEW_ITEM::Update( const PNS_ITEM* aItem )
+void ROUTER_PREVIEW_ITEM::Update( const PNS::ITEM* aItem )
 {
     m_originLayer = aItem->Layers().Start();
 
-    if( aItem->OfKind( PNS_ITEM::LINE ) )
+    if( aItem->OfKind( PNS::ITEM::LINE_T ) )
     {
-        const PNS_LINE* l = static_cast<const PNS_LINE*>( aItem );
+        const PNS::LINE* l = static_cast<const PNS::LINE*>( aItem );
 
         if( !l->SegmentCount() )
             return;
@@ -85,28 +88,28 @@ void ROUTER_PREVIEW_ITEM::Update( const PNS_ITEM* aItem )
 
     switch( aItem->Kind() )
     {
-    case PNS_ITEM::LINE:
+    case PNS::ITEM::LINE_T:
         m_type  = PR_SHAPE;
-        m_width = ( (PNS_LINE*) aItem )->Width();
+        m_width = ( (PNS::LINE*) aItem )->Width();
         break;
 
-    case PNS_ITEM::SEGMENT:
+    case PNS::ITEM::SEGMENT_T:
     {
-        PNS_SEGMENT* seg = (PNS_SEGMENT*) aItem;
+        PNS::SEGMENT* seg = (PNS::SEGMENT*) aItem;
         m_type  = PR_SHAPE;
         m_width = seg->Width();
         break;
     }
 
-    case PNS_ITEM::VIA:
-        m_originLayer = m_layer = ITEM_GAL_LAYER( VIAS_VISIBLE );
+    case PNS::ITEM::VIA_T:
+        m_originLayer = m_layer = LAYER_VIAS;
         m_type = PR_SHAPE;
         m_width = 0;
         m_color = COLOR4D( 0.7, 0.7, 0.7, 0.8 );
         m_depth = ViaOverlayDepth;
         break;
 
-    case PNS_ITEM::SOLID:
+    case PNS::ITEM::SOLID_T:
         m_type = PR_SHAPE;
         m_width = 0;
         break;
@@ -115,14 +118,8 @@ void ROUTER_PREVIEW_ITEM::Update( const PNS_ITEM* aItem )
         break;
     }
 
-    if( aItem->Marker() & MK_VIOLATION )
+    if( aItem->Marker() & PNS::MK_VIOLATION )
         m_color = COLOR4D( 0, 1, 0, 1 );
-
-    if( aItem->Marker() & MK_HEAD )
-        m_color.Brighten( 0.7 );
-
-    ViewSetVisible( true );
-    ViewUpdate( GEOMETRY | APPEARANCE );
 }
 
 
@@ -149,69 +146,89 @@ const BOX2I ROUTER_PREVIEW_ITEM::ViewBBox() const
 }
 
 
-void ROUTER_PREVIEW_ITEM::drawLineChain( const SHAPE_LINE_CHAIN& aL, KIGFX::GAL* aGal ) const
+void ROUTER_PREVIEW_ITEM::drawLineChain( const SHAPE_LINE_CHAIN& aL, KIGFX::GAL* gal ) const
 {
     for( int s = 0; s < aL.SegmentCount(); s++ )
-        aGal->DrawLine( aL.CSegment( s ).A, aL.CSegment( s ).B );
+        gal->DrawLine( aL.CSegment( s ).A, aL.CSegment( s ).B );
 
     if( aL.IsClosed() )
-        aGal->DrawLine( aL.CSegment( -1 ).B, aL.CSegment( 0 ).A );
+        gal->DrawLine( aL.CSegment( -1 ).B, aL.CSegment( 0 ).A );
 }
 
 
-void ROUTER_PREVIEW_ITEM::ViewDraw( int aLayer, KIGFX::GAL* aGal ) const
+void ROUTER_PREVIEW_ITEM::ViewDraw( int aLayer, KIGFX::VIEW* aView ) const
 {
+    auto gal = aView->GetGAL();
     //col.Brighten(0.7);
-    aGal->SetLayerDepth( m_depth );
 
     if( m_type == PR_SHAPE )
     {
         if( !m_shape )
             return;
 
-        aGal->SetLineWidth( m_width );
-        aGal->SetStrokeColor( m_color );
-        aGal->SetFillColor( m_color );
-        aGal->SetIsStroke( m_width ? true : false );
-        aGal->SetIsFill( true );
+        // N.B. The order of draw here is important
+        // Cairo doesn't current support z-ordering, so we need
+        // to draw the clearance first to ensure it is in the background
+        gal->SetLayerDepth( ClearanceOverlayDepth );
+        gal->SetStrokeColor( COLOR4D( DARKDARKGRAY ) );
+        gal->SetFillColor( COLOR4D( DARKDARKGRAY ) );
+        gal->SetIsStroke( m_width ? true : false );
+        gal->SetIsFill( true );
 
         switch( m_shape->Type() )
         {
         case SH_LINE_CHAIN:
         {
             const SHAPE_LINE_CHAIN* l = (const SHAPE_LINE_CHAIN*) m_shape;
-            drawLineChain( *l, aGal );
+
+            if( m_showTrackClearance && m_clearance > 0 )
+            {
+                gal->SetLineWidth( m_width + 2 * m_clearance );
+                drawLineChain( *l, gal );
+            }
+
+            gal->SetLayerDepth( m_depth );
+            gal->SetLineWidth( m_width );
+            gal->SetStrokeColor( m_color );
+            gal->SetFillColor( m_color );
+            drawLineChain( *l, gal );
             break;
         }
 
         case SH_SEGMENT:
         {
             const SHAPE_SEGMENT* s = (const SHAPE_SEGMENT*) m_shape;
-            aGal->DrawSegment( s->GetSeg().A, s->GetSeg().B, s->GetWidth() );
 
-            if( m_clearance > 0 )
+            if( m_showTrackClearance && m_clearance > 0 )
             {
-                aGal->SetLayerDepth( ClearanceOverlayDepth );
-                aGal->SetStrokeColor( COLOR4D( DARKDARKGRAY ) );
-                aGal->SetFillColor( COLOR4D( DARKDARKGRAY ) );
-                aGal->DrawSegment( s->GetSeg().A, s->GetSeg().B, s->GetWidth() + 2 * m_clearance );
+                gal->SetLineWidth( m_width + 2 * m_clearance );
+                gal->DrawSegment( s->GetSeg().A, s->GetSeg().B, s->GetWidth() + 2 * m_clearance );
             }
 
+            gal->SetLayerDepth( m_depth );
+            gal->SetLineWidth( m_width );
+            gal->SetStrokeColor( m_color );
+            gal->SetFillColor( m_color );
+            gal->DrawSegment( s->GetSeg().A, s->GetSeg().B, s->GetWidth() );
             break;
         }
 
         case SH_CIRCLE:
         {
             const SHAPE_CIRCLE* c = (const SHAPE_CIRCLE*) m_shape;
-            aGal->DrawCircle( c->GetCenter(), c->GetRadius() );
+            gal->SetStrokeColor( m_color );
 
-            if( m_clearance > 0 )
+            if( m_showViaClearance && m_clearance > 0 )
             {
-                aGal->SetLayerDepth( ClearanceOverlayDepth );
-                aGal->SetFillColor( COLOR4D( DARKDARKGRAY ) );
-                aGal->SetIsStroke( false );
-                aGal->DrawCircle( c->GetCenter(), c->GetRadius() + m_clearance );
+                gal->SetIsStroke( false );
+                gal->DrawCircle( c->GetCenter(), c->GetRadius() + m_clearance );
             }
+
+            gal->SetLayerDepth( m_depth );
+            gal->SetIsStroke( m_width ? true : false );
+            gal->SetLineWidth( m_width );
+            gal->SetFillColor( m_color );
+            gal->DrawCircle( c->GetCenter(), c->GetRadius() );
 
             break;
         }
@@ -219,49 +236,59 @@ void ROUTER_PREVIEW_ITEM::ViewDraw( int aLayer, KIGFX::GAL* aGal ) const
         case SH_RECT:
         {
             const SHAPE_RECT* r = (const SHAPE_RECT*) m_shape;
-            aGal->DrawRectangle( r->GetPosition(), r->GetPosition() + r->GetSize() );
+            gal->SetFillColor( m_color );
 
             if( m_clearance > 0 )
             {
-                aGal->SetLayerDepth( ClearanceOverlayDepth );
                 VECTOR2I p0( r->GetPosition() ), s( r->GetSize() );
-                aGal->SetStrokeColor( COLOR4D( DARKDARKGRAY ) );
-                aGal->SetIsStroke( true );
-                aGal->SetLineWidth( 2 * m_clearance );
-                aGal->DrawLine( p0, VECTOR2I( p0.x + s.x, p0.y ) );
-                aGal->DrawLine( p0, VECTOR2I( p0.x, p0.y + s.y ) );
-                aGal->DrawLine( p0 + s , VECTOR2I( p0.x + s.x, p0.y ) );
-                aGal->DrawLine( p0 + s, VECTOR2I( p0.x, p0.y + s.y ) );
+                gal->SetIsStroke( true );
+                gal->SetLineWidth( 2 * m_clearance );
+                gal->DrawLine( p0, VECTOR2I( p0.x + s.x, p0.y ) );
+                gal->DrawLine( p0, VECTOR2I( p0.x, p0.y + s.y ) );
+                gal->DrawLine( p0 + s , VECTOR2I( p0.x + s.x, p0.y ) );
+                gal->DrawLine( p0 + s, VECTOR2I( p0.x, p0.y + s.y ) );
             }
+
+            gal->SetLayerDepth( m_depth );
+            gal->SetIsStroke( m_width ? true : false );
+            gal->SetLineWidth( m_width );
+            gal->SetStrokeColor( m_color );
+            gal->DrawRectangle( r->GetPosition(), r->GetPosition() + r->GetSize() );
 
             break;
         }
 
-    case SH_CONVEX:
+    case SH_SIMPLE:
     {
-        const SHAPE_CONVEX* c = (const SHAPE_CONVEX*) m_shape;
+        const SHAPE_SIMPLE* c = (const SHAPE_SIMPLE*) m_shape;
         std::deque<VECTOR2D> polygon = std::deque<VECTOR2D>();
         for( int i = 0; i < c->PointCount(); i++ )
         {
             polygon.push_back( c->CDPoint( i ) );
         }
-        aGal->DrawPolygon( polygon );
+
+        gal->SetFillColor( m_color );
 
         if( m_clearance > 0 )
         {
-            aGal->SetLayerDepth( ClearanceOverlayDepth );
-            aGal->SetStrokeColor( COLOR4D( DARKDARKGRAY ) );
-            aGal->SetIsStroke( true );
-            aGal->SetLineWidth( 2 * m_clearance );
+            gal->SetIsStroke( true );
+            gal->SetLineWidth( 2 * m_clearance );
             // need the implicit last segment to be explicit for DrawPolyline
             polygon.push_back( c->CDPoint( 0 ) );
-            aGal->DrawPolyline( polygon );
+            gal->DrawPolyline( polygon );
         }
+
+        gal->SetLayerDepth( m_depth );
+        gal->SetIsStroke( m_width ? true : false );
+        gal->SetLineWidth( m_width );
+        gal->SetStrokeColor( m_color );
+        gal->DrawPolygon( polygon );
         break;
     }
 
     case SH_POLY_SET:
     case SH_COMPOUND:
+    case SH_ARC:
         break;          // Not yet in use
         }
     }
@@ -270,15 +297,11 @@ void ROUTER_PREVIEW_ITEM::ViewDraw( int aLayer, KIGFX::GAL* aGal ) const
 
 void ROUTER_PREVIEW_ITEM::Line( const SHAPE_LINE_CHAIN& aLine, int aWidth, int aStyle )
 {
-    m_originLayer = m_layer = 0;
     m_width = aWidth;
     m_color = assignColor( aStyle );
     m_type = PR_SHAPE;
     m_depth = -1024;        // TODO gal->GetMinDepth()
     m_shape = aLine.Clone();
-
-    ViewSetVisible( true );
-    ViewUpdate( GEOMETRY | APPEARANCE );
 }
 
 
@@ -294,8 +317,7 @@ void ROUTER_PREVIEW_ITEM::Box( const BOX2I& aBox, int aStyle )
 
 const COLOR4D ROUTER_PREVIEW_ITEM::getLayerColor( int aLayer ) const
 {
-    PCB_RENDER_SETTINGS* settings =
-        static_cast<PCB_RENDER_SETTINGS*>( m_parent->GetView()->GetPainter()->GetSettings() );
+    auto settings = static_cast<PCB_RENDER_SETTINGS*>( m_view->GetPainter()->GetSettings() );
 
     return settings->GetLayerColor( aLayer );
 }
@@ -338,6 +360,6 @@ const COLOR4D ROUTER_PREVIEW_ITEM::assignColor( int aStyle ) const
     return color;
 }
 
-const int ROUTER_PREVIEW_ITEM::ClearanceOverlayDepth = -300;
-const int ROUTER_PREVIEW_ITEM::BaseOverlayDepth = -310;
-const int ROUTER_PREVIEW_ITEM::ViaOverlayDepth = -346;
+const int ROUTER_PREVIEW_ITEM::ClearanceOverlayDepth = -VIEW::VIEW_MAX_LAYERS - 10;
+const int ROUTER_PREVIEW_ITEM::BaseOverlayDepth = -VIEW::VIEW_MAX_LAYERS - 20;
+const int ROUTER_PREVIEW_ITEM::ViaOverlayDepth = -VIEW::VIEW_MAX_LAYERS - 50;

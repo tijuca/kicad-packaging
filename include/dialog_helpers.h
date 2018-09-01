@@ -75,6 +75,9 @@ public:
 
     // ~EDA_LIST_DIALOG() {}
 
+    void     SetFilterLabel( const wxString& aLabel );
+    void     SetListLabel( const wxString& aLabel );
+
     void     Append( const wxArrayString& aItemStr );
     void     InsertItems( const std::vector<wxArrayString>& aItemList, int aPosition = 0 );
 
@@ -88,12 +91,12 @@ public:
     wxString GetTextSelection( int aColumn = 0 );
 
 private:
-    void     onClose( wxCloseEvent& event );
-    void     onCancelClick( wxCommandEvent& event );
-    void     onOkClick( wxCommandEvent& event );
-    void     onListItemSelected( wxListEvent& event );
-    void     onListItemActivated( wxListEvent& event );
-    void     textChangeInFilterBox(wxCommandEvent& event);
+    void     onClose( wxCloseEvent& event ) override;
+    void     onCancelClick( wxCommandEvent& event ) override;
+    void     onOkClick( wxCommandEvent& event ) override;
+    void     onListItemSelected( wxListEvent& event ) override;
+    void     onListItemActivated( wxListEvent& event ) override;
+    void     textChangeInFilterBox(wxCommandEvent& event) override;
 
     void    initDialog( const wxArrayString& aItemHeaders,
                         const wxString& aSelection);

@@ -48,12 +48,16 @@ public:
     PCB_PAD( PCB_CALLBACKS* aCallbacks, BOARD* aBoard );
     ~PCB_PAD();
 
-    virtual void    Parse( XNODE*       aNode,
-                           wxString     aDefaultMeasurementUnit,
-                           wxString     aActualConversion );
-    virtual void    Flip();
+    virtual void    Parse( XNODE*          aNode,
+                           const wxString& aDefaultMeasurementUnit,
+                           const wxString& aActualConversion );
+    virtual void    Flip() override;
+    void            AddToModule( MODULE* aModule ) override
+    {
+        AddToModule( aModule, 0, true );
+    }
     void            AddToModule( MODULE* aModule, int aRotation, bool aEncapsulatedPad );
-    void            AddToBoard();
+    void            AddToBoard() override;
 
 private:
     wxString m_defaultPinDes;

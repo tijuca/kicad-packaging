@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004-2016 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -21,64 +21,73 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-/**
- * @file dialog_edit_component_in_schematic.cpp
- */
 
 #include <wx/tooltip.h>
 #include <wx/hyperlink.h>
+#include <wx/url.h>
 
 #include <fctsys.h>
 #include <pgm_base.h>
 #include <kiway.h>
-#include <gr_basic.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <class_sch_screen.h>
-#include <schframe.h>
+#include <sch_edit_frame.h>
 #include <base_units.h>
 
-#include <general.h>
-#include <sch_base_frame.h>
+#include <sch_reference_list.h>
 #include <class_library.h>
 #include <sch_component.h>
 #include <dialog_helpers.h>
 #include <sch_validators.h>
+#include <kicad_device_context.h>
+#include <symbol_lib_table.h>
 
-#include <dialog_edit_component_in_schematic_fbp.h>
+#include <bitmaps.h>
+
+#include <dialog_edit_component_in_schematic_base.h>
+#include <invoke_sch_dialog.h>
+
+#ifdef KICAD_SPICE
+#include <dialog_spice_model.h>
+#include <netlist_exporter_pspice.h>
+#endif /* KICAD_SPICE */
+
+#include "common.h"
+#include "eda_doc.h"
+#include <list>
 
 
 /**
- * class DIALOG_EDIT_COMPONENT_IN_SCHEMATIC
- * is hand coded and implements DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_FBP which
- * is maintained by wxFormBuilder.  Do not auto-generate this class or file,
- * it is hand coded.
+ * Dialog used to edit #SCH_COMPONENT objects in a schematic.
+ *
+ * This is derived from DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_BASE which is maintained by
+ * wxFormBuilder.  Do not auto-generate this class or file, it is hand coded.
  */
-class DIALOG_EDIT_COMPONENT_IN_SCHEMATIC : public DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_FBP
+class DIALOG_EDIT_COMPONENT_IN_SCHEMATIC : public DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_BASE
 {
 public:
-    /** Constructor */
-    DIALOG_EDIT_COMPONENT_IN_SCHEMATIC( wxWindow* aParent );
+    DIALOG_EDIT_COMPONENT_IN_SCHEMATIC( SCH_EDIT_FRAME* aParent );
 
     /**
-     * Function InitBuffers
-     * sets up to edit the given component.
+     * Initialize controls with \a aComponent.
+     *.
      * @param aComponent The component to edit.
      */
     void InitBuffers( SCH_COMPONENT* aComponent );
+
+    SCH_EDIT_FRAME* GetParent() { return dynamic_cast< SCH_EDIT_FRAME* >( wxDialog::GetParent() ); }
 
 private:
 
     friend class SCH_EDIT_FRAME;
 
-    SCH_EDIT_FRAME* m_parent;
     SCH_COMPONENT*  m_cmp;
     LIB_PART*       m_part;
     bool            m_skipCopyFromPanel;
 
     static int      s_SelectedRow;
 
-    /// a copy of the edited component's SCH_FIELDs
+    /// a copy of the edited symbol's SCH_FIELDs
     SCH_FIELDS      m_FieldsBuf;
 
     void setSelectedFieldNdx( int aFieldNdx );
@@ -86,17 +95,13 @@ private:
     int getSelectedFieldNdx();
 
     /**
-     * Function copySelectedFieldToPanel
-     * sets the values displayed on the panel according to
-     * the currently selected field row
+     * Sets the values displayed on the panel according to the currently selected field row.
      */
     void copySelectedFieldToPanel();
 
-
     /**
-     * Function copyPanelToSelectedField
-     * copies the values displayed on the panel fields to the currently
-     * selected field
+     * Copy the values displayed on the panel fields to the currently selected field.
+     *
      * @return bool - true if all fields are OK, else false if the user has put
      *   bad data into a field, and this value can be used to deny a row change.
      */
@@ -110,23 +115,35 @@ private:
 
     void setRowItem( int aFieldNdx, const SCH_FIELD& aField )
     {
-        setRowItem( aFieldNdx, aField.GetName( false ), aField.GetText() );
+        // Use default field name for mandatory fields, because they are transalted
+        // according to the current locale
+        wxString f_name;
+
+        if( aFieldNdx < MANDATORY_FIELDS )
+            f_name = TEMPLATE_FIELDNAME::GetDefaultFieldName( aFieldNdx );
+        else
+            f_name = aField.GetName( false );
+
+        setRowItem( aFieldNdx, f_name, aField.GetText() );
     }
 
     // event handlers
-    void OnCloseDialog( wxCloseEvent& event );
-    void OnListItemDeselected( wxListEvent& event );
-    void OnListItemSelected( wxListEvent& event );
-    void OnCancelButtonClick( wxCommandEvent& event );
-    void OnOKButtonClick( wxCommandEvent& event );
-    void SetInitCmp( wxCommandEvent& event );
-    void addFieldButtonHandler( wxCommandEvent& event );
-    void deleteFieldButtonHandler( wxCommandEvent& event );
-    void moveUpButtonHandler( wxCommandEvent& event );
-    void showButtonHandler( wxCommandEvent& event );
-    void OnTestChipName( wxCommandEvent& event );
-    void OnSelectChipName( wxCommandEvent& event );
-	void OnInitDlg( wxInitDialogEvent& event )
+    void OnCloseDialog( wxCloseEvent& event ) override;
+    void OnListItemDeselected( wxListEvent& event ) override;
+    void OnListItemSelected( wxListEvent& event ) override;
+    void OnCancelButtonClick( wxCommandEvent& event ) override;
+    void OnOKButtonClick( wxCommandEvent& event ) override;
+    void SetInitCmp( wxCommandEvent& event ) override;
+    void UpdateFields( wxCommandEvent& event ) override;
+    void addFieldButtonHandler( wxCommandEvent& event ) override;
+    void deleteFieldButtonHandler( wxCommandEvent& event ) override;
+    void moveUpButtonHandler( wxCommandEvent& event ) override;
+    void moveDownButtonHandler( wxCommandEvent& event ) override;
+    void showButtonHandler( wxCommandEvent& event ) override;
+    void OnTestChipName( wxCommandEvent& event ) override;
+    void OnSelectChipName( wxCommandEvent& event ) override;
+    void OnSizeFieldsList( wxSizeEvent& event ) override;
+    void OnInitDlg( wxInitDialogEvent& event ) override
     {
         TransferDataToWindow();
 
@@ -134,16 +151,20 @@ private:
         FinishDialogSettings();
     }
 
+    void EditSpiceModel( wxCommandEvent& event ) override;
+
     SCH_FIELD* findField( const wxString& aFieldName );
 
     /**
-     * Function updateDisplay
-     * update the listbox showing fields, according to the fields texts
-     * must be called after a text change in fields, if this change is not an edition
+     * Update the listbox showing fields according to the field's text.
+     *
+     * This must be called after a text change in fields if this change is not an edition.
      */
-    void updateDisplay( )
+    void updateDisplay()
     {
-        for( unsigned ii = FIELD1;  ii<m_FieldsBuf.size(); ii++ )
+        fieldListCtrl->DeleteAllItems();
+
+        for( unsigned ii = 0; ii < m_FieldsBuf.size(); ii++ )
             setRowItem( ii, m_FieldsBuf[ii] );
     }
 };
@@ -172,6 +193,9 @@ void SCH_EDIT_FRAME::EditComponent( SCH_COMPONENT* aComponent )
     // the QUASIMODAL macros here.
     int ret = dlg->ShowQuasiModal();
 
+    if( m_autoplaceFields )
+        aComponent->AutoAutoplaceFields( GetScreen() );
+
     m_canvas->SetIgnoreMouseEvents( false );
     m_canvas->MoveCursorToCrossHair();
     dlg->Destroy();
@@ -181,10 +205,12 @@ void SCH_EDIT_FRAME::EditComponent( SCH_COMPONENT* aComponent )
 }
 
 
-DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::DIALOG_EDIT_COMPONENT_IN_SCHEMATIC( wxWindow* aParent ) :
-    DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_FBP( aParent )
+DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::DIALOG_EDIT_COMPONENT_IN_SCHEMATIC( SCH_EDIT_FRAME* aParent ) :
+    DIALOG_EDIT_COMPONENT_IN_SCHEMATIC_BASE( aParent )
 {
-    m_parent = (SCH_EDIT_FRAME*) aParent;
+#ifndef KICAD_SPICE
+    spiceFieldsButton->Hide();
+#endif /* not KICAD_SPICE */
 
     m_cmp = NULL;
     m_part = NULL;
@@ -207,7 +233,11 @@ DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::DIALOG_EDIT_COMPONENT_IN_SCHEMATIC( wxWindow
     wxToolTip::Enable( true );
     stdDialogButtonSizerOK->SetDefault();
 
-    FixOSXCancelButtonIssue();
+    // Configure button logos
+    addFieldButton->SetBitmap( KiBitmap( plus_xpm ) );
+    deleteFieldButton->SetBitmap( KiBitmap( minus_xpm ) );
+    moveUpButton->SetBitmap( KiBitmap( go_up_xpm ) );
+    moveDownButton->SetBitmap( KiBitmap( go_down_xpm ) );
 
     Fit();
 }
@@ -224,67 +254,82 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::OnListItemDeselected( wxListEvent& even
 
 void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::OnTestChipName( wxCommandEvent& event )
 {
-    wxString partname = chipnameTextCtrl->GetValue();
-    LIB_PART* entry = Prj().SchLibs()->FindLibPart( partname );
-
+    LIB_ID id;
     wxString msg;
+    wxString partname = chipnameTextCtrl->GetValue();
 
-    if( entry )
+    if( id.Parse( partname ) != -1 || !id.IsValid() )
     {
-        msg.Printf( _( "Component '%s' found in library '%s'" ),
-                    GetChars( partname ), GetChars( entry->GetLibraryName() ) );
-        wxMessageBox( msg );
+        msg.Printf( _( "\"%s\" is not a valid library symbol identifier." ), partname );
+        DisplayError( this, msg );
         return;
     }
 
-    msg.Printf( _( "Component '%s' not found in any library" ), GetChars( partname ) );
+    LIB_ALIAS* alias = NULL;
 
-    // Try to find components which have a name "near" the current chip name,
-    // i.e. the same name when the comparison is case insensitive.
-    // Could be helpful for old designs when lower cases and upper case were
-    // equivalent.
-    std::vector<LIB_ALIAS*> candidates;
-    Prj().SchLibs()->FindLibraryNearEntries( candidates, partname );
-
-    if( candidates.size() == 0 )
+    try
     {
-        wxMessageBox( msg );
+        alias = Prj().SchSymbolLibTable()->LoadSymbol( id );
+    }
+    catch( ... )
+    {
+    }
+
+    if( !alias )
+    {
+        msg.Printf( _( "Symbol \"%s\" not found in library \"%s\"" ),
+                    id.GetLibItemName().wx_str(), id.GetLibNickname().wx_str() );
+        DisplayError( this, msg );
         return;
     }
 
-    // Some candidates are found. Show them:
-    msg << wxT("\n") << _( "However, some candidates are found:" );
+    msg.Printf( _( "Symbol \"%s\" found in library \"%s\"" ),
+                id.GetLibItemName().wx_str(), id.GetLibNickname().wx_str() );
 
-    // add candidate names:
-    for( unsigned ii = 0; ii < candidates.size(); ii++ )
-    {
-        msg << wxT("\n") <<
-            wxString::Format( _( "'%s' found in library '%s'" ),
-                              GetChars( candidates[ii]->GetName() ),
-                              GetChars( candidates[ii]->GetLibraryName() ) );
-    }
-
-    wxMessageBox( msg );
+    DisplayInfoMessage( this, msg );
 }
 
 
 void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::OnSelectChipName( wxCommandEvent& event )
 {
-    wxArrayString dummy;
-    int dummyunit = 1;
-    wxString chipname = m_parent->SelectComponentFromLibrary( NULL, dummy, dummyunit,
-                                                              true, NULL, NULL );
-    if( chipname.IsEmpty() )
+    SCH_BASE_FRAME::HISTORY_LIST dummy;
+
+    auto sel = GetParent()->SelectComponentFromLibrary( NULL, dummy, true, 0, 0, false );
+
+    if( !sel.LibId.IsValid() )
         return;
 
-    chipnameTextCtrl->SetValue( chipname );
+    chipnameTextCtrl->SetValue( sel.LibId.Format() );
+
+    // Update the value field for Power symbols
+    LIB_PART* entry = GetParent()->GetLibPart( sel.LibId );
+
+    if( entry && entry->IsPower() )
+    {
+        m_FieldsBuf[VALUE].SetText( sel.LibId.GetLibItemName() );
+        setRowItem( VALUE, m_FieldsBuf[VALUE] );
+
+        if( s_SelectedRow == VALUE )
+            copySelectedFieldToPanel();
+    }
+
+}
+
+
+void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::EditSpiceModel( wxCommandEvent& event )
+{
+#ifdef KICAD_SPICE
+    setSelectedFieldNdx( 0 );
+    DIALOG_SPICE_MODEL dialog( this, *m_cmp, m_FieldsBuf );
+
+    if( dialog.ShowModal() == wxID_OK )
+        updateDisplay();
+#endif /* KICAD_SPICE */
 }
 
 
 void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::OnListItemSelected( wxListEvent& event )
 {
-    DBG( printf( "OnListItemSelected()\n" ); )
-
     // remember the selected row, statically
     s_SelectedRow = event.GetIndex();
 
@@ -312,45 +357,58 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::OnCancelButtonClick( wxCommandEvent& ev
 
 void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::copyPanelToOptions()
 {
-    wxString newname = chipnameTextCtrl->GetValue();
+    LIB_ID id;
+    wxString msg;
+    wxString tmp = chipnameTextCtrl->GetValue();
+
+    tmp.Replace( wxT( " " ), wxT( "_" ) );
+
+    id.Parse( tmp );
 
     // Save current flags which could be modified by next change settings
     STATUS_FLAGS flags = m_cmp->GetFlags();
 
-    newname.Replace( wxT( " " ), wxT( "_" ) );
-
-    if( newname.IsEmpty() )
+    if( !id.IsValid() )
     {
-        DisplayError( NULL, _( "No Component Name!" ) );
+        msg.Printf( _( "Symbol library identifier \"%s\" is not valid!" ), tmp );
+        DisplayError( this, msg );
     }
-    else if( Cmp_KEEPCASE( newname, m_cmp->m_part_name ) )
+    else if( id != m_cmp->GetLibId() )
     {
-        PART_LIBS* libs = Prj().SchLibs();
+        LIB_ALIAS* alias = NULL;
 
-        if( libs->FindLibraryEntry( newname ) == NULL )
+        try
         {
-            wxString msg = wxString::Format( _(
-                "Component '%s' not found!" ),  GetChars( newname ) );
+            alias = Prj().SchSymbolLibTable()->LoadSymbol( id );
+        }
+        catch( ... )
+        {
+        }
+
+        if( !alias )
+        {
+            msg.Printf( _( "Symbol \"%s\" not found in library \"%s\"!" ),
+                        id.GetLibItemName().wx_str(), id.GetLibNickname().wx_str() );
             DisplayError( this, msg );
         }
-        else    // Change component from lib!
+        else    // Change symbol from lib!
         {
-            m_cmp->SetPartName( newname, libs );
+            m_cmp->SetLibId( id, Prj().SchSymbolLibTable(), Prj().SchLibs()->GetCacheLibrary() );
         }
     }
 
-    // For components with multiple shapes (De Morgan representation) Set the selected shape:
+    // For symbols with multiple shapes (De Morgan representation) Set the selected shape:
     if( convertCheckBox->IsEnabled() )
     {
         m_cmp->SetConvert( convertCheckBox->GetValue() ? 2 : 1 );
     }
 
     //Set the part selection in multiple part per package
-    if( m_cmp->GetUnit() )
+    if( m_cmp->GetUnitCount() > 1 )
     {
         int unit_selection = unitChoice->GetCurrentSelection() + 1;
 
-        m_cmp->SetUnitSelection( &m_parent->GetCurrentSheet(), unit_selection );
+        m_cmp->SetUnitSelection( &GetParent()->GetCurrentSheet(), unit_selection );
         m_cmp->SetUnit( unit_selection );
     }
 
@@ -404,15 +462,15 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::OnOKButtonClick( wxCommandEvent& event 
 
     if( ! SCH_COMPONENT::IsReferenceStringValid( m_FieldsBuf[REFERENCE].GetText() ) )
     {
-        DisplayError( NULL, _( "Illegal reference. A reference must start with a letter" ) );
+        DisplayError( NULL, _( "Illegal reference. References must start with a letter" ) );
         return;
     }
 
     // save old cmp in undo list if not already in edit, or moving ...
     // or the component to be edited is part of a block
-    if( m_cmp->m_Flags == 0
-      || m_parent->GetScreen()->m_BlockLocate.GetState() != STATE_NO_BLOCK )
-        m_parent->SaveCopyInUndoList( m_cmp, UR_CHANGED );
+    if( m_cmp->GetFlags() == 0
+      || GetParent()->GetScreen()->m_BlockLocate.GetState() != STATE_NO_BLOCK )
+        GetParent()->SaveCopyInUndoList( m_cmp, UR_CHANGED );
 
     copyPanelToOptions();
 
@@ -426,11 +484,11 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::OnOKButtonClick( wxCommandEvent& event 
             // correct the problem before removing the undefined fields.  It should also
             // resolve most of the bug reports and questions regarding missing fields.
             if( !m_FieldsBuf[i].GetName( false ).IsEmpty() && m_FieldsBuf[i].GetText().IsEmpty()
-                && !m_parent->GetTemplates().HasFieldName( m_FieldsBuf[i].GetName( false ) )
-                && !removeRemainingFields )
+              && !GetParent()->GetTemplates().HasFieldName( m_FieldsBuf[i].GetName( false ) )
+              && !removeRemainingFields )
             {
                 wxString msg = wxString::Format(
-                    _( "The field name <%s> does not have a value and is not defined in "
+                    _( "The field name \"%s\" does not have a value and is not defined in "
                        "the field template list.  Empty field values are invalid an will "
                        "be removed from the component.  Do you wish to remove this and "
                        "all remaining undefined fields?" ),
@@ -455,13 +513,13 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::OnOKButtonClick( wxCommandEvent& event 
     // change all field positions from relative to absolute
     for( unsigned i = 0;  i<m_FieldsBuf.size();  ++i )
     {
-        m_FieldsBuf[i].SetTextPosition( m_FieldsBuf[i].GetTextPosition() + m_cmp->m_Pos );
+        m_FieldsBuf[i].Offset( m_cmp->m_Pos );
     }
 
-    LIB_PART* entry = Prj().SchLibs()->FindLibPart( m_cmp->m_part_name );
+    LIB_PART* entry = GetParent()->GetLibPart( m_cmp->GetLibId() );
 
     if( entry && entry->IsPower() )
-        m_FieldsBuf[VALUE].SetText( m_cmp->m_part_name );
+        m_FieldsBuf[VALUE].SetText( m_cmp->GetLibId().GetLibItemName() );
 
     // copy all the fields back, and change the length of m_Fields.
     m_cmp->SetFields( m_FieldsBuf );
@@ -469,10 +527,38 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::OnOKButtonClick( wxCommandEvent& event 
     // Reference has a specific initialization, depending on the current active sheet
     // because for a given component, in a complex hierarchy, there are more than one
     // reference.
-    m_cmp->SetRef( &m_parent->GetCurrentSheet(), m_FieldsBuf[REFERENCE].GetText() );
+    m_cmp->SetRef( &GetParent()->GetCurrentSheet(), m_FieldsBuf[REFERENCE].GetText() );
 
-    m_parent->OnModify();
-    m_parent->GetScreen()->TestDanglingEnds();
+    // The value, footprint and datasheet fields should be kept in sync in multi-unit
+    // parts.
+    if( m_cmp->GetUnitCount() > 1 )
+    {
+        const LIB_ID   thisLibId = m_cmp->GetLibId();
+        const wxString thisRef   = m_cmp->GetRef( &( GetParent()->GetCurrentSheet() ) );
+        int            thisUnit  = m_cmp->GetUnit();
+
+        SCH_REFERENCE_LIST components;
+        GetParent()->GetCurrentSheet().GetComponents( components );
+        for( unsigned i = 0; i < components.GetCount(); i++ )
+        {
+            SCH_REFERENCE component = components[i];
+            if( component.GetLibPart()->GetLibId() == thisLibId
+                    && component.GetRef() == thisRef
+                    && component.GetUnit() != thisUnit )
+            {
+                SCH_COMPONENT* otherUnit = component.GetComp();
+                GetParent()->SaveCopyInUndoList( otherUnit, UR_CHANGED, true /* append */);
+                otherUnit->GetField( VALUE )->SetText( m_FieldsBuf[VALUE].GetText() );
+                otherUnit->GetField( FOOTPRINT )->SetText( m_FieldsBuf[FOOTPRINT].GetText() );
+                otherUnit->GetField( DATASHEET )->SetText( m_FieldsBuf[DATASHEET].GetText() );
+            }
+        }
+    }
+
+    m_cmp->UpdatePinCache();
+
+    GetParent()->OnModify();
+    GetParent()->GetScreen()->TestDanglingEnds();
 
     EndQuasiModal( wxID_OK );
 }
@@ -489,7 +575,7 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::addFieldButtonHandler( wxCommandEvent& 
 
     SCH_FIELD blank( wxPoint(), fieldNdx, m_cmp );
 
-    blank.SetOrientation( m_FieldsBuf[REFERENCE].GetOrientation() );
+    blank.SetTextAngle( m_FieldsBuf[REFERENCE].GetTextAngle() );
 
     m_FieldsBuf.push_back( blank );
     m_FieldsBuf[fieldNdx].SetName( TEMPLATE_FIELDNAME::GetDefaultFieldName( fieldNdx ) );
@@ -536,14 +622,15 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::showButtonHandler( wxCommandEvent& even
     if( fieldNdx == DATASHEET )
     {
         wxString datasheet_uri = fieldValueTextCtrl->GetValue();
-        ::wxLaunchDefaultBrowser( datasheet_uri );
+        datasheet_uri = ResolveUriByEnvVars( datasheet_uri );
+        GetAssociatedDocument( this, datasheet_uri );
     }
     else if( fieldNdx == FOOTPRINT )
     {
         // pick a footprint using the footprint picker.
-        wxString fpid;
+        wxString fpid = fieldValueTextCtrl->GetValue();
 
-        KIWAY_PLAYER* frame = Kiway().Player( FRAME_PCB_MODULE_VIEWER_MODAL, true );
+        KIWAY_PLAYER* frame = Kiway().Player( FRAME_PCB_MODULE_VIEWER_MODAL, true, this );
 
         if( frame->ShowModal( &fpid, this ) )
         {
@@ -591,6 +678,44 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::moveUpButtonHandler( wxCommandEvent& ev
 
     m_skipCopyFromPanel = true;
     setSelectedFieldNdx( fieldNdx - 1 );
+    m_skipCopyFromPanel = false;
+}
+
+
+void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::moveDownButtonHandler( wxCommandEvent& event )
+{
+    unsigned fieldNdx = getSelectedFieldNdx();
+
+    // Ensure there is at least one field after this one
+    if( fieldNdx >= ( m_FieldsBuf.size() - 1 ) )
+    {
+        return;
+    }
+
+    // The first field which can be moved up is the second user field
+    // so any field which id < MANDATORY_FIELDS cannot be moved down
+    if( fieldNdx < MANDATORY_FIELDS )
+        return;
+
+    if( !copyPanelToSelectedField() )
+        return;
+
+    // swap the fieldNdx field with the one before it, in both the vector
+    // and in the fieldListCtrl
+    SCH_FIELD tmp = m_FieldsBuf[fieldNdx + 1];
+
+    m_FieldsBuf[fieldNdx + 1] = m_FieldsBuf[fieldNdx];
+    setRowItem( fieldNdx + 1, m_FieldsBuf[fieldNdx] );
+    m_FieldsBuf[fieldNdx + 1].SetId( fieldNdx + 1 );
+
+    m_FieldsBuf[fieldNdx] = tmp;
+    setRowItem( fieldNdx, tmp );
+    m_FieldsBuf[fieldNdx].SetId( fieldNdx );
+
+    updateDisplay( );
+
+    m_skipCopyFromPanel = true;
+    setSelectedFieldNdx( fieldNdx + 1 );
     m_skipCopyFromPanel = false;
 }
 
@@ -650,13 +775,14 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::InitBuffers( SCH_COMPONENT* aComponent 
         which came from the component.
     */
 
-    m_part = Prj().SchLibs()->FindLibPart( m_cmp->m_part_name );
+    m_part = GetParent()->GetLibPart( m_cmp->GetLibId(), true );
 
 #if 0 && defined(DEBUG)
     for( int i = 0;  i<aComponent->GetFieldCount();  ++i )
     {
-        printf( "Orig[%d] (x=%d, y=%d)\n", i, aComponent->m_Fields[i].GetTextPosition().x,
-                aComponent->m_Fields[i].GetTextPosition().y );
+        printf( "Orig[%d] (x=%d, y=%d)\n", i,
+                aComponent->m_Fields[i].GetTextPos().x,
+                aComponent->m_Fields[i].GetTextPos().y );
     }
 
 #endif
@@ -673,13 +799,17 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::InitBuffers( SCH_COMPONENT* aComponent 
         m_FieldsBuf.push_back(  aComponent->m_Fields[i] );
 
         // make the editable field position relative to the component
-        m_FieldsBuf[i].SetTextPosition( m_FieldsBuf[i].GetTextPosition() - m_cmp->m_Pos );
+        m_FieldsBuf[i].Offset( -m_cmp->m_Pos );
+
+        // Ensure the Field name reflects the default name, even if the
+        // local has changed since schematic was read
+        m_FieldsBuf[i].SetName( TEMPLATE_FIELDNAME::GetDefaultFieldName( i ) );
     }
 
     // Add template fieldnames:
     // Now copy in the template fields, in the order that they are present in the
     // template field editor UI.
-    const TEMPLATE_FIELDNAMES& tfnames = m_parent->GetTemplateFieldNames();
+    const TEMPLATE_FIELDNAMES& tfnames = GetParent()->GetTemplateFieldNames();
 
     for( TEMPLATE_FIELDNAMES::const_iterator it = tfnames.begin();  it!=tfnames.end();  ++it )
     {
@@ -694,19 +824,14 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::InitBuffers( SCH_COMPONENT* aComponent 
         // values from the component will be set.
         if( !schField )
         {
-            if( !it->m_Visible )
-                fld.SetVisible( false );
-            else
-                fld.SetVisible( true );
-
-            fld.SetText( it->m_Value );   // empty? ok too.
+            fld.SetVisible( it->m_Visible );
         }
         else
         {
             fld = *schField;
 
             // make the editable field position relative to the component
-            fld.SetTextPosition( fld.GetTextPosition() - m_cmp->m_Pos );
+            fld.Offset( -m_cmp->m_Pos );
         }
 
         m_FieldsBuf.push_back( fld );
@@ -725,8 +850,7 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::InitBuffers( SCH_COMPONENT* aComponent 
             m_FieldsBuf.push_back( *cmp );
 
             // make the editable field position relative to the component
-            m_FieldsBuf[newNdx].SetTextPosition( m_FieldsBuf[newNdx].GetTextPosition() -
-                                                 m_cmp->m_Pos );
+            m_FieldsBuf[newNdx].Offset( -m_cmp->m_Pos );
         }
     }
 
@@ -739,7 +863,7 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::InitBuffers( SCH_COMPONENT* aComponent 
     }
 #endif
 
-    m_FieldsBuf[REFERENCE].SetText( m_cmp->GetRef( &m_parent->GetCurrentSheet() ) );
+    m_FieldsBuf[REFERENCE].SetText( m_cmp->GetRef( &GetParent()->GetCurrentSheet() ) );
 
     for( unsigned i = 0;  i<m_FieldsBuf.size();  ++i )
     {
@@ -794,8 +918,9 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::setRowItem( int aFieldNdx, const wxStri
     fieldListCtrl->SetItem( aFieldNdx, 1, aValue );
 
     // recompute the column widths here, after setting texts
+    int totalWidth = fieldListCtrl->GetSize().GetWidth();
     fieldListCtrl->SetColumnWidth( 0, wxLIST_AUTOSIZE );
-    fieldListCtrl->SetColumnWidth( 1, wxLIST_AUTOSIZE );
+    fieldListCtrl->SetColumnWidth( 1, totalWidth - fieldListCtrl->GetColumnWidth( 0 ) );
 }
 
 
@@ -812,7 +937,7 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::copySelectedFieldToPanel()
 
     showCheckBox->SetValue( field.IsVisible() );
 
-    rotateCheckBox->SetValue( field.GetOrientation() == TEXT_ORIENT_VERT );
+    rotateCheckBox->SetValue( field.GetTextAngle() == TEXT_ANGLE_VERT );
 
     int style = 0;
 
@@ -832,9 +957,9 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::copySelectedFieldToPanel()
     else
         m_FieldHJustifyCtrl->SetSelection( 1 );
 
-    if( field.GetVertJustify() == GR_TEXT_VJUSTIFY_BOTTOM )
+    if( field.GetVertJustify() == GR_TEXT_VJUSTIFY_TOP )
         m_FieldVJustifyCtrl->SetSelection( 0 );
-    else if( field.GetVertJustify() == GR_TEXT_VJUSTIFY_TOP )
+    else if( field.GetVertJustify() == GR_TEXT_VJUSTIFY_BOTTOM )
         m_FieldVJustifyCtrl->SetSelection( 2 );
     else
         m_FieldVJustifyCtrl->SetSelection( 1 );
@@ -849,6 +974,7 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::copySelectedFieldToPanel()
     // only user defined fields may be moved, and not the top most user defined
     // field since it would be moving up into the fixed fields, > not >=
     moveUpButton->Enable( fieldNdx > MANDATORY_FIELDS );
+    moveDownButton->Enable( ( fieldNdx >= MANDATORY_FIELDS ) && ( fieldNdx < ( m_FieldsBuf.size() - 1 ) ) );
 
     // may only delete user defined fields
     deleteFieldButton->Enable( fieldNdx >= MANDATORY_FIELDS );
@@ -859,11 +985,24 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::copySelectedFieldToPanel()
     m_show_datasheet_button->Enable( fieldNdx == DATASHEET || fieldNdx == FOOTPRINT );
 
     if( fieldNdx == DATASHEET )
-        m_show_datasheet_button->SetLabel( _( "Show in Browser" ) );
+    {
+        m_show_datasheet_button->SetLabel( _( "Show Datasheet" ) );
+        m_show_datasheet_button->SetToolTip(
+            _("If your datasheet is given as an http:// link,"
+              " then pressing this button should bring it up in your webbrowser.") );
+    }
     else if( fieldNdx == FOOTPRINT )
-        m_show_datasheet_button->SetLabel( _( "Assign Footprint" ) );
+    {
+        m_show_datasheet_button->SetLabel( _( "Browse Footprints" ) );
+        m_show_datasheet_button->SetToolTip(
+            _("Open the footprint browser to choose a footprint and assign it.") );
+    }
     else
+    {
         m_show_datasheet_button->SetLabel( wxEmptyString );
+        m_show_datasheet_button->SetToolTip(
+            _("Used only for fields Footprint and Datasheet.") );
+    }
 
     // For power symbols, the value is NOR editable, because value and pin
     // name must be same and can be edited only in library editor
@@ -872,9 +1011,9 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::copySelectedFieldToPanel()
     else
         fieldValueTextCtrl->Enable( true );
 
-    textSizeTextCtrl->SetValue( EDA_GRAPHIC_TEXT_CTRL::FormatSize( g_UserUnit, field.GetSize().x ) );
+    textSizeTextCtrl->SetValue( EDA_GRAPHIC_TEXT_CTRL::FormatSize( g_UserUnit, field.GetTextWidth() ) );
 
-    wxPoint coord = field.GetTextPosition();
+    wxPoint coord = field.GetTextPos();
     wxPoint zero  = -m_cmp->m_Pos;  // relative zero
 
     // If the field value is empty and the position is at relative zero, we
@@ -883,12 +1022,12 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::copySelectedFieldToPanel()
     // close to the desired position.
     if( coord == zero && field.GetText().IsEmpty() )
     {
-        rotateCheckBox->SetValue( m_FieldsBuf[REFERENCE].GetOrientation() == TEXT_ORIENT_VERT );
+        rotateCheckBox->SetValue( m_FieldsBuf[REFERENCE].GetTextAngle() == TEXT_ANGLE_VERT );
 
-        coord.x = m_FieldsBuf[REFERENCE].GetTextPosition().x
+        coord.x = m_FieldsBuf[REFERENCE].GetTextPos().x
             + ( fieldNdx - MANDATORY_FIELDS + 1 ) * 100;
 
-        coord.y = m_FieldsBuf[REFERENCE].GetTextPosition().y
+        coord.y = m_FieldsBuf[REFERENCE].GetTextPos().y
             + ( fieldNdx - MANDATORY_FIELDS + 1 ) * 100;
 
         // coord can compute negative if field is < MANDATORY_FIELDS, e.g. FOOTPRINT.
@@ -921,11 +1060,11 @@ bool DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::copyPanelToSelectedField()
     field.SetVisible( showCheckBox->GetValue() );
 
     if( rotateCheckBox->GetValue() )
-        field.SetOrientation( TEXT_ORIENT_VERT );
+        field.SetTextAngle( TEXT_ANGLE_VERT );
     else
-        field.SetOrientation( TEXT_ORIENT_HORIZ );
+        field.SetTextAngle( TEXT_ANGLE_HORIZ );
 
-    rotateCheckBox->SetValue( field.GetOrientation() == TEXT_ORIENT_VERT );
+    rotateCheckBox->SetValue( field.GetTextAngle() == TEXT_ANGLE_VERT );
 
     // Copy the text justification
     static const EDA_TEXT_HJUSTIFY_T hjustify[] = {
@@ -935,9 +1074,9 @@ bool DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::copyPanelToSelectedField()
     };
 
     static const EDA_TEXT_VJUSTIFY_T vjustify[] = {
-        GR_TEXT_VJUSTIFY_BOTTOM,
+        GR_TEXT_VJUSTIFY_TOP,
         GR_TEXT_VJUSTIFY_CENTER,
-        GR_TEXT_VJUSTIFY_TOP
+        GR_TEXT_VJUSTIFY_BOTTOM
     };
 
     field.SetHorizJustify( hjustify[m_FieldHJustifyCtrl->GetSelection()] );
@@ -956,7 +1095,7 @@ bool DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::copyPanelToSelectedField()
     setRowItem( fieldNdx, field );  // update fieldListCtrl
 
     int tmp = EDA_GRAPHIC_TEXT_CTRL::ParseSize( textSizeTextCtrl->GetValue(), g_UserUnit );
-    field.SetSize( wxSize( tmp, tmp ) );
+    field.SetTextSize( wxSize( tmp, tmp ) );
     int style = m_StyleRadioBox->GetSelection();
 
     field.SetItalic( (style & 1 ) != 0 );
@@ -965,7 +1104,7 @@ bool DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::copyPanelToSelectedField()
     wxPoint pos;
     pos.x = ValueFromString( g_UserUnit, posXTextCtrl->GetValue() );
     pos.y = ValueFromString( g_UserUnit, posYTextCtrl->GetValue() );
-    field.SetTextPosition( pos );
+    field.SetTextPos( pos );
 
     return true;
 }
@@ -986,7 +1125,7 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::copyOptionsToPanel()
         unitChoice->Append( LIB_PART::SubReference(  ii, false ) );
     }
 
-    // For components with multiple parts per package, set the unit selection
+    // For symbols with multiple parts per package, set the unit selection
     if( m_cmp->GetUnit() <= (int)unitChoice->GetCount() )
         unitChoice->SetSelection( m_cmp->GetUnit() - 1 );
 
@@ -1041,7 +1180,7 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::copyOptionsToPanel()
         convertCheckBox->Enable( false );
 
     // Set the component's library name.
-    chipnameTextCtrl->SetValue( m_cmp->m_part_name );
+    chipnameTextCtrl->SetValue( m_cmp->GetLibId().Format() );
 
     // Set the component's unique ID time stamp.
     m_textCtrlTimeStamp->SetValue( wxString::Format( wxT( "%8.8lX" ),
@@ -1049,22 +1188,19 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::copyOptionsToPanel()
 }
 
 
-#include <kicad_device_context.h>
-
-
 void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::SetInitCmp( wxCommandEvent& event )
 {
     if( !m_cmp )
         return;
 
-    if( LIB_PART* part = Prj().SchLibs()->FindLibPart( m_cmp->m_part_name ) )
+    if( LIB_PART* part = GetParent()->GetLibPart( m_cmp->GetLibId()  ) )
     {
         // save old cmp in undo list if not already in edit, or moving ...
-        if( m_cmp->m_Flags == 0 )
-            m_parent->SaveCopyInUndoList( m_cmp, UR_CHANGED );
+        if( m_cmp->GetFlags() == 0 )
+            GetParent()->SaveCopyInUndoList( m_cmp, UR_CHANGED );
 
-        INSTALL_UNBUFFERED_DC( dc, m_parent->GetCanvas() );
-        m_cmp->Draw( m_parent->GetCanvas(), &dc, wxPoint( 0, 0 ), g_XorMode );
+        INSTALL_UNBUFFERED_DC( dc, GetParent()->GetCanvas() );
+        m_cmp->Draw( GetParent()->GetCanvas(), &dc, wxPoint( 0, 0 ), g_XorMode );
 
         // Initialize fixed field values to default values found in library
         // Note: the field texts are not modified because they are set in schematic,
@@ -1072,36 +1208,66 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::SetInitCmp( wxCommandEvent& event )
         // Only VALUE, REFERENCE , FOOTPRINT and DATASHEET are re-initialized
         LIB_FIELD& refField = part->GetReferenceField();
 
-        m_cmp->GetField( REFERENCE )->SetTextPosition( refField.GetTextPosition() + m_cmp->m_Pos );
         m_cmp->GetField( REFERENCE )->ImportValues( refField );
+        m_cmp->GetField( REFERENCE )->SetTextPos( refField.GetTextPos() + m_cmp->m_Pos );
 
         LIB_FIELD& valField = part->GetValueField();
 
-        m_cmp->GetField( VALUE )->SetTextPosition( valField.GetTextPosition() + m_cmp->m_Pos );
         m_cmp->GetField( VALUE )->ImportValues( valField );
+        m_cmp->GetField( VALUE )->SetTextPos( valField.GetTextPos() + m_cmp->m_Pos );
 
         LIB_FIELD* field = part->GetField(FOOTPRINT);
 
         if( field && m_cmp->GetField( FOOTPRINT ) )
         {
-            m_cmp->GetField( FOOTPRINT )->SetTextPosition( field->GetTextPosition() + m_cmp->m_Pos );
             m_cmp->GetField( FOOTPRINT )->ImportValues( *field );
+            m_cmp->GetField( FOOTPRINT )->SetTextPos( field->GetTextPos() + m_cmp->m_Pos );
         }
 
         field = part->GetField(DATASHEET);
 
         if( field && m_cmp->GetField( DATASHEET ) )
         {
-            m_cmp->GetField( DATASHEET )->SetTextPosition( field->GetTextPosition() + m_cmp->m_Pos );
             m_cmp->GetField( DATASHEET )->ImportValues( *field );
+            m_cmp->GetField( DATASHEET )->SetTextPos( field->GetTextPos() + m_cmp->m_Pos );
         }
 
         m_cmp->SetOrientation( CMP_NORMAL );
 
-        m_parent->OnModify();
+        GetParent()->OnModify();
 
-        m_cmp->Draw( m_parent->GetCanvas(), &dc, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
+        m_cmp->Draw( GetParent()->GetCanvas(), &dc, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
 
         EndQuasiModal( wxID_OK );
     }
+}
+
+
+void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::UpdateFields( wxCommandEvent& event )
+{
+    SCH_COMPONENT copy( *m_cmp );
+    std::list<SCH_COMPONENT*> components;
+    components.push_back( &copy );
+    InvokeDialogUpdateFields( GetParent(), components, false );
+
+    // Copy fields from the modified component copy to the dialog buffer
+    m_FieldsBuf.clear();
+
+    for( int i = 0; i < copy.GetFieldCount(); ++i )
+    {
+        copy.m_Fields[i].SetParent( m_cmp );
+        m_FieldsBuf.push_back( copy.m_Fields[i] );
+        m_FieldsBuf[i].Offset( -m_cmp->m_Pos );
+    }
+
+    // Update the selected field as well
+    copySelectedFieldToPanel();
+    updateDisplay();
+}
+
+void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::OnSizeFieldsList( wxSizeEvent& event )
+{
+    int newWidth = event.GetSize().GetX();
+    fieldListCtrl->SetColumnWidth( 1, newWidth - fieldListCtrl->GetColumnWidth( 0 ) );
+    event.Skip();
 }

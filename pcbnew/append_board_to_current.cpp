@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004-2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2014 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2014 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,7 +29,8 @@
 
 #include <fctsys.h>
 #include <confirm.h>
-#include <wxPcbStruct.h>
+#include <properties.h>
+#include <pcb_edit_frame.h>
 #include <pcbnew.h>
 #include <io_mgr.h>
 #include <class_module.h>
@@ -57,7 +58,7 @@ bool PCB_EDIT_FRAME::AppendBoardFile( const wxString& aFullFileName, int aCtl )
     // Other items are append to the item list, so keep trace to the
     // last existing item is enough
     MODULE* module = GetBoard()->m_Modules.GetLast();
-    BOARD_ITEM* drawing = GetBoard()->m_Drawings.GetLast();
+    BOARD_ITEM* drawing = GetBoard()->DrawingsList().GetLast();
     int zonescount = GetBoard()->GetAreaCount();
 
     // Keep also the count of copper layers, because we can happen boards
@@ -85,13 +86,11 @@ bool PCB_EDIT_FRAME::AppendBoardFile( const wxString& aFullFileName, int aCtl )
     catch( const IO_ERROR& ioe )
     {
         for( TRACK* track = GetBoard()->m_Track; track; track = track->Next() )
+        {
             track->ClearFlags( FLAG0 );
+        }
 
-        wxString msg = wxString::Format( _(
-                "Error loading board.\n%s" ),
-                GetChars( ioe.errorText )
-                );
-        DisplayError( this, msg );
+        DisplayErrorMessage( this, _( "Error loading board in AppendBoardFile" ), ioe.What() );
 
         return false;
     }
@@ -151,7 +150,7 @@ bool PCB_EDIT_FRAME::AppendBoardFile( const wxString& aFullFileName, int aCtl )
     if( drawing )
         drawing = drawing->Next();
     else
-        drawing = GetBoard()->m_Drawings;
+        drawing = GetBoard()->DrawingsList();
 
     for( ; drawing; drawing = drawing->Next() )
     {
@@ -198,17 +197,14 @@ bool PCB_EDIT_FRAME::AppendBoardFile( const wxString& aFullFileName, int aCtl )
     enabledLayers |= initialEnabledLayers;
     GetBoard()->SetEnabledLayers( enabledLayers );
     GetBoard()->SetVisibleLayers( enabledLayers );
-    ReCreateLayerBox();
-    ReFillLayerWidget();
+
+    onBoardLoaded();
 
     if( IsGalCanvasActive() )
         static_cast<PCB_DRAW_PANEL_GAL*>( GetGalCanvas() )->SyncLayersVisibility( GetBoard() );
 
     GetBoard()->BuildListOfNets();
     GetBoard()->SynchronizeNetsAndNetClasses();
-
-    SetStatusText( wxEmptyString );
-    BestZoom();
 
     // Finish block move command:
     wxPoint cpos = GetNearestGridPosition( bbox.Centre() );

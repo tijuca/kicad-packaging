@@ -2,8 +2,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2014-2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2008-2015 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2008 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,14 +28,10 @@
  */
 
 #include <fctsys.h>
-#include <gr_basic.h>
-#include <trigo.h>
-#include <wxstruct.h>
+#include <eda_base_frame.h>
 #include <base_struct.h>
 #include <common.h>
 #include <macros.h>
-#include <build_version.h>
-#include <confirm.h>
 #include <base_units.h>
 #include <reporter.h>
 
@@ -43,8 +39,11 @@
 #include <wx/config.h>
 #include <wx/utils.h>
 #include <wx/stdpaths.h>
+#include <wx/url.h>
 
 #include <pgm_base.h>
+
+using KIGFX::COLOR4D;
 
 
 /**
@@ -55,27 +54,16 @@
  *       application class.
  */
 
-bool           g_ShowPageLimits = true;
 EDA_UNITS_T    g_UserUnit;
-EDA_COLOR_T    g_GhostColor;
+COLOR4D        g_GhostColor;
 
 
-/* Class LOCALE_IO
- * is a class that can be instantiated within a scope in which you are expecting
- * exceptions to be thrown.  Its constructor sets a "C" locale, to read/print files
- * with fp numbers.
- * Its destructor insures that the default locale is restored if an exception
- * is thrown, or not.
- */
-
-int LOCALE_IO::m_c_count = 0;
+std::atomic<unsigned int> LOCALE_IO::m_c_count(0);
 
 LOCALE_IO::LOCALE_IO()
 {
-    wxASSERT_MSG( m_c_count >= 0, wxT( "LOCALE_IO::m_c_count mismanaged." ) );
-
     // use thread safe, atomic operation
-    if( __sync_fetch_and_add( &m_c_count, 1 ) == 0 )
+    if( m_c_count++ == 0 )
     {
         // Store the user locale name, to restore this locale later, in dtor
         m_user_locale = setlocale( LC_ALL, 0 );
@@ -84,16 +72,15 @@ LOCALE_IO::LOCALE_IO()
     }
 }
 
+
 LOCALE_IO::~LOCALE_IO()
 {
     // use thread safe, atomic operation
-    if( __sync_sub_and_fetch( &m_c_count, 1 ) == 0 )
+    if( --m_c_count == 0 )
     {
         // revert to the user locale
         setlocale( LC_ALL, m_user_locale.c_str() );
     }
-
-    wxASSERT_MSG( m_c_count >= 0, wxT( "LOCALE_IO::m_c_count mismanaged." ) );
 }
 
 
@@ -141,105 +128,6 @@ bool EnsureTextCtrlWidth( wxTextCtrl* aCtrl, const wxString* aString )
 }
 
 
-wxString ReturnUnitSymbol( EDA_UNITS_T aUnit, const wxString& formatString )
-{
-    wxString tmp;
-    wxString label;
-
-    switch( aUnit )
-    {
-    case INCHES:
-        tmp = _( "\"" );
-        break;
-
-    case MILLIMETRES:
-        tmp = _( "mm" );
-        break;
-
-    case UNSCALED_UNITS:
-        break;
-
-    case DEGREES:
-        wxASSERT( false );
-        break;
-    }
-
-    if( formatString.IsEmpty() )
-        return tmp;
-
-    label.Printf( formatString, GetChars( tmp ) );
-
-    return label;
-}
-
-
-wxString GetUnitsLabel( EDA_UNITS_T aUnit )
-{
-    wxString label;
-
-    switch( aUnit )
-    {
-    case INCHES:
-        label = _( "inches" );
-        break;
-
-    case MILLIMETRES:
-        label = _( "millimeters" );
-        break;
-
-    case UNSCALED_UNITS:
-        label = _( "units" );
-        break;
-
-    case DEGREES:
-        wxASSERT( false );
-        break;
-    }
-
-    return label;
-}
-
-
-wxString GetAbbreviatedUnitsLabel( EDA_UNITS_T aUnit )
-{
-    wxString label;
-
-    switch( aUnit )
-    {
-    case INCHES:
-        label = _( "in" );
-        break;
-
-    case MILLIMETRES:
-        label = _( "mm" );
-        break;
-
-    case UNSCALED_UNITS:
-        break;
-
-    case DEGREES:
-        label = _( "deg" );
-        break;
-
-    default:
-        label = wxT( "??" );
-        break;
-    }
-
-    return label;
-}
-
-
-void AddUnitSymbol( wxStaticText& Stext, EDA_UNITS_T aUnit )
-{
-    wxString msg = Stext.GetLabel();
-
-    msg += ReturnUnitSymbol( aUnit );
-
-    Stext.SetLabel( msg );
-}
-
-
 void wxStringSplit( const wxString& aText, wxArrayString& aStrings, wxChar aSplitter )
 {
     wxString tmp;
@@ -269,10 +157,10 @@ int ProcessExecute( const wxString& aCommandLine, int aFlags, wxProcess *callbac
 }
 
 
-time_t GetNewTimeStamp()
+timestamp_t GetNewTimeStamp()
 {
-    static time_t oldTimeStamp;
-    time_t newTimeStamp;
+    static timestamp_t oldTimeStamp;
+    timestamp_t newTimeStamp;
 
     newTimeStamp = time( NULL );
 
@@ -319,73 +207,40 @@ wxConfigBase* GetNewConfig( const wxString& aProgName )
     return cfg;
 }
 
-wxString GetKicadLockFilePath()
-{
-    wxFileName lockpath;
-    lockpath.AssignDir( wxGetHomeDir() ); // Default wx behavior
-
-#if defined( __WXMAC__ )
-    // In OSX use the standard per user cache directory
-    lockpath.AppendDir( wxT( "Library" ) );
-    lockpath.AppendDir( wxT( "Caches" ) );
-    lockpath.AppendDir( wxT( "kicad" ) );
-#elif defined( __UNIX__ )
-    wxString envstr;
-    // Try first the standard XDG_RUNTIME_DIR, falling back to XDG_CACHE_HOME
-    if( wxGetEnv( wxT( "XDG_RUNTIME_DIR" ), &envstr ) && !envstr.IsEmpty() )
-    {
-        lockpath.AssignDir( envstr );
-    }
-    else if( wxGetEnv( wxT( "XDG_CACHE_HOME" ), &envstr ) && !envstr.IsEmpty() )
-    {
-        lockpath.AssignDir( envstr );
-    }
-    else
-    {
-        // If all fails, just use ~/.cache
-        lockpath.AppendDir( wxT( ".cache" ) );
-    }
-
-    lockpath.AppendDir( wxT( "kicad" ) );
-#endif
-
-#if defined( __WXMAC__ ) || defined( __UNIX__ )
-    if( !lockpath.DirExists() )
-    {
-        // Lockfiles should be only readable by the user
-        lockpath.Mkdir( 0700, wxPATH_MKDIR_FULL );
-    }
-#endif
-    return lockpath.GetPath();
-}
-
 
 wxString GetKicadConfigPath()
 {
     wxFileName cfgpath;
 
-    // From the wxWidgets wxStandardPaths::GetUserConfigDir() help:
-    //      Unix: ~ (the home directory)
-    //      Windows: "C:\Documents and Settings\username\Application Data"
-    //      Mac: ~/Library/Preferences
+    // http://docs.wxwidgets.org/3.0/classwx_standard_paths.html#a7c7cf595d94d29147360d031647476b0
     cfgpath.AssignDir( wxStandardPaths::Get().GetUserConfigDir() );
 
-#if !defined( __WINDOWS__ ) && !defined( __WXMAC__ )
+    // GetUserConfigDir() does not default to ~/.config which is the current standard
+    // configuration file location on Linux.  This has been fixed in later versions of wxWidgets.
+#if !defined( __WXMSW__ ) && !defined( __WXMAC__ )
+    wxArrayString dirs = cfgpath.GetDirs();
+
+    if( dirs.Last() != ".config" )
+        cfgpath.AppendDir( ".config" );
+#endif
+
     wxString envstr;
 
-    if( !wxGetEnv( wxT( "XDG_CONFIG_HOME" ), &envstr ) || envstr.IsEmpty() )
-    {
-        // XDG_CONFIG_HOME is not set, so use the fallback
-        cfgpath.AppendDir( wxT( ".config" ) );
-    }
-    else
+    // This shouldn't cause any issues on Windows or MacOS.
+    if( wxGetEnv( wxT( "XDG_CONFIG_HOME" ), &envstr ) && !envstr.IsEmpty() )
     {
         // Override the assignment above with XDG_CONFIG_HOME
         cfgpath.AssignDir( envstr );
     }
-#endif
 
     cfgpath.AppendDir( wxT( "kicad" ) );
+
+    // Use KICAD_CONFIG_HOME to allow the user to force a specific configuration path.
+    if( wxGetEnv( wxT( "KICAD_CONFIG_HOME" ), &envstr ) && !envstr.IsEmpty() )
+    {
+        // Override the assignment above with KICAD_CONFIG_HOME
+        cfgpath.AssignDir( envstr );
+    }
 
     if( !cfgpath.DirExists() )
     {
@@ -410,6 +265,20 @@ const wxString ExpandEnvVarSubstitutions( const wxString& aString )
     return wxExpandEnvVars( aString );
 }
 
+
+const wxString ResolveUriByEnvVars( const wxString& aUri )
+{
+    // URL-like URI: return as is.
+    wxURL url( aUri );
+    if( url.GetError() == wxURL_NOERR )
+        return aUri;
+
+    // Otherwise, the path points to a local file. Resolve environment
+    // variables if any.
+    return ExpandEnvVarSubstitutions( aUri );
+}
+
+
 bool EnsureFileDirectoryExists( wxFileName*     aTargetFullFileName,
                                 const wxString& aBaseFilename,
                                 REPORTER*       aReporter )
@@ -423,7 +292,7 @@ bool EnsureFileDirectoryExists( wxFileName*     aTargetFullFileName,
     {
         if( aReporter )
         {
-            msg.Printf( _( "Cannot make path '%s' absolute with respect to '%s'." ),
+            msg.Printf( _( "Cannot make path \"%s\" absolute with respect to \"%s\"." ),
                         GetChars( aTargetFullFileName->GetPath() ),
                         GetChars( baseFilePath ) );
             aReporter->Report( msg, REPORTER::RPT_ERROR );
@@ -441,7 +310,7 @@ bool EnsureFileDirectoryExists( wxFileName*     aTargetFullFileName,
         {
             if( aReporter )
             {
-                msg.Printf( _( "Output directory '%s' created.\n" ), GetChars( outputPath ) );
+                msg.Printf( _( "Output directory \"%s\" created.\n" ), GetChars( outputPath ) );
                 aReporter->Report( msg, REPORTER::RPT_INFO );
                 return true;
             }
@@ -450,7 +319,7 @@ bool EnsureFileDirectoryExists( wxFileName*     aTargetFullFileName,
         {
             if( aReporter )
             {
-                msg.Printf( _( "Cannot create output directory '%s'.\n" ),
+                msg.Printf( _( "Cannot create output directory \"%s\".\n" ),
                             GetChars( outputPath ) );
                 aReporter->Report( msg, REPORTER::RPT_ERROR );
             }
@@ -507,5 +376,24 @@ wxString GetOSXKicadDataDir()
     }
 
     return ddir.GetPath();
+}
+#endif
+
+// add this only if it is not in wxWidgets (for instance before 3.1.0)
+#ifdef USE_KICAD_WXSTRING_HASH
+size_t std::hash<wxString>::operator()( const wxString& s ) const
+{
+    return std::hash<std::wstring>{}( s.ToStdWstring() );
+}
+#endif
+
+
+#ifdef USE_KICAD_WXPOINT_LESS
+bool std::less<wxPoint>::operator()( const wxPoint& aA, const wxPoint& aB ) const
+{
+    if( aA.x == aB.x )
+        return aA.y < aB.y;
+
+    return aA.x < aB.x;
 }
 #endif

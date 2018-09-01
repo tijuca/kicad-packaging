@@ -1,9 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013-2016 CERN
+ * Copyright (C) 2013-2017 CERN
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  * @author Maciej Suminski <maciej.suminski@cern.ch>
+ * Copyright (C) 2017 KiCad Developers, see CHANGELOG.TXT for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,79 +27,27 @@
 #ifndef __SELECTION_TOOL_H
 #define __SELECTION_TOOL_H
 
-#include <math/vector2d.h>
-#include <tool/tool_interactive.h>
-#include <tool/context_menu.h>
-#include <class_undoredo_container.h>
+#include <memory>
 
-#include "selection_conditions.h"
-#include "conditional_menu.h"
+#include <math/vector2d.h>
+#include <tools/pcb_tool.h>
+#include <tool/context_menu.h>
+#include <tool/selection.h>
+
+#include <tools/pcb_selection_conditions.h>
+#include <tool/tool_menu.h>
 
 class PCB_BASE_FRAME;
-class SELECTION_AREA;
 class BOARD_ITEM;
 class GENERAL_COLLECTOR;
-class SELECT_MENU;
-class ZOOM_MENU;
-class GRID_MENU;
 
 namespace KIGFX
 {
-class VIEW_GROUP;
+    class GAL;
 }
 
-struct SELECTION
-{
-    /// Set of selected items
-    PICKED_ITEMS_LIST items;
 
-    /// VIEW_GROUP that holds currently selected items
-    KIGFX::VIEW_GROUP* group;
-
-    /// Checks if there is anything selected
-    bool Empty() const
-    {
-        return ( items.GetCount() == 0 );
-    }
-
-    /// Returns the number of selected parts
-    int Size() const
-    {
-        return items.GetCount();
-    }
-
-    /// Alias to make code shorter and clearer
-    template <typename T>
-    T* Item( unsigned int aIndex ) const
-    {
-        return static_cast<T*>( items.GetPickedItem( aIndex ) );
-    }
-
-    /// Returns the center point of the selection area bounding box.
-    VECTOR2I GetCenter() const;
-
-    /// Runs a function on all selected items.
-    template <typename T>
-    void ForAll( boost::function<void (T*)> aFunction ) const
-    {
-        for( unsigned int i = 0; i < items.GetCount(); ++i )
-            aFunction( Item<T>( i ) );
-    }
-
-private:
-    /// Clears both the VIEW_GROUP and set of selected items. Please note that it does not
-    /// change properties of selected items (e.g. selection flag).
-    void clear();
-
-    friend class SELECTION_TOOL;
-};
-
-enum SELECTION_LOCK_FLAGS
-{
-    SELECTION_UNLOCKED = 0,
-    SELECTION_LOCK_OVERRIDE = 1,
-    SELECTION_LOCKED = 2
-};
+typedef void (*CLIENT_SELECTION_FILTER)( const VECTOR2I&, GENERAL_COLLECTOR& );
 
 /**
  * Class SELECTION_TOOL
@@ -111,17 +60,17 @@ enum SELECTION_LOCK_FLAGS
  * - takes into account high-contrast & layer visibility settings
  * - invokes InteractiveEdit tool when user starts to drag selected items
  */
-class SELECTION_TOOL : public TOOL_INTERACTIVE
+class SELECTION_TOOL : public PCB_TOOL
 {
 public:
     SELECTION_TOOL();
     ~SELECTION_TOOL();
 
     /// @copydoc TOOL_BASE::Init()
-    bool Init();
+    bool Init() override;
 
     /// @copydoc TOOL_BASE::Reset()
-    void Reset( RESET_REASON aReason );
+    void Reset( RESET_REASON aReason ) override;
 
     /**
      * Function Main()
@@ -135,21 +84,20 @@ public:
      *
      * Returns the set of currently selected items.
      */
-    const SELECTION& GetSelection();
+    SELECTION& GetSelection();
 
     /**
-     * Function EditModules()
+     * Function RequestSelection()
      *
-     * Toggles edit module mode. When enabled, one may select parts of modules individually
-     * (graphics, pads, etc.), so they can be modified.
-     * @param aEnabled decides if the mode should be enabled.
+     * Returns the current selection set, filtered according to aFlags
+     * and aClientFilter.
+     * If the set is empty, performs the legacy-style hover selection.
      */
-    inline void EditModules( bool aEnabled )
-    {
-        m_editModules = aEnabled;
-    }
+    SELECTION& RequestSelection( int aFlags = SELECTION_DEFAULT,
+                                 CLIENT_SELECTION_FILTER aClientFilter = NULL );
 
-    inline CONDITIONAL_MENU& GetMenu()
+
+    inline TOOL_MENU& GetToolMenu()
     {
         return m_menu;
     }
@@ -170,8 +118,14 @@ public:
     ///> Item selection event handler.
     int SelectItem( const TOOL_EVENT& aEvent );
 
+    ///> Multiple item selection event handler
+    int SelectItems( const TOOL_EVENT& aEvent );
+
     ///> Item unselection event handler.
     int UnselectItem( const TOOL_EVENT& aEvent );
+
+    ///> Multiple item unselection event handler
+    int UnselectItems( const TOOL_EVENT& aEvent );
 
     ///> Event sent after an item is selected.
     static const TOOL_EVENT SelectedEvent;
@@ -183,46 +137,91 @@ public:
     static const TOOL_EVENT ClearedEvent;
 
     ///> Sets up handlers for various events.
-    void SetTransitions();
+    void setTransitions() override;
+
+    ///> Zooms the screen to center and fit the current selection.
+    void zoomFitSelection( void );
 
 private:
     /**
      * Function selectPoint()
      * Selects an item pointed by the parameter aWhere. If there is more than one item at that
-     * place, there is a menu displayed that allows to choose the item.
+     * place, there is a menu displayed that allows one to choose the item.
      *
      * @param aWhere is the place where the item should be selected.
-     * @param aAllowDisambiguation decides what to do in case of disambiguation. If true, then
-     * a menu is shown, otherise function finishes without selecting anything.
+     * @param aOnDrag indicates whether a drag operation is being performed.
+     * @param aSelectionCancelledFlag allows the function to inform its caller that a selection
+     * was cancelled (for instance, by clicking outside of the disambiguation menu).
+     * @param aClientFilter allows the client to perform tool- or action-specific filtering.
      * @return True if an item was selected, false otherwise.
      */
-    bool selectPoint( const VECTOR2I& aWhere, bool aOnDrag = false );
+    bool selectPoint( const VECTOR2I& aWhere, bool aOnDrag = false,
+                      bool* aSelectionCancelledFlag = NULL,
+                      CLIENT_SELECTION_FILTER aClientFilter = NULL );
 
     /**
      * Function selectCursor()
      * Selects an item under the cursor unless there is something already selected or aSelectAlways
      * is true.
      * @param aSelectAlways forces to select an item even if there is an item already selected.
+     * @param aClientFilter allows the client to perform tool- or action-specific filtering.
      * @return true if eventually there is an item selected, false otherwise.
      */
-    bool selectCursor( bool aSelectAlways = false );
+    bool selectCursor( bool aSelectAlways = false,
+                       CLIENT_SELECTION_FILTER aClientFilter = NULL );
 
     /**
      * Function selectMultiple()
-     * Handles drawing a selection box that allows to select many items at the same time.
+     * Handles drawing a selection box that allows one to select many items at
+     * the same time.
      *
      * @return true if the function was cancelled (i.e. CancelEvent was received).
      */
     bool selectMultiple();
 
-    ///> Selects a trivial connection (between two junctions).
+    ///> Selects a trivial connection (between two junctions) of items in selection
     int selectConnection( const TOOL_EVENT& aEvent );
 
-    ///> Selects a continuous copper connection.
+    ///> Expands the current selection to select a connection between two junctions
+    int expandSelectedConnection( const TOOL_EVENT& aEvent );
+
+    ///> Selects items with a continuous copper connection to items in selection
     int selectCopper( const TOOL_EVENT& aEvent );
 
-    ///> Selects all copper connections belonging to a single net.
+    /**
+     * Selects all copper connections belonging to the same net(s) as the
+     * items in the selection
+     */
     int selectNet( const TOOL_EVENT& aEvent );
+
+    /**
+     * Selects all items connected by copper tracks to the given TRACK
+     */
+    void selectAllItemsConnectedToTrack( TRACK& aSourceTrack );
+
+    /**
+     * Selects all items connected (by copper) to the given item
+     */
+    void selectAllItemsConnectedToItem( BOARD_CONNECTED_ITEM& aSourceItem );
+
+    /**
+     * Selects all items with the given net code
+     */
+    void selectAllItemsOnNet( int aNetCode );
+
+    /**
+     * Selects all items with the given sheet timestamp name
+     * (the sheet path)
+     */
+    void selectAllItemsOnSheet( wxString& aSheetpath );
+
+    ///> Selects all modules belonging to same sheet, from Eeschema,
+    ///> using crossprobing
+    int selectOnSheetFromEeschema( const TOOL_EVENT& aEvent );
+
+    ///> Selects all modules belonging to same hierarchical sheet
+    ///> as the selected footprint.
+    int selectSameSheet( const TOOL_EVENT& aEvent );
 
     ///> Find dialog callback.
     void findCallback( BOARD_ITEM* aItem );
@@ -233,6 +232,9 @@ private:
     ///> Find an item and start moving.
     int findMove( const TOOL_EVENT& aEvent );
 
+    ///> Invoke filter dialog and modify current selection
+    int filterSelection( const TOOL_EVENT& aEvent );
+
     /**
      * Function clearSelection()
      * Clears the current selection.
@@ -241,8 +243,8 @@ private:
 
     /**
      * Function disambiguationMenu()
-     * Handles the menu that allows to select one of many items in case there is more than one
-     * item at the selected point (@see selectCursor()).
+     * Handles the menu that allows one to select one of many items in case
+     * there is more than one item at the selected point (@see selectCursor()).
      *
      * @param aItems contains list of items that are displayed to the user.
      */
@@ -250,7 +252,7 @@ private:
 
     /**
      * Function pickSmallestComponent()
-     * Allows to find the smallest (in terms of bounding box area) item from the list.
+     * Allows one to find the smallest (in terms of bounding box area) item from the list.
      *
      * @param aCollector containes the list of items.
      */
@@ -302,14 +304,14 @@ private:
      * Marks item as selected, but does not add it to the ITEMS_PICKED_LIST.
      * @param aItem is an item to be be marked.
      */
-    void selectVisually( BOARD_ITEM* aItem ) const;
+    void selectVisually( BOARD_ITEM* aItem );
 
     /**
      * Function unselectVisually()
      * Marks item as selected, but does not add it to the ITEMS_PICKED_LIST.
      * @param aItem is an item to be be marked.
      */
-    void unselectVisually( BOARD_ITEM* aItem ) const;
+    void unselectVisually( BOARD_ITEM* aItem );
 
     /**
      * Function selectionContains()
@@ -327,6 +329,13 @@ private:
      */
     void guessSelectionCandidates( GENERAL_COLLECTOR& aCollector ) const;
 
+    /**
+     * Event handler to update the selection VIEW_ITEM.
+     */
+    int updateSelection( const TOOL_EVENT& aEvent );
+
+    const GENERAL_COLLECTORS_GUIDE getCollectorsGuide() const;
+
     /// Pointer to the parent frame.
     PCB_BASE_FRAME* m_frame;
 
@@ -336,26 +345,21 @@ private:
     /// Flag saying if items should be added to the current selection or rather replace it.
     bool m_additive;
 
+    /// Flag saying if items should be removed from the current selection
+    bool m_subtractive;
+
     /// Flag saying if multiple selection mode is active.
     bool m_multiple;
-
-    /// Edit module mode flag.
-    bool m_editModules;
 
     /// Can other tools modify locked items.
     bool m_locked;
 
-    /// Determines if the selection is preliminary or final.
-    bool m_preliminary;
+    /// Menu model displayed by the tool.
+    TOOL_MENU m_menu;
 
-    /// Menu displayed by the tool.
-    CONDITIONAL_MENU m_menu;
-
-    /// Pointers to context menus
-    CONTEXT_MENU* m_contextMenu;
-    SELECT_MENU* m_selectMenu;
-    ZOOM_MENU* m_zoomMenu;
-    GRID_MENU* m_gridMenu;
+    /// Private state (opaque pointer/compilation firewall)
+    class PRIV;
+    std::unique_ptr<PRIV> m_priv;
 };
 
 #endif

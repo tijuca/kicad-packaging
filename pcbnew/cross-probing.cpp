@@ -14,20 +14,28 @@
 #include <pgm_base.h>
 #include <kiface_i.h>
 #include <kiway_express.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <eda_dde.h>
 #include <macros.h>
 
 #include <pcbnew_id.h>
 #include <class_board.h>
 #include <class_module.h>
+#include <class_track.h>
+#include <class_zone.h>
 
 #include <collectors.h>
 #include <pcbnew.h>
+#include <board_netlist_updater.h>
+#include <netlist_reader.h>
+#include <pcb_netlist.h>
+#include <dialogs/dialog_update_pcb.h>
 
-#include <tools/common_actions.h>
+#include <tools/pcb_actions.h>
 #include <tool/tool_manager.h>
+#include <tools/selection_tool.h>
 #include <pcb_draw_panel_gal.h>
+#include <pcb_painter.h>
 
 /* Execute a remote command send by Eeschema via a socket,
  * port KICAD_PCB_PORT_SERVICE_NUMBER
@@ -35,6 +43,7 @@
  * Commands are
  * $PART: "reference"   put cursor on component
  * $PIN: "pin name"  $PART: "reference" put cursor on the footprint pin
+ * $NET: "net name" highlight the given net (if highlight tool is active)
  */
 void PCB_EDIT_FRAME::ExecuteRemoteCommand( const char* cmdline )
 {
@@ -54,7 +63,89 @@ void PCB_EDIT_FRAME::ExecuteRemoteCommand( const char* cmdline )
     idcmd = strtok( line, " \n\r" );
     text  = strtok( NULL, " \n\r" );
 
-    if( !idcmd || !text )
+    if( idcmd == NULL )
+        return;
+
+    if( strcmp( idcmd, "$NET:" ) == 0 )
+    {
+        if( GetToolId() == ID_PCB_HIGHLIGHT_BUTT )
+        {
+            wxString net_name = FROM_UTF8( text );
+            NETINFO_ITEM* netinfo = pcb->FindNet( net_name );
+            int netcode = 0;
+
+            if( netinfo )
+                netcode = netinfo->GetNet();
+
+            if( IsGalCanvasActive() )
+            {
+                auto view = m_toolManager->GetView();
+                auto rs = view->GetPainter()->GetSettings();
+                rs->SetHighlight( true, netcode );
+                view->UpdateAllLayersColor();
+
+                BOX2I bbox;
+                bool first = true;
+
+                auto merge_area = [netcode, &bbox, &first]( BOARD_CONNECTED_ITEM* aItem )
+                {
+                    if( aItem->GetNetCode() == netcode )
+                    {
+                        if( first )
+                        {
+                            bbox = aItem->GetBoundingBox();
+                            first = false;
+                        }
+                        else
+                        {
+                            bbox.Merge( aItem->GetBoundingBox() );
+                        }
+                    }
+                };
+
+                for( auto zone : pcb->Zones() )
+                    merge_area( zone );
+
+                for( auto track : pcb->Tracks() )
+                    merge_area( track );
+
+                for( auto mod : pcb->Modules() )
+                    for ( auto mod_pad : mod->Pads() )
+                        merge_area( mod_pad );
+
+                if( netcode > 0 && bbox.GetWidth() > 0 && bbox.GetHeight() > 0 )
+                {
+                    auto bbSize = bbox.Inflate( bbox.GetWidth() * 0.2f ).GetSize();
+                    auto screenSize = view->ToWorld( GetGalCanvas()->GetClientSize(), false );
+                    double ratio = std::max( fabs( bbSize.x / screenSize.x ),
+                                             fabs( bbSize.y / screenSize.y ) );
+                    double scale = view->GetScale() / ratio;
+
+                    view->SetScale( scale );
+                    view->SetCenter( bbox.Centre() );
+                }
+
+                GetGalCanvas()->Refresh();
+            }
+            else
+            {
+                if( netcode > 0 )
+                {
+                    pcb->HighLightON();
+                    pcb->SetHighLightNet( netcode );
+                }
+                else
+                {
+                    pcb->HighLightOFF();
+                    pcb->SetHighLightNet( -1 );
+                }
+            }
+        }
+
+        return;
+    }
+
+    if( text == NULL )
         return;
 
     if( strcmp( idcmd, "$PART:" ) == 0 )
@@ -72,6 +163,15 @@ void PCB_EDIT_FRAME::ExecuteRemoteCommand( const char* cmdline )
 
         if( module )
             pos = module->GetPosition();
+    }
+    else if( strcmp( idcmd, "$SHEET:" ) == 0 )
+    {
+        msg.Printf( _( "Selecting all from sheet \"%s\"" ), FROM_UTF8( text ) );
+        wxString sheetStamp( FROM_UTF8( text ) );
+        SetStatusText( msg );
+        GetToolManager()->RunAction( PCB_ACTIONS::selectOnSheetFromEeschema, true,
+                                     static_cast<void*>( &sheetStamp ) );
+        return;
     }
     else if( strcmp( idcmd, "$PIN:" ) == 0 )
     {
@@ -132,7 +232,7 @@ void PCB_EDIT_FRAME::ExecuteRemoteCommand( const char* cmdline )
     {
         if( IsGalCanvasActive() )
         {
-            GetToolManager()->RunAction( COMMON_ACTIONS::crossProbeSchToPcb,
+            GetToolManager()->RunAction( PCB_ACTIONS::crossProbeSchToPcb,
                 true,
                 pad ?
                     static_cast<BOARD_ITEM*>( pad ) :
@@ -161,7 +261,7 @@ std::string FormatProbeItem( BOARD_ITEM* aItem )
     case PCB_PAD_T:
         {
             module = (MODULE*) aItem->GetParent();
-            wxString pad = ((D_PAD*)aItem)->GetPadName();
+            wxString pad = ((D_PAD*)aItem)->GetName();
 
             return StrPrintf( "$PART: \"%s\" $PAD: \"%s\"",
                      TO_UTF8( module->GetReference() ),
@@ -233,6 +333,25 @@ void PCB_EDIT_FRAME::SendMessageToEESCHEMA( BOARD_ITEM* aSyncItem )
 }
 
 
+void PCB_EDIT_FRAME::SendCrossProbeNetName( const wxString& aNetName )
+{
+    std::string packet = StrPrintf( "$NET: \"%s\"", TO_UTF8( aNetName ) );
+
+    if( packet.size() )
+    {
+        if( Kiface().IsSingle() )
+            SendCommand( MSG_TO_SCH, packet.c_str() );
+        else
+        {
+            // Typically ExpressMail is going to be s-expression packets, but since
+            // we have existing interpreter of the cross probe packet on the other
+            // side in place, we use that here.
+            Kiway().ExpressMail( FRAME_SCH, MAIL_CROSS_PROBE, packet, this );
+        }
+    }
+}
+
+
 void PCB_EDIT_FRAME::KiwayMailIn( KIWAY_EXPRESS& mail )
 {
     const std::string& payload = mail.GetPayload();
@@ -242,6 +361,79 @@ void PCB_EDIT_FRAME::KiwayMailIn( KIWAY_EXPRESS& mail )
     case MAIL_CROSS_PROBE:
         ExecuteRemoteCommand( payload.c_str() );
         break;
+
+    case MAIL_SCH_PCB_UPDATE:
+    {
+        NETLIST netlist;
+        size_t split = payload.find( '\n' );
+        wxCHECK( split != std::string::npos, /*void*/ );
+
+        // Extract options and netlist
+        std::string options = payload.substr( 0, split );
+        std::string netlistData = payload.substr( split + 1 );
+
+        // Quiet update options
+        bool by_reference = options.find( "by-reference" ) != std::string::npos;
+        bool by_timestamp = options.find( "by-timestamp" ) != std::string::npos;
+        wxASSERT( !( by_reference && by_timestamp ) );  // only one at a time please
+
+        try
+        {
+            STRING_LINE_READER* lineReader = new STRING_LINE_READER( netlistData, _( "Eeschema netlist" ) );
+            KICAD_NETLIST_READER netlistReader( lineReader, &netlist );
+            netlistReader.LoadNetlist();
+        }
+        catch( const IO_ERROR& )
+        {
+            assert( false ); // should never happen
+        }
+
+        if( by_reference || by_timestamp )
+        {
+            netlist.SetDeleteExtraFootprints( false );
+            netlist.SetFindByTimeStamp( by_timestamp );
+            netlist.SetReplaceFootprints( true );
+
+            BOARD_NETLIST_UPDATER updater( this, GetBoard() );
+            updater.SetLookupByTimestamp( by_timestamp );
+            updater.SetDeleteUnusedComponents( false );
+            updater.SetReplaceFootprints( true );
+            updater.SetDeleteSinglePadNets( false );
+            updater.UpdateNetlist( netlist );
+        }
+        else
+        {
+            DIALOG_UPDATE_PCB updateDialog( this, &netlist );
+            updateDialog.PerformUpdate( true );
+            updateDialog.ShowModal();
+        }
+
+        break;
+    }
+
+    case MAIL_IMPORT_FILE:
+    {
+        // Extract file format type and path (plugin type and path separated with \n)
+        size_t split = payload.find( '\n' );
+        wxCHECK( split != std::string::npos, /*void*/ );
+        int importFormat;
+
+        try
+        {
+            importFormat = std::stoi( payload.substr( 0, split ) );
+        }
+        catch( std::invalid_argument& )
+        {
+            wxFAIL;
+            importFormat = -1;
+        }
+
+        std::string path = payload.substr( split + 1 );
+        wxASSERT( !path.empty() );
+
+        if( importFormat >= 0 )
+            importFile( path, importFormat );
+    }
 
     // many many others.
     default:

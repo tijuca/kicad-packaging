@@ -2,6 +2,7 @@
  * KiRouter - a push-and-(sometimes-)shove PCB router
  *
  * Copyright (C) 2013-2014  CERN
+ * Copyright (C) 2016 KiCad Developers, see AUTHORS.txt for contributors.
  * Author: Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -26,11 +27,14 @@
 #include <geometry/shape_line_chain.h>
 #include <geometry/shape_segment.h>
 #include <geometry/shape_rect.h>
-#include <geometry/shape_convex.h>
+#include "../../include/geometry/shape_simple.h"
 
-#define HULL_MARGIN 10
+namespace PNS {
 
-class PNS_ITEM;
+constexpr int HULL_MARGIN = 10;
+
+class ITEM;
+class LINE;
 
 /** Various utility functions */
 
@@ -44,19 +48,24 @@ const SHAPE_LINE_CHAIN SegmentHull( const SHAPE_SEGMENT& aSeg, int aClearance,
  * Function ConvexHull()
  *
  * Creates an octagonal hull around a convex polygon.
- * @param convex The convex polygon.
- * @param clearance The minimum distance between polygon and hull.
+ * @param aConvex The convex polygon.
+ * @param aClearance The minimum distance between polygon and hull.
  * @return A closed line chain describing the octagon.
  */
-const SHAPE_LINE_CHAIN ConvexHull( const SHAPE_CONVEX& convex, int aClearance );
+const SHAPE_LINE_CHAIN ConvexHull( const SHAPE_SIMPLE& aConvex, int aClearance );
 
 SHAPE_RECT ApproximateSegmentAsRect( const SHAPE_SEGMENT& aSeg );
 
+OPT_BOX2I ChangedArea( const ITEM* aItemA, const ITEM* aItemB );
+OPT_BOX2I ChangedArea( const LINE& aLineA, const LINE& aLineB );
+
+#if 0
 void DrawDebugPoint( VECTOR2I aP, int aColor );
 void DrawDebugBox( BOX2I aB, int aColor );
 void DrawDebugSeg( SEG aS, int aColor );
 void DrawDebugDirs( VECTOR2D aP, int aMask, int aColor );
+#endif
 
-OPT_BOX2I ChangedArea( const PNS_ITEM* aItemA, const PNS_ITEM* aItemB );
+}
 
 #endif    // __PNS_UTILS_H

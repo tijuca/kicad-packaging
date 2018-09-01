@@ -1,13 +1,8 @@
-/**
- * @file page_layout_graphic_items.cpp
- * @brief description of graphic items and texts to build a title block
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 1992-2013 Jean-Pierre Charras <jp.charras at wanadoo.fr>.
- * Copyright (C) 1992-2013 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  *
  * This program is free software; you can redistribute it and/or
@@ -27,7 +22,10 @@
  * or you may write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
-
+/**
+ * @file page_layout_graphic_items.cpp
+ * @brief description of graphic items and texts to build a title block
+ */
 
 /*
  * the class WORKSHEET_DATAITEM (and WORKSHEET_DATAITEM_TEXT) defines
@@ -55,11 +53,13 @@
  */
 
 #include <fctsys.h>
-#include <drawtxt.h>
+#include <eda_rect.h>
+#include <draw_graphic_text.h>
 #include <worksheet.h>
-#include <class_title_block.h>
+#include <title_block.h>
 #include <worksheet_shape_builder.h>
-#include <class_worksheet_dataitem.h>
+#include <worksheet_dataitem.h>
+#include <polygon_test_point_inside.h>
 
 /* a helper function to draw graphic symbols at start point or end point of
  * an item.
@@ -80,6 +80,7 @@ inline void drawMarker( EDA_RECT* aClipBox, wxDC* aDC,
                 aPos.x + markerHalfSize, aPos.y + markerHalfSize,
                 0, GREEN, GREEN );
 }
+
 
 /* Draws the item list created by BuildWorkSheetGraphicList
  * aClipBox = the clipping rect, or NULL if no clipping
@@ -140,7 +141,7 @@ void WS_DRAW_ITEM_LIST::Draw( EDA_RECT* aClipBox, wxDC* aDC )
                 WS_DRAW_ITEM_TEXT* text = (WS_DRAW_ITEM_TEXT*) item;
 
                 if( markerSize )
-                    drawMarker( aClipBox, aDC, text->GetTextPosition(),
+                    drawMarker( aClipBox, aDC, text->GetTextPos(),
                                 markerSize );
                }
             break;
@@ -172,36 +173,46 @@ void WS_DRAW_ITEM_LIST::Draw( EDA_RECT* aClipBox, wxDC* aDC )
     }
 }
 
+
 WS_DRAW_ITEM_TEXT::WS_DRAW_ITEM_TEXT( WORKSHEET_DATAITEM* aParent,
                    wxString& aText, wxPoint aPos, wxSize aSize,
-                   int aPenWidth, EDA_COLOR_T aColor,
+                   int aPenWidth, COLOR4D aColor,
                    bool aItalic, bool aBold ) :
     WS_DRAW_ITEM_BASE( aParent, wsg_text, aColor ), EDA_TEXT( aText )
 {
-    SetTextPosition( aPos );
-    SetSize( aSize );
+    SetTextPos( aPos );
+    SetTextSize( aSize );
     SetThickness( aPenWidth );
     SetItalic( aItalic );
     SetBold( aBold );
 }
 
-void WS_DRAW_ITEM_TEXT::DrawWsItem( EDA_RECT* aClipBox, wxDC* aDC )
+
+void WS_DRAW_ITEM_TEXT::DrawWsItem( EDA_RECT* aClipBox, wxDC* aDC, const wxPoint& aOffset,
+       GR_DRAWMODE aDrawMode, COLOR4D aColor )
 {
-    Draw( aClipBox, aDC, wxPoint(0,0),
-          GetColor(), UNSPECIFIED_DRAWMODE, FILLED, UNSPECIFIED_COLOR );
+    Draw( aClipBox, aDC, aOffset,
+            aColor == COLOR4D::UNSPECIFIED ? GetColor() : aColor,
+            aDrawMode == UNSPECIFIED_DRAWMODE ? GR_COPY : aDrawMode,
+            FILLED, COLOR4D::UNSPECIFIED );
 }
 
-// return true if the point aPosition is on the text
+
 bool WS_DRAW_ITEM_TEXT::HitTest( const wxPoint& aPosition) const
 {
     return EDA_TEXT::TextHitTest( aPosition, 0 );
 }
 
-/* return true if the point aPosition is on the starting point of this item
- */
+
+bool WS_DRAW_ITEM_TEXT::HitTest( const EDA_RECT& aRect ) const
+{
+    return EDA_TEXT::TextHitTest( aRect, 0, 0 );
+}
+
+
 bool WS_DRAW_ITEM_TEXT::HitTestStartPoint( const wxPoint& aPosition)
 {
-    wxPoint pos = GetTextPosition();
+    wxPoint pos = GetTextPos();
 
     if( std::abs( pos.x - aPosition.x) <= WORKSHEET_DATAITEM::GetMarkerSizeUi()/2 &&
         std::abs( pos.y - aPosition.y) <= WORKSHEET_DATAITEM::GetMarkerSizeUi()/2 )
@@ -210,25 +221,61 @@ bool WS_DRAW_ITEM_TEXT::HitTestStartPoint( const wxPoint& aPosition)
     return false;
 }
 
-void WS_DRAW_ITEM_POLYGON::DrawWsItem( EDA_RECT* aClipBox, wxDC* aDC )
+
+void WS_DRAW_ITEM_POLYGON::DrawWsItem( EDA_RECT* aClipBox, wxDC* aDC, const wxPoint& aOffset,
+        GR_DRAWMODE aDrawMode, COLOR4D aColor )
 {
+    std::vector<wxPoint> points_moved;
+    wxPoint *points;
+
+    if( aOffset.x || aOffset.y )
+    {
+        for( auto point: m_Corners )
+            points_moved.push_back( point + aOffset );
+        points = &points_moved[0];
+    }
+    else
+    {
+        points = &m_Corners[0];
+    }
+
+    auto color = ( aColor == COLOR4D::UNSPECIFIED ) ? GetColor() : aColor;
+
+    GRSetDrawMode( aDC, ( aDrawMode == UNSPECIFIED_DRAWMODE ? GR_COPY : aDrawMode ) );
     GRPoly( aClipBox, aDC,
-            m_Corners.size(), &m_Corners[0],
+            m_Corners.size(), points,
             IsFilled() ? FILLED_SHAPE : NO_FILL,
             GetPenWidth(),
-            GetColor(), GetColor() );
+            color, color );
+    GRSetDrawMode( aDC, GR_COPY );
 }
 
-// return true if the point aPosition is inside one of polygons
-#include <polygon_test_point_inside.h>
+
 bool WS_DRAW_ITEM_POLYGON::HitTest( const wxPoint& aPosition) const
 {
     return TestPointInsidePolygon( &m_Corners[0],
                                    m_Corners.size(), aPosition );
 }
 
-/* return true if the point aPosition is on the starting point of this item
- */
+
+bool WS_DRAW_ITEM_POLYGON::HitTest( const EDA_RECT& aRect ) const
+{
+    // Intersection of two polygons is nontrivial. Test if the rectangle intersects
+    // each line, instead.
+
+    if( m_Corners.size() < 2 )
+        return false;
+
+    for( size_t i = 1; i < m_Corners.size(); ++i )
+    {
+        if( aRect.Intersects( m_Corners[i - 1], m_Corners[i] ) )
+            return true;
+    }
+
+    return false;
+}
+
+
 bool WS_DRAW_ITEM_POLYGON::HitTestStartPoint( const wxPoint& aPosition)
 {
     wxPoint pos = GetPosition();
@@ -240,16 +287,21 @@ bool WS_DRAW_ITEM_POLYGON::HitTestStartPoint( const wxPoint& aPosition)
     return false;
 }
 
-void WS_DRAW_ITEM_RECT::DrawWsItem( EDA_RECT* aClipBox, wxDC* aDC )
+
+void WS_DRAW_ITEM_RECT::DrawWsItem( EDA_RECT* aClipBox, wxDC* aDC, const wxPoint& aOffset,
+       GR_DRAWMODE aDrawMode, COLOR4D aColor )
 {
+    GRSetDrawMode( aDC, ( aDrawMode == UNSPECIFIED_DRAWMODE ? GR_COPY : aDrawMode ) );
     GRRect( aClipBox, aDC,
-            GetStart().x, GetStart().y,
-            GetEnd().x, GetEnd().y,
-            GetPenWidth(), GetColor() );
+            GetStart().x + aOffset.x, GetStart().y + aOffset.y,
+            GetEnd().x + aOffset.x, GetEnd().y + aOffset.y,
+            GetPenWidth(),
+            ( aColor == COLOR4D::UNSPECIFIED ) ? GetColor() : aColor );
+    GRSetDrawMode( aDC, GR_COPY );
 }
 
-// return true if the point aPosition is on the rect outline
-bool WS_DRAW_ITEM_RECT::HitTest( const wxPoint& aPosition) const
+
+bool WS_DRAW_ITEM_RECT::HitTest( const wxPoint& aPosition ) const
 {
     int dist =  GetPenWidth()/2;
     wxPoint start = GetStart();
@@ -282,8 +334,40 @@ bool WS_DRAW_ITEM_RECT::HitTest( const wxPoint& aPosition) const
     return false;
 }
 
-/* return true if the point aPosition is on the starting point of this item
- */
+
+bool WS_DRAW_ITEM_RECT::HitTest( const EDA_RECT& aRect ) const
+{
+    wxPoint start = GetStart();
+    wxPoint end;
+    end.x = GetEnd().x;
+    end.y = start.y;
+
+    // Upper line
+    if( aRect.Intersects( start, end ) )
+        return true;
+
+    // Right line
+    start = end;
+    end.y = GetEnd().y;
+    if( aRect.Intersects( start, end ) )
+        return true;
+
+    // lower line
+    start = end;
+    end.x = GetStart().x;
+    if( aRect.Intersects( start, end ) )
+        return true;
+
+    // left line
+    start = end;
+    end = GetStart();
+    if( aRect.Intersects( start, end ) )
+        return true;
+
+    return false;
+}
+
+
 bool WS_DRAW_ITEM_RECT::HitTestStartPoint( const wxPoint& aPosition)
 {
     wxPoint dist = GetStart() - aPosition;
@@ -295,8 +379,7 @@ bool WS_DRAW_ITEM_RECT::HitTestStartPoint( const wxPoint& aPosition)
     return false;
 }
 
-/* return true if the point aPosition is on the ending point of this item
- */
+
 bool WS_DRAW_ITEM_RECT::HitTestEndPoint( const wxPoint& aPosition)
 {
     wxPoint pos = GetEnd();
@@ -309,20 +392,30 @@ bool WS_DRAW_ITEM_RECT::HitTestEndPoint( const wxPoint& aPosition)
     return false;
 }
 
-void WS_DRAW_ITEM_LINE::DrawWsItem( EDA_RECT* aClipBox, wxDC* aDC )
+
+void WS_DRAW_ITEM_LINE::DrawWsItem( EDA_RECT* aClipBox, wxDC* aDC, const wxPoint& aOffset,
+        GR_DRAWMODE aDrawMode, COLOR4D aColor )
 {
-    GRLine( aClipBox, aDC, GetStart(), GetEnd(),
-            GetPenWidth(), GetColor() );
+    GRSetDrawMode( aDC, ( aDrawMode == UNSPECIFIED_DRAWMODE ) ? GR_COPY : aDrawMode );
+    GRLine( aClipBox, aDC, GetStart() + aOffset, GetEnd() + aOffset,
+            GetPenWidth(),
+            ( aColor == COLOR4D::UNSPECIFIED ) ? GetColor() : aColor );
+    GRSetDrawMode( aDC, GR_COPY );
 }
 
-// return true if the point aPosition is on the text
+
 bool WS_DRAW_ITEM_LINE::HitTest( const wxPoint& aPosition) const
 {
     return TestSegmentHit( aPosition, GetStart(), GetEnd(), GetPenWidth()/2 );
 }
 
-/* return true if the point aPosition is on the starting point of this item
- */
+
+bool WS_DRAW_ITEM_LINE::HitTest( const EDA_RECT& aRect ) const
+{
+    return aRect.Intersects( GetStart(), GetEnd() );
+}
+
+
 bool WS_DRAW_ITEM_LINE::HitTestStartPoint( const wxPoint& aPosition)
 {
     wxPoint dist = GetStart() - aPosition;
@@ -334,8 +427,7 @@ bool WS_DRAW_ITEM_LINE::HitTestStartPoint( const wxPoint& aPosition)
     return false;
 }
 
-/* return true if the point aPosition is on the ending point of this item
- */
+
 bool WS_DRAW_ITEM_LINE::HitTestEndPoint( const wxPoint& aPosition)
 {
     wxPoint dist = GetEnd() - aPosition;
@@ -347,10 +439,7 @@ bool WS_DRAW_ITEM_LINE::HitTestEndPoint( const wxPoint& aPosition)
     return false;
 }
 
-/* Locate graphic items in m_graphicList at location aPosition
- * aList = the list of items found
- * aPosition is the position (in user units) to locate items
- */
+
 void WS_DRAW_ITEM_LIST::Locate( std::vector <WS_DRAW_ITEM_BASE*>& aList,
                                 const wxPoint& aPosition)
 {
@@ -378,22 +467,21 @@ void WS_DRAW_ITEM_LIST::Locate( std::vector <WS_DRAW_ITEM_BASE*>& aList,
     }
 }
 
-/** The function to draw a WS_DRAW_ITEM_BITMAP
- */
-void WS_DRAW_ITEM_BITMAP::DrawWsItem( EDA_RECT* aClipBox, wxDC* aDC )
+
+void WS_DRAW_ITEM_BITMAP::DrawWsItem( EDA_RECT* aClipBox, wxDC* aDC, const wxPoint& aOffset,
+        GR_DRAWMODE aDrawMode, COLOR4D aColor )
 {
     WORKSHEET_DATAITEM_BITMAP* parent = (WORKSHEET_DATAITEM_BITMAP*)GetParent();
 
     if( parent->m_ImageBitmap  )
     {
-        parent->m_ImageBitmap->DrawBitmap( NULL, aDC, m_pos );
+        GRSetDrawMode( aDC, ( aDrawMode == UNSPECIFIED_DRAWMODE ) ? GR_COPY : aDrawMode );
+        parent->m_ImageBitmap->DrawBitmap( NULL, aDC, m_pos + aOffset );
+        GRSetDrawMode( aDC, GR_COPY );
     }
 }
 
-/**
- * Virtual function
- * return true if the point aPosition is on bitmap
- */
+
 bool WS_DRAW_ITEM_BITMAP::HitTest( const wxPoint& aPosition) const
 {
     const WORKSHEET_DATAITEM_BITMAP* parent = static_cast<const WORKSHEET_DATAITEM_BITMAP*>( GetParent() );
@@ -404,6 +492,19 @@ bool WS_DRAW_ITEM_BITMAP::HitTest( const wxPoint& aPosition) const
     EDA_RECT rect = parent->m_ImageBitmap->GetBoundingBox();
     rect.Move( m_pos );
     return rect.Contains( aPosition );
+}
+
+
+bool WS_DRAW_ITEM_BITMAP::HitTest( const EDA_RECT& aRect ) const
+{
+    const WORKSHEET_DATAITEM_BITMAP* parent = static_cast<const WORKSHEET_DATAITEM_BITMAP*>( GetParent() );
+
+    if( parent->m_ImageBitmap == NULL )
+        return false;
+
+    EDA_RECT rect = parent->m_ImageBitmap->GetBoundingBox();
+    rect.Move( m_pos );
+    return rect.Intersects( aRect );
 }
 
 

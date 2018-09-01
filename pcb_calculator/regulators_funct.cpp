@@ -49,7 +49,7 @@ public:
     ~DIALOG_EDITOR_DATA() {};
 
     // Event called functions:
-    void OnOKClick( wxCommandEvent& event );
+    void OnOKClick( wxCommandEvent& event ) override;
 
     /**
      * Function IsOK()
@@ -86,7 +86,7 @@ public:
     /**
      * called when the current regulator type is changed
      */
-    void OnRegTypeSelection( wxCommandEvent& event )
+    void OnRegTypeSelection( wxCommandEvent& event ) override
     {
         UpdateDialog();
     }
@@ -106,24 +106,25 @@ void DIALOG_EDITOR_DATA::OnOKClick( wxCommandEvent& event )
 
 bool DIALOG_EDITOR_DATA::IsOK()
 {
-    bool ok = true;
+    bool success = true;
+
     if( m_textCtrlName->GetValue().IsEmpty() )
-        ok = false;
+        success = false;
     if( m_textCtrlVref->GetValue().IsEmpty() )
-        ok = false;
+        success = false;
     else
     {
         double vref = DoubleFromString( m_textCtrlVref->GetValue() );
         if( fabs(vref) < 0.01 )
-            ok = false;
+            success = false;
     }
     if( m_choiceRegType->GetSelection() == 1 )
     {
         if( m_RegulIadjValue->GetValue().IsEmpty() )
-        ok = false;
+        success = false;
     }
 
-    return ok;
+    return success;
 }
 
 void DIALOG_EDITOR_DATA::CopyRegulatorDataToDialog( REGULATOR_DATA * aItem )
@@ -223,12 +224,12 @@ void PCB_CALCULATOR_FRAME::OnDataFileSelection( wxCommandEvent& event )
     wxString fullfilename = GetDataFilename();
 
     wxString wildcard;
-    wildcard.Printf( _("PCB Calculator data  file (*.%s)|*.%s"),
+    wildcard.Printf( _("PCB Calculator data file (*.%s)|*.%s"),
                      GetChars( DataFileNameExt ),
                      GetChars( DataFileNameExt ) );
 
     wxFileDialog dlg( m_panelRegulators,
-                      _("Select a PCB Calculator data file"),
+                      _("Select PCB Calculator Data File"),
                       wxEmptyString, fullfilename,
                       wildcard, wxFD_OPEN );
 
@@ -259,7 +260,7 @@ void PCB_CALCULATOR_FRAME::OnDataFileSelection( wxCommandEvent& event )
     else
     {
         wxString msg;
-        msg.Printf( _("Unable to read data file <%s>"), GetChars( fullfilename ) );
+        msg.Printf( _("Unable to read data file \"%s\""), GetChars( fullfilename ) );
         wxMessageBox( msg );
     }
 }
@@ -394,13 +395,13 @@ void PCB_CALCULATOR_FRAME::RegulatorsSolve()
     // Some tests:
     if( vout < vref && id != 2)
     {
-        m_RegulMessage->SetLabel( _(" Vout must be greater than vref" ) );
+        m_RegulMessage->SetLabel( _("Vout must be greater than vref" ) );
         return;
     }
 
     if( vref == 0.0 )
     {
-        m_RegulMessage->SetLabel( _(" Vref set to 0 !" ) );
+        m_RegulMessage->SetLabel( _("Vref set to 0 !" ) );
         return;
     }
 

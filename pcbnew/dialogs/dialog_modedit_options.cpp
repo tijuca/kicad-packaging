@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,11 +26,12 @@
 
 #include <fctsys.h>
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
-#include <class_board_design_settings.h>
+#include <pcb_edit_frame.h>
+#include <board_design_settings.h>
 #include <base_units.h>
+#include <widgets/text_ctrl_eval.h>
 
-#include <module_editor_frame.h>
+#include <footprint_edit_frame.h>
 
 #include <dialog_modedit_options_base.h>
 
@@ -44,8 +45,8 @@ public:
     DIALOG_MODEDIT_OPTIONS( FOOTPRINT_EDIT_FRAME* aParent );
 
 private:
-    void OnCancelClick( wxCommandEvent& event ) { EndModal( wxID_CANCEL ); }
-    void OnOkClick( wxCommandEvent& event );
+    void OnCancelClick( wxCommandEvent& event ) override { EndModal( wxID_CANCEL ); }
+    void OnOkClick( wxCommandEvent& event ) override;
 
     void initValues( );
 };
@@ -78,6 +79,7 @@ bool InvokeFPEditorPrefsDlg( FOOTPRINT_EDIT_FRAME* aCaller )
 void DIALOG_MODEDIT_OPTIONS::initValues()
 {
     EDA_UNITS_T units = g_UserUnit;
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)m_parent->GetDisplayOptions();
 
     // Modules: graphic lines width:
     m_staticTextGrLineUnit->SetLabel( GetAbbreviatedUnitsLabel( units ) );
@@ -107,7 +109,14 @@ void DIALOG_MODEDIT_OPTIONS::initValues()
     sel = m_brdSettings.m_ValueDefaultVisibility ? 0 : 1;
     m_choiceVisibleValue->SetSelection( sel );
 
-    m_spinMaxUndoItems->SetValue( m_parent->GetScreen()->GetMaxUndoItems() );
+    // Display options
+    m_PolarDisplay->SetSelection( displ_opts->m_DisplayPolarCood ? 1 : 0 );
+    m_UnitsSelection->SetSelection( g_UserUnit == INCHES ? 0 : 1 );
+
+    // Editing options
+    m_Segments_45_Only_Ctrl->SetValue( m_parent->Settings().m_use45DegreeGraphicSegments );
+    m_MagneticPads->SetValue( m_parent->Settings().m_magneticPads == CAPTURE_ALWAYS );
+    m_dragSelects->SetValue( m_parent->Settings().m_dragSelects );
 }
 
 
@@ -134,7 +143,21 @@ void DIALOG_MODEDIT_OPTIONS::OnOkClick( wxCommandEvent& event )
 
     m_parent->SetDesignSettings( m_brdSettings );
 
-    m_parent->GetScreen()->SetMaxUndoItems( m_spinMaxUndoItems->GetValue() );
+    // Display options
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)m_parent->GetDisplayOptions();
+    displ_opts->m_DisplayPolarCood = m_PolarDisplay->GetSelection() != 0;
+
+    EDA_UNITS_T units = ( m_UnitsSelection->GetSelection() == 0 ) ? INCHES : MILLIMETRES;
+    if( units != g_UserUnit )
+    {
+        g_UserUnit = units;
+        m_parent->ReCreateAuxiliaryToolbar();
+    }
+
+    // Editing options
+    m_parent->Settings().m_use45DegreeGraphicSegments = m_Segments_45_Only_Ctrl->GetValue();
+    m_parent->Settings().m_magneticPads = m_MagneticPads->GetValue() ? CAPTURE_ALWAYS : NO_EFFECT;
+    m_parent->Settings().m_dragSelects = m_dragSelects->GetValue();
 
     EndModal( wxID_OK );
 }

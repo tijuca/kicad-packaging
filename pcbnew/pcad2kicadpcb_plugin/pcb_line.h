@@ -47,14 +47,14 @@ public:
     PCB_LINE( PCB_CALLBACKS* aCallbacks, BOARD* aBoard );
     ~PCB_LINE();
 
-    virtual void    Parse( XNODE*       aNode,
-                           int          aLayer,
-                           wxString     aDefaultMeasurementUnit,
-                           wxString     aActualConversion );
-    virtual void    SetPosOffset( int aX_offs, int aY_offs );
-    virtual void    Flip();
-    void            AddToModule( MODULE* aModule );
-    void            AddToBoard();
+    virtual void    Parse( XNODE*          aNode,
+                           int             aLayer,
+                           const wxString& aDefaultMeasurementUnit,
+                           const wxString& aActualConversion );
+    virtual void    SetPosOffset( int aX_offs, int aY_offs ) override;
+    virtual void    Flip() override;
+    void            AddToModule( MODULE* aModule ) override;
+    void            AddToBoard() override;
 };
 
 } // namespace PCAD2KICAD

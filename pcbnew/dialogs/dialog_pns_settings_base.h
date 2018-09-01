@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun 17 2015)
+// C++ code generated with wxFormBuilder (version Apr 19 2018)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_PNS_SETTINGS_BASE_H__
@@ -11,8 +11,6 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
-
 #include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/radiobox.h>
@@ -48,7 +46,7 @@ class DIALOG_PNS_SETTINGS_BASE : public DIALOG_SHIM
 		wxCheckBox* m_shoveVias;
 		wxCheckBox* m_backPressure;
 		wxCheckBox* m_removeLoops;
-		wxCheckBox* m_autoNeckdown;
+		wxCheckBox* m_smartPads;
 		wxCheckBox* m_smoothDragged;
 		wxCheckBox* m_violateDrc;
 		wxCheckBox* m_suggestEnding;
@@ -62,13 +60,14 @@ class DIALOG_PNS_SETTINGS_BASE : public DIALOG_SHIM
 		wxButton* m_stdButtonsCancel;
 		
 		// Virtual event handlers, overide them in your derived class
+		virtual void onModeChange( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onFreeAngleModeChange( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnOkClick( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
 		
-		DIALOG_PNS_SETTINGS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Interactive Router Settings"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 377,460 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_PNS_SETTINGS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Interactive Router Settings"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_PNS_SETTINGS_BASE();
 	
 };

@@ -52,14 +52,23 @@ public:
     ///> returns the reporter object that reports to this panel
     REPORTER& Reporter();
 
-    ///> reports a string directly.
-    void Report( const wxString& aText, REPORTER::SEVERITY aSeverity );
+    /**
+     * Reports the string
+     * @param aText string message to report
+     * @param aSeverity string classification level bitfield
+     * @param aLocation REPORTER::LOCATION enum for placement of message
+     */
+    void Report( const wxString& aText, REPORTER::SEVERITY aSeverity,
+            REPORTER::LOCATION aLocation = REPORTER::LOC_BODY );
 
     ///> clears the report panel
     void Clear();
 
+    ///> return the number of messages matching the given severity mask.
+    int Count( int severityMask );
+
     ///> sets the frame label
-    void SetLabel( const wxString& aLabel );
+    void SetLabel( const wxString& aLabel ) override;
 
     ///> Sets the lasy update. If this mode is on, messages are stored but the display
     ///> is not updated (Updating display can be very time consumming if there are many messages)
@@ -67,7 +76,8 @@ public:
     void SetLazyUpdate( bool aLazyUpdate );
 
     ///> Forces updating the HTML page, after the report is built in lazy mode
-    void Flush();
+    ///> If aSort = true, the body messages will be ordered by severity
+    void Flush( bool aSort = false );
 
     ///> Set the visible severity filter.
     ///> if aSeverities < 0 the m_showAll option is set
@@ -89,21 +99,29 @@ private:
     wxString addHeader( const wxString& aBody );
     wxString generateHtml( const REPORT_LINE& aLine );
     wxString generatePlainText( const REPORT_LINE& aLine );
+    void updateBadges();
 
-    void refreshView();
     void scrollToBottom();
     void syncCheckboxes();
 
-    void onCheckBoxShowAll( wxCommandEvent& event );
-    void onCheckBoxShowWarnings( wxCommandEvent& event );
-    void onCheckBoxShowErrors( wxCommandEvent& event );
-    void onCheckBoxShowInfos( wxCommandEvent& event );
-    void onCheckBoxShowActions( wxCommandEvent& event );
+    void onRightClick( wxMouseEvent& event ) override;
+    void onMenuEvent( wxMenuEvent& event );
+    void onCheckBoxShowAll( wxCommandEvent& event ) override;
+    void onCheckBoxShowWarnings( wxCommandEvent& event ) override;
+    void onCheckBoxShowErrors( wxCommandEvent& event ) override;
+    void onCheckBoxShowInfos( wxCommandEvent& event ) override;
+    void onCheckBoxShowActions( wxCommandEvent& event ) override;
 
-    void onBtnSaveToFile( wxCommandEvent& event );
+    void onBtnSaveToFile( wxCommandEvent& event ) override;
 
     ///> copy of the report, stored for filtering
     REPORT_LINES m_report;
+
+    ///> Lines to print at the very end of the report, regardless of sorting
+    REPORT_LINES m_reportTail;
+
+    ///> Lines to print at the very beginning of the report, regardless of sorting
+    REPORT_LINES m_reportHead;
 
     ///> the reporter
     WX_HTML_PANEL_REPORTER m_reporter;
@@ -113,8 +131,6 @@ private:
 
     ///> show all messages flag (overrides m_severities)
     bool m_showAll;
-
-    wxString m_html;
 
     bool m_lazyUpdate;
 };

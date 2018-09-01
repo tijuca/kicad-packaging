@@ -46,8 +46,8 @@
 #include <class_drawsegment.h>
 #include <class_edge_mod.h>
 #include <class_pcb_text.h>
-#include <convert_from_iu.h>
 #include <class_text_mod.h>
+#include "common.h"
 #include <drw_base.h>
 
 // minimum bulge value before resorting to a line segment;
@@ -56,12 +56,13 @@
 
 DXF2BRD_CONVERTER::DXF2BRD_CONVERTER() : DRW_Interface()
 {
-    m_xOffset   = 0.0;      // X coord offset for conversion (in mm)
-    m_yOffset   = 0.0;      // Y coord offset for conversion (in mm)
-    m_DXF2mm    = 1.0;      // The scale factor to convert DXF units to mm
-    m_version   = 0;
-    m_defaultThickness = 0.1;
-    m_brdLayer = Dwgs_User;
+    m_xOffset   = 0.0;          // X coord offset for conversion (in mm)
+    m_yOffset   = 0.0;          // Y coord offset for conversion (in mm)
+    m_DXF2mm    = 1.0;          // The scale factor to convert DXF units to mm
+    m_version   = 0;            // the dxf version, not yet used
+    m_defaultThickness = 0.2;   // default thickness (in mm)
+    m_brdLayer = Dwgs_User;     // The default import layer
+    m_importAsfootprintGraphicItems = true;
 }
 
 
@@ -89,8 +90,18 @@ int DXF2BRD_CONVERTER::mapDim( double aDxfValue )
 }
 
 
+int DXF2BRD_CONVERTER::mapWidth( double aDxfWidth )
+{
+    // mapWidth returns the aDxfValue if aDxfWidth > 0 m_defaultThickness
+    if( aDxfWidth > 0.0 )
+        return Millimeter2iu( aDxfWidth * m_DXF2mm );
+
+    return  Millimeter2iu( m_defaultThickness );
+}
+
 bool DXF2BRD_CONVERTER::ImportDxfFile( const wxString& aFile )
 {
+    LOCALE_IO locale;
     dxfRW* dxf = new dxfRW( aFile.ToUTF8() );
     bool success = dxf->read( this, true );
 
@@ -112,7 +123,7 @@ void DXF2BRD_CONVERTER::addLayer( const DRW_Layer& aData )
 
 void DXF2BRD_CONVERTER::addLine( const DRW_Line& aData )
 {
-    DRAWSEGMENT* segm = ( m_useModuleItems ) ?
+    DRAWSEGMENT* segm = ( m_importAsfootprintGraphicItems ) ?
                         static_cast< DRAWSEGMENT* >( new EDGE_MODULE( NULL ) ) : new DRAWSEGMENT;
 
     segm->SetLayer( ToLAYER_ID( m_brdLayer ) );
@@ -120,19 +131,23 @@ void DXF2BRD_CONVERTER::addLine( const DRW_Line& aData )
     segm->SetStart( start );
     wxPoint end( mapX( aData.secPoint.x ), mapY( aData.secPoint.y ) );
     segm->SetEnd( end );
-    segm->SetWidth( mapDim( aData.thickness == 0 ? m_defaultThickness / m_DXF2mm
-                            : aData.thickness ) );
+    segm->SetWidth( mapWidth( aData.thickness ) );
     m_newItemsList.push_back( segm );
 }
 
 void DXF2BRD_CONVERTER::addPolyline(const DRW_Polyline& aData )
 {
-    // Currently, Pcbnew does not know polylines, for boards.
-    // So we have to convert a polyline to a set of segments.
-    // Obviously, the z coordinate is ignored
+    // Convert DXF Polylines into a series of KiCad Lines and Arcs.
+    // A Polyline (as opposed to a LWPolyline) may be a 3D line or
+    // even a 3D Mesh. The only type of Polyline which is guaranteed
+    // to import correctly is a 2D Polyline in X and Y, which is what
+    // we assume of all Polylines. The width used is the width of the
+    // Polyline; per-vertex line widths, if present, are ignored.
 
-    wxPoint polyline_startpoint;
-    wxPoint segment_startpoint;
+    wxRealPoint seg_start;
+    wxRealPoint poly_start;
+    double bulge = 0.0;
+    int lineWidth = mapWidth( aData.thickness );
 
     for( unsigned ii = 0; ii < aData.vertlist.size(); ii++ )
     {
@@ -140,39 +155,32 @@ void DXF2BRD_CONVERTER::addPolyline(const DRW_Polyline& aData )
 
         if( ii == 0 )
         {
-            segment_startpoint.x = mapX( vertex->basePoint.x );
-            segment_startpoint.y = mapY( vertex->basePoint.y );
-            polyline_startpoint  = segment_startpoint;
+            seg_start.x = m_xOffset + vertex->basePoint.x * m_DXF2mm;
+            seg_start.y = m_yOffset - vertex->basePoint.y * m_DXF2mm;
+            bulge = vertex->bulge;
+            poly_start = seg_start;
             continue;
         }
 
-        DRAWSEGMENT* segm = ( m_useModuleItems ) ?
-                            static_cast< DRAWSEGMENT* >( new EDGE_MODULE( NULL ) ) :
-                            new DRAWSEGMENT;
+        wxRealPoint seg_end( m_xOffset + vertex->basePoint.x * m_DXF2mm,
+                             m_yOffset - vertex->basePoint.y * m_DXF2mm );
 
-        segm->SetLayer( ToLAYER_ID( m_brdLayer ) );
-        segm->SetStart( segment_startpoint );
-        wxPoint segment_endpoint( mapX( vertex->basePoint.x ), mapY( vertex->basePoint.y ) );
-        segm->SetEnd( segment_endpoint );
-        segm->SetWidth( mapDim( aData.thickness == 0 ? m_defaultThickness / m_DXF2mm
-                                : aData.thickness ) );
-        m_newItemsList.push_back( segm );
-        segment_startpoint = segment_endpoint;
+        if( std::abs( bulge ) < MIN_BULGE )
+            insertLine( seg_start, seg_end, lineWidth );
+        else
+            insertArc( seg_start, seg_end, bulge, lineWidth );
+
+        bulge = vertex->bulge;
+        seg_start = seg_end;
     }
 
-    // Polyline flags bit 0 indicates closed (1) or open (0) polyline
+    // LWPolyline flags bit 0 indicates closed (1) or open (0) polyline
     if( aData.flags & 1 )
     {
-        DRAWSEGMENT* closing_segm = ( m_useModuleItems ) ?
-                                    static_cast< DRAWSEGMENT* >( new EDGE_MODULE( NULL ) ) :
-                                    new DRAWSEGMENT;
-
-        closing_segm->SetLayer( ToLAYER_ID( m_brdLayer ) );
-        closing_segm->SetStart( segment_startpoint );
-        closing_segm->SetEnd( polyline_startpoint );
-        closing_segm->SetWidth( mapDim( aData.thickness == 0 ? m_defaultThickness / m_DXF2mm
-                                : aData.thickness ) );
-        m_newItemsList.push_back( closing_segm );
+        if( std::abs( bulge ) < MIN_BULGE )
+            insertLine( seg_start, poly_start, lineWidth );
+        else
+            insertArc( seg_start, poly_start, bulge, lineWidth );
     }
 }
 
@@ -187,8 +195,7 @@ void DXF2BRD_CONVERTER::addLWPolyline(const DRW_LWPolyline& aData )
     wxRealPoint seg_start;
     wxRealPoint poly_start;
     double bulge = 0.0;
-    int lineWidth = mapDim( aData.thickness == 0 ? m_defaultThickness / m_DXF2mm
-                            : aData.thickness );
+    int lineWidth = mapWidth( aData.thickness );
 
     for( unsigned ii = 0; ii < aData.vertlist.size(); ii++ )
     {
@@ -227,7 +234,7 @@ void DXF2BRD_CONVERTER::addLWPolyline(const DRW_LWPolyline& aData )
 
 void DXF2BRD_CONVERTER::addCircle( const DRW_Circle& aData )
 {
-    DRAWSEGMENT* segm = ( m_useModuleItems ) ?
+    DRAWSEGMENT* segm = ( m_importAsfootprintGraphicItems ) ?
                         static_cast< DRAWSEGMENT* >( new EDGE_MODULE( NULL ) ) : new DRAWSEGMENT;
 
     segm->SetLayer( ToLAYER_ID( m_brdLayer ) );
@@ -236,8 +243,7 @@ void DXF2BRD_CONVERTER::addCircle( const DRW_Circle& aData )
     segm->SetCenter( center );
     wxPoint circle_start( mapX( aData.basePoint.x + aData.radious ), mapY( aData.basePoint.y ) );
     segm->SetArcStart( circle_start );
-    segm->SetWidth( mapDim( aData.thickness == 0 ? m_defaultThickness / m_DXF2mm
-                            : aData.thickness ) );
+    segm->SetWidth( mapWidth( aData.thickness ) );
     m_newItemsList.push_back( segm );
 }
 
@@ -247,7 +253,7 @@ void DXF2BRD_CONVERTER::addCircle( const DRW_Circle& aData )
  */
 void DXF2BRD_CONVERTER::addArc( const DRW_Arc& data )
 {
-    DRAWSEGMENT* segm = ( m_useModuleItems ) ?
+    DRAWSEGMENT* segm = ( m_importAsfootprintGraphicItems ) ?
                         static_cast< DRAWSEGMENT* >( new EDGE_MODULE( NULL ) ) : new DRAWSEGMENT;
 
     segm->SetLayer( ToLAYER_ID( m_brdLayer ) );
@@ -276,8 +282,7 @@ void DXF2BRD_CONVERTER::addArc( const DRW_Arc& data )
 
     segm->SetAngle( angle );
 
-    segm->SetWidth( mapDim( data.thickness == 0 ? m_defaultThickness / m_DXF2mm
-                            : data.thickness ) );
+    segm->SetWidth( mapWidth( data.thickness ) );
     m_newItemsList.push_back( segm );
 }
 
@@ -287,7 +292,7 @@ void DXF2BRD_CONVERTER::addText( const DRW_Text& aData )
     BOARD_ITEM* brdItem;
     EDA_TEXT* textItem;
 
-    if( m_useModuleItems )
+    if( m_importAsfootprintGraphicItems )
     {
         TEXTE_MODULE* modText = new TEXTE_MODULE( NULL );
         brdItem = static_cast< BOARD_ITEM* >( modText );
@@ -381,14 +386,13 @@ void DXF2BRD_CONVERTER::addText( const DRW_Text& aData )
 
     wxString text = toNativeString( wxString::FromUTF8( aData.text.c_str() ) );
 
-    textItem->SetTextPosition( refPoint );
-    textItem->SetOrientation( aData.angle * 10 );
+    textItem->SetTextPos( refPoint );
+    textItem->SetTextAngle( aData.angle * 10 );
 
     // The 0.8 factor gives a better height/width ratio with our font
-    textItem->SetWidth( mapDim( aData.height * 0.8 ) );
-    textItem->SetHeight( mapDim( aData.height ) );
-    textItem->SetThickness( mapDim( aData.thickness == 0 ? m_defaultThickness / m_DXF2mm
-                                    : aData.thickness ) );
+    textItem->SetTextWidth( mapDim( aData.height * 0.8 ) );
+    textItem->SetTextHeight( mapDim( aData.height ) );
+    textItem->SetThickness( mapWidth( aData.thickness ) );
     textItem->SetText( text );
 
     m_newItemsList.push_back( static_cast< BOARD_ITEM* >( brdItem ) );
@@ -428,7 +432,7 @@ void DXF2BRD_CONVERTER::addMText( const DRW_MText& aData )
     BOARD_ITEM* brdItem;
     EDA_TEXT* textItem;
 
-    if( m_useModuleItems )
+    if( m_importAsfootprintGraphicItems )
     {
         TEXTE_MODULE* modText = new TEXTE_MODULE( NULL );
         brdItem = static_cast< BOARD_ITEM* >( modText );
@@ -444,14 +448,13 @@ void DXF2BRD_CONVERTER::addMText( const DRW_MText& aData )
     brdItem->SetLayer( ToLAYER_ID( m_brdLayer ) );
     wxPoint     textpos( mapX( aData.basePoint.x ), mapY( aData.basePoint.y ) );
 
-    textItem->SetTextPosition( textpos );
-    textItem->SetOrientation( aData.angle * 10 );
+    textItem->SetTextPos( textpos );
+    textItem->SetTextAngle( aData.angle * 10 );
 
     // The 0.8 factor gives a better height/width ratio with our font
-    textItem->SetWidth( mapDim( aData.height * 0.8 ) );
-    textItem->SetHeight( mapDim( aData.height ) );
-    textItem->SetThickness( mapDim( aData.thickness == 0 ? m_defaultThickness / m_DXF2mm
-                                    : aData.thickness ) );
+    textItem->SetTextWidth( mapDim( aData.height * 0.8 ) );
+    textItem->SetTextHeight( mapDim( aData.height ) );
+    textItem->SetThickness( mapWidth( aData.thickness ) );
     textItem->SetText( text );
 
     // Initialize text justifications:
@@ -729,7 +732,7 @@ void DXF2BRD_CONVERTER::addTextStyle( const DRW_Textstyle& aData )
 void DXF2BRD_CONVERTER::insertLine( const wxRealPoint& aSegStart,
                                     const wxRealPoint& aSegEnd, int aWidth )
 {
-    DRAWSEGMENT* segm = ( m_useModuleItems ) ?
+    DRAWSEGMENT* segm = ( m_importAsfootprintGraphicItems ) ?
                         static_cast< DRAWSEGMENT* >( new EDGE_MODULE( NULL ) ) : new DRAWSEGMENT;
     wxPoint segment_startpoint( Millimeter2iu( aSegStart.x ), Millimeter2iu( aSegStart.y ) );
     wxPoint segment_endpoint( Millimeter2iu( aSegEnd.x ), Millimeter2iu( aSegEnd.y ) );
@@ -747,7 +750,7 @@ void DXF2BRD_CONVERTER::insertLine( const wxRealPoint& aSegStart,
 void DXF2BRD_CONVERTER::insertArc( const wxRealPoint& aSegStart, const wxRealPoint& aSegEnd,
                                    double aBulge, int aWidth )
 {
-    DRAWSEGMENT* segm = ( m_useModuleItems ) ?
+    DRAWSEGMENT* segm = ( m_importAsfootprintGraphicItems ) ?
                         static_cast< DRAWSEGMENT* >( new EDGE_MODULE( NULL ) ) : new DRAWSEGMENT;
 
     wxPoint segment_startpoint( Millimeter2iu( aSegStart.x ), Millimeter2iu( aSegStart.y ) );

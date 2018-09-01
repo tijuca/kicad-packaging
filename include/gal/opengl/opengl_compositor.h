@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013 CERN
+ * Copyright (C) 2013-2016 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
  * This program is free software; you can redistribute it and/or
@@ -32,11 +32,14 @@
 #define OPENGL_COMPOSITOR_H_
 
 #include <gal/compositor.h>
+#include <gal/opengl/antialiasing.h>
+#include <gal/gal_display_options.h>
 #include <GL/glew.h>
 #include <deque>
 
 namespace KIGFX
 {
+
 class OPENGL_COMPOSITOR : public COMPOSITOR
 {
 public:
@@ -44,53 +47,76 @@ public:
     virtual ~OPENGL_COMPOSITOR();
 
     /// @copydoc COMPOSITOR::Initialize()
-    virtual void Initialize();
+    virtual void Initialize() override;
 
     /// @copydoc COMPOSITOR::Resize()
-    virtual void Resize( unsigned int aWidth, unsigned int aHeight );
+    virtual void Resize( unsigned int aWidth, unsigned int aHeight ) override;
 
     /// @copydoc COMPOSITOR::CreateBuffer()
-    virtual unsigned int CreateBuffer();
+    virtual unsigned int CreateBuffer() override;
 
     /// @copydoc COMPOSITOR::SetBuffer()
-    virtual void SetBuffer( unsigned int aBufferHandle );
+    virtual void SetBuffer( unsigned int aBufferHandle ) override;
 
     /// @copydoc COMPOSITOR::GetBuffer()
-    inline virtual unsigned int GetBuffer() const
+    inline virtual unsigned int GetBuffer() const override
     {
-        if( m_currentFbo == DIRECT_RENDERING )
+        if( m_curFbo == DIRECT_RENDERING )
             return DIRECT_RENDERING;
 
-        return m_current + 1;
+        return m_curBuffer + 1;
     }
 
     /// @copydoc COMPOSITOR::ClearBuffer()
-    virtual void ClearBuffer();
+    virtual void ClearBuffer( const COLOR4D& aColor ) override;
 
     /// @copydoc COMPOSITOR::DrawBuffer()
-    virtual void DrawBuffer( unsigned int aBufferHandle );
+    virtual void DrawBuffer( unsigned int aBufferHandle ) override;
+
+    /// @copydoc COMPOSITOR::Begin()
+    virtual void Begin() override;
+
+    // @copydoc COMPOSITOR::Present()
+    virtual void Present() override;
 
     // Constant used by glBindFramebuffer to turn off rendering to framebuffers
     static const unsigned int DIRECT_RENDERING = 0;
 
+public:
+    VECTOR2U GetScreenSize() const;
+    GLenum   GetBufferTexture( unsigned int aBufferHandle );
+    void     DrawBuffer( unsigned int aSourceHandle, unsigned int aDestHandle );
+    unsigned int CreateBuffer( VECTOR2U aDimensions );
+
+    void SetAntialiasingMode( OPENGL_ANTIALIASING_MODE aMode ); // clears all buffers
+    OPENGL_ANTIALIASING_MODE GetAntialiasingMode() const;
+
 protected:
+    // Buffers are simply textures storing a result of certain target rendering.
     typedef struct
     {
+        VECTOR2U dimensions;
         GLuint textureTarget;                ///< Main texture handle
         GLuint attachmentPoint;              ///< Point to which an image from texture is attached
     } OPENGL_BUFFER;
 
     bool            m_initialized;            ///< Initialization status flag
-    unsigned int    m_current;                ///< Currently used buffer handle
-    GLuint          m_framebuffer;            ///< Main FBO handle
+    unsigned int    m_curBuffer;              ///< Currently used buffer handle
+    GLuint          m_mainFbo;                ///< Main FBO handle (storing all target textures)
     GLuint          m_depthBuffer;            ///< Depth buffer handle
     typedef std::deque<OPENGL_BUFFER> OPENGL_BUFFERS;
 
     /// Stores information about initialized buffers
     OPENGL_BUFFERS  m_buffers;
 
-    /// Store the currently used FBO name in case there was more than one compositor used
-    GLuint          m_currentFbo;
+    /// Store the used FBO name in case there was more than one compositor used
+    GLuint          m_curFbo;
+
+    OPENGL_ANTIALIASING_MODE m_currentAntialiasingMode;
+    std::unique_ptr<OPENGL_PRESENTOR> m_antialiasing;
+
+    /// Binds a specific Framebuffer Object.
+    void bindFb( unsigned int aFb );
 
     /**
      * Function clean()

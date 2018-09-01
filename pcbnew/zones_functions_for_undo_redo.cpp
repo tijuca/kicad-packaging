@@ -45,7 +45,7 @@
 #include <fctsys.h>
 #include <pgm_base.h>
 #include <class_drawpanel.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 
 #include <class_board.h>
 #include <class_zone.h>
@@ -115,8 +115,7 @@ bool ZONE_CONTAINER::IsSame( const ZONE_CONTAINER& aZoneToCompare )
     wxASSERT( m_Poly );                                      // m_Poly == NULL Should never happen
     wxASSERT( aZoneToCompare.Outline() );
 
-    if( Outline()->m_CornersList.GetList() !=
-        aZoneToCompare.Outline()->m_CornersList.GetList() )    // Compare vector
+    if( Outline() != aZoneToCompare.Outline() )    // Compare vector
         return false;
 
     return true;
@@ -184,7 +183,7 @@ int SaveCopyOfZones( PICKED_ITEMS_LIST& aPickList, BOARD* aPcb, int aNetCode, LA
  *          its status becomes UR_DELETED
  *          the aAuxiliaryList corresponding picker is removed (if not found : set an error)
  *  >> if the picked zone was flagged as UR_NEW, and was after deleted ,
- *  perhaps combined with an other zone  (i.e. not found in board list):
+ *  perhaps combined with another zone  (i.e. not found in board list):
  *          the picker is removed
  *          the zone itself if really deleted
  *          the aAuxiliaryList corresponding picker is removed (if not found : set an error)
@@ -237,7 +236,7 @@ void UpdateCopyOfZonesList( PICKED_ITEMS_LIST& aPickList,
                     wxASSERT_MSG( zcopy != NULL,
                                   wxT( "UpdateCopyOfZonesList() error: link = NULL" ) );
 
-                    ref->Copy( zcopy );
+                    *ref = *zcopy;
 
                     // the copy was deleted; the link does not exists now.
                     aPickList.SetPickedItemLink( NULL, kk );
@@ -262,7 +261,7 @@ void UpdateCopyOfZonesList( PICKED_ITEMS_LIST& aPickList,
                 {
                     DBG( printf(
                         "UpdateCopyOfZonesList(): item not found in aAuxiliaryList,"
-                        "combined with an other zone\n" ) );
+                        "combined with another zone\n" ) );
                 }
                 break;
             }

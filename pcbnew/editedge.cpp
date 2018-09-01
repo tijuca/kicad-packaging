@@ -31,7 +31,7 @@
 #include <fctsys.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <gr_basic.h>
 
 #include <pcbnew.h>
@@ -113,7 +113,7 @@ static void Move_Segment( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPos
 void PCB_EDIT_FRAME::Delete_Segment_Edge( DRAWSEGMENT* Segment, wxDC* DC )
 {
     EDA_ITEM* PtStruct;
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*)GetDisplayOptions();
     bool tmp = displ_opts->m_DisplayDrawItemsFill;
 
     if( Segment == NULL )
@@ -145,7 +145,7 @@ void PCB_EDIT_FRAME::Delete_Segment_Edge( DRAWSEGMENT* Segment, wxDC* DC )
 }
 
 
-void PCB_EDIT_FRAME::Delete_Drawings_All_Layer( LAYER_ID aLayer )
+void PCB_EDIT_FRAME::Delete_Drawings_All_Layer( PCB_LAYER_ID aLayer )
 {
     if( IsCopperLayer( aLayer ) )
     {
@@ -153,21 +153,22 @@ void PCB_EDIT_FRAME::Delete_Drawings_All_Layer( LAYER_ID aLayer )
         return;
     }
 
-    wxString msg = wxString::Format(
-        _( "Delete everything on layer %s?" ),
-        GetChars( GetBoard()->GetLayerName( aLayer ) ) );
+    wxString msg;
+    msg.Printf( _( "Delete everything on layer %s?" ),
+                GetChars( GetBoard()->GetLayerName( aLayer ) ) );
 
     if( !IsOK( this, msg ) )
         return;
 
-    PICKED_ITEMS_LIST   pickList;
-    ITEM_PICKER         picker( NULL, UR_DELETED );
-    BOARD_ITEM*         PtNext;
+    // Step 1: build the list of items to remove.
+    // because we are using iterators, we cannot modify the drawing list during iterate
+    // so we are using a 2 steps calculation:
+    // First, collect items.
+    // Second, remove items.
+    std::vector<BOARD_ITEM*> list;
 
-    for( BOARD_ITEM* item = GetBoard()->m_Drawings;  item;  item = PtNext )
+    for( auto item : GetBoard()->Drawings() )
     {
-        PtNext = item->Next();
-
         switch( item->Type() )
         {
         case PCB_LINE_T:
@@ -175,17 +176,12 @@ void PCB_EDIT_FRAME::Delete_Drawings_All_Layer( LAYER_ID aLayer )
         case PCB_DIMENSION_T:
         case PCB_TARGET_T:
             if( item->GetLayer() == aLayer )
-            {
-                item->UnLink();
-                picker.SetItem( item );
-                pickList.PushItem( picker );
-            }
+                list.push_back( item );
 
             break;
 
         default:
         {
-            wxString msg;
             msg.Printf( wxT("Delete_Drawings_All_Layer() error: unknown type %d"),
                         item->Type() );
             wxMessageBox( msg );
@@ -194,11 +190,22 @@ void PCB_EDIT_FRAME::Delete_Drawings_All_Layer( LAYER_ID aLayer )
         }
     }
 
-    if( pickList.GetCount() )
+    if( list.size() == 0 )  // No item found
+        return;
+
+    // Step 2: remove items from main list, and move them to the undo list
+    PICKED_ITEMS_LIST   pickList;
+    ITEM_PICKER         picker( NULL, UR_DELETED );
+
+    for( auto item : list )
     {
-        OnModify();
-        SaveCopyInUndoList(pickList, UR_DELETED);
+        item->UnLink();
+        picker.SetItem( item );
+        pickList.PushItem( picker );
     }
+
+    OnModify();
+    SaveCopyInUndoList(pickList, UR_DELETED);
 }
 
 
@@ -336,11 +343,11 @@ void PCB_EDIT_FRAME::End_Edge( DRAWSEGMENT* Segment, wxDC* DC )
 static void DrawSegment( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosition, bool aErase )
 {
     DRAWSEGMENT* Segment = (DRAWSEGMENT*) aPanel->GetScreen()->GetCurItem();
-
+    auto frame = (PCB_EDIT_FRAME*) ( aPanel->GetParent() );
     if( Segment == NULL )
         return;
 
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)aPanel->GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*) ( aPanel->GetDisplayOptions() );
     bool tmp = displ_opts->m_DisplayDrawItemsFill;
 
     displ_opts->m_DisplayDrawItemsFill = SKETCH;
@@ -348,13 +355,12 @@ static void DrawSegment( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPosi
     if( aErase )
         Segment->Draw( aPanel, aDC, GR_XOR );
 
-    if( g_Segments_45_Only && Segment->GetShape() == S_SEGMENT )
+    if( frame->Settings().m_use45DegreeGraphicSegments && Segment->GetShape() == S_SEGMENT )
     {
         wxPoint pt;
 
-        CalculateSegmentEndPoint( aPanel->GetParent()->GetCrossHairPosition(),
-                                  Segment->GetStart().x, Segment->GetStart().y,
-                                  &pt.x, &pt.y );
+        pt = CalculateSegmentEndPoint( aPanel->GetParent()->GetCrossHairPosition(),
+                                       Segment->GetStart() );
         Segment->SetEnd( pt );
     }
     else    // here the angle is arbitrary

@@ -1,19 +1,6 @@
-EESchema Schematic File Version 2
-LIBS:power
-LIBS:device
-LIBS:transistors
-LIBS:conn
-LIBS:linear
-LIBS:regul
-LIBS:74xx
-LIBS:adc-dac
-LIBS:memory
-LIBS:xilinx
-LIBS:special
-LIBS:microcontrollers
-LIBS:motorola
+EESchema Schematic File Version 4
 LIBS:kit-dev-coldfire-xilinx_5213-cache
-EELAYER 25 0
+EELAYER 26 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
@@ -37,7 +24,6 @@ NoConn ~ 3600 3500
 NoConn ~ 3600 3400
 NoConn ~ 3600 3300
 NoConn ~ 3600 3200
-NoConn ~ 3600 2400
 NoConn ~ 3600 4900
 NoConn ~ 3600 4800
 NoConn ~ 5500 6700
@@ -109,7 +95,7 @@ Wire Wire Line
 Wire Wire Line
 	3600 3800 3400 3800
 Wire Wire Line
-	10600 6350 10600 6400
+	10600 6400 10600 6350
 Connection ~ 10000 6400
 Wire Wire Line
 	10000 6400 10000 6350
@@ -120,45 +106,9 @@ Connection ~ 8800 6400
 Wire Wire Line
 	8800 6400 8800 6350
 Wire Wire Line
-	10600 6400 10300 6400
-Wire Wire Line
-	10300 6400 10000 6400
-Wire Wire Line
-	10000 6400 9700 6400
-Wire Wire Line
-	9700 6400 9400 6400
-Wire Wire Line
-	9400 6400 9100 6400
-Wire Wire Line
-	9100 6400 8800 6400
-Wire Wire Line
-	8800 6400 8500 6400
-Wire Wire Line
-	8500 6400 8200 6400
-Wire Wire Line
-	8200 6400 7900 6400
-Wire Wire Line
-	7900 6400 7600 6400
+	7600 6400 7900 6400
 Wire Wire Line
 	7600 5900 7900 5900
-Wire Wire Line
-	7900 5900 8200 5900
-Wire Wire Line
-	8200 5900 8500 5900
-Wire Wire Line
-	8500 5900 8800 5900
-Wire Wire Line
-	8800 5900 9100 5900
-Wire Wire Line
-	9100 5900 9400 5900
-Wire Wire Line
-	9400 5900 9700 5900
-Wire Wire Line
-	9700 5900 10000 5900
-Wire Wire Line
-	10000 5900 10300 5900
-Wire Wire Line
-	10300 5900 10600 5900
 Connection ~ 9700 5900
 Connection ~ 9100 5900
 Connection ~ 8500 5900
@@ -170,9 +120,7 @@ Wire Wire Line
 	9600 5100 9500 5100
 Connection ~ 7600 5900
 Wire Wire Line
-	7600 5950 7600 5900
-Wire Wire Line
-	7600 5900 7600 5850
+	7600 5850 7600 5900
 Connection ~ 10000 5900
 Connection ~ 7900 5900
 Wire Wire Line
@@ -215,9 +163,7 @@ Wire Wire Line
 Wire Wire Line
 	10000 5900 10000 5950
 Wire Wire Line
-	7600 6450 7600 6400
-Wire Wire Line
-	7600 6400 7600 6350
+	7600 6350 7600 6400
 Connection ~ 7600 6400
 Wire Wire Line
 	9100 6400 9100 6350
@@ -383,19 +329,13 @@ Wire Wire Line
 Wire Wire Line
 	3450 1200 3450 1250
 Wire Wire Line
-	3600 900  3050 900 
-Wire Wire Line
-	3050 900  2700 900 
+	2700 900  3050 900 
 Wire Wire Line
 	3600 3900 3550 3900
 Wire Wire Line
 	3550 3900 3550 4000
 Wire Wire Line
-	3550 4000 3550 4100
-Wire Wire Line
 	3500 4100 3550 4100
-Wire Wire Line
-	3550 4100 3600 4100
 Connection ~ 3550 4100
 Wire Wire Line
 	5500 2600 6350 2600
@@ -404,7 +344,7 @@ NoConn ~ 3600 6900
 Text Label 9600 3900 0    60   ~ 0
 +3,3V_OUT
 $Comp
-L GND #PWR0105
+L kit-dev-coldfire-xilinx_5213_schlib:GND #PWR0105
 U 1 1 480DCF5A
 P 3500 4100
 F 0 "#PWR0105" H 3500 4100 30  0001 C CNN
@@ -415,7 +355,7 @@ F 3 "" H 3500 4100 60  0001 C CNN
 	0    1    1    0   
 $EndComp
 $Comp
-L +3,3V #PWR0106
+L kit-dev-coldfire-xilinx_5213_schlib:+3,3V #PWR0106
 U 1 1 4791D619
 P 10850 3900
 F 0 "#PWR0106" H 10850 3860 30  0001 C CNN
@@ -426,12 +366,12 @@ F 3 "" H 10850 3900 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R64
+L kit-dev-coldfire-xilinx_5213_schlib:R R64
 U 1 1 4791D59D
 P 10450 3900
 F 0 "R64" V 10350 3900 50  0000 C CNN
 F 1 "3,3" V 10450 3900 50  0000 C CNN
-F 2 "discret:R4" H 10450 3900 60  0001 C CNN
+F 2 "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal" H 10450 3900 60  0001 C CNN
 F 3 "" H 10450 3900 60  0001 C CNN
 	1    10450 3900
 	0    1    1    0   
@@ -461,7 +401,7 @@ NoConn ~ 5500 1100
 NoConn ~ 5500 1000
 NoConn ~ 5500 900 
 $Comp
-L GND #PWR0107
+L kit-dev-coldfire-xilinx_5213_schlib:GND #PWR0107
 U 1 1 470F3BF2
 P 3450 1250
 F 0 "#PWR0107" H 3450 1250 30  0001 C CNN
@@ -511,23 +451,23 @@ XIL_IRQ2
 Text Label 5650 2200 0    60   ~ 0
 XIL_IRQ1
 $Comp
-L CONN_2X2 P3
+L kit-dev-coldfire-xilinx_5213_schlib:CONN_2X2 P3
 U 1 1 46A76EB2
 P 6600 1250
 F 0 "P3" H 6600 1400 50  0000 C CNN
 F 1 "CONN_2X2" H 6610 1120 40  0000 C CNN
-F 2 "pin_array:PIN_ARRAY_2X2" H 6600 1250 60  0001 C CNN
+F 2 "Connector_PinHeader_2.54mm:PinHeader_2x02_P2.54mm_Vertical" H 6600 1250 60  0001 C CNN
 F 3 "" H 6600 1250 60  0001 C CNN
 	1    6600 1250
 	-1   0    0    -1  
 $EndComp
 $Comp
-L XCR3256-TQ144 U9
+L kit-dev-coldfire-xilinx_5213_schlib:XCR3256-TQ144 U9
 U 1 1 470F38BE
 P 4550 4100
 F 0 "U9" H 4550 7550 70  0000 C CNN
 F 1 "XCR3256-TQ144" H 4550 500 60  0000 C CNN
-F 2 "lib_smd:TQFP144" H 4550 4100 60  0001 C CNN
+F 2 "Package_QFP:TQFP-144_20x20mm_P0.5mm" H 4550 4100 60  0001 C CNN
 F 3 "" H 4550 4100 60  0001 C CNN
 	1    4550 4100
 	1    0    0    -1  
@@ -623,7 +563,7 @@ XIL_D36
 Text Label 3100 2100 0    60   ~ 0
 XIL_D35
 $Comp
-L GND #PWR0108
+L kit-dev-coldfire-xilinx_5213_schlib:GND #PWR0108
 U 1 1 46ADE620
 P 9650 4000
 F 0 "#PWR0108" H 9650 4000 30  0001 C CNN
@@ -634,7 +574,7 @@ F 3 "" H 9650 4000 60  0001 C CNN
 	0    -1   -1   0   
 $EndComp
 $Comp
-L GND #PWR0109
+L kit-dev-coldfire-xilinx_5213_schlib:GND #PWR0109
 U 1 1 46ADE61B
 P 9650 2100
 F 0 "#PWR0109" H 9650 2100 30  0001 C CNN
@@ -703,12 +643,12 @@ XIL_D7
 Text Label 5600 6600 0    60   ~ 0
 XIL_D6
 $Comp
-L CONN_20X2 P4
+L kit-dev-coldfire-xilinx_5213_schlib:CONN_20X2 P4
 U 1 1 46ADE55A
 P 9200 3050
 F 0 "P4" H 9200 4100 60  0000 C CNN
 F 1 "CONN_20X2" V 9200 3050 50  0000 C CNN
-F 2 "pin_array:PIN_ARRAY_20X2" H 9200 3050 60  0001 C CNN
+F 2 "Connector_PinHeader_2.54mm:PinHeader_2x20_P2.54mm_Vertical" H 9200 3050 60  0001 C CNN
 F 3 "" H 9200 3050 60  0001 C CNN
 	1    9200 3050
 	1    0    0    -1  
@@ -744,7 +684,7 @@ XIL_IRQ1
 Text HLabel 3400 3800 0    60   Input ~ 0
 GLCK2
 $Comp
-L +3,3V #PWR0110
+L kit-dev-coldfire-xilinx_5213_schlib:+3,3V #PWR0110
 U 1 1 46A76BD3
 P 2750 1300
 F 0 "#PWR0110" H 2750 1260 30  0001 C CNN
@@ -755,7 +695,7 @@ F 3 "" H 2750 1300 60  0001 C CNN
 	0    1    1    0   
 $EndComp
 $Comp
-L +3,3V #PWR0111
+L kit-dev-coldfire-xilinx_5213_schlib:+3,3V #PWR0111
 U 1 1 46A76BD2
 P 3600 650
 F 0 "#PWR0111" H 3600 610 30  0001 C CNN
@@ -766,12 +706,12 @@ F 3 "" H 3600 650 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R57
+L kit-dev-coldfire-xilinx_5213_schlib:R R57
 U 1 1 46A76BCA
 P 3300 650
 F 0 "R57" V 3200 650 50  0000 C CNN
 F 1 "4K7" V 3300 650 50  0000 C CNN
-F 2 "lib_smd:SM0805" H 3300 650 60  0001 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric" H 3300 650 60  0001 C CNN
 F 3 "" H 3300 650 60  0001 C CNN
 	1    3300 650 
 	0    1    1    0   
@@ -779,7 +719,7 @@ $EndComp
 Text Label 8350 5100 0    60   ~ 0
 LED_TEST1
 $Comp
-L GND #PWR0112
+L kit-dev-coldfire-xilinx_5213_schlib:GND #PWR0112
 U 1 1 46A76BC5
 P 10050 5100
 F 0 "#PWR0112" H 10050 5100 40  0001 C CNN
@@ -790,29 +730,29 @@ F 3 "" H 10050 5100 60  0001 C CNN
 	0    -1   -1   0   
 $EndComp
 $Comp
-L LED D8
+L kit-dev-coldfire-xilinx_5213_schlib:LED D8
 U 1 1 46A76BC4
 P 9800 5100
 F 0 "D8" H 9800 5200 50  0000 C CNN
 F 1 "LED" H 9800 5000 50  0000 C CNN
-F 2 "lib_smd:SM1206POL" H 9800 5100 60  0001 C CNN
+F 2 "LED_SMD:LED_1206_3216Metric" H 9800 5100 60  0001 C CNN
 F 3 "" H 9800 5100 60  0001 C CNN
 	1    9800 5100
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R62
+L kit-dev-coldfire-xilinx_5213_schlib:R R62
 U 1 1 46A76BC3
 P 9250 5100
 F 0 "R62" V 9330 5100 50  0000 C CNN
 F 1 "1K" V 9250 5100 50  0000 C CNN
-F 2 "lib_smd:SM0805" H 9250 5100 60  0001 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric" H 9250 5100 60  0001 C CNN
 F 3 "" H 9250 5100 60  0001 C CNN
 	1    9250 5100
 	0    -1   -1   0   
 $EndComp
 $Comp
-L GND #PWR0113
+L kit-dev-coldfire-xilinx_5213_schlib:GND #PWR0113
 U 1 1 46A76BC1
 P 7600 6450
 F 0 "#PWR0113" H 7600 6450 30  0001 C CNN
@@ -823,7 +763,7 @@ F 3 "" H 7600 6450 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L +3,3V #PWR0114
+L kit-dev-coldfire-xilinx_5213_schlib:+3,3V #PWR0114
 U 1 1 46A76BBF
 P 7600 5850
 F 0 "#PWR0114" H 7600 5810 30  0001 C CNN
@@ -834,122 +774,122 @@ F 3 "" H 7600 5850 60  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C61
+L kit-dev-coldfire-xilinx_5213_schlib:C C61
 U 1 1 46A76BBC
 P 10600 6150
 F 0 "C61" H 10650 6250 50  0000 L CNN
 F 1 "100nF" H 10600 6050 50  0000 L CNN
-F 2 "lib_smd:SM0805" H 10600 6150 60  0001 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric" H 10600 6150 60  0001 C CNN
 F 3 "" H 10600 6150 60  0001 C CNN
 	1    10600 6150
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C60
+L kit-dev-coldfire-xilinx_5213_schlib:C C60
 U 1 1 46A76BBB
 P 10300 6150
 F 0 "C60" H 10350 6250 50  0000 L CNN
 F 1 "100nF" H 10300 6050 50  0000 L CNN
-F 2 "lib_smd:SM0805" H 10300 6150 60  0001 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric" H 10300 6150 60  0001 C CNN
 F 3 "" H 10300 6150 60  0001 C CNN
 	1    10300 6150
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C59
+L kit-dev-coldfire-xilinx_5213_schlib:C C59
 U 1 1 46A76BBA
 P 10000 6150
 F 0 "C59" H 10050 6250 50  0000 L CNN
 F 1 "100nF" H 10000 6050 50  0000 L CNN
-F 2 "lib_smd:SM0805" H 10000 6150 60  0001 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric" H 10000 6150 60  0001 C CNN
 F 3 "" H 10000 6150 60  0001 C CNN
 	1    10000 6150
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C54
+L kit-dev-coldfire-xilinx_5213_schlib:C C54
 U 1 1 46A76BB5
 P 8500 6150
 F 0 "C54" H 8550 6250 50  0000 L CNN
 F 1 "100nF" H 8500 6050 50  0000 L CNN
-F 2 "lib_smd:SM0805" H 8500 6150 60  0001 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric" H 8500 6150 60  0001 C CNN
 F 3 "" H 8500 6150 60  0001 C CNN
 	1    8500 6150
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C53
+L kit-dev-coldfire-xilinx_5213_schlib:C C53
 U 1 1 46A76BB4
 P 8200 6150
 F 0 "C53" H 8250 6250 50  0000 L CNN
 F 1 "100nF" H 8200 6050 50  0000 L CNN
-F 2 "lib_smd:SM0805" H 8200 6150 60  0001 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric" H 8200 6150 60  0001 C CNN
 F 3 "" H 8200 6150 60  0001 C CNN
 	1    8200 6150
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C52
+L kit-dev-coldfire-xilinx_5213_schlib:C C52
 U 1 1 46A76BB3
 P 7900 6150
 F 0 "C52" H 7950 6250 50  0000 L CNN
 F 1 "100nF" H 7900 6050 50  0000 L CNN
-F 2 "lib_smd:SM0805" H 7900 6150 60  0001 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric" H 7900 6150 60  0001 C CNN
 F 3 "" H 7900 6150 60  0001 C CNN
 	1    7900 6150
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C51
+L kit-dev-coldfire-xilinx_5213_schlib:C C51
 U 1 1 46A76BB2
 P 7600 6150
 F 0 "C51" H 7650 6250 50  0000 L CNN
 F 1 "100nF" H 7600 6050 50  0000 L CNN
-F 2 "lib_smd:SM0805" H 7600 6150 60  0001 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric" H 7600 6150 60  0001 C CNN
 F 3 "" H 7600 6150 60  0001 C CNN
 	1    7600 6150
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C58
+L kit-dev-coldfire-xilinx_5213_schlib:C C58
 U 1 1 46A76BB1
 P 9700 6150
 F 0 "C58" H 9750 6250 50  0000 L CNN
 F 1 "100nF" H 9700 6050 50  0000 L CNN
-F 2 "lib_smd:SM0805" H 9700 6150 60  0001 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric" H 9700 6150 60  0001 C CNN
 F 3 "" H 9700 6150 60  0001 C CNN
 	1    9700 6150
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C57
+L kit-dev-coldfire-xilinx_5213_schlib:C C57
 U 1 1 46A76BB0
 P 9400 6150
 F 0 "C57" H 9450 6250 50  0000 L CNN
 F 1 "100nF" H 9400 6050 50  0000 L CNN
-F 2 "lib_smd:SM0805" H 9400 6150 60  0001 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric" H 9400 6150 60  0001 C CNN
 F 3 "" H 9400 6150 60  0001 C CNN
 	1    9400 6150
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C56
+L kit-dev-coldfire-xilinx_5213_schlib:C C56
 U 1 1 46A76BAF
 P 9100 6150
 F 0 "C56" H 9150 6250 50  0000 L CNN
 F 1 "100nF" H 9100 6050 50  0000 L CNN
-F 2 "lib_smd:SM0805" H 9100 6150 60  0001 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric" H 9100 6150 60  0001 C CNN
 F 3 "" H 9100 6150 60  0001 C CNN
 	1    9100 6150
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C55
+L kit-dev-coldfire-xilinx_5213_schlib:C C55
 U 1 1 46A76BAE
 P 8800 6150
 F 0 "C55" H 8850 6250 50  0000 L CNN
 F 1 "100nF" H 8800 6050 50  0000 L CNN
-F 2 "lib_smd:SM0805" H 8800 6150 60  0001 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric" H 8800 6150 60  0001 C CNN
 F 3 "" H 8800 6150 60  0001 C CNN
 	1    8800 6150
 	1    0    0    -1  
@@ -959,7 +899,7 @@ LED_TEST2
 Text Label 2800 900  0    60   ~ 0
 TCK
 $Comp
-L GND #PWR0115
+L kit-dev-coldfire-xilinx_5213_schlib:GND #PWR0115
 U 1 1 46A76BA9
 P 10050 5400
 F 0 "#PWR0115" H 10050 5400 40  0001 C CNN
@@ -970,23 +910,23 @@ F 3 "" H 10050 5400 60  0001 C CNN
 	0    -1   -1   0   
 $EndComp
 $Comp
-L LED D9
+L kit-dev-coldfire-xilinx_5213_schlib:LED D9
 U 1 1 46A76BA8
 P 9800 5400
 F 0 "D9" H 9800 5500 50  0000 C CNN
 F 1 "LED" H 9800 5300 50  0000 C CNN
-F 2 "lib_smd:SM1206POL" H 9800 5400 60  0001 C CNN
+F 2 "LED_SMD:LED_1206_3216Metric" H 9800 5400 60  0001 C CNN
 F 3 "" H 9800 5400 60  0001 C CNN
 	1    9800 5400
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R63
+L kit-dev-coldfire-xilinx_5213_schlib:R R63
 U 1 1 46A76BA7
 P 9250 5400
 F 0 "R63" V 9330 5400 50  0000 C CNN
 F 1 "1K" V 9250 5400 50  0000 C CNN
-F 2 "lib_smd:SM0805" H 9250 5400 60  0001 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric" H 9250 5400 60  0001 C CNN
 F 3 "" H 9250 5400 60  0001 C CNN
 	1    9250 5400
 	0    -1   -1   0   
@@ -998,18 +938,18 @@ TDI
 Text Label 2800 800  0    60   ~ 0
 TDO
 $Comp
-L CONN_6 P1
+L kit-dev-coldfire-xilinx_5213_schlib:CONN_6 P1
 U 1 1 46A76BA6
 P 2350 1050
 F 0 "P1" V 2300 1050 60  0000 C CNN
 F 1 "CONN_6" V 2400 1050 60  0000 C CNN
-F 2 "pin_array:PIN_ARRAY-6X1" H 2350 1050 60  0001 C CNN
+F 2 "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical" H 2350 1050 60  0001 C CNN
 F 3 "" H 2350 1050 60  0001 C CNN
 	1    2350 1050
 	-1   0    0    1   
 $EndComp
 $Comp
-L GND #PWR0116
+L kit-dev-coldfire-xilinx_5213_schlib:GND #PWR0116
 U 1 1 46A76BA5
 P 2750 1200
 F 0 "#PWR0116" H 2750 1200 40  0001 C CNN
@@ -1051,4 +991,50 @@ Wire Wire Line
 	10050 5400 10000 5400
 Wire Wire Line
 	10000 5100 10050 5100
+Wire Wire Line
+	3050 900  3600 900 
+Wire Wire Line
+	3550 4000 3550 4100
+Wire Wire Line
+	10000 6400 10300 6400
+Wire Wire Line
+	9400 6400 9700 6400
+Wire Wire Line
+	8800 6400 9100 6400
+Wire Wire Line
+	9700 5900 10000 5900
+Wire Wire Line
+	9100 5900 9400 5900
+Wire Wire Line
+	8500 5900 8800 5900
+Wire Wire Line
+	7600 5900 7600 5950
+Wire Wire Line
+	10000 5900 10300 5900
+Wire Wire Line
+	7900 5900 8200 5900
+Wire Wire Line
+	8200 5900 8500 5900
+Wire Wire Line
+	8800 5900 9100 5900
+Wire Wire Line
+	9400 5900 9700 5900
+Wire Wire Line
+	8500 6400 8800 6400
+Wire Wire Line
+	10300 5900 10600 5900
+Wire Wire Line
+	7900 6400 8200 6400
+Wire Wire Line
+	8200 6400 8500 6400
+Wire Wire Line
+	7600 6400 7600 6450
+Wire Wire Line
+	9100 6400 9400 6400
+Wire Wire Line
+	9700 6400 10000 6400
+Wire Wire Line
+	10300 6400 10600 6400
+Wire Wire Line
+	3550 4100 3600 4100
 $EndSCHEMATC

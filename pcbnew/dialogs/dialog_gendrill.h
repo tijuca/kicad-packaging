@@ -42,8 +42,6 @@ public:
     static bool      m_MinimalHeader;
     static bool      m_Mirror;
     static bool      m_Merge_PTH_NPTH;
-    static bool      m_DrillOriginIsAuxAxis; /* Axis selection (main / auxiliary)
-                                              *  for drill origin coordinates */
     DRILL_PRECISION  m_Precision;           // Selected precision for drill files
     wxPoint          m_FileDrillOffset;     // Drill offset: 0,0 for absolute coordinates,
                                             // or origin of the auxiliary axis
@@ -51,10 +49,11 @@ public:
 
 private:
     PCB_EDIT_FRAME* m_parent;
-    wxConfigBase*       m_config;
+    wxConfigBase*   m_config;
     BOARD*          m_board;
     PCB_PLOT_PARAMS m_plotOpts;
-
+    bool            m_drillOriginIsAuxAxis; // Axis selection (main / auxiliary)
+                                            // for drill origin coordinates
     int m_platedPadsHoleCount;
     int m_notplatedPadsHoleCount;
     int m_throughViasCount;
@@ -62,26 +61,28 @@ private:
     int m_blindOrBuriedViasCount;
 
     static int m_mapFileType;            // HPGL, PS ...
+    static int m_drillFileType;          // Excellon, Gerber
 
 
     void            initDialog();
     void            InitDisplayParams( void );
 
     // event functions
-    void            OnSelDrillUnitsSelected( wxCommandEvent& event );
-    void            OnSelZerosFmtSelected( wxCommandEvent& event );
-    void            OnGenDrillFile( wxCommandEvent& event );
-    void            OnGenMapFile( wxCommandEvent& event );
+    void            OnSelDrillUnitsSelected( wxCommandEvent& event ) override;
+    void            OnSelZerosFmtSelected( wxCommandEvent& event ) override;
+    void            OnGenDrillFile( wxCommandEvent& event ) override;
+    void            OnGenMapFile( wxCommandEvent& event ) override;
+	void            onFileFormatSelection( wxCommandEvent& event ) override;
 
     /*
      *  Create a plain text report file giving a list of drill values and drill count
      *  for through holes, oblong holes, and for buried vias,
      *  drill values and drill count per layer pair
      */
-    void            OnGenReportFile( wxCommandEvent& event );
+    void            OnGenReportFile( wxCommandEvent& event ) override;
 
-    void            OnCancelClick( wxCommandEvent& event );
-    void            OnOutputDirectoryBrowseClicked( wxCommandEvent& event );
+    void            OnCancelClick( wxCommandEvent& event ) override;
+    void            OnOutputDirectoryBrowseClicked( wxCommandEvent& event ) override;
 
     // Specific functions:
     void            SetParams( void );

@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2015 CERN
+ * Copyright (C) 2015-2017 CERN
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
@@ -22,22 +22,23 @@
 #include <tool/context_menu.h>
 
 class BOARD;
+class BOARD_DESIGN_SETTINGS;
 
 /**
  * @brief Context menu that displays track and/or via sizes basing on the board design settings
  * of a BOARD object.
  */
-class CONTEXT_TRACK_VIA_SIZE_MENU: public CONTEXT_MENU
+class TRACK_VIA_SIZE_MENU : public CONTEXT_MENU
 {
 public:
     /**
      * Constructor.
      * @param aTrackSizes decides if the context menu should contain track sizes.
-     * @param aTrackSizes decides if the context menu should contain via sizes.
+     * @param aViaSizes decides if the context menu should contain via sizes.
      */
-    CONTEXT_TRACK_VIA_SIZE_MENU( bool aTrackSizes, bool aViaSizes );
+    TRACK_VIA_SIZE_MENU( bool aTrackSizes, bool aViaSizes );
 
-    virtual ~CONTEXT_TRACK_VIA_SIZE_MENU() {}
+    virtual ~TRACK_VIA_SIZE_MENU() {}
 
     /**
      * Function AppendSizes()
@@ -46,7 +47,23 @@ public:
      */
     virtual void AppendSizes( const BOARD* aBoard );
 
+    virtual CONTEXT_MENU* create() const override
+    {
+        return new TRACK_VIA_SIZE_MENU( m_tracks, m_vias );
+    }
+
 protected:
+    virtual void update() override;
+
+    ///> Generates a description string for track size from BOARD_DESIGN_SETTINGS list
+    wxString getTrackDescription( unsigned int aIndex ) const;
+
+    ///> Generates a description string for via size from BOARD_DESIGN_SETTINGS list
+    wxString getViaDescription( unsigned int aIndex ) const;
+
+    ///> Source of information about track/via sizes
+    const BOARD_DESIGN_SETTINGS* m_designSettings;
+
     ///> Whether the generated menu should contain track sizes.
     bool m_tracks;
 

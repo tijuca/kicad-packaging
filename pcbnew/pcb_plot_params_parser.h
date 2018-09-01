@@ -3,7 +3,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -41,7 +41,7 @@ public:
 
     LINE_READER* GetReader() { return reader; };
 
-    void Parse( PCB_PLOT_PARAMS* aPcbPlotParams ) throw( PARSE_ERROR, IO_ERROR );
+    void Parse( PCB_PLOT_PARAMS* aPcbPlotParams );
 
 private:
     bool parseBool();
@@ -67,7 +67,7 @@ private:
      * Skip the current token level, i.e
      * search for the RIGHT parenthesis which closes the current description
      */
-    void skipCurrent() throw( IO_ERROR, PARSE_ERROR );
+    void skipCurrent();
 };
 
 #endif // PCB_PLOT_PARAMS_PARSER_H_

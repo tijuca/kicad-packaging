@@ -114,6 +114,12 @@ void DIALOG_SCH_FIND::OnUpdateReplaceUI( wxUpdateUIEvent& aEvent )
 }
 
 
+void DIALOG_SCH_FIND::OnUpdateReplaceAllUI( wxUpdateUIEvent& aEvent )
+{
+    aEvent.Enable( HasFlag( wxFR_REPLACEDIALOG ) && !m_comboFind->GetValue().empty() );
+}
+
+
 void DIALOG_SCH_FIND::OnUpdateWholeWordUI( wxUpdateUIEvent& aEvent )
 {
     aEvent.Enable( !m_checkWildcardMatch->GetValue() );
@@ -123,6 +129,12 @@ void DIALOG_SCH_FIND::OnUpdateWholeWordUI( wxUpdateUIEvent& aEvent )
 void DIALOG_SCH_FIND::OnUpdateWildcardUI( wxUpdateUIEvent& aEvent )
 {
     aEvent.Enable( !m_checkWholeWord->GetValue() );
+}
+
+
+void DIALOG_SCH_FIND::OnTextEnter( wxCommandEvent& aEvent )
+{
+    OnFind( aEvent );
 }
 
 

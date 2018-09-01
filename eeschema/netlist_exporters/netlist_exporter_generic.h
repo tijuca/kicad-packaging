@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1992-2013 jp.charras at wanadoo.fr
  * Copyright (C) 2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2015 KiCad Developers
+ * Copyright (C) 1992-2017 KiCad Developers
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,9 +26,12 @@
 #ifndef NETLIST_EXPORT_GENERIC_H
 #define NETLIST_EXPORT_GENERIC_H
 
+#include <project.h>
 #include <netlist_exporter.h>
 
 #include <xnode.h>      // also nests: <wx/xml/xml.h>
+
+class SYMBOL_LIB_TABLE;
 
 #define GENERIC_INTERMEDIATE_NETLIST_EXT wxT( "xml" )
 
@@ -53,17 +56,24 @@ enum GNL_T
  */
 class NETLIST_EXPORTER_GENERIC : public NETLIST_EXPORTER
 {
+private:
+    SCH_EDIT_FRAME*       m_frame;
+    std::set< wxString >  m_libraries;    ///< Set of library nicknames.
+
+    SYMBOL_LIB_TABLE*     m_libTable;
+
 public:
-    NETLIST_EXPORTER_GENERIC( NETLIST_OBJECT_LIST* aMasterList, PART_LIBS* aLibs ) :
-        NETLIST_EXPORTER( aMasterList, aLibs )
-    {
-    }
+    NETLIST_EXPORTER_GENERIC( SCH_EDIT_FRAME* aFrame, NETLIST_OBJECT_LIST* aMasterList ) :
+        NETLIST_EXPORTER( aMasterList ),
+        m_frame( aFrame ),
+        m_libTable( aFrame->Prj().SchSymbolLibTable() )
+    {}
 
     /**
      * Function WriteNetlist
      * writes to specified output file
      */
-    bool WriteNetlist( const wxString& aOutFileName, unsigned aNetlistOptions );
+    bool WriteNetlist( const wxString& aOutFileName, unsigned aNetlistOptions ) override;
 
 #define GNL_ALL     ( GNL_LIBRARIES | GNL_COMPONENTS | GNL_PARTS | GNL_HEADER | GNL_NETS )
 
@@ -78,13 +88,6 @@ protected:
      *   of the returned node, and has type wxXML_TEXT_NODE.
      */
     XNODE* node( const wxString& aName, const wxString& aTextualContent = wxEmptyString );
-
-    /**
-     * Function writeGENERICListOfNets
-     * writes out nets (ranked by Netcode), and elements that are
-     * connected as part of that net.
-     */
-    bool writeListOfNets( FILE* f, NETLIST_OBJECT_LIST& aObjectsList );
 
     /**
      * Function makeGenericRoot
@@ -130,6 +133,8 @@ protected:
      * @return XNODE* - the library nodes
      */
     XNODE* makeLibraries();
+
+    void addComponentFields(  XNODE* xcomp, SCH_COMPONENT* comp, SCH_SHEET_PATH* aSheet );
 };
 
 #endif

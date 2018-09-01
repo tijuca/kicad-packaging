@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,13 +31,14 @@
 #include <gr_basic.h>
 #include <macros.h>
 #include <base_struct.h>
-#include <drawtxt.h>
+#include <draw_graphic_text.h>
 #include <kicad_string.h>
 #include <class_drawpanel.h>
-#include <plot_common.h>
+#include <plotter.h>
 #include <trigo.h>
 #include <base_units.h>
 #include <msgpanel.h>
+#include <bitmaps.h>
 
 #include <general.h>
 #include <class_libentry.h>
@@ -53,7 +54,8 @@ LIB_FIELD::LIB_FIELD(LIB_PART * aParent, int idfield ) :
 }
 
 
-LIB_FIELD::LIB_FIELD( int idfield ) : LIB_ITEM( LIB_FIELD_T, NULL )
+LIB_FIELD::LIB_FIELD( int idfield ) :
+    LIB_ITEM( LIB_FIELD_T, NULL )
 {
     Init( idfield );
 }
@@ -64,13 +66,26 @@ LIB_FIELD::~LIB_FIELD()
 }
 
 
+void LIB_FIELD::operator=( const LIB_FIELD& field )
+{
+    m_id = field.m_id;
+    m_Text = field.m_Text;
+    m_name = field.m_name;
+    m_Parent = field.m_Parent;
+
+    SetEffects( field );
+}
+
+
 void LIB_FIELD::Init( int id )
 {
     m_id = id;
-    m_Size.x = GetDefaultTextSize();
-    m_Size.y = GetDefaultTextSize();
-    m_typeName = _( "Field" );
-    m_Orient = TEXT_ORIENT_HORIZ;
+
+    SetTextWidth( GetDefaultTextSize() );
+    SetTextHeight( GetDefaultTextSize() );
+
+    SetTextAngle( TEXT_ANGLE_HORIZ );    // constructor already did this.
+
     m_rotate = false;
     m_updateText = false;
 
@@ -92,199 +107,30 @@ void LIB_FIELD::Init( int id )
 }
 
 
-bool LIB_FIELD::Save( OUTPUTFORMATTER& aFormatter )
-{
-    int      hjustify, vjustify;
-    wxString text = m_Text;
-
-    hjustify = 'C';
-
-    if( m_HJustify == GR_TEXT_HJUSTIFY_LEFT )
-        hjustify = 'L';
-    else if( m_HJustify == GR_TEXT_HJUSTIFY_RIGHT )
-        hjustify = 'R';
-
-    vjustify = 'C';
-
-    if( m_VJustify == GR_TEXT_VJUSTIFY_BOTTOM )
-        vjustify = 'B';
-    else if( m_VJustify == GR_TEXT_VJUSTIFY_TOP )
-        vjustify = 'T';
-
-    aFormatter.Print( 0, "F%d %s %d %d %d %c %c %c %c%c%c",
-                      m_id,
-                      EscapedUTF8( text ).c_str(),       // wraps in quotes
-                      m_Pos.x, m_Pos.y, m_Size.x,
-                      m_Orient == 0 ? 'H' : 'V',
-                      (m_Attributs & TEXT_NO_VISIBLE ) ? 'I' : 'V',
-                      hjustify, vjustify,
-                      m_Italic ? 'I' : 'N',
-                      m_Bold ? 'B' : 'N' );
-
-    /* Save field name, if necessary
-     * Field name is saved only if it is not the default name.
-     * Just because default name depends on the language and can change from
-     * a country to an other
-     */
-    wxString defName = TEMPLATE_FIELDNAME::GetDefaultFieldName( m_id );
-
-    if( m_id >= FIELD1 && !m_name.IsEmpty() && m_name != defName )
-        aFormatter.Print( 0, " %s", EscapedUTF8( m_name ).c_str() );
-
-    aFormatter.Print( 0, "\n" );
-
-    return true;
-}
-
-
-bool LIB_FIELD::Load( LINE_READER& aLineReader, wxString& errorMsg )
-{
-    int     cnt;
-    char    textOrient;
-    char    textVisible;
-    char    textHJustify;
-    char    textVJustify[256];
-
-    char*   line = (char*) aLineReader;
-    char*   limit = line + aLineReader.Length();
-
-    if( sscanf( line + 1, "%d", &m_id ) != 1 || m_id < 0 )
-    {
-        errorMsg = wxT( "invalid field header" );
-        return false;
-    }
-
-    // Caller did a strtok(), which inserts a nul, so next few bytes are ugly:
-    // digit(s), a nul, some whitespace, then a double quote.
-    while( line < limit && *line != '"' )
-        line++;
-
-    if( line == limit )
-        return false;
-
-    line += ReadDelimitedText( &m_Text, line );
-
-    // Doctor the *.lib file field which has a "~" in blank fields.  New saves will
-    // not save like this, and eventually these two lines can be removed.
-    if( m_Text.size() == 1 && m_Text[0] == wxChar( '~' ) )
-        m_Text.clear();
-
-    memset( textVJustify, 0, sizeof( textVJustify ) );
-
-    cnt = sscanf( line, " %d %d %d %c %c %c %255s", &m_Pos.x, &m_Pos.y, &m_Size.y,
-                  &textOrient, &textVisible, &textHJustify, textVJustify );
-
-    if( cnt < 5 )
-    {
-        errorMsg.Printf( wxT( "field %d does not have the correct number of parameters" ),
-                         m_id );
-        return false;
-    }
-
-    m_Size.x = m_Size.y;
-
-    if( textOrient == 'H' )
-        m_Orient = TEXT_ORIENT_HORIZ;
-    else if( textOrient == 'V' )
-        m_Orient = TEXT_ORIENT_VERT;
-    else
-    {
-        errorMsg.Printf( wxT( "field %d text orientation parameter <%c> is not valid" ),
-                         textOrient );
-        return false;
-    }
-
-    if( textVisible == 'V' )
-        m_Attributs &= ~TEXT_NO_VISIBLE;
-    else if ( textVisible == 'I' )
-        m_Attributs |= TEXT_NO_VISIBLE;
-    else
-    {
-        errorMsg.Printf( wxT( "field %d text visible parameter <%c> is not valid" ),
-                         textVisible );
-        return false;
-    }
-
-    m_HJustify = GR_TEXT_HJUSTIFY_CENTER;
-    m_VJustify = GR_TEXT_VJUSTIFY_CENTER;
-
-    if( cnt >= 6 )
-    {
-        if( textHJustify == 'C' )
-            m_HJustify = GR_TEXT_HJUSTIFY_CENTER;
-        else if( textHJustify == 'L' )
-            m_HJustify = GR_TEXT_HJUSTIFY_LEFT;
-        else if( textHJustify == 'R' )
-            m_HJustify = GR_TEXT_HJUSTIFY_RIGHT;
-        else
-        {
-            errorMsg.Printf(
-                wxT( "field %d text horizontal justification parameter <%c> is not valid" ),
-                textHJustify );
-            return false;
-        }
-
-        if( textVJustify[0] == 'C' )
-            m_VJustify = GR_TEXT_VJUSTIFY_CENTER;
-        else if( textVJustify[0] == 'B' )
-            m_VJustify = GR_TEXT_VJUSTIFY_BOTTOM;
-        else if( textVJustify[0] == 'T' )
-            m_VJustify = GR_TEXT_VJUSTIFY_TOP;
-        else
-        {
-            errorMsg.Printf(
-                wxT( "field %d text vertical justification parameter <%c> is not valid" ),
-                textVJustify[0] );
-            return false;
-        }
-
-        if ( textVJustify[1] == 'I' )  // Italic
-            m_Italic = true;
-        if ( textVJustify[2] == 'B' )  // Bold
-            m_Bold = true;
-    }
-
-    // fields in RAM must always have names.
-    if( m_id < MANDATORY_FIELDS )
-    {
-        // Fields in RAM must always have names, because we are trying to get
-        // less dependent on field ids and more dependent on names.
-        // Plus assumptions are made in the field editors.
-        m_name = TEMPLATE_FIELDNAME::GetDefaultFieldName( m_id );
-    }
-    else
-    {
-        ReadDelimitedText( &m_name, line );
-    }
-
-    return true;
-}
-
-
 int LIB_FIELD::GetPenSize() const
 {
-    return ( m_Thickness == 0 ) ? GetDefaultLineThickness() : m_Thickness;
+    return GetThickness() == 0 ? GetDefaultLineThickness() : GetThickness();
 }
 
 
 void LIB_FIELD::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-                             EDA_COLOR_T aColor, GR_DRAWMODE aDrawMode, void* aData,
+                             COLOR4D aColor, GR_DRAWMODE aDrawMode, void* aData,
                              const TRANSFORM& aTransform )
 {
     wxPoint  text_pos;
-    int      color;
+    COLOR4D color = COLOR4D::UNSPECIFIED;
     int      linewidth = GetPenSize();
 
-    if( m_Bold )
-        linewidth = GetPenSizeForBold( m_Size.x );
+    if( IsBold() )
+        linewidth = GetPenSizeForBold( GetTextWidth() );
     else
-        linewidth = Clamp_Text_PenSize( linewidth, m_Size, m_Bold );
+        linewidth = Clamp_Text_PenSize( linewidth, GetTextSize(), IsBold() );
 
-    if( ( m_Attributs & TEXT_NO_VISIBLE ) && ( aColor < 0 ) )
+    if( !IsVisible() && ( aColor == COLOR4D::UNSPECIFIED ) )
     {
         color = GetInvisibleItemColor();
     }
-    else if( IsSelected() && ( aColor < 0 ) )
+    else if( IsSelected() && ( aColor == COLOR4D::UNSPECIFIED ) )
     {
         color = GetItemSelectedColor();
     }
@@ -293,10 +139,10 @@ void LIB_FIELD::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& a
         color = aColor;
     }
 
-    if( color < 0 )
+    if( color == COLOR4D::UNSPECIFIED )
         color = GetDefaultColor();
 
-    text_pos = aTransform.TransformCoordinate( m_Pos ) + aOffset;
+    text_pos = aTransform.TransformCoordinate( GetTextPos() ) + aOffset;
 
     wxString text;
 
@@ -307,8 +153,11 @@ void LIB_FIELD::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& a
 
     GRSetDrawMode( aDC, aDrawMode );
     EDA_RECT* clipbox = aPanel? aPanel->GetClipBox() : NULL;
-    DrawGraphicText( clipbox, aDC, text_pos, (EDA_COLOR_T) color, text, m_Orient, m_Size,
-                     m_HJustify, m_VJustify, linewidth, m_Italic, m_Bold );
+
+    DrawGraphicText( clipbox, aDC, text_pos, color, text,
+                     GetTextAngle(), GetTextSize(),
+                     GetHorizJustify(), GetVertJustify(),
+                     linewidth, IsItalic(), IsBold() );
 
     /* Set to one (1) to draw bounding box around field text to validate
      * bounding box calculation. */
@@ -347,21 +196,21 @@ bool LIB_FIELD::HitTest( const wxPoint &aPosition, int aThreshold, const TRANSFO
     {
         wxString extended_text = tmp_text.GetText();
         extended_text.Append('?');
-        const LIB_PART*      parent = static_cast<const LIB_PART*     >( m_Parent );
+        const LIB_PART*      parent = static_cast<const LIB_PART*>( m_Parent );
 
         if ( parent && ( parent->GetUnitCount() > 1 ) )
             extended_text.Append('A');
         tmp_text.SetText( extended_text );
     }
 
-    tmp_text.SetTextPosition( aTransform.TransformCoordinate( m_Pos ) );
+    tmp_text.SetTextPos( aTransform.TransformCoordinate( GetTextPos() ) );
 
     /* The text orientation may need to be flipped if the
      *  transformation matrix causes xy axes to be flipped.
      * this simple algo works only for schematic matrix (rot 90 or/and mirror)
      */
-    int t1 = ( aTransform.x1 != 0 ) ^ ( m_Orient != 0 );
-    tmp_text.SetOrientation( t1 ? TEXT_ORIENT_HORIZ : TEXT_ORIENT_VERT );
+    bool t1 = ( aTransform.x1 != 0 ) ^ ( GetTextAngle() != 0 );
+    tmp_text.SetTextAngle( t1 ? TEXT_ANGLE_HORIZ : TEXT_ANGLE_VERT );
 
     return tmp_text.TextHitTest( aPosition );
 }
@@ -379,18 +228,11 @@ EDA_ITEM* LIB_FIELD::Clone() const
 
 void LIB_FIELD::Copy( LIB_FIELD* aTarget ) const
 {
+    aTarget->m_Text = m_Text;
+    aTarget->m_name = m_name;
+
+    aTarget->SetEffects( *this );
     aTarget->SetParent( m_Parent );
-    aTarget->m_Pos       = m_Pos;
-    aTarget->m_Size      = m_Size;
-    aTarget->m_Thickness = m_Thickness;
-    aTarget->m_Orient    = m_Orient;
-    aTarget->m_Attributs = m_Attributs;
-    aTarget->m_Text      = m_Text;
-    aTarget->m_name      = m_name;
-    aTarget->m_HJustify  = m_HJustify;
-    aTarget->m_VJustify  = m_VJustify;
-    aTarget->m_Italic    = m_Italic;
-    aTarget->m_Bold      = m_Bold;
 }
 
 
@@ -408,17 +250,17 @@ int LIB_FIELD::compare( const LIB_ITEM& other ) const
     if( result != 0 )
         return result;
 
-    if( m_Pos.x != tmp->m_Pos.x )
-        return m_Pos.x - tmp->m_Pos.x;
+    if( GetTextPos().x != tmp->GetTextPos().x )
+        return GetTextPos().x - tmp->GetTextPos().x;
 
-    if( m_Pos.y != tmp->m_Pos.y )
-        return m_Pos.y - tmp->m_Pos.y;
+    if( GetTextPos().y != tmp->GetTextPos().y )
+        return GetTextPos().y - tmp->GetTextPos().y;
 
-    if( m_Size.x != tmp->m_Size.x )
-        return m_Size.x - tmp->m_Size.x;
+    if( GetTextWidth() != tmp->GetTextWidth() )
+        return GetTextWidth() - tmp->GetTextWidth();
 
-    if( m_Size.y != tmp->m_Size.y )
-        return m_Size.y - tmp->m_Size.y;
+    if( GetTextHeight() != tmp->GetTextHeight() )
+        return GetTextHeight() - tmp->GetTextHeight();
 
     return 0;
 }
@@ -426,45 +268,55 @@ int LIB_FIELD::compare( const LIB_ITEM& other ) const
 
 void LIB_FIELD::SetOffset( const wxPoint& aOffset )
 {
-    m_Pos += aOffset;
+    EDA_TEXT::Offset( aOffset );
 }
 
 
 bool LIB_FIELD::Inside( EDA_RECT& rect ) const
 {
-    /*
-     * FIXME: This fails to take into account the size and/or orientation of
-     *        the text.
-     */
-    return rect.Contains( m_Pos.x, -m_Pos.y );
+    return rect.Intersects( GetBoundingBox() );
 }
 
 
 void LIB_FIELD::Move( const wxPoint& newPosition )
 {
-    m_Pos = newPosition;
+    EDA_TEXT::SetTextPos( newPosition );
 }
 
 
 void LIB_FIELD::MirrorHorizontal( const wxPoint& center )
 {
-    m_Pos.x -= center.x;
-    m_Pos.x *= -1;
-    m_Pos.x += center.x;
+    int x = GetTextPos().x;
+
+    x -= center.x;
+    x *= -1;
+    x += center.x;
+
+    SetTextX( x );
 }
+
 
 void LIB_FIELD::MirrorVertical( const wxPoint& center )
 {
-    m_Pos.y -= center.y;
-    m_Pos.y *= -1;
-    m_Pos.y += center.y;
+    int y = GetTextPos().y;
+
+    y -= center.y;
+    y *= -1;
+    y += center.y;
+
+    SetTextY( y );
 }
+
 
 void LIB_FIELD::Rotate( const wxPoint& center, bool aRotateCCW )
 {
     int rot_angle = aRotateCCW ? -900 : 900;
-    RotatePoint( &m_Pos, center, rot_angle );
-    m_Orient = m_Orient ? 0 : 900;
+
+    wxPoint pt = GetTextPos();
+    RotatePoint( &pt, center, rot_angle );
+    SetTextPos( pt );
+
+    SetTextAngle( GetTextAngle() != 0.0 ? 0 : 900 );
 }
 
 
@@ -476,14 +328,14 @@ void LIB_FIELD::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
 
     /* Calculate the text orientation, according to the component
      * orientation/mirror */
-    int orient = m_Orient;
+    int orient = GetTextAngle();
 
     if( aTransform.y1 )  // Rotate component 90 deg.
     {
-        if( orient == TEXT_ORIENT_HORIZ )
-            orient = TEXT_ORIENT_VERT;
+        if( orient == TEXT_ANGLE_HORIZ )
+            orient = TEXT_ANGLE_VERT;
         else
-            orient = TEXT_ORIENT_HORIZ;
+            orient = TEXT_ANGLE_HORIZ;
     }
 
     EDA_RECT BoundaryBox = GetBoundingBox();
@@ -494,13 +346,14 @@ void LIB_FIELD::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
     wxPoint textpos = aTransform.TransformCoordinate( BoundaryBox.Centre() )
                       + aOffset;
 
-    aPlotter->Text( textpos, GetDefaultColor(), GetShownText(), orient, m_Size,
+    aPlotter->Text( textpos, GetDefaultColor(), GetShownText(),
+                    orient, GetTextSize(),
                     hjustify, vjustify,
-                    GetPenSize(), m_Italic, m_Bold );
+                    GetPenSize(), IsItalic(), IsBold() );
 }
 
 
-wxString LIB_FIELD::GetFullText( int unit )
+wxString LIB_FIELD::GetFullText( int unit ) const
 {
     if( m_id != REFERENCE )
         return GetText();
@@ -526,8 +379,10 @@ const EDA_RECT LIB_FIELD::GetBoundingBox() const
     // We are using now a bottom to top Y axis.
     wxPoint orig = rect.GetOrigin();
     wxPoint end = rect.GetEnd();
-    RotatePoint( &orig, m_Pos, -m_Orient );
-    RotatePoint( &end, m_Pos, -m_Orient );
+
+    RotatePoint( &orig, GetTextPos(), -GetTextAngle() );
+    RotatePoint( &end, GetTextPos(), -GetTextAngle() );
+
     rect.SetOrigin( orig );
     rect.SetEnd( end );
 
@@ -538,9 +393,9 @@ const EDA_RECT LIB_FIELD::GetBoundingBox() const
 }
 
 
-EDA_COLOR_T LIB_FIELD::GetDefaultColor()
+COLOR4D LIB_FIELD::GetDefaultColor()
 {
-    EDA_COLOR_T color;
+    COLOR4D color;
 
     switch( m_id )
     {
@@ -569,7 +424,7 @@ void LIB_FIELD::Rotate()
     }
     else
     {
-        m_Orient = ( m_Orient == TEXT_ORIENT_VERT ) ? TEXT_ORIENT_HORIZ : TEXT_ORIENT_VERT;
+        SetTextAngle( GetTextAngle() == TEXT_ANGLE_VERT ? TEXT_ANGLE_HORIZ : TEXT_ANGLE_VERT );
     }
 }
 
@@ -649,26 +504,30 @@ void LIB_FIELD::SetText( const wxString& aText )
     if( aText == GetText() )
         return;
 
-    wxString oldName = m_Text;
+    wxString oldValue( m_Text );
+    wxString newValue( aText );
 
     if( m_id == VALUE && m_Parent != NULL )
     {
-        LIB_PART*      parent = GetParent();
+        LIB_PART* parent = GetParent();
 
         // Set the parent component and root alias to the new name.
         if( parent->GetName().CmpNoCase( aText ) != 0 )
-            parent->SetName( aText );
+        {
+            ReplaceIllegalFileNameChars( newValue, '_' );
+            parent->SetName( newValue );
+        }
     }
 
     if( InEditMode() )
     {
-        m_Text = oldName;
-        m_savedText = aText;
+        m_Text = oldValue;
+        m_savedText = newValue;
         m_updateText = true;
     }
     else
     {
-        m_Text = aText;
+        m_Text = newValue;
     }
 }
 
@@ -688,13 +547,13 @@ void LIB_FIELD::BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition )
 
     if( aEditMode == IS_MOVED )
     {
-        m_initialPos = m_Pos;
+        m_initialPos = GetTextPos();
         m_initialCursorPos = aPosition;
         SetEraseLastDrawItem();
     }
     else
     {
-        m_Pos = aPosition;
+        SetTextPos( aPosition );
     }
 
     m_Flags = aEditMode;
@@ -726,7 +585,7 @@ void LIB_FIELD::calcEdit( const wxPoint& aPosition )
 {
     if( m_rotate )
     {
-        m_Orient = ( m_Orient == TEXT_ORIENT_VERT ) ? TEXT_ORIENT_HORIZ : TEXT_ORIENT_VERT;
+        SetTextAngle( GetTextAngle() == TEXT_ANGLE_VERT ? TEXT_ANGLE_HORIZ : TEXT_ANGLE_VERT );
         m_rotate = false;
     }
 
@@ -738,13 +597,14 @@ void LIB_FIELD::calcEdit( const wxPoint& aPosition )
 
     if( m_Flags == IS_NEW )
     {
-        m_Pos = aPosition;
+        SetTextPos( aPosition );
     }
     else if( m_Flags == IS_MOVED )
     {
         Move( m_initialPos + aPosition - m_initialCursorPos );
     }
 }
+
 
 void LIB_FIELD::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 {
@@ -756,10 +616,10 @@ void LIB_FIELD::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
     msg = GetTextStyleName();
     aList.push_back( MSG_PANEL_ITEM( _( "Style" ), msg, MAGENTA ) );
 
-    msg = StringFromValue( g_UserUnit, m_Size.x, true );
+    msg = StringFromValue( g_UserUnit, GetTextWidth(), true );
     aList.push_back( MSG_PANEL_ITEM( _( "Width" ), msg, BLUE ) );
 
-    msg = StringFromValue( g_UserUnit, m_Size.y, true );
+    msg = StringFromValue( g_UserUnit, GetTextHeight(), true );
     aList.push_back( MSG_PANEL_ITEM( _( "Height" ), msg, BLUE ) );
 
     // Display field name (ref, value ...)
@@ -768,4 +628,10 @@ void LIB_FIELD::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 
     // Display field text:
     aList.push_back( MSG_PANEL_ITEM( _( "Value" ), GetShownText(), BROWN ) );
+}
+
+
+BITMAP_DEF LIB_FIELD::GetMenuImage() const
+{
+    return move_xpm;
 }

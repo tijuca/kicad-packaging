@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2010 Jean-Pierre Charras <jp.charras@wanadoo.fr>
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2018 Jean-Pierre Charras jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,6 +30,7 @@
  * Lines
  * Circles
  * Arcs
+ * polygon (only layer and contour thickness)
  * used as graphic elements found on non copper layers in boards
  * items on edge layers are considered as graphic items
  * Pcb texts are not always graphic items and are not handled here
@@ -40,16 +41,20 @@
 #include <confirm.h>
 #include <class_drawpanel.h>
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
-#include <class_board_design_settings.h>
+#include <pcb_edit_frame.h>
+#include <board_design_settings.h>
 #include <base_units.h>
+#include <wx/valnum.h>
+#include <board_commit.h>
+#include <widgets/text_ctrl_eval.h>
 
 #include <class_board.h>
 #include <class_drawsegment.h>
 
 #include <dialog_graphic_item_properties_base.h>
-#include <class_pcb_layer_box_selector.h>
+#include <pcb_layer_box_selector.h>
 #include <html_messagebox.h>
+#include <widgets/text_ctrl_eval.h>
 
 
 class DIALOG_GRAPHIC_ITEM_PROPERTIES : public DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE
@@ -60,33 +65,47 @@ private:
     DRAWSEGMENT*          m_item;
     BOARD_DESIGN_SETTINGS m_brdSettings;
 
+    wxFloatingPointValidator<double>    m_AngleValidator;
+    double                m_AngleValue;
+
 public:
     DIALOG_GRAPHIC_ITEM_PROPERTIES( PCB_EDIT_FRAME* aParent, DRAWSEGMENT* aItem, wxDC* aDC );
     ~DIALOG_GRAPHIC_ITEM_PROPERTIES() {};
 
 private:
-    void initDlg();
-    void OnOkClick( wxCommandEvent& event );
-    void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
+    bool TransferDataToWindow() override;
+    bool TransferDataFromWindow() override;
     void OnLayerChoice( wxCommandEvent& event );
-    bool itemValuesOK();
+
+    void OnInitDlg( wxInitDialogEvent& event ) override
+    {
+        // Call the default wxDialog handler of a wxInitDialogEvent
+        TransferDataToWindow();
+
+        // Now all widgets have the size fixed, call FinishDialogSettings
+        FinishDialogSettings();
+    }
+
+    bool Validate() override;
 };
 
 DIALOG_GRAPHIC_ITEM_PROPERTIES::DIALOG_GRAPHIC_ITEM_PROPERTIES( PCB_EDIT_FRAME* aParent,
                                                                 DRAWSEGMENT* aItem, wxDC* aDC ):
-    DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE( aParent )
+    DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE( aParent ),
+    m_AngleValidator( 1, &m_AngleValue ),
+    m_AngleValue( 0.0 )
 {
     m_parent = aParent;
     m_DC = aDC;
     m_item = aItem;
     m_brdSettings = m_parent->GetDesignSettings();
-    initDlg();
-    Layout();
 
-    FixOSXCancelButtonIssue();
+    m_AngleValidator.SetRange( -360.0, 360.0 );
+    m_AngleCtrl->SetValidator( m_AngleValidator );
+    m_AngleValidator.SetWindow( m_AngleCtrl );
 
-    // Now all widgets have the size fixed, call FinishDialogSettings
-    FinishDialogSettings();
+    m_StandardButtonsSizerOK->SetDefault();
+
 }
 
 
@@ -102,10 +121,8 @@ void PCB_EDIT_FRAME::InstallGraphicItemPropertiesDialog( DRAWSEGMENT* aItem, wxD
 }
 
 
-void DIALOG_GRAPHIC_ITEM_PROPERTIES::initDlg()
+bool DIALOG_GRAPHIC_ITEM_PROPERTIES::TransferDataToWindow()
 {
-    m_StandardButtonsSizerOK->SetDefault();
-
     // Set unit symbol
     wxStaticText* texts_unit[] =
     {
@@ -115,15 +132,19 @@ void DIALOG_GRAPHIC_ITEM_PROPERTIES::initDlg()
         m_EndPointYUnit,
         m_ThicknessTextUnit,
         m_DefaulThicknessTextUnit,
-        NULL
     };
 
-    for( int ii = 0; ; ii++ )
+    for( size_t ii = 0; ii < DIM( texts_unit ); ii++ )
     {
-        if( texts_unit[ii] == NULL )
-            break;
-
         texts_unit[ii]->SetLabel( GetAbbreviatedUnitsLabel() );
+    }
+
+    // Only an arc has a angle parameter. So do not show this parameter for other shapes
+    if( m_item->GetShape() != S_ARC )
+    {
+        m_AngleText->Show( false );
+        m_AngleCtrl->Show( false );
+        m_AngleUnit->Show( false );
     }
 
     wxString msg;
@@ -135,11 +156,10 @@ void DIALOG_GRAPHIC_ITEM_PROPERTIES::initDlg()
         SetTitle( _( "Circle Properties" ) );
         m_StartPointXLabel->SetLabel( _( "Center X:" ) );
         m_StartPointYLabel->SetLabel( _( "Center Y:" ) );
-        m_EndPointXLabel->SetLabel( _( "Point X:" ) );
-        m_EndPointYLabel->SetLabel( _( "Point Y:" ) );
-        m_Angle_Text->Show( false );
-        m_Angle_Ctrl->Show( false );
-        m_AngleUnit->Show( false );
+        m_EndPointXLabel->SetLabel( _( "Radius:" ) );
+        m_EndPointYLabel->Show( false );
+        m_EndPointYUnit->Show( false );
+        m_EndY_Ctrl->Show( false );
         break;
 
     case S_ARC:
@@ -149,19 +169,19 @@ void DIALOG_GRAPHIC_ITEM_PROPERTIES::initDlg()
         m_EndPointXLabel->SetLabel( _( "Start Point X:" ) );
         m_EndPointYLabel->SetLabel( _( "Start Point Y:" ) );
 
-        // Here the angle is a double, but the UI is still working with integers.
-        msg << int( m_item->GetAngle() );
-        m_Angle_Ctrl->SetValue( msg );
+        m_AngleValue = m_item->GetAngle() / 10.0;
+        break;
+
+    case S_POLYGON:
+        SetTitle( _( "Polygon Properties" ) );
+        m_fgUpperLeftGridSizer->Show( false );
         break;
 
     case S_SEGMENT:
         SetTitle( _( "Line Segment Properties" ) );
+        break;
 
-        // Fall through.
     default:
-        m_Angle_Text->Show( false );
-        m_Angle_Ctrl->Show( false );
-        m_AngleUnit->Show( false );
         break;
     }
 
@@ -169,9 +189,15 @@ void DIALOG_GRAPHIC_ITEM_PROPERTIES::initDlg()
 
     PutValueInLocalUnits( *m_Center_StartYCtrl, m_item->GetStart().y );
 
-    PutValueInLocalUnits( *m_EndX_Radius_Ctrl, m_item->GetEnd().x );
-
-    PutValueInLocalUnits( *m_EndY_Ctrl, m_item->GetEnd().y );
+    if(  m_item->GetShape() == S_CIRCLE )
+    {
+        PutValueInLocalUnits( *m_EndX_Radius_Ctrl, m_item->GetRadius() );
+    }
+    else
+    {
+        PutValueInLocalUnits( *m_EndX_Radius_Ctrl, m_item->GetEnd().x );
+        PutValueInLocalUnits( *m_EndY_Ctrl, m_item->GetEnd().y );
+    }
 
     PutValueInLocalUnits( *m_ThicknessCtrl, m_item->GetWidth() );
 
@@ -186,16 +212,20 @@ void DIALOG_GRAPHIC_ITEM_PROPERTIES::initDlg()
 
     // Configure the layers list selector
     m_LayerSelectionCtrl->SetLayersHotkeys( false );
-    m_LayerSelectionCtrl->SetLayerSet( LSET::AllCuMask() );
+    m_LayerSelectionCtrl->SetNotAllowedLayerSet( LSET::AllCuMask() );
     m_LayerSelectionCtrl->SetBoardFrame( m_parent );
     m_LayerSelectionCtrl->Resync();
 
     if( m_LayerSelectionCtrl->SetLayerSelection( m_item->GetLayer() ) < 0 )
     {
-        wxMessageBox( _( "This item was on an unknown layer.\n"
-                         "It has been moved to the drawings layer. Please fix it." ) );
-        m_LayerSelectionCtrl->SetLayerSelection( Dwgs_User );
+        wxMessageBox( _( "This item was on a not allowed or non existing layer.\n"
+                         "It has been moved to the first allowed layer.\n\n"
+                         "Please fix it." ) );
+        //m_LayerSelectionCtrl->SetLayerSelection( Dwgs_User );
+        m_LayerSelectionCtrl->SetSelection( 0 );
     }
+
+    return DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::TransferDataToWindow();
 }
 
 
@@ -212,12 +242,13 @@ void DIALOG_GRAPHIC_ITEM_PROPERTIES::OnLayerChoice( wxCommandEvent& event )
 }
 
 
-void DIALOG_GRAPHIC_ITEM_PROPERTIES::OnOkClick( wxCommandEvent& event )
+bool DIALOG_GRAPHIC_ITEM_PROPERTIES::TransferDataFromWindow()
 {
-    if( !itemValuesOK() )
-        return;
+    if( !DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::TransferDataFromWindow() )
+        return false;
 
-    m_parent->SaveCopyInUndoList( m_item, UR_CHANGED );
+    BOARD_COMMIT commit( m_parent );
+    commit.Modify( m_item );
 
     wxString msg;
 
@@ -230,11 +261,19 @@ void DIALOG_GRAPHIC_ITEM_PROPERTIES::OnOkClick( wxCommandEvent& event )
     msg = m_Center_StartYCtrl->GetValue();
     m_item->SetStartY( ValueFromString( g_UserUnit, msg ) );
 
-    msg = m_EndX_Radius_Ctrl->GetValue();
-    m_item->SetEndX( ValueFromString( g_UserUnit, msg ) );
+    if( m_item->GetShape() == S_CIRCLE )
+    {
+        msg = m_EndX_Radius_Ctrl->GetValue();
+        m_item->SetEnd( m_item->GetStart() + wxPoint( ValueFromString( g_UserUnit, msg ), 0 ) );
+    }
+    else
+    {
+        msg = m_EndX_Radius_Ctrl->GetValue();
+        m_item->SetEndX( ValueFromString( g_UserUnit, msg ) );
 
-    msg = m_EndY_Ctrl->GetValue();
-    m_item->SetEndY( ValueFromString( g_UserUnit, msg ) );
+        msg = m_EndY_Ctrl->GetValue();
+        m_item->SetEndY( ValueFromString( g_UserUnit, msg ) );
+    }
 
     msg = m_ThicknessCtrl->GetValue();
     m_item->SetWidth( ValueFromString( g_UserUnit, msg ) );
@@ -251,13 +290,10 @@ void DIALOG_GRAPHIC_ITEM_PROPERTIES::OnOkClick( wxCommandEvent& event )
 
     if( m_item->GetShape() == S_ARC )
     {
-        double angle;
-        m_Angle_Ctrl->GetValue().ToDouble( &angle );
-        NORMALIZE_ANGLE_360( angle );
-        m_item->SetAngle( angle );
+        m_item->SetAngle( m_AngleValue * 10.0 );
     }
 
-    m_parent->OnModify();
+    commit.Push( _( "Modify drawing properties" ) );
 
     if( m_DC )
         m_item->Draw( m_parent->GetCanvas(), m_DC, GR_OR );
@@ -265,14 +301,18 @@ void DIALOG_GRAPHIC_ITEM_PROPERTIES::OnOkClick( wxCommandEvent& event )
     m_parent->SetMsgPanel( m_item );
 
     m_parent->SetDesignSettings( m_brdSettings );
+    m_parent->OnModify();
 
-    Close( true );
+    return true;
 }
 
 
-bool DIALOG_GRAPHIC_ITEM_PROPERTIES::itemValuesOK()
+bool DIALOG_GRAPHIC_ITEM_PROPERTIES::Validate()
 {
     wxArrayString error_msgs;
+
+    if( !DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::Validate() )
+        return false;
 
     // Load the start and end points -- all types use these in the checks.
     int startx = ValueFromString( g_UserUnit, m_Center_StartXCtrl->GetValue() );
@@ -286,17 +326,15 @@ bool DIALOG_GRAPHIC_ITEM_PROPERTIES::itemValuesOK()
     case S_ARC:
         // Check angle of arc.
         double angle;
-        m_Angle_Ctrl->GetValue().ToDouble( &angle );
-        NORMALIZE_ANGLE_360( angle );
+        m_AngleCtrl->GetValue().ToDouble( &angle );
 
-        if( angle == 0 )
+        if( angle == 0.0 )
         {
-            error_msgs.Add( _( "The arc angle must be greater than zero." ) );
+            error_msgs.Add( _( "The arc angle cannot be zero." ) );
         }
 
         // Fall through.
     case S_CIRCLE:
-
         // Check radius.
         if( (startx == endx) && (starty == endy) )
         {
@@ -305,8 +343,10 @@ bool DIALOG_GRAPHIC_ITEM_PROPERTIES::itemValuesOK()
 
         break;
 
-    default:
+    case S_POLYGON:
+        break;
 
+    default:
         // Check start and end are not the same.
         if( (startx == endx) && (starty == endy) )
         {
@@ -316,10 +356,17 @@ bool DIALOG_GRAPHIC_ITEM_PROPERTIES::itemValuesOK()
         break;
     }
 
-    // Check the item thickness.
+    // Check the item thickness. Note the polygon outline thickness is allowed
+    // to be set to 0, because if the shape is exactly the polygon, its outline
+    // thickness must be 0
     int thickness = ValueFromString( g_UserUnit, m_ThicknessCtrl->GetValue() );
 
-    if( thickness <= 0 )
+    if( m_item->GetShape() == S_POLYGON )
+    {
+        if( thickness < 0 )
+            error_msgs.Add( _( "The polygon outline thickness must be >= 0." ) );
+    }
+    else if( thickness <= 0 )
         error_msgs.Add( _( "The item thickness must be greater than zero." ) );
 
     // And the default thickness.

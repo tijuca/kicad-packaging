@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2013 jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2018 jp.charras at wanadoo.fr
  * Copyright (C) 2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.TXT for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,9 +27,8 @@
 #include <build_version.h>
 #include <confirm.h>
 
-#include <schframe.h>
+#include <sch_edit_frame.h>
 #include <sch_reference_list.h>
-#include <class_netlist_object.h>
 
 #include "netlist_exporter_cadstar.h"
 
@@ -45,7 +44,7 @@ bool NETLIST_EXPORTER_CADSTAR::WriteNetlist( const wxString& aOutFileName, unsig
     if( ( f = wxFopen( aOutFileName, wxT( "wt" ) ) ) == NULL )
     {
         wxString msg;
-        msg.Printf( _( "Failed to create file '%s'" ),
+        msg.Printf( _( "Failed to create file \"%s\"" ),
                     GetChars( aOutFileName ) );
         DisplayError( NULL, msg );
         return false;
@@ -53,7 +52,7 @@ bool NETLIST_EXPORTER_CADSTAR::WriteNetlist( const wxString& aOutFileName, unsig
 
     wxString StartCmpDesc = StartLine + wxT( "ADD_COM" );
     wxString msg;
-    SCH_SHEET_PATH* sheet;
+    wxString footprint;
     EDA_ITEM* DrawList;
     SCH_COMPONENT* component;
     wxString title = wxT( "Eeschema " ) + GetBuildVersion();
@@ -62,7 +61,7 @@ bool NETLIST_EXPORTER_CADSTAR::WriteNetlist( const wxString& aOutFileName, unsig
     ret |= fprintf( f, "%sTIM %s\n", TO_UTF8( StartLine ), TO_UTF8( DateAndTime() ) );
     ret |= fprintf( f, "%sAPP ", TO_UTF8( StartLine ) );
     ret |= fprintf( f, "\"%s\"\n", TO_UTF8( title ) );
-    ret |= fprintf( f, "\n" );
+    ret |= fprintf( f, ".TYP FULL\n\n" );
 
     // Prepare list of nets generation
     for( unsigned ii = 0; ii < m_masterList->size(); ii++ )
@@ -71,35 +70,31 @@ bool NETLIST_EXPORTER_CADSTAR::WriteNetlist( const wxString& aOutFileName, unsig
     // Create netlist module section
     m_ReferencesAlreadyFound.Clear();
 
-    SCH_SHEET_LIST SheetList;
+    SCH_SHEET_LIST sheetList( g_RootSheet );
 
-    for( sheet = SheetList.GetFirst(); sheet != NULL; sheet = SheetList.GetNext() )
+    for( unsigned i = 0; i < sheetList.size(); i++ )
     {
-        for( DrawList = sheet->LastDrawList(); DrawList != NULL; DrawList = DrawList->Next() )
+        for( DrawList = sheetList[i].LastDrawList(); DrawList != NULL; DrawList = DrawList->Next() )
         {
-            DrawList = component = findNextComponentAndCreatePinList( DrawList, sheet );
+            DrawList = component = findNextComponentAndCreatePinList( DrawList, &sheetList[i] );
 
             if( component == NULL )
                 break;
 
-            /*
-            doing nothing with footprint
-            if( !component->GetField( FOOTPRINT )->IsVoid() )
-            {
-                footprint = component->GetField( FOOTPRINT )->m_Text;
-                footprint.Replace( wxT( " " ), wxT( "_" ) );
-            }
-            else
-                footprint = wxT( "$noname" );
-            */
 
-            msg = component->GetRef( sheet );
+            if( !component->GetField( FOOTPRINT )->IsVoid() )
+                footprint = component->GetField( FOOTPRINT )->GetText();
+            else
+                footprint = "$noname";
+
+            msg = component->GetRef( &sheetList[i] );
             ret |= fprintf( f, "%s     ", TO_UTF8( StartCmpDesc ) );
             ret |= fprintf( f, "%s", TO_UTF8( msg ) );
 
             msg = component->GetField( VALUE )->GetText();
             msg.Replace( wxT( " " ), wxT( "_" ) );
             ret |= fprintf( f, "     \"%s\"", TO_UTF8( msg ) );
+            ret |= fprintf( f, "     \"%s\"", TO_UTF8( footprint ) );
             ret |= fprintf( f, "\n" );
         }
     }
@@ -167,15 +162,10 @@ bool NETLIST_EXPORTER_CADSTAR::writeListOfNets( FILE* f )
         {
         case 0:
             {
-                char buf[5];
-                wxString str_pinnum;
-                strncpy( buf, (char*) &nitem->m_PinNum, 4 );
-                buf[4]     = 0;
-                str_pinnum = FROM_UTF8( buf );
                 InitNetDescLine.Printf( wxT( "\n%s   %s   %.4s     %s" ),
                                        GetChars( InitNetDesc ),
                                        GetChars( refstr ),
-                                       GetChars( str_pinnum ),
+                                       GetChars( nitem->m_PinNum ),
                                        GetChars( netcodeName ) );
             }
             print_ter++;
@@ -186,14 +176,14 @@ bool NETLIST_EXPORTER_CADSTAR::writeListOfNets( FILE* f )
             ret |= fprintf( f, "%s       %s   %.4s\n",
                             TO_UTF8( StartNetDesc ),
                             TO_UTF8( refstr ),
-                            (char*) &nitem->m_PinNum );
+                            TO_UTF8( nitem->m_PinNum ) );
             print_ter++;
             break;
 
         default:
             ret |= fprintf( f, "            %s   %.4s\n",
                             TO_UTF8( refstr ),
-                            (char*) &nitem->m_PinNum );
+                            TO_UTF8( nitem->m_PinNum ) );
             break;
         }
 

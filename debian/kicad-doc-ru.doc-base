@@ -12,8 +12,12 @@ Files: /usr/share/doc/kicad/help/ru/*.html
 
 Format: PDF
 Files: /usr/share/doc/kicad/help/ru/cvpcb.pdf.gz
+       /usr/share/doc/kicad/help/ru/eeschema.pdf.gz
        /usr/share/doc/kicad/help/ru/gerbview.pdf.gz
        /usr/share/doc/kicad/help/ru/getting_started_in_kicad.pdf.gz
+       /usr/share/doc/kicad/help/ru/gui_translation_howto.pdf.gz
        /usr/share/doc/kicad/help/ru/idf_exporter.pdf.gz
        /usr/share/doc/kicad/help/ru/kicad.pdf.gz
+       /usr/share/doc/kicad/help/ru/pcbnew.pdf.gz
        /usr/share/doc/kicad/help/ru/pl_editor.pdf.gz
+       /usr/share/doc/kicad/help/ru/plugins.pdf.gz

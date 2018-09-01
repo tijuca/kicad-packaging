@@ -1,13 +1,14 @@
-# CvPcb Manual Russian translation
-# Copyright (C) 2016 Free Software Foundation, Inc.
+# CvPcb User Manual Russian Translation
+# Copyright (C) The KiCad Documentation Team
 # This file is distributed under the same license as the KiCad documentation package.
-# Baranovskiy Konstantin <baranovskiykonstantin@gmail.com>, 2016.
+#
+# Baranovskiy Konstantin <baranovskiykonstantin@gmail.com>, 2018.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
-"POT-Creation-Date: 2016-06-10 10:24+0300\n"
-"PO-Revision-Date: 2016-10-20 21:05+0300\n"
+"POT-Creation-Date: 2018-05-13 15:28+0300\n"
+"PO-Revision-Date: 2018-07-08 08:28+0300\n"
 "Last-Translator: Baranovskiy Konstantin <baranovskiykonstantin@gmail.com>\n"
 "Language-Team: Russian\n"
 "Language: ru\n"
@@ -36,13 +37,13 @@ msgstr "*Авторские права*\n"
 #. type: Plain text
 #: cvpcb.adoc:18
 msgid ""
-"This document is Copyright (C) 2010-2015 by it's contributors as listed "
+"This document is Copyright (C) 2010-2018 by it's contributors as listed "
 "below. You may distribute it and/or modify it under the terms of either the "
-"GNU General Public License (http://www.gnu.org/licenses/gpl.html), version 3 "
-"or later, or the Creative Commons Attribution License (http://"
+"GNU General Public License (https://www.gnu.org/licenses/gpl.html), version "
+"3 or later, or the Creative Commons Attribution License (https://"
 "creativecommons.org/licenses/by/3.0/), version 3.0 or later."
 msgstr ""
-"Авторские права на данный документ © 2010-2015 принадлежит его разработчикам "
+"Авторские права на данный документ © 2010-2018 принадлежит его разработчикам "
 "(соавторам), перечисленным ниже. Вы можете распространять и/или изменять его "
 "в соответствии с правилами лицензии GNU General Public License (http://www."
 "gnu.org/licenses/gpl.html), версии 3 или более поздней, или лицензии типа "
@@ -206,7 +207,7 @@ msgstr "**CvPcb запускается только из Eeschema**, на вер
 #. type: Plain text
 #: cvpcb.adoc:82
 msgid ""
-"Running CvPcb from Eeschema lauched from the KiCad Manager is generally "
+"Running CvPcb from Eeschema launched from the KiCad Manager is generally "
 "better because:"
 msgstr ""
 "Вызывать CvPcb лучше из Eeschema, запущенной из менеджера проектов KiCad, по "
@@ -234,7 +235,7 @@ msgstr ""
 #. type: Plain text
 #: cvpcb.adoc:92
 msgid ""
-"Lauching CvPcb from an Eeschema launched from the KiCad manager assures "
+"Launching CvPcb from an Eeschema launched from the KiCad manager assures "
 "automatically all this."
 msgstr ""
 "При запуске CvPcb из Eeschema, запущенной из менеджера проектов KiCad, все "
@@ -292,8 +293,8 @@ msgstr "*CvPcb можно запустить только из программ�
 
 #. type: Plain text
 #: cvpcb.adoc:112
-msgid "image:images/icons/run-cvpcb.png[run cvpcb]"
-msgstr "image:images/icons/run-cvpcb.png[run cvpcb]"
+msgid "image:images/icons/cvpcb.png[Calling CvPcb]"
+msgstr "image:images/icons/cvpcb.png[Calling CvPcb]"
 
 #. type: Plain text
 #: cvpcb.adoc:115
@@ -323,6 +324,12 @@ msgstr "Основное окно"
 msgid "The image below shows the main window of CvPcb."
 msgstr "На изображении ниже показано основное окно программы CvPcb."
 
+#. type: Named 'alt' AttributeList argument for macro 'image'
+#: cvpcb.adoc:122
+#, no-wrap
+msgid "The main window of CvPcb"
+msgstr "Основное окно программы CvPcb."
+
 #. type: Target for macro image
 #: cvpcb.adoc:122
 #, no-wrap
@@ -350,6 +357,12 @@ msgstr ""
 #: cvpcb.adoc:132
 #, no-wrap
 msgid "Main Window Toolbar"
+msgstr "Панель инструментов"
+
+#. type: Named 'alt' AttributeList argument for macro 'image'
+#: cvpcb.adoc:134
+#, no-wrap
+msgid "Main Toolbar of CvPcb"
 msgstr "Панель инструментов"
 
 #. type: Target for macro image
@@ -422,11 +435,11 @@ msgstr ""
 #: cvpcb.adoc:161
 #, no-wrap
 msgid ""
-"|image:images/icons/auto_association.png[]\n"
+"|image:images/icons/auto_associe.png[]\n"
 "|Automatically associate footprints with components starting using an\n"
 "equivalence file.\n"
 msgstr ""
-"|image:images/icons/auto_association.png[]\n"
+"|image:images/icons/auto_associe.png[]\n"
 "|Автоматически назначить посадочные места компонентам используя файл эквивалентности.\n"
 
 #. type: delimited block |
@@ -455,33 +468,33 @@ msgstr ""
 #: cvpcb.adoc:172
 #, no-wrap
 msgid ""
-"|image:images/icons/filter_component.png[]\n"
+"|image:images/icons/module_filtered_list.png[]\n"
 "|Enable or disable the filtering to limit the list of footprints to the\n"
 "footprint filters of the selected component.\n"
 msgstr ""
-"|image:images/icons/filter_component.png[]\n"
+"|image:images/icons/module_filtered_list.png[]\n"
 "|Включить или выключить фильтрацию списка посадочных мест, согласно фильтрам посадочных мест выбранного компонента.\n"
 
 #. type: delimited block |
 #: cvpcb.adoc:176
 #, no-wrap
 msgid ""
-"|image:images/icons/filter_pincount.png[]\n"
+"|image:images/icons/module_pin_filtered_list.png[]\n"
 "|Enable or disable the filtering to limit the list of footprints using\n"
 "the pin count of the selected component.\n"
 msgstr ""
-"|image:images/icons/filter_pincount.png[]\n"
+"|image:images/icons/module_pin_filtered_list.png[]\n"
 "|Включить или выключить фильтрацию списка посадочных мест по количеству выводов выбранного компонента.\n"
 
 #. type: delimited block |
 #: cvpcb.adoc:180
 #, no-wrap
 msgid ""
-"|image:images/icons/filter_library.png[]\n"
+"|image:images/icons/module_library_list.png[]\n"
 "|Enable or disable filtering to limit the list of footprints using the\n"
 "selected library.\n"
 msgstr ""
-"|image:images/icons/filter_library.png[]\n"
+"|image:images/icons/module_library_list.png[]\n"
 "|Включить или выключить фильтрацию списка посадочных мест, ограничившись только выбранной библиотекой посадочных мест.\n"
 
 #. type: Title ===
@@ -560,6 +573,12 @@ msgstr "|End |Выбор последнего элемента текущего 
 #, no-wrap
 msgid "CvPcb Configuration"
 msgstr "Настройка CvPcb"
+
+#. type: Named 'alt' AttributeList argument for macro 'image'
+#: cvpcb.adoc:211
+#, no-wrap
+msgid "Preferences menu"
+msgstr "меню настроек"
 
 #. type: Target for macro image
 #: cvpcb.adoc:211
@@ -669,6 +688,12 @@ msgstr ""
 "просмотреть лишь в том случае, если оно было создано и назначено в "
 "параметрах посадочного места. Ниже показано окно просмотра посадочных мест."
 
+#. type: Named 'alt' AttributeList argument for macro 'image'
+#: cvpcb.adoc:254
+#, no-wrap
+msgid "Viewing a footprint"
+msgstr "Просмотр посадочного места"
+
 #. type: Target for macro image
 #: cvpcb.adoc:254
 #, no-wrap
@@ -767,6 +792,12 @@ msgstr "Контекстное меню"
 msgid "Displayed by right-clicking the mouse:"
 msgstr "Отображается при нажатии правой кнопки мыши:"
 
+#. type: Named 'alt' AttributeList argument for macro 'image'
+#: cvpcb.adoc:299
+#, no-wrap
+msgid "Context menu on selected footprint"
+msgstr "Контекстное меню выделенного посадочного места"
+
 #. type: Target for macro image
 #: cvpcb.adoc:299
 #, no-wrap
@@ -837,10 +868,10 @@ msgstr ""
 #: cvpcb.adoc:327
 #, no-wrap
 msgid ""
-"|image:images/icons/open_3d_model_view.png[]\n"
+"|image:images/icons/shape_3d.png[]\n"
 "|Open 3D model viewer\n"
 msgstr ""
-"|image:images/icons/open_3d_model_view.png[]\n"
+"|image:images/icons/shape_3d.png[]\n"
 "|Просмотр трёхмерного представления компонента\n"
 
 #. type: Title ====
@@ -853,20 +884,20 @@ msgstr "Вертикальная панель инструментов"
 #: cvpcb.adoc:335
 #, no-wrap
 msgid ""
-"|image:images/icons/toggle_grid.png[]\n"
+"|image:images/icons/grid.png[]\n"
 "|Show or hide the grid\n"
 msgstr ""
-"|image:images/icons/toggle_grid.png[]\n"
+"|image:images/icons/grid.png[]\n"
 "|Показать или скрыть сетку\n"
 
 #. type: delimited block |
 #: cvpcb.adoc:338
 #, no-wrap
 msgid ""
-"|image:images/icons/coordination_system.png[]\n"
+"|image:images/icons/polar_coord.png[]\n"
 "|Show coordinates in polar or rectangular notation\n"
 msgstr ""
-"|image:images/icons/coordination_system.png[]\n"
+"|image:images/icons/polar_coord.png[]\n"
 "|Переключить использование полярной или прямоугольной системы координат\n"
 
 #. type: delimited block |
@@ -893,40 +924,40 @@ msgstr ""
 #: cvpcb.adoc:347
 #, no-wrap
 msgid ""
-"|image:images/icons/pointer_style.png[]\n"
+"|image:images/icons/cursor_shape.png[]\n"
 "|Toggle pointer style\n"
 msgstr ""
-"|image:images/icons/pointer_style.png[]\n"
+"|image:images/icons/cursor_shape.png[]\n"
 "|Переключить режим отображения курсора\n"
 
 #. type: delimited block |
 #: cvpcb.adoc:350
 #, no-wrap
 msgid ""
-"|image:images/icons/toggle_pads_sketch.png[]\n"
+"|image:images/icons/pad_sketch.png[]\n"
 "|Toggle between drawing pads in sketch or normal mode\n"
 msgstr ""
-"|image:images/icons/toggle_pads_sketch.png[]\n"
+"|image:images/icons/pad_sketch.png[]\n"
 "|Переключить режим отображения контактных площадок: нормальный или черновой\n"
 
 #. type: delimited block |
 #: cvpcb.adoc:353
 #, no-wrap
 msgid ""
-"|image:images/icons/toggle_text_sketch.png[]\n"
+"|image:images/icons/text_sketch.png[]\n"
 "|Toggle between drawing text in sketch or normal mode\n"
 msgstr ""
-"|image:images/icons/toggle_text_sketch.png[]\n"
+"|image:images/icons/text_sketch.png[]\n"
 "|Переключить режим отображения текста: нормальный или черновой\n"
 
 #. type: delimited block |
 #: cvpcb.adoc:356
 #, no-wrap
 msgid ""
-"|image:images/icons/toggle_edge_sketch.png[]\n"
+"|image:images/icons/show_mod_edge.png[]\n"
 "|Toggle between drawing edges in sketch or normal mode\n"
 msgstr ""
-"|image:images/icons/toggle_edge_sketch.png[]\n"
+"|image:images/icons/show_mod_edge.png[]\n"
 "|Переключить режим отображения контура: нормальный или черновой\n"
 
 #. type: Title ===
@@ -934,6 +965,12 @@ msgstr ""
 #, no-wrap
 msgid "Viewing the Current 3D Model"
 msgstr "Просмотр трёхмерного представления компонента"
+
+#. type: Named 'alt' AttributeList argument for macro 'image'
+#: cvpcb.adoc:360
+#, no-wrap
+msgid "3D-Model view"
+msgstr "Вид трехмерной модели"
 
 #. type: Target for macro image
 #: cvpcb.adoc:360
@@ -967,10 +1004,10 @@ msgstr ""
 #: cvpcb.adoc:380
 #, no-wrap
 msgid ""
-"|image:images/icons/copy_to_clipboard.png[]\n"
+"|image:images/icons/copy.png[]\n"
 "|Copy 3D image to clipboard\n"
 msgstr ""
-"|image:images/icons/copy_to_clipboard.png[]\n"
+"|image:images/icons/copy.png[]\n"
 "|Копировать трёхмерное изображение в буфер обмена\n"
 
 #. type: delimited block |
@@ -997,60 +1034,60 @@ msgstr ""
 #: cvpcb.adoc:398
 #, no-wrap
 msgid ""
-"|image:images/icons/rotate_back_x.png[]\n"
+"|image:images/icons/rotate_neg_x.png[]\n"
 "|Rotate backward along the X axis\n"
 msgstr ""
-"|image:images/icons/rotate_back_x.png[]\n"
+"|image:images/icons/rotate_neg_x.png[]\n"
 "|Повернуть изображение против часовой стрелки вокруг оси X\n"
 
 #. type: delimited block |
 #: cvpcb.adoc:401
 #, no-wrap
 msgid ""
-"|image:images/icons/rotate_forw_x.png[]\n"
+"|image:images/icons/rotate_pos_x.png[]\n"
 "|Rotate forward along the X axis\n"
 msgstr ""
-"|image:images/icons/rotate_forw_x.png[]\n"
+"|image:images/icons/rotate_pos_x.png[]\n"
 "|Повернуть изображение по часовой стрелке вокруг оси X\n"
 
 #. type: delimited block |
 #: cvpcb.adoc:404
 #, no-wrap
 msgid ""
-"|image:images/icons/rotate_back_y.png[]\n"
+"|image:images/icons/rotate_neg_y.png[]\n"
 "|Rotate backward along the Y axis\n"
 msgstr ""
-"|image:images/icons/rotate_back_y.png[]\n"
+"|image:images/icons/rotate_neg_y.png[]\n"
 "|Повернуть изображение против часовой стрелки вокруг оси Y\n"
 
 #. type: delimited block |
 #: cvpcb.adoc:407
 #, no-wrap
 msgid ""
-"|image:images/icons/rotate_forw_y.png[]\n"
+"|image:images/icons/rotate_pos_y.png[]\n"
 "|Rotate forward along the Y axis\n"
 msgstr ""
-"|image:images/icons/rotate_forw_y.png[]\n"
+"|image:images/icons/rotate_pos_y.png[]\n"
 "|Повернуть изображение по часовой стрелке вокруг оси Y\n"
 
 #. type: delimited block |
 #: cvpcb.adoc:410
 #, no-wrap
 msgid ""
-"|image:images/icons/rotate_back_z.png[]\n"
+"|image:images/icons/rotate_neg_z.png[]\n"
 "|Rotate backward along the Z axis\n"
 msgstr ""
-"|image:images/icons/rotate_back_z.png[]\n"
+"|image:images/icons/rotate_neg_z.png[]\n"
 "|Повернуть изображение против часовой стрелки вокруг оси Z\n"
 
 #. type: delimited block |
 #: cvpcb.adoc:413
 #, no-wrap
 msgid ""
-"|image:images/icons/rotate_forw_z.png[]\n"
+"|image:images/icons/rotate_pos_z.png[]\n"
 "|Rotate forward along the Z axis\n"
 msgstr ""
-"|image:images/icons/rotate_forw_z.png[]\n"
+"|image:images/icons/rotate_pos_z.png[]\n"
 "|Повернуть изображение по часовой стрелке вокруг оси Z\n"
 
 #. type: delimited block |
@@ -1097,10 +1134,10 @@ msgstr ""
 #: cvpcb.adoc:428
 #, no-wrap
 msgid ""
-"|image:images/icons/toggle_ortho.png[]\n"
+"|image:images/icons/ortho.png[]\n"
 "|Toggle orthographic projection mode on and off\n"
 msgstr ""
-"|image:images/icons/toggle_ortho.png[]\n"
+"|image:images/icons/ortho.png[]\n"
 "|Включить или выключить ортогональный режим представления\n"
 
 #. type: Title ==
@@ -1151,20 +1188,26 @@ msgstr ""
 #. type: Plain text
 #: cvpcb.adoc:454
 msgid ""
-"The icons image:images/icons/filter_component.png[] image:images/icons/"
-"filter_pincount.png[] image:images/icons/filter_library.png[] enable and "
-"disable the filtering feature. When the filtering is not enabled, the full "
-"footprint list is shown."
+"The icons image:images/icons/module_filtered_list.png[] image:images/icons/"
+"module_pin_filtered_list.png[] image:images/icons/module_library_list.png[] "
+"enable and disable the filtering feature. When the filtering is not enabled, "
+"the full footprint list is shown."
 msgstr ""
-"С помощью кнопок image:images/icons/filter_component.png[] image:images/"
-"icons/filter_pincount.png[] image:images/icons/filter_library.png[] "
-"включаются или отключаются нужные фильтры. Когда выключены все фильтры, "
-"будут показаны все доступные посадочные места."
+"С помощью кнопок image:images/icons/module_filtered_list.png[] image:images/"
+"icons/module_pin_filtered_list.png[] image:images/icons/module_library_list."
+"png[] включаются или отключаются нужные фильтры. Когда выключены все "
+"фильтры, будут показаны все доступные посадочные места."
 
 #. type: Plain text
 #: cvpcb.adoc:456
 msgid "Without filtering:"
 msgstr "С выключенными фильтрами:"
+
+#. type: Named 'alt' AttributeList argument for macro 'image'
+#: cvpcb.adoc:457
+#, no-wrap
+msgid "List without any filter"
+msgstr "Список с выключенными фильтрами:"
 
 #. type: Target for macro image
 #: cvpcb.adoc:457
@@ -1189,6 +1232,12 @@ msgid "Filtered by the footprint filter of the selected component:"
 msgstr ""
 "Отфильтровано согласно фильтрам посадочных мест выбранного компонента схемы:"
 
+#. type: Named 'alt' AttributeList argument for macro 'image'
+#: cvpcb.adoc:465
+#, no-wrap
+msgid "List filtered by component"
+msgstr "Список отфильтрован по свойствам компонента"
+
 #. type: Target for macro image
 #: cvpcb.adoc:465
 #, no-wrap
@@ -1205,6 +1254,12 @@ msgstr ""
 "В редакторе компонентов схемы в Eeschema, фильтры посадочных мест задаются "
 "на соответствующей вкладке редактора свойств компонента, как показано ниже."
 
+#. type: Named 'alt' AttributeList argument for macro 'image'
+#: cvpcb.adoc:471
+#, no-wrap
+msgid "Footprint filter in Eeschema"
+msgstr "Фильтр посадочных мест в Eeschema"
+
 #. type: Target for macro image
 #: cvpcb.adoc:471
 #, no-wrap
@@ -1216,6 +1271,12 @@ msgstr "images/ru/eeschema_filter.png"
 msgid "Filtered by the pin count of the selected component:"
 msgstr "Отфильтровано согласно количеству выводов выбранного компонента:"
 
+#. type: Named 'alt' AttributeList argument for macro 'image'
+#: cvpcb.adoc:475
+#, no-wrap
+msgid "List filtered by pin count"
+msgstr "Список отфильтрован по количеству выводов"
+
 #. type: Target for macro image
 #: cvpcb.adoc:475
 #, no-wrap
@@ -1226,6 +1287,12 @@ msgstr "images/ru/filter_pincount.png"
 #: cvpcb.adoc:478
 msgid "Filtered by the selected library."
 msgstr "Отфильтровано согласно выбранной библиотеке посадочных мест:"
+
+#. type: Named 'alt' AttributeList argument for macro 'image'
+#: cvpcb.adoc:479
+#, no-wrap
+msgid "List filtered by library"
+msgstr "Список отфильтрован согласно выбранной библиотеке посадочных мест:"
 
 #. type: Target for macro image
 #: cvpcb.adoc:479
@@ -1248,6 +1315,12 @@ msgid "Filtered by the selected component pin count and the component filter:"
 msgstr ""
 "Отфильтровано с использованием комбинации фильтра по количеству выводов и "
 "фильтров посадочных мест выбранного компонента схемы:"
+
+#. type: Named 'alt' AttributeList argument for macro 'image'
+#: cvpcb.adoc:486
+#, no-wrap
+msgid "List filtered by pin count and component"
+msgstr "Список отфильтрован согласно количеству выводов выбранного компонента:"
 
 #. type: Target for macro image
 #: cvpcb.adoc:486
@@ -1537,7 +1610,7 @@ msgstr ""
 #: cvpcb_footprint_libraries_tables.adoc:26
 #, no-wrap
 msgid "lib table dlg"
-msgstr "диалог библиотек посадочных мест"
+msgstr "диалог таблицы библиотек"
 
 #. type: Target for macro image
 #: cvpcb_footprint_libraries_tables.adoc:26
@@ -1576,7 +1649,7 @@ msgstr ""
 #: cvpcb_footprint_libraries_tables.adoc:39
 #, no-wrap
 msgid "Global Footprint Library Table"
-msgstr "Общая таблица библиотек посадочных мест"
+msgstr "Глобальная таблица библиотек посадочных мест"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:45
@@ -1586,10 +1659,10 @@ msgid ""
 "is saved in the file fp-lib-table in the user's home folder.  The location "
 "of this folder is dependent upon the operating system being used."
 msgstr ""
-"Общая таблица библиотек посадочных мест содержит перечень библиотек, которые "
-"доступны всегда, независимо от параметров загруженного в данный момент "
-"проекта. Эта таблица хранится в домашней папке пользователя в файле fp-lib-"
-"table. Точное расположение данного файла зависит от используемой "
+"Глобальная таблица библиотек посадочных мест содержит перечень библиотек, "
+"которые доступны всегда, независимо от параметров загруженного в данный "
+"момент проекта. Эта таблица хранится в домашней папке пользователя в файле "
+"fp-lib-table. Точное расположение данного файла зависит от используемой "
 "операционной системы."
 
 #. type: Title ====
@@ -2102,8 +2175,8 @@ msgid ""
 "Global footprint libraries can always be accessed even when there is no "
 "project net list file opened."
 msgstr ""
-"Общие библиотеки посадочных мест доступны всегда, даже если не загружен файл "
-"списка цепей из текущего проекта."
+"Глобальные библиотеки посадочных мест доступны всегда, даже если не загружен "
+"файл списка цепей из текущего проекта."
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:246
@@ -2219,8 +2292,8 @@ msgstr "В показанном примере будут добавлены л�
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb_footprint_libraries_tables.adoc:286
 #, no-wrap
-msgid "fplib wizard locallibstartpage"
-msgstr "мастер: начало добавления локальных библиотек"
+msgid "Footprint library wizard local libstartpage"
+msgstr "Начальная страница мастера добавления локальных библиотек"
 
 #. type: Target for macro image
 #: cvpcb_footprint_libraries_tables.adoc:286
@@ -2236,8 +2309,8 @@ msgstr "А в этом примере будут добавлены удалён
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb_footprint_libraries_tables.adoc:290
 #, no-wrap
-msgid "fplib wizard startpage_github"
-msgstr "мастер: начало добавления библиотек github"
+msgid "Footprint library wizard startpage GitHub"
+msgstr "Начальная страница мастера добавления библиотек github"
 
 #. type: Target for macro image
 #: cvpcb_footprint_libraries_tables.adoc:290
@@ -2262,8 +2335,8 @@ msgstr "В данном случае выбираются локальные б�
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb_footprint_libraries_tables.adoc:297
 #, no-wrap
-msgid "fplib wizard local lib selection"
-msgstr "мастер: выбор локальных библиотек"
+msgid "Footprint library wizard local lib selection"
+msgstr "Мастер - выбор локальных библиотек"
 
 #. type: Target for macro image
 #: cvpcb_footprint_libraries_tables.adoc:297
@@ -2279,8 +2352,8 @@ msgstr "А в этом случае удалённые библиотеки:"
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb_footprint_libraries_tables.adoc:301
 #, no-wrap
-msgid "fplib wizard github selection"
-msgstr "мастер: выбор библиотек github"
+msgid "Footprint library wizard GitHub selection"
+msgstr "Мастер - выбор библиотек github"
 
 #. type: Target for macro image
 #: cvpcb_footprint_libraries_tables.adoc:301
@@ -2299,8 +2372,8 @@ msgstr ""
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb_footprint_libraries_tables.adoc:305
 #, no-wrap
-msgid "fplib wizard validate"
-msgstr "мастер: проверка"
+msgid "Footprint libary wizard validate"
+msgstr "Мастер - подтверждение выбора"
 
 #. type: Target for macro image
 #: cvpcb_footprint_libraries_tables.adoc:305
@@ -2337,8 +2410,8 @@ msgstr "таблицу проекта"
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb_footprint_libraries_tables.adoc:315
 #, no-wrap
-msgid "fplib wizard chooseflt"
-msgstr "мастер: выбор таблицы"
+msgid "Footprint library wizard choose local folder"
+msgstr "Мастер - выбор таблицы"
 
 #. type: Target for macro image
 #: cvpcb_footprint_libraries_tables.adoc:315

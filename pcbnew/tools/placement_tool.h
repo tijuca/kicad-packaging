@@ -22,24 +22,27 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#ifndef PLACEMENT_TOOL_H_
-#define PLACEMENT_TOOL_H_
+#ifndef ALIGN_DISTRIBUTE_TOOL_H_
+#define ALIGN_DISTRIBUTE_TOOL_H_
 
 #include <tool/tool_interactive.h>
+#include <class_board_item.h>
+
+typedef std::vector<std::pair<BOARD_ITEM*, EDA_RECT>> ALIGNMENT_RECTS;
 
 class SELECTION_TOOL;
 
-class PLACEMENT_TOOL : public TOOL_INTERACTIVE
+class ALIGN_DISTRIBUTE_TOOL : public TOOL_INTERACTIVE
 {
 public:
-    PLACEMENT_TOOL();
-    virtual ~PLACEMENT_TOOL();
+    ALIGN_DISTRIBUTE_TOOL();
+    virtual ~ALIGN_DISTRIBUTE_TOOL();
 
     /// @copydoc TOOL_INTERACTIVE::Reset()
-    void Reset( RESET_REASON aReason ) {};
+    void Reset( RESET_REASON aReason ) override {}
 
     /// @copydoc TOOL_INTERACTIVE::Init()
-    bool Init();
+    bool Init() override;
 
     /**
      * Function AlignTop()
@@ -66,6 +69,20 @@ public:
     int AlignRight( const TOOL_EVENT& aEvent );
 
     /**
+     * Function AlignCenterX()
+     * Sets the x coordinate of the midpoint of each of the selected items to
+     * the value of the x coordinate of the center of the middle selected item.
+     */
+    int AlignCenterX( const TOOL_EVENT& aEvent );
+
+    /**
+     * Function AlignCenterX()
+     * Sets the y coordinate of the midpoint of each of the selected items to
+     * the value of the y coordinate of the center of the middle selected item.
+     */
+    int AlignCenterY( const TOOL_EVENT& aEvent );
+
+    /**
      * Function DistributeHorizontally()
      * Distributes the selected items along the X axis.
      */
@@ -78,12 +95,80 @@ public:
     int DistributeVertically( const TOOL_EVENT& aEvent );
 
     ///> Sets up handlers for various events.
-    void SetTransitions();
+    void setTransitions() override;
 
 private:
+
+    /**
+     * Sets X coordinate of the selected items to the value of the left-most selected item X coordinate.
+     *
+     * NOTE: Uses the bounding box of items, which do not get mirrored even when
+     * the view is mirrored!
+     */
+    int doAlignLeft();
+
+    /**
+     * Aligns selected items using the right edge of their bounding boxes to the right-most item
+     *
+     * NOTE: Uses the bounding box of items, which do not get mirrored even when
+     * the view is mirrored!
+     */
+    int doAlignRight();
+
     SELECTION_TOOL* m_selectionTool;
 
     CONTEXT_MENU* m_placementMenu;
+
+    /**
+     * Remove pads from a multi-unit select that also includes the pads' parents
+     */
+    void filterPadsWithModules( SELECTION &selection );
+
+    /**
+     * Check a selection to ensure locks are valid for alignment.
+     *
+     * This is slightly different from the standard lock checking in that we ignore the lock
+     * of the first element in the selection as this is meant to be our anchor.
+     * We also check the lock of a pad's parent as we will not move pads independently of
+     * the parent module
+     */
+    int checkLockedStatus( const SELECTION &selection ) const;
+
+    /**
+     * Distributes selected items using an even spacing between the centers of their bounding boxes
+     *
+     * NOTE: Using the centers of bounding box of items can give unsatisfactory visual results since
+     * items of differing widths will be placed with different gaps. Is only used if items overlap
+     */
+    void doDistributeCentersHorizontally( ALIGNMENT_RECTS &itemsToDistribute ) const;
+
+    /**
+     * Distributes selected items using an even spacing between the centers of their bounding boxes
+     *
+     * NOTE: Using the centers of bounding box of items can give unsatisfactory visual results since
+     * items of differing widths will be placed with different gaps. Is only used if items overlap
+     */
+    void doDistributeCentersVertically( ALIGNMENT_RECTS &itemsToDistribute ) const;
+
+    /**
+     * Distributes selected items using an even spacing between their bounding boxes
+     *
+     * NOTE: Using the edges of bounding box of items is only possible if there is enough space
+     * between them. If this is not the case, use the center spacing method
+     */
+    void doDistributeGapsHorizontally( ALIGNMENT_RECTS &itemsToDistribute,
+                                       const BOARD_ITEM *lastItem,
+                                       int totalGap ) const;
+
+    /**
+     * Distributes selected items using an even spacing between their bounding boxes
+     *
+     * NOTE: Using the edges of bounding box of items is only possible if there is enough space
+     * between them. If this is not the case, use the center spacing method
+     */
+    void doDistributeGapsVertically( ALIGNMENT_RECTS &itemsToDistribute,
+                                     const BOARD_ITEM *lastItem,
+                                     int totalGap ) const;
 };
 
-#endif /* PLACEMENT_TOOL_H_ */
+#endif /* ALIGN_DISTRIBUTE_TOOL_H_ */

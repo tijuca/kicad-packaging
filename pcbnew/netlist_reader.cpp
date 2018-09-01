@@ -5,8 +5,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 1992-2011 Jean-Pierre Charras.
- * Copyright (C) 2013-2015 Wayne Stambaugh <stambaughw@verizon.net>.
- * Copyright (C) 1992-2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2013-2016 Wayne Stambaugh <stambaughw@verizon.net>.
+ * Copyright (C) 1992-2016 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -79,17 +79,16 @@ NETLIST_READER::NETLIST_FILE_T NETLIST_READER::GuessNetlistFileType( LINE_READER
 NETLIST_READER* NETLIST_READER::GetNetlistReader( NETLIST*        aNetlist,
                                                   const wxString& aNetlistFileName,
                                                   const wxString& aCompFootprintFileName )
-    throw( IO_ERROR )
 {
     wxASSERT( aNetlist != NULL );
 
-    std::auto_ptr< FILE_LINE_READER > file_rdr(new FILE_LINE_READER( aNetlistFileName ) );
+    std::unique_ptr< FILE_LINE_READER > file_rdr(new FILE_LINE_READER( aNetlistFileName ) );
 
     NETLIST_FILE_T type = GuessNetlistFileType( file_rdr.get() );
     file_rdr->Rewind();
 
     // The component footprint link reader is NULL if no file name was specified.
-    std::auto_ptr<CMP_READER>  cmp_rdr( aCompFootprintFileName.IsEmpty() ?
+    std::unique_ptr<CMP_READER>  cmp_rdr( aCompFootprintFileName.IsEmpty() ?
             NULL :
             new CMP_READER( new FILE_LINE_READER( aCompFootprintFileName ) ) );
 
@@ -110,7 +109,7 @@ NETLIST_READER* NETLIST_READER::GetNetlistReader( NETLIST*        aNetlist,
 }
 
 
-bool CMP_READER::Load( NETLIST* aNetlist ) throw( IO_ERROR, PARSE_ERROR )
+bool CMP_READER::Load( NETLIST* aNetlist )
 {
     wxCHECK_MSG( aNetlist != NULL,true, wxT( "No netlist passed to CMP_READER::Load()" ) );
 
@@ -174,22 +173,22 @@ bool CMP_READER::Load( NETLIST* aNetlist ) throw( IO_ERROR, PARSE_ERROR )
         // assignment list.  This is an usual case during the life of a design.
         if( component )
         {
-            FPID fpid;
+            LIB_ID fpid;
 
             if( !footprint.IsEmpty() && fpid.Parse( footprint ) >= 0 )
             {
                 wxString error;
-                error.Printf( _( "invalid footprint ID in\nfile: <%s>\nline: %d" ),
+                error.Printf( _( "invalid footprint ID in\nfile: \"%s\"\nline: %d" ),
                               GetChars( m_lineReader->GetSource() ),
                               m_lineReader->LineNumber() );
 
                 THROW_IO_ERROR( error );
             }
 
-            // For checking purpose, store the existing FPID (if any) in the alternate fpid copy
-            // if this existing FPID differs from the FPID read from the .cmp file.
-            // CvPcb can ask for user to chose the right FPID.
-            // It happens if the FPID was modified outside CvPcb.
+            // For checking purpose, store the existing LIB_ID (if any) in the alternate fpid copy
+            // if this existing LIB_ID differs from the LIB_ID read from the .cmp file.
+            // CvPcb can ask for user to chose the right LIB_ID.
+            // It happens if the LIB_ID was modified outside CvPcb.
             if( fpid != component->GetFPID() && !component->GetFPID().empty() )
                 component->SetAltFPID( component->GetFPID() );
 

@@ -33,13 +33,15 @@
 #include <kiway_express.h>
 #include <macros.h>
 #include <eda_dde.h>
-#include <schframe.h>
+#include <class_drawpanel.h>
 
+#include <sch_edit_frame.h>
 #include <general.h>
 #include <eeschema_id.h>
 #include <lib_draw_item.h>
 #include <lib_pin.h>
 #include <sch_component.h>
+#include <sch_sheet.h>
 
 
 /**
@@ -54,6 +56,7 @@
  * \li \c \$PART: \c "reference" \c \$REF: \c "ref" Put cursor on component reference.
  * \li \c \$PART: \c "reference" \c \$VAL: \c "value" Put cursor on component value.
  * \li \c \$PART: \c "reference" \c \$PAD: \c "pin name" Put cursor on the component pin.
+ * \li \c \$NET: \c "netname" Highlight a specified net
  * <p>
  * @param cmdline = received command from Pcbnew
  */
@@ -67,7 +70,24 @@ void SCH_EDIT_FRAME::ExecuteRemoteCommand( const char* cmdline )
     char* idcmd = strtok( line, " \n\r" );
     char* text  = strtok( NULL, "\"\n\r" );
 
-    if( (idcmd == NULL) || (text == NULL) )
+    if( idcmd == NULL )
+        return;
+
+    if( strcmp( idcmd, "$NET:" ) == 0 )
+    {
+        if( GetToolId() == ID_HIGHLIGHT )
+        {
+            m_SelectedNetName = FROM_UTF8( text );
+
+            SetStatusText( _( "Selected net: " ) + m_SelectedNetName );
+            SetCurrentSheetHighlightFlags();
+            m_canvas->Refresh();
+        }
+
+        return;
+    }
+
+    if( text == NULL )
         return;
 
     if( strcmp( idcmd, "$PART:" ) != 0 )
@@ -110,39 +130,38 @@ void SCH_EDIT_FRAME::ExecuteRemoteCommand( const char* cmdline )
 }
 
 
-std::string FormatProbeItem( EDA_ITEM* aComponent, SCH_COMPONENT* aPart )
+std::string FormatProbeItem( EDA_ITEM* aItem, SCH_COMPONENT* aPart )
 {
     // Cross probing to Pcbnew if a pin or a component is found
-    switch( aComponent->Type() )
+    switch( aItem->Type() )
     {
     case SCH_FIELD_T:
     case LIB_FIELD_T:
-        {
-            if( !aPart )
-                break;
-
-            return StrPrintf( "$PART: %s", TO_UTF8( aPart->GetField( REFERENCE )->GetText() ) );
-        }
+        if( aPart )
+            return StrPrintf( "$PART: %s",
+                              TO_UTF8( aPart->GetField( REFERENCE )->GetText() ) );
         break;
 
     case SCH_COMPONENT_T:
-        aPart = (SCH_COMPONENT*) aComponent;
+        aPart = (SCH_COMPONENT*) aItem;
         return StrPrintf( "$PART: %s", TO_UTF8( aPart->GetField( REFERENCE )->GetText() ) );
+
+    case SCH_SHEET_T:
+        {
+        SCH_SHEET* sheet = (SCH_SHEET*)aItem;
+        return StrPrintf( "$SHEET: %8.8lX", (unsigned long) sheet->GetTimeStamp() );
+        }
 
     case LIB_PIN_T:
         {
             if( !aPart )
                 break;
 
-            LIB_PIN* pin = (LIB_PIN*) aComponent;
+            LIB_PIN* pin = (LIB_PIN*) aItem;
 
-            if( pin->GetNumber() )
+            if( !pin->GetNumber().IsEmpty() )
             {
-                wxString pinnum;
-
-                pin->PinStringNum( pinnum );
-
-                return StrPrintf( "$PIN: %s $PART: %s", TO_UTF8( pinnum ),
+                return StrPrintf( "$PIN: %s $PART: %s", TO_UTF8( pin->GetNumber() ),
                          TO_UTF8( aPart->GetField( REFERENCE )->GetText() ) );
             }
             else
@@ -160,17 +179,33 @@ std::string FormatProbeItem( EDA_ITEM* aComponent, SCH_COMPONENT* aPart )
 }
 
 
-void SCH_EDIT_FRAME::SendMessageToPCBNEW( EDA_ITEM* aComponent, SCH_COMPONENT* aPart )
+void SCH_EDIT_FRAME::SendMessageToPCBNEW( EDA_ITEM* aObjectToSync, SCH_COMPONENT* aLibItem )
 {
-#if 1
-    wxASSERT( aComponent );     // fix the caller
+    wxASSERT( aObjectToSync );     // fix the caller
 
-#else  // WTF?
-    if( !aComponent )           // caller remains eternally stupid.
+    if( !aObjectToSync )
         return;
-#endif
 
-    std::string packet = FormatProbeItem( aComponent, aPart );
+    std::string packet = FormatProbeItem( aObjectToSync, aLibItem );
+
+    if( packet.size() )
+    {
+        if( Kiface().IsSingle() )
+            SendCommand( MSG_TO_PCB, packet.c_str() );
+        else
+        {
+            // Typically ExpressMail is going to be s-expression packets, but since
+            // we have existing interpreter of the cross probe packet on the other
+            // side in place, we use that here.
+            Kiway().ExpressMail( FRAME_PCB, MAIL_CROSS_PROBE, packet, this );
+        }
+    }
+}
+
+
+void SCH_EDIT_FRAME::SendCrossProbeNetName( const wxString& aNetName )
+{
+    std::string packet = StrPrintf( "$NET: %s", TO_UTF8( aNetName ) );
 
     if( packet.size() )
     {
@@ -197,15 +232,60 @@ void SCH_EDIT_FRAME::KiwayMailIn( KIWAY_EXPRESS& mail )
         ExecuteRemoteCommand( payload.c_str() );
         break;
 
+    case MAIL_SCH_PCB_UPDATE_REQUEST:
+    {
+        doUpdatePcb( payload );
+        break;
+    }
+
     case MAIL_BACKANNOTATE_FOOTPRINTS:
         try
         {
             backAnnotateFootprints( payload );
         }
-        catch( const IO_ERROR& ioe )
+        catch( const IO_ERROR& DBG( ioe ) )
         {
-            DBG( printf( "%s: ioe:%s\n", __func__, TO_UTF8( ioe.errorText ) );)
+            DBG( printf( "%s: ioe:%s\n", __func__, TO_UTF8( ioe.What() ) );)
         }
+        break;
+
+    case MAIL_SCH_REFRESH:
+        GetCanvas()->Refresh();
+        break;
+
+    case MAIL_IMPORT_FILE:
+    {
+        // Extract file format type and path (plugin type and path separated with \n)
+        size_t split = payload.find( '\n' );
+        wxCHECK( split != std::string::npos, /*void*/ );
+        int importFormat;
+
+        try
+        {
+            importFormat = std::stoi( payload.substr( 0, split ) );
+        }
+        catch( std::invalid_argument& )
+        {
+            wxFAIL;
+            importFormat = -1;
+        }
+
+        std::string path = payload.substr( split + 1 );
+        wxASSERT( !path.empty() );
+
+        if( importFormat >= 0 )
+            importFile( path, importFormat );
+    }
+        break;
+
+    case MAIL_SCH_SAVE:
+    {
+        wxCommandEvent dummyEvent;
+        OnSaveProject( dummyEvent );
+
+        if( !isAutoSaveRequired() )     // proxy for save completed
+            Kiway().ExpressMail( FRAME_CVPCB, MAIL_STATUS, _( "Schematic saved" ).ToStdString() );
+    }
         break;
 
     default:

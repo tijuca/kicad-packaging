@@ -27,34 +27,31 @@
 #define __EDIT_TOOL_H
 
 #include <math/vector2d.h>
-#include <tool/tool_interactive.h>
-#include <view/view_group.h>
+#include <tools/pcb_tool.h>
 
+
+class BOARD_COMMIT;
 class BOARD_ITEM;
 class SELECTION_TOOL;
-
-namespace KIGFX
-{
-class VIEW_GROUP;
-}
+class CONNECTIVITY_DATA;
 
 /**
  * Class EDIT_TOOL
  *
- * The interactive edit tool. Allows to move, rotate, flip and change properties of items selected
+ * The interactive edit tool. Allows one to move, rotate, flip and change properties of items selected
  * using the pcbnew.InteractiveSelection tool.
  */
 
-class EDIT_TOOL : public TOOL_INTERACTIVE
+class EDIT_TOOL : public PCB_TOOL
 {
 public:
     EDIT_TOOL();
 
     /// @copydoc TOOL_INTERACTIVE::Reset()
-    void Reset( RESET_REASON aReason );
+    void Reset( RESET_REASON aReason ) override;
 
     /// @copydoc TOOL_INTERACTIVE::Init()
-    bool Init();
+    bool Init() override;
 
     /**
      * Function Main()
@@ -63,6 +60,13 @@ public:
      * @param aEvent is the handled event.
      */
     int Main( const TOOL_EVENT& aEvent );
+
+    /**
+     * Function Drag()
+     *
+     * todo
+     */
+    int Drag( const TOOL_EVENT& aEvent );
 
     /**
      * Function Edit()
@@ -86,6 +90,13 @@ public:
     int Flip( const TOOL_EVENT& aEvent );
 
     /**
+     * Function Mirror
+     *
+     * Mirrors the current selection. The mirror axis passes through the current point.
+     */
+    int Mirror( const TOOL_EVENT& aEvent );
+
+    /**
      * Function Remove()
      *
      * Deletes currently selected items. The rotation point is the current cursor position.
@@ -95,7 +106,7 @@ public:
     /**
      * Function Duplicate()
      *
-     * Duplicates a selection and starts a move action
+     * Duplicates the current selection and starts a move action.
      */
     int Duplicate( const TOOL_EVENT& aEvent );
 
@@ -115,19 +126,47 @@ public:
     int CreateArray( const TOOL_EVENT& aEvent );
 
     /**
-     * Function EditModules()
+     * Function ExchangeFootprints()
      *
-     * Toggles edit module mode. When enabled, one may select parts of modules individually
-     * (graphics, pads, etc.), so they can be modified.
-     * @param aEnabled decides if the mode should be enabled.
+     * Invoke the dialog used to update or exchange the footprints used for
+     * modules.  The mode depends on the PCB_ACTIONS held by the TOOL_EVENT.
      */
-    void EditModules( bool aEnabled )
-    {
-        m_editModules = aEnabled;
-    }
+    int ExchangeFootprints( const TOOL_EVENT& aEvent );
+
+    ///> Launches a tool to measure between points
+    int MeasureTool( const TOOL_EVENT& aEvent );
+
+    /**
+     * Function FootprintFilter()
+     *
+     * A selection filter which prunes the selection to contain only items
+     * of type PCB_MODULE_T
+     */
+    static void FootprintFilter( const VECTOR2I&, GENERAL_COLLECTOR& aCollector );
 
     ///> Sets up handlers for various events.
-    void SetTransitions();
+    void setTransitions() override;
+
+    /**
+     * Function copyToClipboard()
+     * Sends the current selection to the clipboard by formatting it as a fake pcb
+     * see AppendBoardFromClipboard for importing
+     * @return True if it was sent succesfully
+     */
+    int copyToClipboard( const TOOL_EVENT& aEvent );
+
+    /**
+     * Function cutToClipboard()
+     * Cuts the current selection to the clipboard by formatting it as a fake pcb
+     * see AppendBoardFromClipboard for importing
+     * @return True if it was sent succesfully
+     */
+    int cutToClipboard( const TOOL_EVENT& aEvent );
+
+    BOARD_COMMIT* GetCurrentCommit() const
+    {
+        return m_commit.get();
+    }
 
 private:
     ///> Selection tool used for obtaining selected items
@@ -136,103 +175,38 @@ private:
     ///> Flag determining if anything is being dragged right now
     bool m_dragging;
 
-    ///> Offset from the dragged item's center (anchor)
-    wxPoint m_offset;
-
     ///> Last cursor position (needed for getModificationPoint() to avoid changes
     ///> of edit reference point).
     VECTOR2I m_cursor;
 
-    /// Edit module mode flag
-    bool m_editModules;
-
-    /// Counter of undo inhibitions. When zero, undo is not inhibited.
-    int m_undoInhibit;
-
-    // Vector storing track & via types, used for specifying 'Properties' menu entry condition
-    std::vector<KICAD_T> m_tracksViasType;
-
-    ///> Removes and frees a single BOARD_ITEM.
-    void remove( BOARD_ITEM* aItem );
-
-    ///> The required update flag for modified items
-    KIGFX::VIEW_ITEM::VIEW_UPDATE_FLAGS m_updateFlag;
-
-    ///> Enables higher order update flag
-    void enableUpdateFlag( KIGFX::VIEW_ITEM::VIEW_UPDATE_FLAGS aFlag )
-    {
-        if( m_updateFlag < aFlag )
-            m_updateFlag = aFlag;
-    }
-
-    ///> Updates ratsnest for selected items.
-    ///> @param aRedraw says if selected items should be drawn using the simple mode (e.g. one line
-    ///> per item).
-    void updateRatsnest( bool aRedraw );
-
     ///> Returns the right modification point (e.g. for rotation), depending on the number of
     ///> selected items.
-    wxPoint getModificationPoint( const SELECTION& aSelection );
-
-    ///> If there are no items currently selected, it tries to choose the item that is under
-    ///> the cursor or displays a disambiguation menu if there are multpile items.
-    bool hoverSelection( const SELECTION& aSelection, bool aSanitize = true );
-
-    ///> Processes the current undo buffer since the last change. If the last change does not occur
-    ///> in the current buffer, then the whole list is processed.
-    void processUndoBuffer( const PICKED_ITEMS_LIST* aLastChange );
-
-    ///> Updates items stored in the list.
-    void processPickedList( const PICKED_ITEMS_LIST* aList );
-
-    /**
-     * Increments the undo inhibit counter. This will indicate that tools
-     * should not create an undo point, as another tool is doing it already,
-     * and considers that its operation is atomic, even if it calls another one
-     * (for example a duplicate calls a move).
-     */
-    inline void incUndoInhibit()
-    {
-        m_undoInhibit++;
-    }
-
-    /**
-     * Decrements the inhibit counter. An assert is raised if the counter drops
-     * below zero.
-     */
-    inline void decUndoInhibit()
-    {
-        m_undoInhibit--;
-
-        wxASSERT_MSG( m_undoInhibit >= 0, wxT( "Undo inhibit count decremented past zero" ) );
-    }
-
-    /**
-     * Report if the tool manager has been told at least once that undo
-     * points should not be created. This can be ignored if the undo point
-     * is still required.
-     *
-     * @return true if undo are inhibited
-     */
-    inline bool isUndoInhibited() const
-    {
-        return m_undoInhibit > 0;
-    }
+    bool updateModificationPoint( SELECTION& aSelection );
 
     int editFootprintInFpEditor( const TOOL_EVENT& aEvent );
 
-    bool invokeInlineRouter();
+    bool invokeInlineRouter( int aDragMode );
+    bool isInteractiveDragEnabled() const;
 
-    template<class T> T* uniqueSelected()
-    {
-        const SELECTION& selection = m_selectionTool->GetSelection();
+    bool changeTrackWidthOnClick( const SELECTION& selection );
+    bool pickCopyReferencePoint( VECTOR2I& aP );
 
-        if( selection.items.GetCount() != 1 )
-            return NULL;
 
-        BOARD_ITEM* item = selection.Item<BOARD_ITEM>( 0 );
-        return dyn_cast<T*>( item );
-    }
+    /**
+     * Function hoverSelection()
+     *
+     * If there are no items currently selected, it tries to choose the
+     * item that is under he cursor or displays a disambiguation menu
+     * if there are multiple items.
+     *
+     * @param aSanitize sanitize selection using SanitizeSelection()
+     * @return true if the eventual selection contains any items, or
+     * false if it fails to select any items.
+     */
+    bool hoverSelection( bool aSanitize = true );
+
+
+    std::unique_ptr<BOARD_COMMIT> m_commit;
 };
 
 #endif

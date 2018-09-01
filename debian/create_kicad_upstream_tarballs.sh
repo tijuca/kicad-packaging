@@ -352,203 +352,29 @@ if [ -f ${TMPDIR}/dfsg ]; then
 fi
 echo
 
-#################################################################
-# collecting and preparing data for the KiCad libraries tarball #
-#################################################################
-
-# The various component, footprint and 3D-model libraries are available one
-# GitHub in various repositories. Uncomment the following two lines to get
-# a dynamically created list of repositories. Otherwise it's currently better
-# to use the static list as some repositories currently empty like:
-# Connectors_Amphenol.pretty
-
-#PRETTY_REPOS=$(curl -s "https://api.github.com/orgs/KiCad/repos?per_page=100&page=1" \
-#                       "https://api.github.com/orgs/KiCad/repos?per_page=100&page=2" 2> /dev/null | \
-#               grep full_name | grep pretty | \
-#               sed -r  's:.+ "KiCad/(.+)",:\1:' | tr " " "\n" | sort)
-
-PRETTY_REPOS="\
-Air_Coils_SML_NEOSID.pretty
-Battery_Holders.pretty
-Buttons_Switches_SMD.pretty
-Buttons_Switches_THT.pretty
-Buzzers_Beepers.pretty
-Capacitors_SMD.pretty
-Capacitors_Tantalum_SMD.pretty
-Capacitors_THT.pretty
-Choke_Axial_ThroughHole.pretty
-Choke_Common-Mode_Wurth.pretty
-Choke_Radial_ThroughHole.pretty
-Choke_SMD.pretty
-Choke_Toroid_ThroughHole.pretty
-Connectors_Amphenol.pretty
-Connectors_Card.pretty
-Connectors_Harwin.pretty
-Connectors_HDMI.pretty
-Connectors_Hirose.pretty
-Connectors_IEC_DIN.pretty
-Connectors_JAE.pretty
-Connectors_JST.pretty
-Connectors_Mini-Universal.pretty
-Connectors_Molex.pretty
-Connectors_Multicomp.pretty
-Connectors_Phoenix.pretty
-Connectors.pretty
-Connectors_Samtec.pretty
-Connectors_TE-Connectivity.pretty
-Connectors_Terminal_Blocks.pretty
-Connectors_USB.pretty
-Connectors_WAGO.pretty
-Converters_DCDC_ACDC.pretty
-Crystals.pretty
-Diodes_SMD.pretty
-Diodes_THT.pretty
-discret.pretty
-Displays_7-Segment.pretty
-Displays.pretty
-divers.pretty
-Enclosures.pretty
-EuroBoard_Outline.pretty
-Fiducials.pretty
-Filters_HF_Coils_NEOSID.pretty
-Fuse_Holders_and_Fuses.pretty
-Hall-Effect_Transducers_LEM.pretty
-Heatsinks.pretty
-Housings_BGA.pretty
-Housings_CSP.pretty
-Housings_DFN_QFN.pretty
-Housings_DIP.pretty
-Housings_LCC.pretty
-Housings_LGA.pretty
-Housings_PGA.pretty
-Housings_QFP.pretty
-Housings_SIP.pretty
-Housings_SOIC.pretty
-Housings_SON.pretty
-Housings_SSOP.pretty
-Inductors_NEOSID.pretty
-Inductors.pretty
-Inductors_SMD.pretty
-Inductors_THT.pretty
-IR-DirectFETs.pretty
-labels.pretty
-LEDs.pretty
-Measurement_Points.pretty
-Measurement_Scales.pretty
-Microwave.pretty
-Modules.pretty
-Mounting_Holes.pretty
-NF-Transformers_ETAL.pretty
-Oddities.pretty
-Opto-Devices.pretty
-Oscillators.pretty
-PFF_PSF_PSS_Leadforms.pretty
-Pin_Headers.pretty
-Potentiometers.pretty
-Power_Integrations.pretty
-Relays_SMD.pretty
-Relays_THT.pretty
-Resistors_SMD.pretty
-Resistors_THT.pretty
-Resistors_Universal.pretty
-RF_Antennas.pretty
-RF_Modules.pretty
-Shielding_Cabinets.pretty
-SMD_Packages.pretty
-Sockets_MOLEX_KK-System.pretty
-Sockets.pretty
-Socket_Strips.pretty
-Symbols.pretty
-TerminalBlocks_Phoenix.pretty
-TerminalBlocks_WAGO.pretty
-TO_SOT_Packages_SMD.pretty
-TO_SOT_Packages_THT.pretty
-Transformers_CHK.pretty
-Transformers_SMD.pretty
-Transformers_SMPS_ThroughHole.pretty
-Transformers_THT.pretty
-Transistors_OldSowjetAera.pretty
-Valves.pretty
-Varistors.pretty
-Wire_Connections_Bridges.pretty
-Wire_Pads.pretty
-"
-
-# uncomment the follwing variable if you not want to load the long list in
-# case for testing something. Booth repositories are different as one has a
-# taged versions, the other don't.
-#PRETTY_REPOS="\
-#Air_Coils_SML_NEOSID.pretty
-#Battery_Holders.pretty"
-
-for PROJECT in kicad-library $PRETTY_REPOS; do
-#for PROJECT in $PRETTY_REPOS; do
-    print_project_decoration $PROJECT $(expr 4 + ${#PROJECT})
-    # check first if we can get a tagged archive, otherwise we take the current master
-    RET=`curl -L --silent https://github.com/KiCad/${PROJECT}/tags | grep ${VERSION}.tar.gz | awk '{print $2}' | tr '<>"' ' ' | awk '{print $2}'`
-    if [ "$RET" != "" ]; then
-        echo "Trying to load tagged version ${VERSION}."
-        wget ${WGET_OPTIONS} https://github.com/KiCad/${PROJECT}/archive/${VERSION}.tar.gz -O ${TARBALLDIR}/${PROJECT}-${VERSION}.tar.gz
-        debug "create ${UPSTREAM_LIBRARIES}/${PROJECT}"
-        mkdir -p ${UPSTREAM_LIBRARIES}/${PROJECT}
-        debug "extracting ${TARBALLDIR}/${PROJECT}-${VERSION}.tar.gz into ${UPSTREAM_LIBRARIES}/${PROJECT} ... "
-        rm -rf ${UPSTREAM_LIBRARIES}/${PROJECT}/*
-        tar xzf ${TARBALLDIR}/${PROJECT}-${VERSION}.tar.gz --strip-components=1 -C ${UPSTREAM_LIBRARIES}/${PROJECT}
-        echo "Done"
-    else
-        echo "No tagged version found, trying master instead."
-        wget ${WGET_OPTIONS} https://github.com/KiCad/${PROJECT}/archive/master.tar.gz -O ${TARBALLDIR}/${PROJECT}.master.tar.gz
-        debug "create ${UPSTREAM_LIBRARIES}/${PROJECT}"
-        mkdir -p ${UPSTREAM_LIBRARIES}/${PROJECT}
-        debug "extracting ${TARBALLDIR}/${PROJECT}.master.tar.gz into ${UPSTREAM_LIBRARIES}/${PROJECT} ... "
-        rm -rf ${UPSTREAM_LIBRARIES}/${PROJECT}/*
-        tar xzf ${TARBALLDIR}/${PROJECT}.master.tar.gz --strip-components=1 -C ${UPSTREAM_LIBRARIES}/${PROJECT}
-        echo "Done"
-    fi
-    echo
-done
-
-# cleaning out VCS control files, don't care about not to scanned folders
-echo "removing VCS or autobuilder related control files before packing tarballs ..."
-for CLEANING in `find ${TMPDIR} -type f \
-                       \( -name ".gitignore" \
-                          -o -name ".gitattributes" \
-                          -o -name ".travis*" \
-                          -o -name "*.bzrignore" \)`; do
-    debug "remove ${CLEANING}"
-    rm ${CLEANING}
-done
-echo
-
 #########################
 # building the tarballs #
 #########################
 
-# create ${SRCPKG}_${VERSION}${DFSG}.orig-libraries.tar.xz
+# create ${SRCPKG}_${VERSION}${DFSG}.orig.tar.xz
 echo "building ${TMPDIR}/${SRCPKG}_${VERSION}${DFSG}.orig.tar.xz"
 cd ${TMPDIR}/${SRCPKG}-${VERSION} ;\
 rm -f ../${SRCPKG}_${VERSION}${DFSG}.orig.tar.xz ;\
 tar -Jcf ../${SRCPKG}_${VERSION}${DFSG}.orig.tar.xz . ;\
 #ls -la ../${SRCPKG}_${VERSION}${DFSG}.orig.tar.xz
 
-# create ${SRCPKG}_${VERSION}${DFSG}.orig-libraries.tar.xz
+# create ${SRCPKG}_${VERSION}${DFSG}.orig-doc.tar.xz
 echo "building ${TMPDIR}/${SRCPKG}_${VERSION}${DFSG}.orig-doc.tar.xz"
 cd ${TMPDIR} ;\
 rm -f ${SRCPKG}_${VERSION}${DFSG}.orig-doc.tar.xz ;\
 tar -Jcf ${SRCPKG}_${VERSION}${DFSG}.orig-doc.tar.xz doc/ ;\
 #ls -la ${SRCPKG}_${VERSION}${DFSG}.orig-doc.tar.xz
 
-# create ${SRCPKG}_${VERSION}${DFSG}.orig-libraries.tar.xz
+# create ${SRCPKG}_${VERSION}${DFSG}.orig-i18n.tar.xz
 echo "building ${TMPDIR}/${SRCPKG}_${VERSION}${DFSG}.orig-i18n.tar.xz"
 cd ${TMPDIR} ;\
 rm -f ${SRCPKG}_${VERSION}${DFSG}.orig-i18n.tar.xz ;\
 tar -Jcf ${SRCPKG}_${VERSION}${DFSG}.orig-i18n.tar.xz i18n/ ;\
 #ls -la ${SRCPKG}_${VERSION}${DFSG}.orig-i18n.tar.xz
-
-# create ${SRCPKG}_${VERSION}${DFSG}.orig-libraries.tar.xz
-echo "building ${TMPDIR}/${SRCPKG}_${VERSION}${DFSG}.orig-libraries.tar.xz"
-cd ${TMPDIR} ;\
-tar -Jcf ${SRCPKG}_${VERSION}${DFSG}.orig-libraries.tar.xz libraries/ ;\
-#ls -la ${SRCPKG}_${VERSION}${DFSG}.orig-libraries.tar.xz
 
 exit ${EXIT_SUCCESS}

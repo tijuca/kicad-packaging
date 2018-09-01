@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun 17 2015)
+// C++ code generated with wxFormBuilder (version Nov 22 2017)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #include "dialog_hotkeys_editor_base.h"
@@ -13,19 +13,28 @@ HOTKEYS_EDITOR_DIALOG_BASE::HOTKEYS_EDITOR_DIALOG_BASE( wxWindow* parent, wxWind
 {
 	this->SetSizeHints( wxDefaultSize, wxDefaultSize );
 	
-	wxBoxSizer* bMainSizer;
-	bMainSizer = new wxBoxSizer( wxVERTICAL );
+	m_mainSizer = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticText1 = new wxStaticText( this, wxID_ANY, _("Select a row and press a new key combination to alter the binding."), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText1 = new wxStaticText( this, wxID_ANY, _("Double-click to edit"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText1->Wrap( 400 );
-	bMainSizer->Add( m_staticText1, 0, wxALL|wxEXPAND, 5 );
+	m_mainSizer->Add( m_staticText1, 0, wxALL|wxEXPAND, 5 );
 	
-	m_hotkeySections = new wxNotebook( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0 );
+	m_panelHotkeys = new wxPanel( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
+	m_panelHotkeys->SetMinSize( wxSize( -1,350 ) );
 	
-	bMainSizer->Add( m_hotkeySections, 1, wxEXPAND | wxALL, 5 );
+	m_mainSizer->Add( m_panelHotkeys, 1, wxEXPAND | wxALL, 5 );
 	
 	wxBoxSizer* b_buttonsSizer;
 	b_buttonsSizer = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_resetButton = new wxButton( this, wxID_RESET, _("Reset"), wxDefaultPosition, wxDefaultSize, 0 );
+	b_buttonsSizer->Add( m_resetButton, 0, wxALL|wxEXPAND, 5 );
+	
+	m_defaultButton = new wxButton( this, wxID_ANY, _("Defaults"), wxDefaultPosition, wxDefaultSize, 0 );
+	b_buttonsSizer->Add( m_defaultButton, 0, wxALL|wxEXPAND, 5 );
+	
+	
+	b_buttonsSizer->Add( 0, 0, 1, wxEXPAND, 5 );
 	
 	m_sdbSizer = new wxStdDialogButtonSizer();
 	m_sdbSizerOK = new wxButton( this, wxID_OK );
@@ -36,25 +45,23 @@ HOTKEYS_EDITOR_DIALOG_BASE::HOTKEYS_EDITOR_DIALOG_BASE( wxWindow* parent, wxWind
 	
 	b_buttonsSizer->Add( m_sdbSizer, 0, wxEXPAND|wxTOP|wxBOTTOM, 5 );
 	
-	m_undoButton = new wxButton( this, wxID_UNDO, _("Undo"), wxDefaultPosition, wxDefaultSize, 0 );
-	b_buttonsSizer->Add( m_undoButton, 0, wxALL|wxEXPAND, 5 );
+	
+	m_mainSizer->Add( b_buttonsSizer, 0, wxALIGN_RIGHT|wxEXPAND, 5 );
 	
 	
-	bMainSizer->Add( b_buttonsSizer, 0, wxALIGN_RIGHT, 5 );
-	
-	
-	this->SetSizer( bMainSizer );
+	this->SetSizer( m_mainSizer );
 	this->Layout();
+	m_mainSizer->Fit( this );
 	
 	// Connect Events
-	m_sdbSizerOK->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( HOTKEYS_EDITOR_DIALOG_BASE::OnOKClicked ), NULL, this );
-	m_undoButton->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( HOTKEYS_EDITOR_DIALOG_BASE::UndoClicked ), NULL, this );
+	m_resetButton->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( HOTKEYS_EDITOR_DIALOG_BASE::ResetClicked ), NULL, this );
+	m_defaultButton->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( HOTKEYS_EDITOR_DIALOG_BASE::DefaultsClicked ), NULL, this );
 }
 
 HOTKEYS_EDITOR_DIALOG_BASE::~HOTKEYS_EDITOR_DIALOG_BASE()
 {
 	// Disconnect Events
-	m_sdbSizerOK->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( HOTKEYS_EDITOR_DIALOG_BASE::OnOKClicked ), NULL, this );
-	m_undoButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( HOTKEYS_EDITOR_DIALOG_BASE::UndoClicked ), NULL, this );
+	m_resetButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( HOTKEYS_EDITOR_DIALOG_BASE::ResetClicked ), NULL, this );
+	m_defaultButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( HOTKEYS_EDITOR_DIALOG_BASE::DefaultsClicked ), NULL, this );
 	
 }

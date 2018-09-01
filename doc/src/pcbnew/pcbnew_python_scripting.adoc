@@ -2,7 +2,7 @@
 
 Scripting allows you to automate tasks within KiCad using the https://www.python.org/[Python] language.
 
-Also see the doxygen documentation on http://ci.kicad-pcb.org/job/kicad-doxygen/ws/build/pcbnew/doxygen-python/html/index.html[Python Scripting Reference].
+Also see the doxygen documentation on http://docs.kicad-pcb.org/doxygen-python/namespaces.html[Python Scripting Reference].
 
 You can see python module help by typing `pydoc pcbnew` on your terminal.
 
@@ -11,11 +11,11 @@ Using scripting you can create:
 - *Plugins*: this type of script is loaded when KiCad starts. Examples:
     * *Footprint Wizards*: To help you build footprints easily filling in parameters. See the dedicated section <<Footprint_Wizards,Footprint Wizards>> below.
     * *File I/O* '(planned)': To let you write plugins to export/import other filetypes
-    * *Actions* '(planned)': Associate events to scripting actions or register new menus or toolbar icons.
+    * *Actions* '(experimental)': Associate events to scripting actions or register new menus or toolbar icons.
 
 - *Command Line Scripts*: scripts that can be used from the command line, load boards or libraries, modify them, and render outputs or new boards.
 
-It shall be noted that the only KiCad applicaiton that supports
+It shall be noted that the only KiCad application that supports
 scripting is Pcbnew. It is also planned for Eeschema in the future.
 
 === KiCad Objects
@@ -44,7 +44,7 @@ action plugins.
 
 - *board.Save(filename):*
            same as above, but it's a method of BOARD object.
- 
+
 .Example that loads a board, hides all values, shows all references
 [source,python]
 ----------
@@ -327,7 +327,7 @@ class FPC_FootprintWizard(HFPW.HelpfulFootprintWizardPlugin):
         self.module.Add(pad_s1)
 
         # add footprint outline
-        linewidth = self.draw.GetLineTickness()
+        linewidth = self.draw.GetLineThickness()
         margin = linewidth
 
         # upper line
@@ -351,6 +351,9 @@ class FPC_FootprintWizard(HFPW.HelpfulFootprintWizardPlugin):
 
         # right pad side
         self.draw.Line(-xstart, posy, -xend, yend)
+
+        # set SMD attribute
+        self.module.SetAttributes(pcbnew.MOD_CMS)
 
         # vertical segment at left of the pad
         xstart = xend
@@ -378,6 +381,65 @@ class FPC_FootprintWizard(HFPW.HelpfulFootprintWizardPlugin):
         self.draw.Line(-xstart, posy, -xend, yend)
 
 
+# register into pcbnew
 FPC_FootprintWizard().register()
 ---------
 
+
+[[action_menu]]
+=== Action Plugins
+Action plugin associate events to scripting actions. Currently only
+register a new menu is implemented.
+
+New menu are available inside menu *Tools* => *External plugins*.
+
+image::images/Pcbnew_action_menu.png[scaledwidth="35%"]
+
+- *Refresh*: reload plugins (create new menu if needed)
+- *Add date on PCB*: An example plugin.
+
+*Warning*: As all other python scripts, undo/redo function not work
+ (yet !).
+
+.Action plugin example: Add date to any text item with content '$date$'
+[source,python]
+----------
+import pcbnew
+import re
+import datetime
+
+class text_by_date(pcbnew.ActionPlugin):
+    """
+    test_by_date: A sample plugin as an example of ActionPlugin
+    Add the date to any text field of the board where the content is '$date$'
+    How to use:
+    - Add a text on your board with the content '$date$'
+    - Call the plugin
+    - Automaticaly the date will be added to the text (format YYYY-MM-DD)
+    """
+
+    def defaults(self):
+        """
+        Method defaults must be redefined
+        self.name should be the menu label to use
+        self.category should be the category (not yet used)
+        self.description should be a comprehensive description
+          of the plugin
+        """
+        self.name = "Add date on PCB"
+        self.category = "Modify PCB"
+        self.description = "Automaticaly add date on an existing PCB"
+
+    def Run(self):
+        pcb = pcbnew.GetBoard()
+        for draw in pcb.GetDrawings():
+            if draw.GetClass() == 'PTEXT':
+                txt = re.sub("\$date\$ [0-9]{4}-[0-9]{2}-[0-9]{2}",
+                                 "$date$", draw.GetText())
+                if txt == "$date$":
+                    draw.SetText("$date$ %s"%datetime.date.today())
+
+
+text_by_date().register()
+
+----------

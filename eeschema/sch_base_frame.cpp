@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2015-2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,15 +22,63 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <sch_base_frame.h>
-#include <viewlib_frame.h>
-#include <libeditframe.h>
 #include <base_units.h>
 #include <kiway.h>
 #include <class_drawpanel.h>
+#include <confirm.h>
+
+#include <class_library.h>
+#include <eeschema_id.h>
+#include <lib_edit_frame.h>
+#include <viewlib_frame.h>
+#include <sch_base_frame.h>
+#include <symbol_lib_table.h>
+#include <pgm_base.h>
+#include "dialogs/dialog_sym_lib_table.h"
+
+
+
+LIB_ALIAS* SchGetLibAlias( const LIB_ID& aLibId, SYMBOL_LIB_TABLE* aLibTable, PART_LIB* aCacheLib,
+                           wxWindow* aParent, bool aShowErrorMsg )
+{
+    // wxCHECK_MSG( aLibId.IsValid(), NULL, "LIB_ID is not valid." );
+    wxCHECK_MSG( aLibTable, NULL, "Invalid symbol library table." );
+
+    LIB_ALIAS* alias = NULL;
+
+    try
+    {
+        alias = aLibTable->LoadSymbol( aLibId );
+
+        if( !alias && aCacheLib )
+            alias = aCacheLib->FindAlias( aLibId );
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        if( aShowErrorMsg )
+        {
+            wxString msg;
+
+            msg.Printf( _( "Could not load symbol \"%s\" from library \"%s\"." ),
+                        aLibId.GetLibItemName().wx_str(), aLibId.GetLibNickname().wx_str() );
+            DisplayErrorMessage( aParent, msg, ioe.What() );
+        }
+    }
+
+    return alias;
+}
+
+
+LIB_PART* SchGetLibPart( const LIB_ID& aLibId, SYMBOL_LIB_TABLE* aLibTable, PART_LIB* aCacheLib,
+                         wxWindow* aParent, bool aShowErrorMsg )
+{
+    LIB_ALIAS* alias = SchGetLibAlias( aLibId, aLibTable, aCacheLib, aParent, aShowErrorMsg );
+
+    return ( alias ) ? alias->GetPart() : NULL;
+}
+
 
 // Sttaic members:
-
 
 SCH_BASE_FRAME::SCH_BASE_FRAME( KIWAY* aKiway, wxWindow* aParent,
         FRAME_T aWindowType, const wxString& aTitle,
@@ -48,6 +96,12 @@ SCH_BASE_FRAME::SCH_BASE_FRAME( KIWAY* aKiway, wxWindow* aParent,
 }
 
 
+
+SCH_BASE_FRAME::~SCH_BASE_FRAME()
+{
+}
+
+
 void SCH_BASE_FRAME::OnOpenLibraryViewer( wxCommandEvent& event )
 {
     LIB_VIEW_FRAME* viewlibFrame = (LIB_VIEW_FRAME*) Kiway().Player( FRAME_SCH_VIEWER, true );
@@ -62,16 +116,18 @@ void SCH_BASE_FRAME::OnOpenLibraryViewer( wxCommandEvent& event )
     viewlibFrame->Raise();
 }
 
+
 // Virtual from EDA_DRAW_FRAME
-EDA_COLOR_T SCH_BASE_FRAME::GetDrawBgColor() const
+COLOR4D SCH_BASE_FRAME::GetDrawBgColor() const
 {
-    return GetLayerColor( LAYER_BACKGROUND );
+    return GetLayerColor( LAYER_SCHEMATIC_BACKGROUND );
 }
 
-void SCH_BASE_FRAME::SetDrawBgColor( EDA_COLOR_T aColor)
+
+void SCH_BASE_FRAME::SetDrawBgColor( COLOR4D aColor )
 {
     m_drawBgColor= aColor;
-    SetLayerColor( aColor, LAYER_BACKGROUND );
+    SetLayerColor( aColor, LAYER_SCHEMATIC_BACKGROUND );
 }
 
 
@@ -80,10 +136,12 @@ SCH_SCREEN* SCH_BASE_FRAME::GetScreen() const
     return (SCH_SCREEN*) EDA_DRAW_FRAME::GetScreen();
 }
 
+
 const wxString SCH_BASE_FRAME::GetZoomLevelIndicator() const
 {
     return EDA_DRAW_FRAME::GetZoomLevelIndicator();
 }
+
 
 void SCH_BASE_FRAME::SetPageSettings( const PAGE_INFO& aPageSettings )
 {
@@ -200,4 +258,101 @@ void SCH_BASE_FRAME::UpdateStatusBar()
 
     // refresh units display
     DisplayUnitsMsg();
+}
+
+
+void SCH_BASE_FRAME::OnConfigurePaths( wxCommandEvent& aEvent )
+{
+    Pgm().ConfigurePaths( this );
+}
+
+
+void SCH_BASE_FRAME::OnEditSymbolLibTable( wxCommandEvent& aEvent )
+{
+    DIALOG_SYMBOL_LIB_TABLE dlg( this, &SYMBOL_LIB_TABLE::GetGlobalLibTable(),
+                                 Prj().SchSymbolLibTable() );
+
+    if( dlg.ShowModal() == wxID_CANCEL )
+        return;
+
+    saveSymbolLibTables( true, true );
+
+    LIB_EDIT_FRAME* editor = (LIB_EDIT_FRAME*) Kiway().Player( FRAME_SCH_LIB_EDITOR, false );
+
+    if( this == editor )
+    {
+        // There may be no parent window so use KIWAY message to refresh the schematic editor
+        // in case any symbols have changed.
+        Kiway().ExpressMail( FRAME_SCH, MAIL_SCH_REFRESH, std::string( "" ), this );
+    }
+
+    LIB_VIEW_FRAME* viewer = (LIB_VIEW_FRAME*) Kiway().Player( FRAME_SCH_VIEWER, false );
+
+    if( viewer )
+        viewer->ReCreateListLib();
+}
+
+
+LIB_ALIAS* SCH_BASE_FRAME::GetLibAlias( const LIB_ID& aLibId, bool aUseCacheLib,
+                                        bool aShowErrorMsg )
+{
+    // wxCHECK_MSG( aLibId.IsValid(), NULL, "LIB_ID is not valid." );
+
+    PART_LIB* cache = ( aUseCacheLib ) ? Prj().SchLibs()->GetCacheLibrary() : NULL;
+
+    return SchGetLibAlias( aLibId, Prj().SchSymbolLibTable(), cache, this, aShowErrorMsg );
+}
+
+
+LIB_PART* SCH_BASE_FRAME::GetLibPart( const LIB_ID& aLibId, bool aUseCacheLib, bool aShowErrorMsg )
+{
+    // wxCHECK_MSG( aLibId.IsValid(), NULL, "LIB_ID is not valid." );
+
+    PART_LIB* cache = ( aUseCacheLib ) ? Prj().SchLibs()->GetCacheLibrary() : NULL;
+
+    return SchGetLibPart( aLibId, Prj().SchSymbolLibTable(), cache, this, aShowErrorMsg );
+}
+
+
+bool SCH_BASE_FRAME::saveSymbolLibTables( bool aGlobal, bool aProject )
+{
+    bool success = true;
+
+    if( aGlobal )
+    {
+        try
+        {
+            FILE_OUTPUTFORMATTER sf( SYMBOL_LIB_TABLE::GetGlobalTableFileName() );
+
+            SYMBOL_LIB_TABLE::GetGlobalLibTable().Format( &sf, 0 );
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            success = false;
+            wxString msg = wxString::Format( _( "Error occurred saving the global symbol library "
+                                                "table:\n\n%s" ),
+                                            GetChars( ioe.What().GetData() ) );
+            wxMessageBox( msg, _( "File Save Error" ), wxOK | wxICON_ERROR );
+        }
+    }
+
+    if( aProject && !Prj().GetProjectName().IsEmpty() )
+    {
+        wxFileName fn( Prj().GetProjectPath(), SYMBOL_LIB_TABLE::GetSymbolLibTableFileName() );
+
+        try
+        {
+            Prj().SchSymbolLibTable()->Save( fn.GetFullPath() );
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            success = false;
+            wxString msg = wxString::Format( _( "Error occurred saving project specific "
+                                                "symbol library table:\n\n%s" ),
+                                             GetChars( ioe.What() ) );
+            wxMessageBox( msg, _( "File Save Error" ), wxOK | wxICON_ERROR );
+        }
+    }
+
+    return success;
 }

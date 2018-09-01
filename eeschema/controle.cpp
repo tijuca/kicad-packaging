@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
  * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,14 +31,15 @@
 #include <gr_basic.h>
 #include <class_drawpanel.h>
 #include <eda_dde.h>
-#include <schframe.h>
+#include <sch_edit_frame.h>
 #include <menus_helpers.h>
 #include <msgpanel.h>
+#include <bitmaps.h>
 
 #include <eeschema_id.h>
 #include <general.h>
 #include <hotkeys.h>
-#include <libeditframe.h>
+#include <lib_edit_frame.h>
 #include <viewlib_frame.h>
 #include <lib_draw_item.h>
 #include <lib_pin.h>
@@ -49,21 +50,26 @@
 
 
 SCH_ITEM* SCH_EDIT_FRAME::LocateAndShowItem( const wxPoint& aPosition, const KICAD_T aFilterList[],
-                                             int aHotKeyCommandId )
+                                             int aHotKeyCommandId,
+                                             bool* aClarificationMenuCancelled )
 {
     SCH_ITEM*      item;
     LIB_PIN*       Pin     = NULL;
-    SCH_COMPONENT* LibItem = NULL;
+    SCH_COMPONENT* component = NULL;
     wxPoint        gridPosition = GetNearestGridPosition( aPosition );
 
     // Check the on grid position first.  There is more likely to be multiple items on
     // grid than off grid.
+    m_canvas->SetAbortRequest( false ); // be sure a old abort request in not pending
     item = LocateItem( gridPosition, aFilterList, aHotKeyCommandId );
 
     // If the user aborted the clarification context menu, don't show it again at the
     // off grid position.
     if( !item && m_canvas->GetAbortRequest() )
     {
+        if( aClarificationMenuCancelled )
+            *aClarificationMenuCancelled = true;
+
         m_canvas->SetAbortRequest( false );
         return NULL;
     }
@@ -73,6 +79,9 @@ SCH_ITEM* SCH_EDIT_FRAME::LocateAndShowItem( const wxPoint& aPosition, const KIC
 
     if( !item )
     {
+        if( aClarificationMenuCancelled )
+            *aClarificationMenuCancelled = m_canvas->GetAbortRequest();
+
         m_canvas->SetAbortRequest( false );  // Just in case the user aborted the context menu.
         return NULL;
     }
@@ -82,20 +91,24 @@ SCH_ITEM* SCH_EDIT_FRAME::LocateAndShowItem( const wxPoint& aPosition, const KIC
     {
     case SCH_FIELD_T:
     case LIB_FIELD_T:
-        LibItem = (SCH_COMPONENT*) item->GetParent();
-        SendMessageToPCBNEW( item, LibItem );
+        component = (SCH_COMPONENT*) item->GetParent();
+        SendMessageToPCBNEW( item, component );
         break;
 
     case SCH_COMPONENT_T:
-        LibItem = (SCH_COMPONENT*) item;
-        SendMessageToPCBNEW( item, LibItem );
+        component = (SCH_COMPONENT*) item;
+        SendMessageToPCBNEW( item, component );
         break;
 
     case LIB_PIN_T:
         Pin = (LIB_PIN*) item;
-        LibItem = (SCH_COMPONENT*) LocateItem( aPosition, SCH_COLLECTOR::ComponentsOnly );
+        component = (SCH_COMPONENT*) LocateItem( aPosition, SCH_COLLECTOR::ComponentsOnly );
         break;
 
+    /* case SCH_SHEET_T: */
+    /*     // This may lag on larger projects */
+    /*     SendMessageToPCBNEW( item, nullptr ); */
+    /*     break; */
     default:
         ;
     }
@@ -105,16 +118,12 @@ SCH_ITEM* SCH_EDIT_FRAME::LocateAndShowItem( const wxPoint& aPosition, const KIC
         // Force display pin information (the previous display could be a component info)
         MSG_PANEL_ITEMS items;
 
-        Pin->GetMsgPanelInfo( items );
-
-        if( LibItem )
-            items.push_back( MSG_PANEL_ITEM( LibItem->GetRef( m_CurrentSheet ),
-                                             LibItem->GetField( VALUE )->GetShownText(), DARKCYAN ) );
+        Pin->GetMsgPanelInfo( items, component );
 
         SetMsgPanel( items );
 
         // Cross probing:2 - pin found, and send a locate pin command to Pcbnew (highlight net)
-        SendMessageToPCBNEW( Pin, LibItem );
+        SendMessageToPCBNEW( Pin, component );
     }
 
     return item;
@@ -150,6 +159,17 @@ SCH_ITEM* SCH_EDIT_FRAME::LocateItem( const wxPoint& aPosition, const KICAD_T aF
                 {
                     item = m_collectedItems[0];
                 }
+                break;
+
+            case HK_MOVE_COMPONENT_OR_ITEM:
+                if( m_collectedItems.GetCount() == 2 &&
+                        dynamic_cast< SCH_SHEET_PIN * >( m_collectedItems[0] ) &&
+                        dynamic_cast< SCH_SHEET * >( m_collectedItems[1] ) )
+                {
+                    item = m_collectedItems[0];
+                }
+                break;
+
             default:
                 ;
             }
@@ -161,9 +181,9 @@ SCH_ITEM* SCH_EDIT_FRAME::LocateItem( const wxPoint& aPosition, const KICAD_T aF
                           wxT( "Select item clarification context menu size limit exceeded." ) );
 
             wxMenu selectMenu;
-            wxMenuItem* title = new wxMenuItem( &selectMenu, wxID_NONE, _( "Clarify Selection" ) );
 
-            selectMenu.Append( title );
+            AddMenuItem( &selectMenu, wxID_NONE, _( "Clarify Selection" ),
+                         KiBitmap( info_xpm ) );
             selectMenu.AppendSeparator();
 
             for( int i = 0;  i < m_collectedItems.GetCount() && i < MAX_SELECT_ITEM_IDS;  i++ )
@@ -173,12 +193,16 @@ SCH_ITEM* SCH_EDIT_FRAME::LocateItem( const wxPoint& aPosition, const KICAD_T aF
                 AddMenuItem( &selectMenu, ID_SELECT_ITEM_START + i, text, KiBitmap( xpm ) );
             }
 
-            // Set to NULL in case user aborts the clarification context menu.
+            // Set to NULL in case the user aborts the clarification context menu.
             GetScreen()->SetCurItem( NULL );
             m_canvas->SetAbortRequest( true );   // Changed to false if an item is selected
             PopupMenu( &selectMenu );
-            m_canvas->MoveCursorToCrossHair();
-            item = GetScreen()->GetCurItem();
+
+            if( !m_canvas->GetAbortRequest() )
+            {
+                m_canvas->MoveCursorToCrossHair();
+                item = GetScreen()->GetCurItem();
+            }
         }
     }
 
@@ -202,10 +226,8 @@ SCH_ITEM* SCH_EDIT_FRAME::LocateItem( const wxPoint& aPosition, const KICAD_T aF
 }
 
 
-bool SCH_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey )
+bool SCH_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, EDA_KEY aHotKey )
 {
-    bool eventHandled = true;
-
     // Filter out the 'fake' mouse motion after a keyboard movement
     if( !aHotKey && m_movingCursorWithKeyboard )
     {
@@ -227,7 +249,7 @@ bool SCH_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
 
     wxPoint pos = aPosition;
     wxPoint oldpos = GetCrossHairPosition();
-    GeneralControlKeyMovement( aHotKey, &pos, snapToGrid );
+    bool keyHandled = GeneralControlKeyMovement( aHotKey, &pos, snapToGrid );
 
     // Update cursor position.
     SetCrossHairPosition( pos, snapToGrid );
@@ -236,23 +258,25 @@ bool SCH_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
     if( aHotKey )
     {
         SCH_SCREEN* screen = GetScreen();
+        bool hk_handled;
 
         if( screen->GetCurItem() && screen->GetCurItem()->GetFlags() )
-            eventHandled = OnHotKey( aDC, aHotKey, aPosition, screen->GetCurItem() );
+            hk_handled = OnHotKey( aDC, aHotKey, aPosition, screen->GetCurItem() );
         else
-            eventHandled = OnHotKey( aDC, aHotKey, aPosition, NULL );
+            hk_handled = OnHotKey( aDC, aHotKey, aPosition, NULL );
+
+        if( hk_handled )
+            keyHandled = true;
     }
 
     UpdateStatusBar();    /* Display cursor coordinates info */
 
-    return eventHandled;
+    return keyHandled;
 }
 
 
-bool LIB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey )
+bool LIB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, EDA_KEY aHotKey )
 {
-    bool eventHandled = true;
-
     // Filter out the 'fake' mouse motion after a keyboard movement
     if( !aHotKey && m_movingCursorWithKeyboard )
     {
@@ -274,24 +298,27 @@ bool LIB_EDIT_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aH
 
     wxPoint pos = aPosition;
     wxPoint oldpos = GetCrossHairPosition();
-    GeneralControlKeyMovement( aHotKey, &pos, snapToGrid );
+    bool keyHandled = GeneralControlKeyMovement( aHotKey, &pos, snapToGrid );
 
     // Update the cursor position.
     SetCrossHairPosition( pos, snapToGrid );
     RefreshCrossHair( oldpos, aPosition, aDC );
 
-    if( aHotKey )
+    if( aHotKey && OnHotKey( aDC, aHotKey, aPosition, NULL ) )
     {
-        eventHandled = OnHotKey( aDC, aHotKey, aPosition, NULL );
+        keyHandled = true;
     }
+
+    // Make sure current-part highlighting doesn't get lost in seleciton highlighting
+    ClearSearchTreeSelection();
 
     UpdateStatusBar();
 
-    return eventHandled;
+    return keyHandled;
 }
 
 
-bool LIB_VIEW_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, int aHotKey )
+bool LIB_VIEW_FRAME::GeneralControl( wxDC* aDC, const wxPoint& aPosition, EDA_KEY aHotKey )
 {
     bool eventHandled = true;
 

@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Mar  9 2015)
+// C++ code generated with wxFormBuilder (version Aug  4 2017)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -43,6 +43,7 @@ class DIALOG_PADS_MASK_CLEARANCE_BASE : public DIALOG_SHIM
 	
 	protected:
 		wxStaticText* m_staticTextInfo;
+		wxStaticText* m_staticTextInfo2;
 		wxStaticLine* m_staticline1;
 		wxStaticText* m_MaskClearanceTitle;
 		wxTextCtrl* m_SolderMaskMarginCtrl;
@@ -71,7 +72,7 @@ class DIALOG_PADS_MASK_CLEARANCE_BASE : public DIALOG_SHIM
 	
 	public:
 		
-		DIALOG_PADS_MASK_CLEARANCE_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Pads Mask Clearance"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 361,304 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_PADS_MASK_CLEARANCE_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Pads Mask Clearance"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 393,332 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_PADS_MASK_CLEARANCE_BASE();
 	
 };

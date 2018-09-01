@@ -49,7 +49,7 @@ DXF2IDF::~DXF2IDF()
 }
 
 
-bool DXF2IDF::ReadDxf( const std::string aFile )
+bool DXF2IDF::ReadDxf( const std::string& aFile )
 {
     dxfRW* reader = new dxfRW( aFile.c_str() );
 
@@ -280,7 +280,6 @@ bool DXF2IDF::WriteOutline( FILE* aFile, bool isInch )
 void DXF2IDF::addHeader( const DRW_Header* data )
 {
     std::map<std::string, DRW_Variant*>::const_iterator it;
-    m_scale = 1.0; // assume no scale factor
 
     for( it = data->vars.begin(); it != data->vars.end(); ++it )
     {

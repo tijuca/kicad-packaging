@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,8 +26,8 @@
 
 #include <fctsys.h>
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
-#include <class_board_design_settings.h>
+#include <pcb_edit_frame.h>
+#include <board_design_settings.h>
 #include <base_units.h>
 
 #include <class_board.h>
@@ -48,8 +48,8 @@ DIALOG_PADS_MASK_CLEARANCE::DIALOG_PADS_MASK_CLEARANCE( PCB_EDIT_FRAME* aParent 
 
     myInit();
     m_sdbButtonsSizerOK->SetDefault();
-    GetSizer()->SetSizeHints( this );
-    Centre();
+    Layout();
+    FinishDialogSettings();
 }
 
 

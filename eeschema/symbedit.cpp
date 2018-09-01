@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2008 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,7 +25,7 @@
 
 /**
  * @file symbedit.cpp
- * @brief Functions to load from and save to file component libraries and symbols.
+ * @brief Functions to load and save individual symbols.
  */
 
 #include <fctsys.h>
@@ -35,14 +35,12 @@
 #include <confirm.h>
 #include <kicad_string.h>
 #include <gestfich.h>
-#include <class_sch_screen.h>
 
-#include <general.h>
-#include <libeditframe.h>
-#include <class_library.h>
+#include <lib_edit_frame.h>
+#include <class_libentry.h>
 #include <wildcards_and_files_ext.h>
-
-#include <boost/foreach.hpp>
+#include <sch_legacy_plugin.h>
+#include <properties.h>
 
 
 void LIB_EDIT_FRAME::LoadOneSymbol()
@@ -50,7 +48,7 @@ void LIB_EDIT_FRAME::LoadOneSymbol()
     LIB_PART*       part = GetCurPart();
 
     // Exit if no library entry is selected or a command is in progress.
-    if( !part || ( m_drawItem && m_drawItem->GetFlags() ) )
+    if( !part || ( GetDrawItem() && GetDrawItem()->GetFlags() ) )
         return;
 
     PROJECT&        prj = Prj();
@@ -59,11 +57,12 @@ void LIB_EDIT_FRAME::LoadOneSymbol()
     m_canvas->SetIgnoreMouseEvents( true );
 
     wxString default_path = prj.GetRString( PROJECT::SCH_LIB_PATH );
+
     if( !default_path )
         default_path = search->LastVisitedPath();
 
-    wxFileDialog dlg( this, _( "Import Symbol Drawings" ), default_path,
-                      wxEmptyString, SchematicSymbolFileWildcard,
+    wxFileDialog dlg( this, _( "Import Symbol" ), default_path,
+                      wxEmptyString, SchematicSymbolFileWildcard(),
                       wxFD_OPEN | wxFD_FILE_MUST_EXIST );
 
     if( dlg.ShowModal() == wxID_CANCEL )
@@ -77,44 +76,54 @@ void LIB_EDIT_FRAME::LoadOneSymbol()
 
     prj.SetRString( PROJECT::SCH_LIB_PATH, filename );
 
-    std::auto_ptr<PART_LIB> lib( new PART_LIB( LIBRARY_TYPE_SYMBOL, filename ) );
+    wxArrayString symbols;
+    SCH_PLUGIN::SCH_PLUGIN_RELEASER pi( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_LEGACY ) );
 
-    wxString err;
+    wxString msg;
 
-    if( !lib->Load( err ) )
+    try
     {
-        wxString msg = wxString::Format( _(
-            "Error '%s' occurred loading part file '%s'." ),
-            GetChars( err ),
-            GetChars( filename )
-            );
-        DisplayError( this, msg );
+        pi->EnumerateSymbolLib( symbols, filename );
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        msg.Printf( _( "Cannot import symbol library \"%s\"." ), filename );
+        DisplayErrorMessage( this, msg, ioe.What() );
         return;
     }
 
-    if( lib->IsEmpty() )
+    if( symbols.empty() )
     {
-        wxString msg = wxString::Format( _(
-            "No parts found in part file '%s'." ),
-            GetChars( filename )
-            );
-        DisplayError( this, msg );
+        msg.Printf( _( "Symbol library file \"%s\" is empty." ), filename );
+        DisplayError( this,  msg );
         return;
     }
 
-    if( lib->GetCount() > 1 )
+    if( symbols.GetCount() > 1 )
     {
-        wxString msg = wxString::Format( _(
-            "More than one part in part file '%s'." ),
-            GetChars( filename )
-            );
+        msg.Printf( _( "More than one symbol found in symbol file \"%s\"." ), filename );
         wxMessageBox( msg, _( "Warning" ), wxOK | wxICON_EXCLAMATION, this );
     }
 
-    LIB_PART*   first = lib->GetFirstEntry()->GetPart();
-    LIB_ITEMS&  drawList = first->GetDrawItemList();
+    LIB_ALIAS* alias = nullptr;
 
-    BOOST_FOREACH( LIB_ITEM& item, drawList )
+    try
+    {
+        alias = pi->LoadSymbol( filename, symbols[0] );
+    }
+    catch( const IO_ERROR& )
+    {
+        return;
+    }
+
+    wxCHECK_RET( alias && alias->GetPart(), "Invalid symbol." );
+
+    SaveCopyInUndoList( part );
+
+    LIB_PART* first = alias->GetPart();
+    LIB_ITEMS_CONTAINER& drawList = first->GetDrawItems();
+
+    for( LIB_ITEM& item : drawList )
     {
         if( item.Type() == LIB_FIELD_T )
             continue;
@@ -143,20 +152,25 @@ void LIB_EDIT_FRAME::LoadOneSymbol()
 
 void LIB_EDIT_FRAME::SaveOneSymbol()
 {
-    wxString        msg;
-    PROJECT&        prj = Prj();
-    SEARCH_STACK*   search = prj.SchSearchS();
+    // Export the current part as a symbol (.sym file)
+    // this is the current part without its aliases and doc file
+    // because a .sym file is used to import graphics in a part being edited
     LIB_PART*       part = GetCurPart();
 
-    if( !part || part->GetDrawItemList().empty() )
+    if( !part || part->GetDrawItems().empty() )
         return;
 
+    PROJECT&        prj = Prj();
+    SEARCH_STACK*   search = prj.SchSearchS();
+
     wxString default_path = prj.GetRString( PROJECT::SCH_LIB_PATH );
+
     if( !default_path )
         default_path = search->LastVisitedPath();
 
-    wxFileDialog dlg( this, _( "Export Symbol Drawings" ), default_path,
-                      part->GetName(), SchematicSymbolFileWildcard,
+    wxFileDialog dlg( this, _( "Export Symbol" ), default_path,
+                      part->GetName() + "." + SchematicSymbolFileExtension,
+                      SchematicSymbolFileWildcard(),
                       wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
     if( dlg.ShowModal() == wxID_CANCEL )
@@ -171,99 +185,48 @@ void LIB_EDIT_FRAME::SaveOneSymbol()
 
     prj.SetRString( PROJECT::SCH_LIB_PATH, fn.GetPath() );
 
-    msg.Printf( _( "Saving symbol in '%s'" ), GetChars( fn.GetPath() ) );
+    if( fn.FileExists() )
+    {
+        wxRemove( fn.GetFullPath() );
+    }
+
+    wxString        msg;
+    msg.Printf( _( "Saving symbol in \"%s\"" ), fn.GetPath() );
     SetStatusText( msg );
 
-    wxString line;
-
-    // File header
-    line << wxT( LIBFILE_IDENT ) << wxT( " " ) << LIB_VERSION_MAJOR
-         << wxT( "." ) << LIB_VERSION_MINOR << wxT( "  SYMBOL  " )
-         << wxT( "Date: " ) << DateAndTime() << wxT( "\n" );
-
-    // Component name comment and definition.
-    line << wxT( "# SYMBOL " ) << part->GetName() << wxT( "\n#\nDEF " )
-         << part->GetName() << wxT( " " );
-
-    if( !part->GetReferenceField().GetText().IsEmpty() )
-        line << part->GetReferenceField().GetText() << wxT( " " );
-    else
-        line << wxT( "~ " );
-
-    line << 0 << wxT( " " ) << part->GetPinNameOffset() << wxT( " " );
-
-    if( part->ShowPinNumbers() )
-        line << wxT( "Y " );
-    else
-        line << wxT( "N " );
-
-    if( part->ShowPinNames() )
-        line << wxT( "Y " );
-    else
-        line << wxT( "N " );
-
-    line << wxT( "1 0 N\n" );
+    SCH_PLUGIN::SCH_PLUGIN_RELEASER pi( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_LEGACY ) );
 
     try
     {
-        FILE_OUTPUTFORMATTER    formatter( fn.GetFullPath() );
+        PROPERTIES nodoc_props;     // Doc file is useless for a .sym file
+        nodoc_props[ SCH_LEGACY_PLUGIN::PropNoDocFile ] = "";
+        pi->CreateSymbolLib( fn.GetFullPath(), &nodoc_props );
 
-        try
-        {
-            formatter.Print( 0, "%s", TO_UTF8( line ) );
-            part->GetReferenceField().Save( formatter );
-            part->GetValueField().Save( formatter );
-            formatter.Print( 0, "DRAW\n" );
-
-            LIB_ITEMS& drawList = part->GetDrawItemList();
-
-            BOOST_FOREACH( LIB_ITEM& item, drawList )
-            {
-                if( item.Type() == LIB_FIELD_T )
-                    continue;
-
-                // Don't save unused parts or alternate body styles.
-                if( m_unit && item.GetUnit() && ( item.GetUnit() != m_unit ) )
-                    continue;
-
-                if( m_convert && item.GetConvert() && ( item.GetConvert() != m_convert ) )
-                    continue;
-
-                item.Save( formatter );
-            }
-
-            formatter.Print( 0, "ENDDRAW\n" );
-            formatter.Print( 0, "ENDDEF\n" );
-        }
-        catch( const IO_ERROR& ioe )
-        {
-            msg.Printf( _( "An error occurred attempting to save symbol file '%s'" ),
-                        GetChars( fn.GetFullPath() ) );
-            DisplayError( this, msg );
-        }
+        LIB_PART* saved_part = new LIB_PART( *part );
+        saved_part->RemoveAllAliases();     // useless in a .sym file
+        pi->SaveSymbol( fn.GetFullPath(), saved_part, &nodoc_props );
     }
     catch( const IO_ERROR& ioe )
     {
-        DisplayError( this, ioe.errorText );
-        return;
+        msg.Printf( _( "An error occurred attempting to save symbol file \"%s\"" ),
+                    fn.GetFullPath() );
+        DisplayErrorMessage( this, msg, ioe.What() );
     }
 }
 
 
 void LIB_EDIT_FRAME::PlaceAnchor()
 {
-    if( LIB_PART*      part = GetCurPart() )
+    if( LIB_PART* part = GetCurPart() )
     {
         const wxPoint& cross_hair = GetCrossHairPosition();
 
         wxPoint offset( -cross_hair.x, cross_hair.y );
-
-        OnModify( );
-
         part->SetOffset( offset );
+        OnModify();
 
         // Redraw the symbol
-        RedrawScreen( wxPoint( 0 , 0 ), true );
+        RedrawScreen( wxPoint( 0, 0 ), true );
         m_canvas->Refresh();
     }
 }

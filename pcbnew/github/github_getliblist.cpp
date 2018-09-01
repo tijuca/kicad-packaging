@@ -35,6 +35,9 @@
  *
  *  This gets just information on the repo in JSON format.
  *
+ *  I used avhttp, already used in the pcbnew Github plugin to download
+ *  the json file.
+ *
  *  JP Charras.
  */
 
@@ -62,10 +65,9 @@ bool GITHUB_GETLIBLIST::Get3DshapesLibsList( wxArrayString* aList,
 
     strcpy( m_option_string, "text/html" );
 
-    wxString repoURL = m_repoURL;
-
     wxString errorMsg;
 
+    wxString repoURL = m_repoURL;
     fullURLCommand = repoURL.utf8_str();
     bool success = remoteGetJSON( fullURLCommand, &errorMsg );
 
@@ -92,7 +94,7 @@ bool GITHUB_GETLIBLIST::GetFootprintLibraryList( wxArrayString& aList )
 {
     std::string fullURLCommand;
     int page = 1;
-    int itemCountMax = 99;              // Do not use a valu > 100, it does not work
+    int itemCountMax = 99;              // Do not use a value >= 100, it does not work
 
     strcpy( m_option_string, "application/json" );
 
@@ -100,7 +102,7 @@ bool GITHUB_GETLIBLIST::GetFootprintLibraryList( wxArrayString& aList )
 
     if( !repoURL2listURL( m_repoURL, &fullURLCommand, itemCountMax, page ) )
     {
-        wxString msg = wxString::Format( _( "malformed URL:\n'%s'" ), GetChars( m_repoURL ) );
+        wxString msg = wxString::Format( _( "malformed URL:\n\"%s\"" ), GetChars( m_repoURL ) );
         wxMessageBox( msg );
         return false;
     }
@@ -229,11 +231,11 @@ bool GITHUB_GETLIBLIST::remoteGetJSON( const std::string& aFullURLCommand, wxStr
     {
         if( aMsgError )
         {
-            UTF8 fmt( _( "Error fetching JSON data from URL '%s'.\nReason: '%s'" ) );
+            UTF8 fmt( _( "Error fetching JSON data from URL \"%s\".\nReason: \"%s\"" ) );
 
             std::string msg = StrPrintf( fmt.c_str(),
                                          aFullURLCommand.c_str(),
-                                         TO_UTF8( ioe.errorText ) );
+                                         TO_UTF8( ioe.What() ) );
 
             *aMsgError = FROM_UTF8( msg.c_str() );
         }

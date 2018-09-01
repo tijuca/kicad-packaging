@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2010-2014 Jean-Pierre Charras  jp.charras at wanadoo.fr
- * Copyright (C) 1992-2014 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -41,13 +41,18 @@ enum gerbview_ids
 
     ID_GERBVIEW_SHOW_LIST_DCODES,
     ID_GERBVIEW_LOAD_DRILL_FILE,
+    ID_GERBVIEW_LOAD_JOB_FILE,
+    ID_GERBVIEW_LOAD_ZIP_ARCHIVE_FILE,
     ID_GERBVIEW_ERASE_ALL,
     ID_TOOLBARH_GERBER_SELECT_ACTIVE_DCODE,
     ID_GERBVIEW_SHOW_SOURCE,
     ID_GERBVIEW_EXPORT_TO_PCBNEW,
 
-    ID_MENU_GERBVIEW_SHOW_HIDE_LAYERS_MANAGER_DIALOG,
     ID_MENU_GERBVIEW_SELECT_PREFERED_EDITOR,
+
+    ID_GBR_AUX_TOOLBAR_PCB_CMP_CHOICE,
+    ID_GBR_AUX_TOOLBAR_PCB_NET_CHOICE,
+    ID_GBR_AUX_TOOLBAR_PCB_APERATTRIBUTES_CHOICE,
 
     // IDs for drill file history (wxID_FILEnn is already in use)
     ID_GERBVIEW_DRILL_FILE,
@@ -61,8 +66,32 @@ enum gerbview_ids
     ID_GERBVIEW_DRILL_FILE8,
     ID_GERBVIEW_DRILL_FILE9,
 
+    // IDs for job file history (wxID_FILEnn is already in use)
+    ID_GERBVIEW_JOB_FILE,
+    ID_GERBVIEW_JOB_FILE1,
+    ID_GERBVIEW_JOB_FILE2,
+    ID_GERBVIEW_JOB_FILE3,
+    ID_GERBVIEW_JOB_FILE4,
+    ID_GERBVIEW_JOB_FILE5,
+    ID_GERBVIEW_JOB_FILE6,
+    ID_GERBVIEW_JOB_FILE7,
+    ID_GERBVIEW_JOB_FILE8,
+    ID_GERBVIEW_JOB_FILE9,
+
+    // IDs for zip file history (wxID_FILEnn is already in use)
+    ID_GERBVIEW_ZIP_FILE,
+    ID_GERBVIEW_ZIP_FILE1,
+    ID_GERBVIEW_ZIP_FILE2,
+    ID_GERBVIEW_ZIP_FILE3,
+    ID_GERBVIEW_ZIP_FILE4,
+    ID_GERBVIEW_ZIP_FILE5,
+    ID_GERBVIEW_ZIP_FILE6,
+    ID_GERBVIEW_ZIP_FILE7,
+    ID_GERBVIEW_ZIP_FILE8,
+    ID_GERBVIEW_ZIP_FILE9,
+
     ID_TOOLBARH_GERBVIEW_SELECT_ACTIVE_LAYER,
-    ID_GERBVIEW_GLOBAL_DELETE,
+    ID_GERBVIEW_ERASE_CURR_LAYER,
     ID_GERBVIEW_OPTIONS_SETUP,
     ID_GERBVIEW_SET_PAGE_BORDER,
     ID_TB_OPTIONS_SHOW_LAYERS_MANAGER_VERTICAL_TOOLBAR,
@@ -74,6 +103,15 @@ enum gerbview_ids
     ID_TB_OPTIONS_SHOW_GBR_MODE_0,
     ID_TB_OPTIONS_SHOW_GBR_MODE_1,
     ID_TB_OPTIONS_SHOW_GBR_MODE_2,
+    ID_TB_OPTIONS_DIFF_MODE,
+    ID_TB_OPTIONS_HIGH_CONTRAST_MODE,
+    ID_TB_MEASUREMENT_TOOL,
+
+    // Right click context menu
+    ID_HIGHLIGHT_REMOVE_ALL,
+    ID_HIGHLIGHT_CMP_ITEMS,
+    ID_HIGHLIGHT_NET_ITEMS,
+    ID_HIGHLIGHT_APER_ATTRIBUTE_ITEMS,
 
     ID_GERBER_END_LIST
 };

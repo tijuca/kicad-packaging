@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
- * Copyright (C) 2014 CERN
+ * Copyright (C) 2014-2017 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
  * This program is free software; you can redistribute it and/or
@@ -25,12 +25,17 @@
 #ifndef EDIT_POINTS_H_
 #define EDIT_POINTS_H_
 
-#include <boost/shared_ptr.hpp>
-
 #include <base_struct.h>
 #include <layers_id_colors_and_visibility.h>
 
+#include <list>
+#include <deque>
+
 #include "edit_constraints.h"
+
+#include <memory>
+
+#include <view/view.h>
 
 /**
  * Class EDIT_POINT
@@ -170,16 +175,16 @@ private:
     VECTOR2I m_position;
 
     ///> Constraint for the point, NULL if none
-    boost::shared_ptr<EDIT_CONSTRAINT<EDIT_POINT> > m_constraint;
+    std::shared_ptr<EDIT_CONSTRAINT<EDIT_POINT> > m_constraint;
 };
 
 
 /**
  * Class EDIT_LINE
  *
- * Represents a line connecting two EDIT_POINTs. That allows to move them both by dragging the
- * EDIT_POINT in the middle. As it uses references to EDIT_POINTs, all coordinates are
- * automatically synchronized.
+ * Represents a line connecting two EDIT_POINTs. That allows one to move them
+ * both by dragging the EDIT_POINT in the middle. As it uses references to
+ * EDIT_POINTs, all coordinates are automatically synchronized.
  */
 class EDIT_LINE : public EDIT_POINT
 {
@@ -197,13 +202,13 @@ public:
     }
 
     ///> @copydoc EDIT_POINT::GetPosition()
-    virtual VECTOR2I GetPosition() const
+    virtual VECTOR2I GetPosition() const override
     {
         return ( m_origin.GetPosition() + m_end.GetPosition() ) / 2;
     }
 
     ///> @copydoc EDIT_POINT::GetPosition()
-    virtual void SetPosition( const VECTOR2I& aPosition )
+    virtual void SetPosition( const VECTOR2I& aPosition ) override
     {
         VECTOR2I difference = aPosition - GetPosition();
 
@@ -212,7 +217,7 @@ public:
     }
 
     ///> @copydoc EDIT_POINT::ApplyConstraint()
-    virtual void ApplyConstraint()
+    virtual void ApplyConstraint() override
     {
         m_origin.ApplyConstraint();
         m_end.ApplyConstraint();
@@ -288,7 +293,7 @@ private:
     EDIT_POINT& m_end;              ///< End point for a line
 
     ///> Constraint for the point, NULL if none
-    boost::shared_ptr<EDIT_CONSTRAINT<EDIT_LINE> > m_constraint;
+    std::shared_ptr<EDIT_CONSTRAINT<EDIT_LINE> > m_constraint;
 };
 
 
@@ -313,7 +318,7 @@ public:
      * Returns a point that is at given coordinates or NULL if there is no such point.
      * @param aLocation is the location for searched point.
      */
-    EDIT_POINT* FindPoint( const VECTOR2I& aLocation );
+    EDIT_POINT* FindPoint( const VECTOR2I& aLocation, KIGFX::VIEW *aView );
 
     /**
      * Function GetParent()
@@ -488,23 +493,20 @@ public:
     }
 
     ///> @copydoc VIEW_ITEM::ViewBBox()
-    virtual const BOX2I ViewBBox() const
-    {
-        return m_parent->ViewBBox();
-    }
+    virtual const BOX2I ViewBBox() const override;
 
     ///> @copydoc VIEW_ITEM::ViewDraw()
-    virtual void ViewDraw( int aLayer, KIGFX::GAL* aGal ) const;
+    virtual void ViewDraw( int aLayer, KIGFX::VIEW* aView ) const override;
 
     ///> @copydoc VIEW_ITEM::ViewGetLayers()
-    virtual void ViewGetLayers( int aLayers[], int& aCount ) const
+    virtual void ViewGetLayers( int aLayers[], int& aCount ) const override
     {
         aCount = 1;
-        aLayers[0] = ITEM_GAL_LAYER( GP_OVERLAY );
+        aLayers[0] = LAYER_GP_OVERLAY ;
     }
 
 #if defined(DEBUG)
-    void Show( int x, std::ostream& st ) const
+    void Show( int x, std::ostream& st ) const override
     {
     }
 #endif
@@ -512,7 +514,7 @@ public:
     /** Get class name
      * @return  string "EDIT_POINTS"
      */
-    virtual wxString GetClass() const
+    virtual wxString GetClass() const override
     {
         return wxT( "EDIT_POINTS" );
     }

@@ -2,6 +2,7 @@
 # This program source code file is part of KiCad, a free EDA CAD application.
 #
 # Copyright (C) 2012 CERN.
+# Copyright (C) 2017 KiCad Developers, see AUTHORS.txt for contributors.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -25,6 +26,7 @@
 
 add_net
 allowed
+anchor
 angle
 arc
 arc_segments
@@ -52,10 +54,15 @@ connect
 connect_pads
 copperpour
 crossbar
+custom
+outline
+convexhull
 date
 descr
 die_length
 dimension
+diff_pair_width
+diff_pair_gap
 drawings
 drill
 edge
@@ -115,6 +122,7 @@ none
 not_allowed
 np_thru_hole
 offset
+options
 oval
 pad
 pads
@@ -133,6 +141,7 @@ placed
 plus
 polygon
 portrait
+primitives
 priority
 pts
 radius
@@ -142,6 +151,8 @@ rect_delta
 reference
 right
 rotate
+roundrect
+roundrect_rratio
 scale
 segment
 segment_width
@@ -174,6 +185,7 @@ thru
 thru_hole
 thru_hole_only
 tstamp
+unlocked
 user
 user_trace_width
 user_via

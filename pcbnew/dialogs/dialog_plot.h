@@ -25,10 +25,12 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <fctsys.h>
 #include <class_board.h>
 #include <dialog_plot_base.h>
 #include <pcb_plot_params.h>
+
+// the plot dialog window name, used by wxWidgets
+#define DLG_WINDOW_NAME "plot_dialog-window"
 
 /**
  * Class DIALOG_PLOT is the dialog to set the plot options, and create plot files
@@ -38,9 +40,10 @@ class DIALOG_PLOT : public DIALOG_PLOT_BASE
 {
 public:
     DIALOG_PLOT( PCB_EDIT_FRAME* parent );
+
 private:
     PCB_EDIT_FRAME*     m_parent;
-    BOARD*              m_board;
+    EDA_UNITS_T         m_userUnits;                // units used when creating the dialog
     wxConfigBase*       m_config;
     LSEQ                m_layerList;                // List to hold CheckListBox layer numbers
     double              m_XScaleAdjust;             // X scale factor adjust to compensate
@@ -68,10 +71,14 @@ private:
     void        OnChangeDXFPlotMode( wxCommandEvent& event ) override;
     void        OnSetScaleOpt( wxCommandEvent& event ) override;
     void        CreateDrillFile( wxCommandEvent& event ) override;
+    void        OnGerberX2Checked( wxCommandEvent& event ) override;
+    void        onRunDRC( wxCommandEvent& event ) override;
 
-    // orther functions
+    // other functions
     void        init_Dialog();      // main initialization
+    void        reInitDialog();     // initialization after calling drill dialog
     void        applyPlotSettings();
+    void        doPlot( bool aCheckZones );
     PlotFormat  getPlotFormat();
 
     void        setPlotModeChoiceSelection( EDA_DRAW_MODE_T aPlotMode )

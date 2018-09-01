@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2014 KiCad Developers, see CHANGELOG.TXT for contributors.
+ * Copyright (C) 2014-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -35,6 +35,7 @@
 #include <wx/mimetype.h>
 #include <wx/tokenzr.h>
 #include <wx/filename.h>
+#include <wx/uri.h>
 #include <macros.h>
 
 
@@ -98,14 +99,16 @@ bool GetAssociatedDocument( wxWindow* aParent,
         wxT( "http:" ),
         wxT( "https:" ),
         wxT( "ftp:" ),
-        wxT( "www." )
+        wxT( "www." ),
+        wxT( "file:" )
     };
 
     for( unsigned ii = 0; ii < DIM(url_header); ii++ )
     {
         if( aDocName.First( url_header[ii] ) == 0 )   // looks like an internet url
         {
-            wxLaunchDefaultBrowser( aDocName );
+            wxURI uri( aDocName );
+            wxLaunchDefaultBrowser( uri.BuildURI() );
             return true;
         }
     }
@@ -157,7 +160,7 @@ bool GetAssociatedDocument( wxWindow* aParent,
 
     if( !wxFileExists( fullfilename ) )
     {
-        msg.Printf( _( "Doc File '%s' not found" ), GetChars( aDocName ) );
+        msg.Printf( _( "Doc File \"%s\" not found" ), GetChars( aDocName ) );
         DisplayError( aParent, msg );
         return false;
     }
@@ -166,7 +169,7 @@ bool GetAssociatedDocument( wxWindow* aParent,
 
     wxString file_ext = currentFileName.GetExt();
 
-    if( file_ext == wxT( "pdf" ) )
+    if( file_ext.Lower() == wxT( "pdf" ) )
     {
         success = OpenPDF( fullfilename );
         return success;
@@ -200,7 +203,7 @@ bool GetAssociatedDocument( wxWindow* aParent,
 
     if( !success )
     {
-        msg.Printf( _( "Unknown MIME type for doc file <%s>" ), GetChars( fullfilename ) );
+        msg.Printf( _( "Unknown MIME type for doc file \"%s\"" ), GetChars( fullfilename ) );
         DisplayError( aParent, msg );
     }
 
@@ -208,34 +211,27 @@ bool GetAssociatedDocument( wxWindow* aParent,
 }
 
 
-int KeyWordOk( const wxString& KeyList, const wxString& Database )
+bool KeywordMatch( const wxString& aKeys, const wxString& aDatabase )
 {
-    wxString KeysCopy, DataList;
+    if( aKeys.IsEmpty() )
+        return false;
 
-    if( KeyList.IsEmpty() )
-        return 0;
+    wxStringTokenizer keyTokenizer( aKeys, wxT( ", \t\n\r" ), wxTOKEN_STRTOK );
 
-    KeysCopy = KeyList; KeysCopy.MakeUpper();
-    DataList = Database; DataList.MakeUpper();
-
-    wxStringTokenizer Token( KeysCopy, wxT( " \n\r" ) );
-
-    while( Token.HasMoreTokens() )
+    while( keyTokenizer.HasMoreTokens() )
     {
-        wxString          Key = Token.GetNextToken();
+        wxString key = keyTokenizer.GetNextToken();
 
-        // Search Key in Datalist:
-        wxStringTokenizer Data( DataList, wxT( " \n\r" ) );
+        // Search for key in aDatabase:
+        wxStringTokenizer dataTokenizer( aDatabase, wxT( ", \t\n\r" ), wxTOKEN_STRTOK );
 
-        while( Data.HasMoreTokens() )
+        while( dataTokenizer.HasMoreTokens() )
         {
-            wxString word = Data.GetNextToken();
-
-            if( word == Key )
-                return 1; // Key found !
+            if( dataTokenizer.GetNextToken() == key )
+                return true;
         }
     }
 
     // keyword not found
-    return 0;
+    return false;
 }

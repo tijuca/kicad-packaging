@@ -1,12 +1,8 @@
-/**
- * @file kicad/files-io.cpp
- */
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004-2017 Jean-Pierre Charras
- * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2004-2015 Jean-Pierre Charras
+ * Copyright (C) 2004-2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,46 +22,35 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <fctsys.h>
-#include <pgm_kicad.h>
-#include <kiway.h>
-#include <wx/fs_zip.h>
-#include <wx/zipstrm.h>
-#include <wx/docview.h>
-#include <wx/wfstream.h>
-#include <wx/zstream.h>
+/**
+ * @file kicad/files-io.cpp
+ */
+
+
 #include <wx/dir.h>
+#include <wx/fs_zip.h>
+#include <wx/wfstream.h>
+#include <wx/zipstrm.h>
 
 #include <confirm.h>
-#include <gestfich.h>
-#include <macros.h>
+#include <kiway.h>
+#include "pgm_kicad.h"
+#include "wildcards_and_files_ext.h"
 
-#include <kicad.h>
+#include "kicad.h"
+
 
 #define     ZipFileExtension    wxT( "zip" )
-#define     ZipFileWildcard     _( "Zip file (*.zip)|*.zip" )
 
 
 void KICAD_MANAGER_FRAME::OnFileHistory( wxCommandEvent& event )
 {
-    wxString fn = GetFileFromHistory( event.GetId(),
-                    _( "KiCad project file" ), &Pgm().GetFileHistory() );
+    wxFileName projFileName = GetFileFromHistory( event.GetId(), _( "KiCad project file" ),
+                                                  &PgmTop().GetFileHistory() );
+    if( !projFileName.FileExists() )
+        return;
 
-    if( fn.size() )
-    {
-        // Any open KIFACE's must be closed before changing the project.
-        // We never want a KIWAY_PLAYER open on a KIWAY that isn't in the same project,
-        // and then break one project.
-        // Remember when saving files, the full path is build from the current project path
-        // User is prompted here to close those KIWAY_PLAYERs:
-        if( !Kiway.PlayersClose( false ) )
-            return;
-
-        // We can now set the new project filename and load this project
-        SetProjectFileName( fn );
-        wxCommandEvent cmd( 0, wxID_ANY );
-        OnLoadProject( cmd );
-    }
+    LoadProject( projFileName );
 }
 
 
@@ -76,13 +61,13 @@ void KICAD_MANAGER_FRAME::OnUnarchiveFiles( wxCommandEvent& event )
     fn.SetExt( ZipFileExtension );
 
     wxFileDialog zipfiledlg( this, _( "Unzip Project" ), fn.GetPath(),
-                      fn.GetFullName(), ZipFileWildcard,
-                      wxFD_OPEN | wxFD_FILE_MUST_EXIST );
+                             fn.GetFullName(), ZipFileWildcard(),
+                             wxFD_OPEN | wxFD_FILE_MUST_EXIST );
 
     if( zipfiledlg.ShowModal() == wxID_CANCEL )
         return;
 
-    wxString msg = wxString::Format( _("\nOpen '%s'\n" ), GetChars( zipfiledlg.GetPath() ) );
+    wxString msg = wxString::Format( _( "\nOpen \"%s\"\n" ), GetChars( zipfiledlg.GetPath() ) );
     PrintMsg( msg );
 
     wxDirDialog dirDlg( this, _( "Target Directory" ), fn.GetPath(),
@@ -92,7 +77,7 @@ void KICAD_MANAGER_FRAME::OnUnarchiveFiles( wxCommandEvent& event )
         return;
 
     wxString unzipDir = dirDlg.GetPath() + wxT( "/" );
-    msg.Printf( _( "Unzipping project in '%s'\n" ), GetChars( unzipDir ) );
+    msg.Printf( _( "Unzipping project in \"%s\"\n" ), GetChars( unzipDir ) );
     PrintMsg( msg );
 
     wxFileSystem zipfilesys;
@@ -116,7 +101,7 @@ void KICAD_MANAGER_FRAME::OnUnarchiveFiles( wxCommandEvent& event )
         uzfn.MakeAbsolute( unzipDir );
         wxString unzipfilename = uzfn.GetFullPath();
 
-        msg.Printf( _( "Extract file '%s'" ), GetChars( unzipfilename ) );
+        msg.Printf( _( "Extract file \"%s\"" ), GetChars( unzipfilename ) );
         PrintMsg( msg );
 
         wxInputStream* stream = zipfile->GetStream();
@@ -137,6 +122,12 @@ void KICAD_MANAGER_FRAME::OnUnarchiveFiles( wxCommandEvent& event )
     }
 
     PrintMsg( wxT( "** end **\n" ) );
+
+    if( unzipDir == Prj().GetProjectPath() )
+    {
+        wxCommandEvent dummy;
+        OnRefresh( dummy );
+    }
 }
 
 
@@ -158,7 +149,7 @@ void KICAD_MANAGER_FRAME::OnArchiveFiles( wxCommandEvent& event )
 
     wxFileDialog dlg( this, _( "Archive Project Files" ),
                       fileName.GetPath(), fileName.GetFullName(),
-                      ZipFileWildcard, wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
+                      ZipFileWildcard(), wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
     if( dlg.ShowModal() == wxID_CANCEL )
         return;
@@ -180,7 +171,8 @@ void KICAD_MANAGER_FRAME::OnArchiveFiles( wxCommandEvent& event )
 
     if( !ostream.IsOk() )   // issue to create the file. Perhaps not writable dir
     {
-        wxMessageBox( wxString::Format( _( "Unable to create zip archive file '%s'" ), zipfilename ) );
+        wxMessageBox( wxString::Format( _( "Unable to create zip archive file \"%s\"" ),
+                                        zipfilename ) );
         return;
     }
 
@@ -206,7 +198,7 @@ void KICAD_MANAGER_FRAME::OnArchiveFiles( wxCommandEvent& event )
         curr_fn.MakeRelativeTo( currdirname );
         currFilename = curr_fn.GetFullPath();
 
-        msg.Printf( _( "Archive file <%s>" ), GetChars( currFilename ) );
+        msg.Printf( _( "Archive file \"%s\"" ), GetChars( currFilename ) );
         PrintMsg( msg );
 
         // Read input file and add it to the zip file:
@@ -233,14 +225,14 @@ void KICAD_MANAGER_FRAME::OnArchiveFiles( wxCommandEvent& event )
 
     if( zipstream.Close() )
     {
-        msg.Printf( _( "\nZip archive <%s> created (%d bytes)" ),
+        msg.Printf( _( "\nZip archive \"%s\" created (%d bytes)" ),
                     GetChars( zipfilename ), zipBytesCnt );
         PrintMsg( msg );
         PrintMsg( wxT( "\n** end **\n" ) );
     }
     else
     {
-        msg.Printf( wxT( "Unable to create archive <%s>, abort\n" ),
+        msg.Printf( wxT( "Unable to create archive \"%s\", abort\n" ),
                     GetChars( zipfilename ) );
         PrintMsg( msg );
     }

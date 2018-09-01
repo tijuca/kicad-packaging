@@ -35,6 +35,9 @@
 
 #include <dialog_design_rules_base.h>
 
+#include <float.h>
+#include <wx/valnum.h>
+
 
 class PCB_EDIT_FRAME;
 class BOARD_DESIGN_SETTINGS;
@@ -68,7 +71,12 @@ private:
     BOARD*                  m_Pcb;
     BOARD_DESIGN_SETTINGS*  m_BrdSettings;
 
+    NETCLASSPTR             m_SelectedNetClass;
+
     static int              s_LastTabSelection;     ///< which tab user had open last
+    int                     m_initialRowLabelsSize; ///< the initial width given by wxFormBuilder
+
+    wxFloatingPointValidator< double > m_validator; // Floating point validator
 
     /**
      * A two column table which gets filled once and never loses any elements, so it is
@@ -83,44 +91,52 @@ private:
     std::vector <int> m_TracksWidthList;
 
 private:
-    void OnNetClassesNameLeftClick( wxGridEvent& event ){ event.Skip(); }
-    void OnNetClassesNameRightClick( wxGridEvent& event ){ event.Skip(); }
-    void OnAddNetclassClick( wxCommandEvent& event );
-    void OnRemoveNetclassClick( wxCommandEvent& event );
+    void OnNetClassesNameLeftClick( wxGridEvent& event ) override { event.Skip(); }
+    void OnNetClassesNameRightClick( wxGridEvent& event ) override { event.Skip(); }
+    void OnAddNetclassClick( wxCommandEvent& event ) override;
+    void OnRemoveNetclassClick( wxCommandEvent& event ) override;
+    void CheckAllowMicroVias();
+    void OnAllowMicroVias( wxCommandEvent& event ) override;
 
     /*
      * Called on "Move Up" button click
      * the selected(s) rules are moved up
      * The default netclass is always the first rule
      */
-    void OnMoveUpSelectedNetClass( wxCommandEvent& event );
+    void OnMoveUpSelectedNetClass( wxCommandEvent& event ) override;
 
     /*
      * Called on the left Choice Box selection
      */
-    void OnLeftCBSelection( wxCommandEvent& event );
+    void OnLeftCBSelection( wxCommandEvent& event ) override;
 
     /*
      * Called on the Right Choice Box selection
      */
-    void OnRightCBSelection( wxCommandEvent& event );
+    void OnRightCBSelection( wxCommandEvent& event ) override;
 
-    void OnRightToLeftCopyButton( wxCommandEvent& event );
-    void OnLeftToRightCopyButton( wxCommandEvent& event );
+    void OnRightToLeftCopyButton( wxCommandEvent& event ) override;
+    void OnLeftToRightCopyButton( wxCommandEvent& event ) override;
 
-    void OnNotebookPageChanged( wxNotebookEvent& event );
+    void OnNotebookPageChanged( wxNotebookEvent& event ) override;
 
     /*
      * Called on clicking the left "select all" button:
      * select all items of the left netname list list box
      */
-    void OnLeftSelectAllButton( wxCommandEvent& event );
+    void OnLeftSelectAllButton( wxCommandEvent& event ) override;
 
     /*
      * Called on clicking the right "select all" button:
      * select all items of the right netname list list box
      */
-    void OnRightSelectAllButton( wxCommandEvent& event );
+    void OnRightSelectAllButton( wxCommandEvent& event ) override;
+
+    /*
+     * Function SetDataValidators
+     * adds numerical validators to relevant text input boxes
+     */
+    void SetDataValidators( void );
 
     /*
      * Function TestDataValidity
@@ -184,7 +200,7 @@ public:
     DIALOG_DESIGN_RULES( PCB_EDIT_FRAME* parent );
     ~DIALOG_DESIGN_RULES( ) { }
 
-    virtual bool TransferDataFromWindow();
+    virtual bool TransferDataFromWindow() override;
 };
 
 #endif //__dialog_design_rules_h_

@@ -33,7 +33,7 @@
 #include <common.h>
 #include <macros.h>
 #include <base_struct.h>
-#include <class_base_screen.h>
+#include <base_screen.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
 #include <block_commande.h>
@@ -50,6 +50,7 @@ BLOCK_SELECTOR::BLOCK_SELECTOR() :
 
 BLOCK_SELECTOR::~BLOCK_SELECTOR()
 {
+    ClearListAndDeleteItems();
 }
 
 
@@ -76,16 +77,16 @@ void BLOCK_SELECTOR::SetMessageBlock( EDA_DRAW_FRAME* frame )
         msg = _( "Drag item" );
         break;
 
-    case BLOCK_COPY:     // Copy
-        msg = _( "Block Copy" );
+    case BLOCK_DUPLICATE:     // Duplicate
+        msg = _( "Block Duplicate" );
         break;
 
     case BLOCK_DELETE:     // Delete
         msg = _( "Block Delete" );
         break;
 
-    case BLOCK_SAVE:     // Save
-        msg = _( "Block Save" );
+    case BLOCK_COPY:     // Copy
+        msg = _( "Block Copy" );
         break;
 
     case BLOCK_PASTE:
@@ -93,7 +94,7 @@ void BLOCK_SELECTOR::SetMessageBlock( EDA_DRAW_FRAME* frame )
         break;
 
     case BLOCK_ZOOM:     // Window Zoom
-        msg = _( "Win Zoom" );
+        msg = _( "Zoom to selection" );
         break;
 
     case BLOCK_ROTATE:     // Rotate 90 deg
@@ -122,7 +123,7 @@ void BLOCK_SELECTOR::SetMessageBlock( EDA_DRAW_FRAME* frame )
 
 
 void BLOCK_SELECTOR::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-                           GR_DRAWMODE aDrawMode, EDA_COLOR_T aColor )
+                           GR_DRAWMODE aDrawMode, COLOR4D aColor )
 {
     if( !aDC )
         return;
@@ -219,8 +220,7 @@ void AbortBlockCurrentCommand( EDA_DRAW_PANEL* aPanel, wxDC* aDC )
         screen->SetCurItem( NULL );
 
         // Delete the picked wrapper if this is a picked list.
-        if( screen->m_BlockLocate.GetCommand() != BLOCK_PASTE )
-            screen->m_BlockLocate.ClearItemsList();
+        screen->m_BlockLocate.ClearItemsList();
     }
 
     screen->m_BlockLocate.SetState( STATE_NO_BLOCK );

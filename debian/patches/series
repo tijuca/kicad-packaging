@@ -1,8 +1,7 @@
 fixes/Modifing-the-Exec-cmd-in-the-desktop-files.patch
-debian-hacks/Adding-needed-SVG-files-and-additinal-arrays.patch
 porting-kfreebsd-hurd/Fix-FTBFS-on-kFreeBSD-and-Hurd.patch
-fixes/Fix-FTBFS-with-Boost-1.61.patch
-fixes/Fixing-some-spelling-issues.patch
-fixes/Add-missing-dependency-github_plugin-pcbcommon.patch
 reproducibility/add-field-revdate-to-asciidoc-files-of-documentation.patch
 debian-hacks/Removing-hyphen-inside-KICAD_FULL_VERSION.patch
+debian-hacks/Remove-specific-Japanese-translation-within-pcbnew.adoc.patch
+fixes/Add-German-translations-entries-to-appdata.xml.patch
+fixes/Adjust-RTree-default-floating-point-to-use-double.patch

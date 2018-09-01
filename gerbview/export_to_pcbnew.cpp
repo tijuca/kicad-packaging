@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2007-2014 Jean-Pierre Charras  jp.charras at wanadoo.fr
- * Copyright (C) 1992-2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -33,13 +33,11 @@
 #include <common.h>
 #include <confirm.h>
 #include <macros.h>
-#include <kicad_string.h>
-#include <gestfich.h>
 #include <trigo.h>
 #include <gerbview.h>
 #include <gerbview_frame.h>
-#include <class_gerber_draw_item.h>
-#include <class_GERBER.h>
+#include <gerber_file_image.h>
+#include <gerber_file_image_list.h>
 #include <select_layers_to_pcb.h>
 #include <build_version.h>
 #include <wildcards_and_files_ext.h>
@@ -49,8 +47,6 @@
 extern const wxString GetPCBDefaultLayerName( LAYER_NUM aLayerNumber );
 
 #define TO_PCB_UNIT( x ) ( x / IU_PER_MM)
-
-#define TRACK_TYPE  0
 
 /* A helper class to export a Gerber set of files to Pcbnew
  */
@@ -76,7 +72,6 @@ public:
 
 private:
     /**
-     * Function export_non_copper_item
      * write a non copper line or arc to the board file.
      * @param aGbrItem = the Gerber item (line, arc) to export
      * @param aLayer = the technical layer to use
@@ -84,7 +79,13 @@ private:
     void    export_non_copper_item( GERBER_DRAW_ITEM* aGbrItem, LAYER_NUM aLayer );
 
     /**
-     * Function export_copper_item
+     * write a non copper polygon item to the board file.
+     * @param aGbrItem = the Gerber item (line, arc) to export
+     * @param aLayer = the technical layer to use
+     */
+    void    writePcbPolygonItem( GERBER_DRAW_ITEM* aGbrItem, LAYER_NUM aLayer );
+
+    /**
      * write a track or via) to the board file.
      * @param aGbrItem = the Gerber item (line, arc, flashed) to export
      * @param aLayer = the copper layer to use
@@ -160,10 +161,12 @@ void GERBVIEW_FRAME::ExportDataInPcbnewFormat( wxCommandEvent& event )
 {
     int layercount = 0;
 
+    GERBER_FILE_IMAGE_LIST* images = GetGerberLayout()->GetImagesList();
+
     // Count the Gerber layers which are actually currently used
-    for( LAYER_NUM ii = 0; ii < GERBER_DRAWLAYERS_COUNT; ++ii )
+    for( LAYER_NUM ii = 0; ii < (LAYER_NUM)images->ImagesMaxCount(); ++ii )
     {
-        if( g_GERBER_List.GetGbrImage( ii ) )
+        if( images->GetGbrImage( ii ) )
             layercount++;
     }
 
@@ -177,8 +180,8 @@ void GERBVIEW_FRAME::ExportDataInPcbnewFormat( wxCommandEvent& event )
     wxString        fileName;
     wxString        path = m_mruPath;
 
-    wxFileDialog    filedlg( this, _( "Board file name:" ),
-                             path, fileName, PcbFileWildcard,
+    wxFileDialog    filedlg( this, _( "Board File Name" ),
+                             path, fileName, PcbFileWildcard(),
                              wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
     if( filedlg.ShowModal() == wxID_CANCEL )
@@ -213,7 +216,7 @@ bool GBR_TO_PCB_EXPORTER::ExportPcb( LAYER_NUM* aLayerLookUpTable, int aCopperLa
     if( m_fp == NULL )
     {
         wxString msg;
-        msg.Printf( _( "Cannot create file '%s'" ), GetChars( m_pcb_file_name ) );
+        msg.Printf( _( "Cannot create file \"%s\"" ), GetChars( m_pcb_file_name ) );
         DisplayError( m_gerbview_frame, msg );
         return false;
     }
@@ -224,33 +227,46 @@ bool GBR_TO_PCB_EXPORTER::ExportPcb( LAYER_NUM* aLayerLookUpTable, int aCopperLa
 
     // create an image of gerber data
     // First: non copper layers:
-    GERBER_DRAW_ITEM* gerb_item = m_gerbview_frame->GetItemsList();
-    int pcbCopperLayerMax = 31;
+    const int pcbCopperLayerMax = 31;
+    GERBER_FILE_IMAGE_LIST* images = m_gerbview_frame->GetGerberLayout()->GetImagesList();
 
-    for( ; gerb_item; gerb_item = gerb_item->Next() )
+    for( unsigned layer = 0; layer < images->ImagesMaxCount(); ++layer )
     {
-        int layer = gerb_item->GetLayer();
+        GERBER_FILE_IMAGE* gerber = images->GetGbrImage( layer );
+
+        if( gerber == NULL )    // Graphic layer not yet used
+            continue;
+
         LAYER_NUM pcb_layer_number = aLayerLookUpTable[layer];
 
         if( !IsPcbLayer( pcb_layer_number ) )
             continue;
 
-        if( pcb_layer_number > pcbCopperLayerMax )
+        if( pcb_layer_number <= pcbCopperLayerMax ) // copper layer
+            continue;
+
+        GERBER_DRAW_ITEM* gerb_item = gerber->GetItemsList();
+
+        for( ; gerb_item; gerb_item = gerb_item->Next() )
             export_non_copper_item( gerb_item, pcb_layer_number );
     }
 
     // Copper layers
-    gerb_item = m_gerbview_frame->GetItemsList();
-
-    for( ; gerb_item; gerb_item = gerb_item->Next() )
+    for( unsigned layer = 0; layer < images->ImagesMaxCount(); ++layer )
     {
-        int layer = gerb_item->GetLayer();
+        GERBER_FILE_IMAGE* gerber = images->GetGbrImage( layer );
+
+        if( gerber == NULL )    // Graphic layer not yet used
+            continue;
+
         LAYER_NUM pcb_layer_number = aLayerLookUpTable[layer];
 
         if( pcb_layer_number < 0 || pcb_layer_number > pcbCopperLayerMax )
             continue;
 
-        else
+        GERBER_DRAW_ITEM* gerb_item = gerber->GetItemsList();
+
+        for( ; gerb_item; gerb_item = gerb_item->Next() )
             export_copper_item( gerb_item, pcb_layer_number );
     }
 
@@ -269,6 +285,12 @@ void GBR_TO_PCB_EXPORTER::export_non_copper_item( GERBER_DRAW_ITEM* aGbrItem, LA
     double     angle   = 0;
     wxPoint seg_start   = aGbrItem->m_Start;
     wxPoint seg_end     = aGbrItem->m_End;
+
+    if( aGbrItem->m_Shape == GBR_POLYGON )
+    {
+        writePcbPolygonItem( aGbrItem, aLayer );
+        return;
+    }
 
     if( aGbrItem->m_Shape == GBR_ARC )
     {
@@ -306,6 +328,12 @@ void GBR_TO_PCB_EXPORTER::export_copper_item( GERBER_DRAW_ITEM* aGbrItem, LAYER_
 
     case GBR_ARC:
         export_segarc_copper_item( aGbrItem, aLayer );
+        break;
+
+    case GBR_POLYGON:
+        // Currently: Pcbnew does not really handle polygons on copper layers (no DRC test).
+        // However, we can export them if the purpose of this export is to help recreate a board
+        writePcbPolygonItem( aGbrItem, aLayer );
         break;
 
     default:
@@ -446,7 +474,7 @@ void GBR_TO_PCB_EXPORTER::writePcbHeader( LAYER_NUM* aLayerLookUpTable )
         fprintf( m_fp, "    (%d %s signal)\n", id, TO_UTF8( GetPCBDefaultLayerName( id ) ) );
     }
 
-    for( int ii = B_Adhes; ii < LAYER_ID_COUNT; ii++ )
+    for( int ii = B_Adhes; ii < PCB_LAYER_ID_COUNT; ii++ )
     {
         fprintf( m_fp, "    (%d %s user)\n", ii, TO_UTF8( GetPCBDefaultLayerName( ii ) ) );
     }
@@ -492,4 +520,42 @@ void GBR_TO_PCB_EXPORTER::writePcbLineItem( bool aIsArc, wxPoint& aStart, wxPoin
                  Double2Str( TO_PCB_UNIT( aWidth ) ).c_str()
                  );
     }
+}
+
+
+void GBR_TO_PCB_EXPORTER::writePcbPolygonItem( GERBER_DRAW_ITEM* aGbrItem, LAYER_NUM aLayer )
+{
+    fprintf( m_fp, "(gr_poly (pts " );
+
+    SHAPE_POLY_SET polys = aGbrItem->m_Polygon;
+    SHAPE_LINE_CHAIN& poly = polys.Outline( 0 );
+
+    #define MAX_COORD_CNT 4
+    int jj = MAX_COORD_CNT;
+    int cnt_max = poly.PointCount() -1;
+
+    // Do not generate last corner, if it is the same point as the first point:
+    if( poly.Point( 0 ) == poly.Point( cnt_max ) )
+        cnt_max--;
+
+    for( int ii = 0; ii <= cnt_max; ii++ )
+    {
+        if( --jj == 0 )
+        {
+            jj = MAX_COORD_CNT;
+            fprintf( m_fp, "\n" );
+        }
+
+        fprintf( m_fp, " (xy %s %s)",
+                 Double2Str( TO_PCB_UNIT( poly.Point( ii ).x ) ).c_str(),
+                 Double2Str( TO_PCB_UNIT( -poly.Point( ii ).y ) ).c_str() );
+    }
+
+    fprintf( m_fp, ")" );
+
+    if( jj != MAX_COORD_CNT )
+        fprintf( m_fp, "\n" );
+
+    fprintf( m_fp, "(layer %s) (width 0) )\n",
+             TO_UTF8( GetPCBDefaultLayerName( aLayer ) ) );
 }

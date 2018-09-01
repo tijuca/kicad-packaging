@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004-2012 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,11 +29,9 @@
 #include <gr_basic.h>
 #include <macros.h>
 #include <class_drawpanel.h>
-#include <plot_common.h>
+#include <plotter.h>
 #include <trigo.h>
-#include <wxstruct.h>
 #include <bezier_curves.h>
-#include <richio.h>
 #include <base_units.h>
 #include <msgpanel.h>
 
@@ -42,92 +40,12 @@
 #include <transform.h>
 
 
-LIB_BEZIER::LIB_BEZIER( LIB_PART*      aParent ) :
+LIB_BEZIER::LIB_BEZIER( LIB_PART* aParent ) :
     LIB_ITEM( LIB_BEZIER_T, aParent )
 {
     m_Fill       = NO_FILL;
     m_Width      = 0;
     m_isFillable = true;
-    m_typeName   = _( "Bezier" );
-}
-
-
-bool LIB_BEZIER::Save( OUTPUTFORMATTER& aFormatter )
-{
-    int ccount = GetCornerCount();
-
-    aFormatter.Print( 0, "B %d %d %d %d", ccount, m_Unit, m_Convert, m_Width );
-
-    for( unsigned i = 0; i < GetCornerCount(); i++ )
-    {
-        aFormatter.Print( 0, "  %d %d", m_BezierPoints[i].x, m_BezierPoints[i].y );
-    }
-
-    aFormatter.Print( 0, " %c\n", fill_tab[m_Fill] );
-
-    return true;
-}
-
-
-bool LIB_BEZIER::Load( LINE_READER& aLineReader, wxString& aErrorMsg )
-{
-    char*   p;
-    int     i, ccount = 0;
-    wxPoint pt;
-    char*   line = (char*) aLineReader;
-
-    i = sscanf( line + 2, "%d %d %d %d", &ccount, &m_Unit, &m_Convert, &m_Width );
-
-    if( i !=4 )
-    {
-        aErrorMsg.Printf( _( "Bezier only had %d parameters of the required 4" ), i );
-        return false;
-    }
-
-    if( ccount <= 0 )
-    {
-        aErrorMsg.Printf( _( "Bezier count parameter %d is invalid" ), ccount );
-        return false;
-    }
-
-    strtok( line + 2, " \t\n" );     // Skip field
-    strtok( NULL, " \t\n" );         // Skip field
-    strtok( NULL, " \t\n" );         // Skip field
-    strtok( NULL, " \t\n" );
-
-    for( i = 0; i < ccount; i++ )
-    {
-        p = strtok( NULL, " \t\n" );
-
-        if( sscanf( p, "%d", &pt.x ) != 1 )
-        {
-            aErrorMsg.Printf( _( "Bezier point %d X position not defined" ), i );
-            return false;
-        }
-
-        p = strtok( NULL, " \t\n" );
-
-        if( sscanf( p, "%d", &pt.y ) != 1 )
-        {
-            aErrorMsg.Printf( _( "Bezier point %d Y position not defined" ), i );
-            return false;
-        }
-
-        m_BezierPoints.push_back( pt );
-    }
-
-    m_Fill = NO_FILL;
-
-    if( ( p = strtok( NULL, " \t\n" ) ) != NULL )
-    {
-        if( p[0] == 'F' )
-            m_Fill = FILLED_SHAPE;
-
-        if( p[0] == 'f' )
-            m_Fill = FILLED_WITH_BG_BODYCOLOR;
-    }
-
-    return true;
 }
 
 
@@ -285,17 +203,14 @@ int LIB_BEZIER::GetPenSize() const
 
 
 void LIB_BEZIER::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
-                              EDA_COLOR_T aColor, GR_DRAWMODE aDrawMode, void* aData,
+                              COLOR4D aColor, GR_DRAWMODE aDrawMode, void* aData,
                               const TRANSFORM& aTransform )
 {
     std::vector<wxPoint> PolyPointsTraslated;
 
-    EDA_COLOR_T color = GetLayerColor( LAYER_DEVICE );
-
-    m_PolyPoints = Bezier2Poly( m_BezierPoints[0],
-                                m_BezierPoints[1],
-                                m_BezierPoints[2],
-                                m_BezierPoints[3] );
+    COLOR4D color = GetLayerColor( LAYER_DEVICE );
+    BEZIER_POLY converter( m_BezierPoints );
+    converter.GetPoly( m_PolyPoints );
 
     PolyPointsTraslated.clear();
 
@@ -303,7 +218,7 @@ void LIB_BEZIER::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& 
         PolyPointsTraslated.push_back( aTransform.TransformCoordinate( m_PolyPoints[i] ) +
                                        aOffset );
 
-    if( aColor < 0 )                // Used normal color or selected color
+    if( aColor == COLOR4D::UNSPECIFIED )                // Used normal color or selected color
     {
         if( IsSelected() )
             color = GetItemSelectedColor();
@@ -315,21 +230,22 @@ void LIB_BEZIER::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& 
 
     FILL_T fill = aData ? NO_FILL : m_Fill;
 
-    if( aColor >= 0 )
+    if( aColor != COLOR4D::UNSPECIFIED )
         fill = NO_FILL;
 
     GRSetDrawMode( aDC, aDrawMode );
+    EDA_RECT* const clipbox  = aPanel? aPanel->GetClipBox() : NULL;
 
     if( fill == FILLED_WITH_BG_BODYCOLOR )
-        GRPoly( aPanel->GetClipBox(), aDC, m_PolyPoints.size(),
+        GRPoly( clipbox, aDC, m_PolyPoints.size(),
                 &PolyPointsTraslated[0], 1, GetPenSize(),
                 (m_Flags & IS_MOVED) ? color : GetLayerColor( LAYER_DEVICE_BACKGROUND ),
                 GetLayerColor( LAYER_DEVICE_BACKGROUND ) );
     else if( fill == FILLED_SHAPE  )
-        GRPoly( aPanel->GetClipBox(), aDC, m_PolyPoints.size(),
+        GRPoly( clipbox, aDC, m_PolyPoints.size(),
                 &PolyPointsTraslated[0], 1, GetPenSize(), color, color );
     else
-        GRPoly( aPanel->GetClipBox(), aDC, m_PolyPoints.size(),
+        GRPoly( clipbox, aDC, m_PolyPoints.size(),
                 &PolyPointsTraslated[0], 0, GetPenSize(), color, color );
 
     /* Set to one (1) to draw bounding box around bezier curve to validate

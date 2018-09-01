@@ -1,10 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
+ * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,14 +31,15 @@
 
 #include <fctsys.h>
 #include <macros.h>
-#include <wxstruct.h>
 #include <gr_basic.h>
 #include <bezier_curves.h>
 #include <class_drawpanel.h>
-#include <class_pcb_screen.h>
-#include <colors_selection.h>
+#include <pcb_screen.h>
 #include <trigo.h>
 #include <msgpanel.h>
+#include <bitmaps.h>
+
+#include <pcb_edit_frame.h>
 
 #include <pcbnew.h>
 
@@ -55,7 +56,8 @@ DRAWSEGMENT::DRAWSEGMENT( BOARD_ITEM* aParent, KICAD_T idtype ) :
     m_Angle = 0;
     m_Flags = 0;
     m_Shape = S_SEGMENT;
-    m_Width = Millimeter2iu( 0.15 );    // Gives a decent width
+    // Gives a decent pen size to draw shape:
+    m_Width = m_Shape == S_POLYGON ? 0 : Millimeter2iu( 0.15 );
 }
 
 
@@ -63,34 +65,37 @@ DRAWSEGMENT::~DRAWSEGMENT()
 {
 }
 
-
-const DRAWSEGMENT& DRAWSEGMENT::operator = ( const DRAWSEGMENT& rhs )
+void DRAWSEGMENT::SetPosition( const wxPoint& aPos )
 {
-    // skip the linked list stuff, and parent
-
-    m_Type         = rhs.m_Type;
-    m_Layer        = rhs.m_Layer;
-    m_Width        = rhs.m_Width;
-    m_Start        = rhs.m_Start;
-    m_End          = rhs.m_End;
-    m_Shape        = rhs.m_Shape;
-    m_Angle        = rhs.m_Angle;
-    m_TimeStamp    = rhs.m_TimeStamp;
-    m_BezierC1     = rhs.m_BezierC1;
-    m_BezierC2     = rhs.m_BezierC1;
-    m_BezierPoints = rhs.m_BezierPoints;
-
-    return *this;
+    m_Start = aPos;
 }
 
-
-void DRAWSEGMENT::Copy( DRAWSEGMENT* source )
+const wxPoint DRAWSEGMENT::GetPosition() const
 {
-    if( source == NULL )    // who would do this?
-        return;
-
-    *this = *source;    // operator = ()
+    if( m_Shape == S_POLYGON )
+        return (wxPoint) m_Poly.CVertex( 0 );
+    else
+        return m_Start;
 }
+
+void DRAWSEGMENT::Move( const wxPoint& aMoveVector )
+{
+    m_Start += aMoveVector;
+    m_End   += aMoveVector;
+
+    switch ( m_Shape )
+    {
+    case S_POLYGON:
+        for( auto iter = m_Poly.Iterate(); iter; iter++ )
+        {
+            (*iter) += VECTOR2I( aMoveVector );
+        }
+        break;
+    default:
+        break;
+    }
+}
+
 
 void DRAWSEGMENT::Rotate( const wxPoint& aRotCentre, double aAngle )
 {
@@ -105,9 +110,9 @@ void DRAWSEGMENT::Rotate( const wxPoint& aRotCentre, double aAngle )
         break;
 
     case S_POLYGON:
-        for( unsigned ii = 0; ii < m_PolyPoints.size(); ii++ )
+        for( auto iter = m_Poly.Iterate(); iter; iter++ )
         {
-            RotatePoint( &m_PolyPoints[ii], aRotCentre, aAngle);
+            RotatePoint( *iter, VECTOR2I(aRotCentre), aAngle);
         }
         break;
 
@@ -128,15 +133,27 @@ void DRAWSEGMENT::Rotate( const wxPoint& aRotCentre, double aAngle )
                 + ShowShape( m_Shape ) ) );
         break;
     }
-};
+}
 
 void DRAWSEGMENT::Flip( const wxPoint& aCentre )
 {
     m_Start.y  = aCentre.y - (m_Start.y - aCentre.y);
     m_End.y  = aCentre.y - (m_End.y - aCentre.y);
 
-    if( m_Shape == S_ARC )
+    switch ( m_Shape )
+    {
+    case S_ARC:
         m_Angle = -m_Angle;
+        break;
+    case S_POLYGON:
+        for( auto iter = m_Poly.Iterate(); iter; iter++ )
+        {
+            iter->y  = aCentre.y - (iter->y - aCentre.y);
+        }
+        break;
+    default:
+        break;
+    }
 
     // DRAWSEGMENT items are not allowed on copper layers, so
     // copper layers count is not taken in accoun in Flip transform
@@ -189,7 +206,7 @@ const wxPoint DRAWSEGMENT::GetArcEnd() const
         break;
 
     default:
-        ;
+        break;
     }
 
     return endPoint;   // after rotation, the end of the arc.
@@ -212,15 +229,14 @@ double DRAWSEGMENT::GetArcAngleStart() const
 
 void DRAWSEGMENT::SetAngle( double aAngle )
 {
-    NORMALIZE_ANGLE_360( aAngle );
-
-    m_Angle = aAngle;
+    // m_Angle must be >= -360 and <= +360 degrees
+    m_Angle = NormalizeAngle360Max( aAngle );
 }
 
 
 MODULE* DRAWSEGMENT::GetParentModule() const
 {
-    if( m_Parent->Type() != PCB_MODULE_T )
+    if( !m_Parent || m_Parent->Type() != PCB_MODULE_T )
         return NULL;
 
     return (MODULE*) m_Parent;
@@ -234,22 +250,22 @@ void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
     int l_trace;
     int radius;
 
-    LAYER_ID    curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
-    EDA_COLOR_T color;
+    PCB_LAYER_ID    curr_layer = ( (PCB_SCREEN*) panel->GetScreen() )->m_Active_Layer;
 
     BOARD * brd =  GetBoard( );
 
     if( brd->IsLayerVisible( GetLayer() ) == false )
         return;
 
-    color = brd->GetLayerColor( GetLayer() );
+    auto frame = static_cast<PCB_EDIT_FRAME*> ( panel->GetParent() );
+    auto color = frame->Settings().Colors().GetLayerColor( GetLayer() );
 
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)panel->GetDisplayOptions();
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*) panel->GetDisplayOptions();
 
     if( ( draw_mode & GR_ALLOW_HIGHCONTRAST ) &&  displ_opts && displ_opts->m_ContrastModeDisplay )
     {
         if( !IsOnLayer( curr_layer ) && !IsOnLayer( Edge_Cuts ) )
-            ColorTurnToDarkDarkGray( &color );
+            color = COLOR4D( DARKDARKGRAY );
     }
 
     GRSetDrawMode( DC, draw_mode );
@@ -298,8 +314,13 @@ void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
         }
         else    // Mirrored mode: arc orientation is reversed
         {
+#ifdef __WXMAC__    // wxWidgets OSX print driver handles arc mirroring for us
+            if( StAngle > EndAngle )
+                std::swap( StAngle, EndAngle );
+#else
             if( StAngle < EndAngle )
                 std::swap( StAngle, EndAngle );
+#endif
         }
 
         if( filled )
@@ -318,7 +339,11 @@ void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
         break;
 
     case S_CURVE:
-        m_BezierPoints = Bezier2Poly( m_Start, m_BezierC1, m_BezierC2, m_End );
+        {
+            std::vector<wxPoint> ctrlPoints = { m_Start, m_BezierC1, m_BezierC2, m_End };
+            BEZIER_POLY converter( ctrlPoints );
+            converter.GetPoly( m_BezierPoints );
+        }
 
         for( unsigned int i=1; i < m_BezierPoints.size(); i++ )
         {
@@ -340,6 +365,23 @@ void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
 
         break;
 
+    case S_POLYGON:
+        {
+            SHAPE_POLY_SET& outline = GetPolyShape();
+            // Draw the polygon: only one polygon is expected
+            // However we provide a multi polygon shape drawing
+            // ( for the future or to show a non expected shape )
+            for( int jj = 0; jj < outline.OutlineCount(); ++jj )
+            {
+                SHAPE_LINE_CHAIN& poly = outline.Outline( jj );
+
+                GRClosedPoly( panel->GetClipBox(), DC, poly.PointCount(),
+                        (wxPoint*)&poly.Point( 0 ), FILLED, GetWidth(),
+                        color, color );
+            }
+        }
+        break;
+
     default:
         if( filled )
         {
@@ -354,12 +396,9 @@ void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
     }
 }
 
-
-// see pcbstruct.h
 void DRAWSEGMENT::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 {
     wxString msg;
-    wxASSERT( m_Parent );
 
     msg = _( "Drawing" );
 
@@ -371,12 +410,18 @@ void DRAWSEGMENT::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
     {
     case S_CIRCLE:
         aList.push_back( MSG_PANEL_ITEM( shape, _( "Circle" ), RED ) );
+
+        msg = ::CoordinateToString( GetLineLength( m_Start, m_End ) );
+        aList.push_back( MSG_PANEL_ITEM( _( "Radius" ), msg, RED ) );
         break;
 
     case S_ARC:
         aList.push_back( MSG_PANEL_ITEM( shape, _( "Arc" ), RED ) );
         msg.Printf( wxT( "%.1f" ), m_Angle / 10.0 );
         aList.push_back( MSG_PANEL_ITEM( _( "Angle" ), msg, RED ) );
+
+        msg = ::CoordinateToString( GetLineLength( m_Start, m_End ) );
+        aList.push_back( MSG_PANEL_ITEM( _( "Radius" ), msg, RED ) );
         break;
 
     case S_CURVE:
@@ -391,8 +436,8 @@ void DRAWSEGMENT::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
         aList.push_back( MSG_PANEL_ITEM( _( "Length" ), msg, DARKGREEN ) );
 
         // angle counter-clockwise from 3'o-clock
-        const double deg = RAD2DEG( atan2( m_Start.y - m_End.y,
-                                           m_End.x - m_Start.x ) );
+        const double deg = RAD2DEG( atan2( (double)( m_Start.y - m_End.y ),
+                                           (double)( m_End.x - m_Start.x ) ) );
         msg.Printf( wxT( "%.1f" ), deg );
         aList.push_back( MSG_PANEL_ITEM( _( "Angle" ), msg, DARKGREEN ) );
     }
@@ -432,13 +477,16 @@ const EDA_RECT DRAWSEGMENT::GetBoundingBox() const
         break;
 
     case S_POLYGON:
+        if( m_Poly.IsEmpty() )
+            break;
     {
         wxPoint p_end;
         MODULE* module = GetParentModule();
+        bool first = true;
 
-        for( unsigned ii = 0; ii < m_PolyPoints.size(); ii++ )
+        for( auto iter = m_Poly.CIterate(); iter; iter++ )
         {
-            wxPoint pt = m_PolyPoints[ii];
+            wxPoint pt ( iter->x, iter->y );
 
             if( module ) // Transform, if we belong to a module
             {
@@ -446,21 +494,30 @@ const EDA_RECT DRAWSEGMENT::GetBoundingBox() const
                 pt += module->GetPosition();
             }
 
-            if( ii == 0 )
-                p_end = pt;
 
-            bbox.SetX( std::min( bbox.GetX(), pt.x ) );
-            bbox.SetY( std::min( bbox.GetY(), pt.y ) );
-            p_end.x   = std::max( p_end.x, pt.x );
-            p_end.y   = std::max( p_end.y, pt.y );
+            if( first )
+            {
+                p_end = pt;
+                bbox.SetX( pt.x );
+                bbox.SetY( pt.y );
+                first = false;
+            }
+            else
+            {
+
+                bbox.SetX( std::min( bbox.GetX(), pt.x ) );
+                bbox.SetY( std::min( bbox.GetY(), pt.y ) );
+
+                p_end.x   = std::max( p_end.x, pt.x );
+                p_end.y   = std::max( p_end.y, pt.y );
+            }
         }
 
         bbox.SetEnd( p_end );
-    }
         break;
-
+	}
     default:
-        ;
+        break;
     }
 
     bbox.Inflate( ((m_Width+1) / 2) + 1 );
@@ -532,6 +589,18 @@ bool DRAWSEGMENT::HitTest( const wxPoint& aPosition ) const
         break;
 
     case S_POLYGON:     // not yet handled
+        {
+            #define MAX_DIST_IN_MM 0.25
+            int distmax = Millimeter2iu( 0.25 );
+            SHAPE_POLY_SET::VERTEX_INDEX dummy;
+            auto poly = m_Poly;
+
+            if( poly.CollideVertex( VECTOR2I( aPosition ), dummy, distmax ) )
+                return true;
+
+            if( poly.CollideEdge( VECTOR2I( aPosition ), dummy, distmax ) )
+                return true;
+        }
         break;
 
     default:
@@ -545,51 +614,103 @@ bool DRAWSEGMENT::HitTest( const wxPoint& aPosition ) const
 
 bool DRAWSEGMENT::HitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy ) const
 {
-    wxPoint p1, p2;
-    int radius;
-    float theta;
     EDA_RECT arect = aRect;
+    arect.Normalize();
     arect.Inflate( aAccuracy );
+
+    EDA_RECT arcRect;
+    EDA_RECT bb = GetBoundingBox();
 
     switch( m_Shape )
     {
     case S_CIRCLE:
         // Test if area intersects or contains the circle:
         if( aContained )
-            return arect.Contains( GetBoundingBox() );
+            return arect.Contains( bb );
         else
-            return arect.Intersects( GetBoundingBox() );
+        {
+            // If the rectangle does not intersect the bounding box, this is a much quicker test
+            if( !aRect.Intersects( bb ) )
+            {
+                return false;
+            }
+            else
+            {
+                return arect.IntersectsCircleEdge( GetCenter(), GetRadius(), GetWidth() );
+            }
+
+        }
         break;
 
     case S_ARC:
-        radius = hypot( (double)( GetEnd().x - GetStart().x ),
-                        (double)( GetEnd().y - GetStart().y ) );
-        theta  = std::atan2( GetEnd().y - GetStart().y , GetEnd().x - GetStart().x );
-
-        //Approximate the arc with two lines. This should be accurate enough for selection.
-        p1.x   = radius * std::cos( theta + M_PI/4 ) + GetStart().x;
-        p1.y   = radius * std::sin( theta + M_PI/4 ) + GetStart().y;
-        p2.x   = radius * std::cos( theta + M_PI/2 ) + GetStart().x;
-        p2.y   = radius * std::sin( theta + M_PI/2 ) + GetStart().y;
-
+        // Test for full containment of this arc in the rect
         if( aContained )
-            return arect.Contains( GetEnd() ) && aRect.Contains( p1 ) && aRect.Contains( p2 );
+        {
+            return arect.Contains( bb );
+        }
+        // Test if the rect crosses the arc
         else
-            return arect.Intersects( GetEnd(), p1 ) || aRect.Intersects( p1, p2 );
+        {
+            arcRect = bb.Common( arect );
 
+            /* All following tests must pass:
+             * 1. Rectangle must intersect arc BoundingBox
+             * 2. Rectangle must cross the outside of the arc
+             */
+            return arcRect.Intersects( arect ) &&
+                   arcRect.IntersectsCircleEdge( GetCenter(), GetRadius(), GetWidth() );
+        }
         break;
 
     case S_SEGMENT:
         if( aContained )
+        {
             return arect.Contains( GetStart() ) && aRect.Contains( GetEnd() );
+        }
         else
+        {
+            // Account for the width of the line
+            arect.Inflate( GetWidth() / 2 );
             return arect.Intersects( GetStart(), GetEnd() );
+        }
 
         break;
 
-    case S_CURVE:
-    case S_POLYGON:     // not yet handled
+    case S_POLYGON:
+        if( aContained )
+        {
+            return arect.Contains( bb );
+        }
+        else
+        {
+            // Fast test: if aRect is outside the polygon bounding box,
+            // rectangles cannot intersect
+            if( !arect.Intersects( bb ) )
+                return false;
+
+            // Account for the width of the line
+            arect.Inflate( GetWidth() / 2 );
+            int count = m_Poly.TotalVertices();
+
+            for( int ii = 0; ii < count; ii++ )
+            {
+                auto vertex = m_Poly.CVertex( ii );
+                auto vertexNext = m_Poly.CVertex( ( ii + 1 ) % count );
+
+                // Test if the point is within aRect
+                if( arect.Contains( ( wxPoint ) vertex ) )
+                    return true;
+
+                // Test if this edge intersects aRect
+                if( arect.Intersects( ( wxPoint ) vertex, ( wxPoint ) vertexNext ) )
+                    return true;
+            }
+        }
         break;
+
+    case S_CURVE:     // not yet handled
+        break;
+
 
     default:
         wxASSERT_MSG( 0, wxString::Format( "unknown DRAWSEGMENT shape: %d", m_Shape ) );
@@ -610,6 +731,12 @@ wxString DRAWSEGMENT::GetSelectMenuText() const
                  GetChars( temp ), GetChars( GetLayerName() ) );
 
     return text;
+}
+
+
+BITMAP_DEF DRAWSEGMENT::GetMenuImage() const
+{
+    return add_dashed_line_xpm;
 }
 
 
@@ -637,9 +764,10 @@ const BOX2I DRAWSEGMENT::ViewBBox() const
 
 void DRAWSEGMENT::computeArcBBox( EDA_RECT& aBBox ) const
 {
-    aBBox.Merge( m_End );
-    // TODO perhaps the above line can be replaced with this one, so we do not include the center
-    //aBBox.SetOrigin( m_End );
+    // Do not include the center, which is not necessarily
+    // inside the BB of a arc with a small angle
+    aBBox.SetOrigin( m_End );
+
     wxPoint end = m_End;
     RotatePoint( &end, m_Start, -m_Angle );
     aBBox.Merge( end );
@@ -706,4 +834,65 @@ void DRAWSEGMENT::computeArcBBox( EDA_RECT& aBBox ) const
         quarter %= 4;
         angle -= 900;
     }
+}
+
+void DRAWSEGMENT::SetPolyPoints( const std::vector<wxPoint>& aPoints )
+{
+    m_Poly.RemoveAllContours();
+    m_Poly.NewOutline();
+
+    for ( auto p : aPoints )
+    {
+        m_Poly.Append( p.x, p.y );
+    }
+}
+
+
+const std::vector<wxPoint> DRAWSEGMENT::BuildPolyPointsList() const
+{
+    std::vector<wxPoint> rv;
+
+    if( m_Poly.OutlineCount() )
+    {
+        if( m_Poly.COutline( 0 ).PointCount() )
+        {
+            for ( auto iter = m_Poly.CIterate(); iter; iter++ )
+            {
+                rv.push_back( wxPoint( iter->x, iter->y ) );
+            }
+        }
+    }
+
+    return rv;
+}
+
+
+bool DRAWSEGMENT::IsPolyShapeValid() const
+{
+    // return true if the polygonal shape is valid (has more than 2 points)
+    if( GetPolyShape().OutlineCount() == 0 )
+        return false;
+
+    const SHAPE_LINE_CHAIN& outline = ((SHAPE_POLY_SET&)GetPolyShape()).Outline( 0 );
+
+    return outline.PointCount() > 2;
+}
+
+
+int DRAWSEGMENT::GetPointCount() const
+{
+    // return the number of corners of the polygonal shape
+    // this shape is expected to be only one polygon without hole
+    if( GetPolyShape().OutlineCount() )
+        return GetPolyShape().VertexCount( 0 );
+
+    return 0;
+}
+
+
+void DRAWSEGMENT::SwapData( BOARD_ITEM* aImage )
+{
+    assert( aImage->Type() == PCB_LINE_T );
+
+    std::swap( *((DRAWSEGMENT*) this), *((DRAWSEGMENT*) aImage) );
 }

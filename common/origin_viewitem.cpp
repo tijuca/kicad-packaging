@@ -22,43 +22,66 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include <class_drawpanel.h>
+#include <draw_frame.h>
 #include <origin_viewitem.h>
 #include <gal/graphics_abstraction_layer.h>
-#include <class_track.h>
 
 using namespace KIGFX;
 
 ORIGIN_VIEWITEM::ORIGIN_VIEWITEM( const COLOR4D& aColor, MARKER_STYLE aStyle, int aSize, const VECTOR2D& aPosition ) :
-    EDA_ITEM( NOT_USED ),   // this item is never added to a BOARD so it needs no type
+    BOARD_ITEM( nullptr, NOT_USED ),   // this item is never added to a BOARD so it needs no type
     m_position( aPosition ), m_size( aSize ), m_color( aColor ), m_style( aStyle ), m_drawAtZero( false )
 {
+}
+
+
+ORIGIN_VIEWITEM::ORIGIN_VIEWITEM( const VECTOR2D& aPosition, STATUS_FLAGS flags ) :
+    BOARD_ITEM( nullptr, NOT_USED ),   // this item is never added to a BOARD so it needs no type
+    m_position( aPosition ), m_size( NOT_USED ), m_color( UNSPECIFIED_COLOR ), m_style( NONE ), m_drawAtZero( false )
+{
+    SetFlags( flags );
+}
+
+
+ORIGIN_VIEWITEM* ORIGIN_VIEWITEM::Clone() const
+{
+    return new ORIGIN_VIEWITEM( m_color, m_style, m_size, m_position );
 }
 
 
 const BOX2I ORIGIN_VIEWITEM::ViewBBox() const
 {
     BOX2I bbox;
-    bbox.SetMaximum();
+
+    // The origin item doesn't have a fixed size.  It is constant on the screen but
+    // changes the effective BBox size based on the zoom level.
+    // But we can't simply set it to the maximum size as this causes a splitting degeneracy
+    // when compiling for Debian i386.  By modestly adjusting the bbox, we avoid the degeneracy
+    // while keeping the origin visible at all zoom levels
+    bbox.SetSize( VECTOR2I( INT_MAX - 2, INT_MAX - 2 ) );
+    bbox.SetOrigin( VECTOR2I( INT_MIN / 2 + 1,  INT_MIN / 2 + 1 ) );
+
     return bbox;
 }
 
-
-void ORIGIN_VIEWITEM::ViewDraw( int, GAL* aGal ) const
+void ORIGIN_VIEWITEM::ViewDraw( int, VIEW* aView ) const
 {
+    auto gal = aView->GetGAL();
     // Nothing to do if the target shouldn't be drawn at 0,0 and that's where the target is. This
     // mimics the Legacy canvas that doesn't display most targets at 0,0
     if( !m_drawAtZero && ( m_position.x == 0 ) && ( m_position.y == 0 ) )
         return;
 
-    aGal->SetIsStroke( true );
-    aGal->SetIsFill( false );
-    aGal->SetLineWidth( 1 );
-    aGal->SetStrokeColor( m_color );
-    VECTOR2D scaledSize = m_view->ToWorld( VECTOR2D( m_size, m_size ), false );
+    gal->SetIsStroke( true );
+    gal->SetIsFill( false );
+    gal->SetLineWidth( 1 );
+    gal->SetStrokeColor( m_color );
+    VECTOR2D scaledSize = aView->ToWorld( VECTOR2D( m_size, m_size ), false );
 
     // Draw a circle around the marker's centre point if the style demands it
     if( ( m_style == CIRCLE_CROSS ) || ( m_style == CIRCLE_DOT ) || ( m_style == CIRCLE_X ) )
-        aGal->DrawCircle( m_position, scaledSize.x );
+        gal->DrawCircle( m_position, fabs( scaledSize.x ) );
 
     switch( m_style )
     {
@@ -67,22 +90,22 @@ void ORIGIN_VIEWITEM::ViewDraw( int, GAL* aGal ) const
 
         case CROSS:
         case CIRCLE_CROSS:
-            aGal->DrawLine( m_position - VECTOR2D( scaledSize.x, 0 ),
+            gal->DrawLine( m_position - VECTOR2D( scaledSize.x, 0 ),
                             m_position + VECTOR2D( scaledSize.x, 0 ) );
-            aGal->DrawLine( m_position - VECTOR2D( 0, scaledSize.y ),
+            gal->DrawLine( m_position - VECTOR2D( 0, scaledSize.y ),
                             m_position + VECTOR2D( 0, scaledSize.y ) );
             break;
 
         case X:
         case CIRCLE_X:
-            aGal->DrawLine( m_position - scaledSize, m_position + scaledSize );
+            gal->DrawLine( m_position - scaledSize, m_position + scaledSize );
             scaledSize.y = -scaledSize.y;
-            aGal->DrawLine( m_position - scaledSize, m_position + scaledSize );
+            gal->DrawLine( m_position - scaledSize, m_position + scaledSize );
             break;
 
         case DOT:
         case CIRCLE_DOT:
-            aGal->DrawCircle( m_position, scaledSize.x / 4 );
+            gal->DrawCircle( m_position, scaledSize.x / 4 );
             break;
     }
 }

@@ -372,7 +372,7 @@ class comp():
         """
 
         field = self.element.get("field", "name", name)
-        if field == "" and libraryToo:
+        if field == "" and libraryToo and self.libpart:
             field = self.libpart.getField(name)
         return field
 
@@ -394,13 +394,13 @@ class comp():
 
     def getFootprint(self, libraryToo=True):
         ret = self.element.get("footprint")
-        if ret =="" and libraryToo:
+        if ret == "" and libraryToo and self.libpart:
             ret = self.libpart.getFootprint()
         return ret
 
     def getDatasheet(self, libraryToo=True):
         ret = self.element.get("datasheet")
-        if ret == '' and libraryToo:
+        if ret == "" and libraryToo and self.libpart:
             ret = self.libpart.getDatasheet()
         return ret
 
@@ -408,7 +408,7 @@ class comp():
         return self.element.get("tstamp")
 
     def getDescription(self):
-        return self.libpart.getDescription()
+        return self.element.get("libsource", "description")
 
 
 class netlist():
@@ -681,7 +681,12 @@ class netlist():
             ret = c.getField(field, False)
             if ret != '':
                 return ret
-        return group[0].getLibPart().getField(field)
+
+        libpart = group[0].getLibPart()
+        if not libpart:
+            return ''
+
+        return libpart.getField(field)
 
     def getGroupFootprint(self, group):
         """Return the whatever is known about the Footprint by consulting each

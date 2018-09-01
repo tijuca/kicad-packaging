@@ -2,8 +2,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2009-2015 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2015 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2009-2016 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2004-2016 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,12 +32,12 @@
 #include <gr_basic.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <schframe.h>
+#include <sch_edit_frame.h>
 
 #include <general.h>
 #include <class_library.h>
 #include <lib_pin.h>
-#include <protos.h>
+#include <list_operations.h>
 #include <sch_bus_entry.h>
 #include <sch_marker.h>
 #include <sch_junction.h>
@@ -47,22 +47,12 @@
 #include <sch_component.h>
 #include <sch_sheet.h>
 #include <sch_sheet_path.h>
-
-// Imported functions:
-extern void SetSchItemParent( SCH_ITEM* Struct, SCH_SCREEN* Screen );
-extern void MoveItemsInList( PICKED_ITEMS_LIST& aItemsList, const wxPoint aMoveVector );
-extern void RotateListOfItems( PICKED_ITEMS_LIST& aItemsList, wxPoint& Center );
-extern void MirrorX( PICKED_ITEMS_LIST& aItemsList, wxPoint& aMirrorPoint );
-extern void MirrorY( PICKED_ITEMS_LIST& aItemsList, wxPoint& Center );
-extern void DuplicateItemsInList( SCH_SCREEN*        screen,
-                                  PICKED_ITEMS_LIST& aItemsList,
-                                  const wxPoint      aMoveVector );
+#include <list_operations.h>
 
 static void DrawMovingBlockOutlines( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
                                      const wxPoint& aPosition, bool aErase );
 
-
-int SCH_EDIT_FRAME::BlockCommand( int key )
+int SCH_EDIT_FRAME::BlockCommand( EDA_KEY key )
 {
     int cmd = BLOCK_IDLE;
 
@@ -77,7 +67,7 @@ int SCH_EDIT_FRAME::BlockCommand( int key )
         break;
 
     case GR_KB_SHIFT:
-        cmd = BLOCK_COPY;
+        cmd = BLOCK_DUPLICATE;
         break;
 
     case GR_KB_ALT:
@@ -137,12 +127,19 @@ void SCH_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
         if( m_canvas->IsMouseCaptured() )
             m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
 
-        SaveCopyInUndoList( block->GetItems(), UR_MOVED, block->GetMoveVector() );
+        // If the block wasn't changed, don't update the schematic
+        if( block->GetMoveVector() == wxPoint( 0, 0 ) )
+        {
+            // This calls the block-abort command routine on cleanup
+            m_canvas->EndMouseCapture( GetToolId(), m_canvas->GetCurrentCursor() );
+            return;
+        }
+
+        SaveCopyInUndoList( block->GetItems(), UR_CHANGED, false, block->GetMoveVector() );
         MoveItemsInList( block->GetItems(), block->GetMoveVector() );
-        block->ClearItemsList();
         break;
 
-    case BLOCK_COPY:                /* Copy */
+    case BLOCK_DUPLICATE:           /* Duplicate */
     case BLOCK_PRESELECT_MOVE:      /* Move with preselection list*/
         if( m_canvas->IsMouseCaptured() )
             m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
@@ -151,8 +148,6 @@ void SCH_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
 
         SaveCopyInUndoList( block->GetItems(),
                             ( block->GetCommand() == BLOCK_PRESELECT_MOVE ) ? UR_CHANGED : UR_NEW );
-
-        block->ClearItemsList();
         break;
 
     case BLOCK_PASTE:
@@ -160,20 +155,22 @@ void SCH_EDIT_FRAME::HandleBlockPlace( wxDC* DC )
             m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
 
         PasteListOfItems( DC );
-        block->ClearItemsList();
         break;
 
     default:        // others are handled by HandleBlockEnd()
        break;
     }
 
+    CheckListConnections( block->GetItems(), true );
+    block->ClearItemsList();
+    SchematicCleanUp( true );
     OnModify();
 
     // clear dome flags and pointers
     GetScreen()->ClearDrawingState();
     GetScreen()->ClearBlockCommand();
     GetScreen()->SetCurItem( NULL );
-    GetScreen()->TestDanglingEnds( m_canvas, DC );
+    GetScreen()->TestDanglingEnds();
 
     if( block->GetCount() )
     {
@@ -190,6 +187,7 @@ bool SCH_EDIT_FRAME::HandleBlockEnd( wxDC* aDC )
 {
     bool            nextcmd = false;
     bool            zoom_command = false;
+    bool            append = false;
     BLOCK_SELECTOR* block = &GetScreen()->m_BlockLocate;
 
     if( block->GetCount() )
@@ -226,23 +224,22 @@ bool SCH_EDIT_FRAME::HandleBlockEnd( wxDC* aDC )
                 wxPoint rotationPoint = block->Centre();
                 rotationPoint = GetNearestGridPosition( rotationPoint );
                 SetCrossHairPosition( rotationPoint );
-                SaveCopyInUndoList( block->GetItems(), UR_ROTATED, rotationPoint );
+                SaveCopyInUndoList( block->GetItems(), UR_ROTATED, false, rotationPoint );
                 RotateListOfItems( block->GetItems(), rotationPoint );
+                CheckListConnections( block->GetItems(), true );
+                SchematicCleanUp( true );
                 OnModify();
             }
 
             block->ClearItemsList();
-            GetScreen()->TestDanglingEnds( m_canvas, aDC );
+            GetScreen()->TestDanglingEnds();
             m_canvas->Refresh();
             break;
 
         case BLOCK_DRAG:
         case BLOCK_DRAG_ITEM:   // Drag from a drag command
-            GetScreen()->BreakSegmentsOnJunctions();
-            // fall through
-
         case BLOCK_MOVE:
-        case BLOCK_COPY:
+        case BLOCK_DUPLICATE:
             if( block->GetCommand() == BLOCK_DRAG_ITEM &&
                 GetScreen()->GetCurItem() != NULL )
             {
@@ -264,6 +261,9 @@ bool SCH_EDIT_FRAME::HandleBlockEnd( wxDC* aDC )
             {
                 nextcmd = true;
                 GetScreen()->SelectBlockItems();
+                if( block->GetCommand() != BLOCK_DUPLICATE )
+                    block->SetFlags( IS_MOVED );
+
                 m_canvas->CallMouseCapture( aDC, wxDefaultPosition, false );
                 m_canvas->SetMouseCaptureCallback( DrawMovingBlockOutlines );
                 m_canvas->CallMouseCapture( aDC, wxDefaultPosition, false );
@@ -276,21 +276,36 @@ bool SCH_EDIT_FRAME::HandleBlockEnd( wxDC* aDC )
             }
             break;
 
+        case BLOCK_CUT:
         case BLOCK_DELETE:
             GetScreen()->UpdatePickList();
             DrawAndSizingBlockOutlines( m_canvas, aDC, wxDefaultPosition, false );
 
-            if( block->GetCount() )
+            // The CUT variant needs to copy the items from their originial position
+            if( ( block->GetCommand() == BLOCK_CUT ) && block->GetCount() )
             {
-                DeleteItemsInList( m_canvas, block->GetItems() );
-                OnModify();
+                wxPoint move_vector = -GetScreen()->m_BlockLocate.GetLastCursorPosition();
+                copyBlockItems( block->GetItems() );
+                MoveItemsInList( m_blockItems.GetItems(), move_vector );
             }
-            block->ClearItemsList();
-            GetScreen()->TestDanglingEnds( m_canvas, aDC );
+
+            // We set this in a while loop to catch any newly created items
+            // as a result of the delete (e.g. merged wires)
+            while( block->GetCount() )
+            {
+                DeleteItemsInList( block->GetItems(), append );
+                SchematicCleanUp( true );
+                OnModify();
+                block->ClearItemsList();
+                GetScreen()->UpdatePickList();
+                append = true;
+            }
+
+            GetScreen()->TestDanglingEnds();
             m_canvas->Refresh();
             break;
 
-        case BLOCK_SAVE:    // Save a copy of items in paste buffer
+        case BLOCK_COPY:    // Save a copy of items in paste buffer
             GetScreen()->UpdatePickList();
             DrawAndSizingBlockOutlines( m_canvas, aDC, wxDefaultPosition, false );
 
@@ -299,7 +314,7 @@ bool SCH_EDIT_FRAME::HandleBlockEnd( wxDC* aDC )
                 wxPoint move_vector = -GetScreen()->m_BlockLocate.GetLastCursorPosition();
                 copyBlockItems( block->GetItems() );
                 MoveItemsInList( m_blockItems.GetItems(), move_vector );
-             }
+            }
 
             block->ClearItemsList();
             break;
@@ -322,12 +337,14 @@ bool SCH_EDIT_FRAME::HandleBlockEnd( wxDC* aDC )
                 wxPoint mirrorPoint = block->Centre();
                 mirrorPoint = GetNearestGridPosition( mirrorPoint );
                 SetCrossHairPosition( mirrorPoint );
-                SaveCopyInUndoList( block->GetItems(), UR_MIRRORED_X, mirrorPoint );
+                SaveCopyInUndoList( block->GetItems(), UR_MIRRORED_X, false, mirrorPoint );
                 MirrorX( block->GetItems(), mirrorPoint );
+                SchematicCleanUp( true );
                 OnModify();
             }
 
-            GetScreen()->TestDanglingEnds( m_canvas, aDC );
+            block->ClearItemsList();
+            GetScreen()->TestDanglingEnds();
             m_canvas->Refresh();
             break;
 
@@ -341,12 +358,14 @@ bool SCH_EDIT_FRAME::HandleBlockEnd( wxDC* aDC )
                 wxPoint mirrorPoint = block->Centre();
                 mirrorPoint = GetNearestGridPosition( mirrorPoint );
                 SetCrossHairPosition( mirrorPoint );
-                SaveCopyInUndoList( block->GetItems(), UR_MIRRORED_Y, mirrorPoint );
+                SaveCopyInUndoList( block->GetItems(), UR_MIRRORED_Y, false, mirrorPoint );
                 MirrorY( block->GetItems(), mirrorPoint );
+                SchematicCleanUp( true );
                 OnModify();
             }
 
-            GetScreen()->TestDanglingEnds( m_canvas, aDC );
+            block->ClearItemsList();
+            GetScreen()->TestDanglingEnds();
             m_canvas->Refresh();
             break;
 
@@ -433,11 +452,8 @@ void SCH_EDIT_FRAME::copyBlockItems( PICKED_ITEMS_LIST& aItemsList )
         /* Make a copy of the original picked item. */
         SCH_ITEM* copy = DuplicateStruct( (SCH_ITEM*) aItemsList.GetPickedItem( ii ) );
         copy->SetParent( NULL );
-
-        // In list the wrapper is owner of the schematic item, we can use the UR_DELETED
-        // status for the picker because pickers with this status are owner of the picked item
-        // (or TODO ?: create a new status like UR_DUPLICATE)
-        ITEM_PICKER item( copy, UR_DELETED );
+        copy->SetFlags( copy->GetFlags() | UR_TRANSIENT );
+        ITEM_PICKER item( copy, UR_NEW );
 
         m_blockItems.PushItem( item );
     }
@@ -448,7 +464,7 @@ void SCH_EDIT_FRAME::PasteListOfItems( wxDC* DC )
 {
     unsigned       i;
     SCH_ITEM*      item;
-    SCH_SHEET_LIST hierarchy;    // This is the entire schematic hierarcy.
+    SCH_SHEET_LIST hierarchy( g_RootSheet );    // This is the entire schematic hierarcy.
 
     if( m_blockItems.GetCount() == 0 )
     {
@@ -483,7 +499,7 @@ void SCH_EDIT_FRAME::PasteListOfItems( wxDC* DC )
                 wxString msg;
 
                 msg.Printf( _( "The sheet changes cannot be made because the destination "
-                               "sheet already has the sheet <%s> or one of it's subsheets "
+                               "sheet already has the sheet \"%s\" or one of it's subsheets "
                                "as a parent somewhere in the schematic hierarchy." ),
                             GetChars( sheet->GetFileName() ) );
                 DisplayError( this, msg );
@@ -492,10 +508,10 @@ void SCH_EDIT_FRAME::PasteListOfItems( wxDC* DC )
 
             // Duplicate sheet names and sheet time stamps are not valid.  Use a time stamp
             // based sheet name and update the time stamp for each sheet in the block.
-            unsigned long timeStamp = (unsigned long)GetNewTimeStamp();
+            timestamp_t timeStamp = GetNewTimeStamp();
 
-            sheet->SetName( wxString::Format( wxT( "sheet%8.8lX" ), timeStamp ) );
-            sheet->SetTimeStamp( (time_t)timeStamp );
+            sheet->SetName( wxString::Format( wxT( "sheet%8.8lX" ), (unsigned long)timeStamp ) );
+            sheet->SetTimeStamp( timeStamp );
         }
     }
 
@@ -512,8 +528,13 @@ void SCH_EDIT_FRAME::PasteListOfItems( wxDC* DC )
         // Clear annotation and init new time stamp for the new components and sheets:
         if( item->Type() == SCH_COMPONENT_T )
         {
-            ( (SCH_COMPONENT*) item )->SetTimeStamp( GetNewTimeStamp() );
-            ( (SCH_COMPONENT*) item )->ClearAnnotation( NULL );
+            SCH_COMPONENT* cmp = static_cast<SCH_COMPONENT*>( item );
+            cmp->SetTimeStamp( GetNewTimeStamp() );
+
+            // clear the annotation, but preserve the selected unit
+            int unit = cmp->GetUnit();
+            cmp->ClearAnnotation( NULL );
+            cmp->SetUnit( unit );
         }
         else if( item->Type() == SCH_SHEET_T )
         {

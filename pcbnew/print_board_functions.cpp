@@ -27,9 +27,8 @@
 
 #include <fctsys.h>
 #include <class_drawpanel.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <printout_controler.h>
-#include <colors_selection.h>
 #include <class_board.h>
 #include <class_module.h>
 #include <class_edge_mod.h>
@@ -38,7 +37,7 @@
 
 #include <pcbnew.h>
 #include <pcbplot.h>
-#include <module_editor_frame.h>
+#include <footprint_edit_frame.h>
 
 
 static void Print_Module( EDA_DRAW_PANEL* aPanel, wxDC* aDC, MODULE* aModule,
@@ -52,9 +51,8 @@ void FOOTPRINT_EDIT_FRAME::PrintPage( wxDC* aDC,
 {
     const GR_DRAWMODE drawmode = (GR_DRAWMODE) 0;
     int     defaultPenSize = Millimeter2iu( 0.2 );
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)GetDisplayOptions();
-
-    DISPLAY_OPTIONS save_opt;
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*) GetDisplayOptions();
+    PCB_DISPLAY_OPTIONS save_opt;
 
     PRINT_PARAMETERS * printParameters = (PRINT_PARAMETERS*) aData; // can be null
     PRINT_PARAMETERS::DrillShapeOptT drillShapeOpt = PRINT_PARAMETERS::FULL_DRILL_SHAPE;
@@ -68,13 +66,13 @@ void FOOTPRINT_EDIT_FRAME::PrintPage( wxDC* aDC,
     displ_opts->m_DisplayPadFill = true;
     displ_opts->m_DisplayViaFill = true;
     displ_opts->m_DisplayPadNum = false;
-    bool nctmp = GetBoard()->IsElementVisible(NO_CONNECTS_VISIBLE);
-    GetBoard()->SetElementVisibility(NO_CONNECTS_VISIBLE, false);
+    bool nctmp = GetBoard()->IsElementVisible( LAYER_NO_CONNECTS );
+    GetBoard()->SetElementVisibility( LAYER_NO_CONNECTS, false );
     displ_opts->m_DisplayPadIsol    = false;
     displ_opts->m_DisplayModEdgeFill    = FILLED;
     displ_opts->m_DisplayModTextFill    = FILLED;
     displ_opts->m_DisplayPcbTrackFill = true;
-    displ_opts->m_ShowTrackClearanceMode = DO_NOT_SHOW_CLEARANCE;
+    displ_opts->m_ShowTrackClearanceMode = PCB_DISPLAY_OPTIONS::DO_NOT_SHOW_CLEARANCE;
     displ_opts->m_DisplayDrawItemsFill    = FILLED;
     displ_opts->m_DisplayZonesMode    = 0;
     displ_opts->m_DisplayNetNamesMode = 0;
@@ -101,7 +99,7 @@ void FOOTPRINT_EDIT_FRAME::PrintPage( wxDC* aDC,
     m_canvas->SetPrintMirrored( false );
 
     *displ_opts = save_opt;
-    GetBoard()->SetElementVisibility( NO_CONNECTS_VISIBLE, nctmp );
+    GetBoard()->SetElementVisibility( LAYER_NO_CONNECTS, nctmp );
 }
 
 
@@ -111,16 +109,12 @@ void PCB_EDIT_FRAME::PrintPage( wxDC* aDC,
                                 void* aData)
 {
     const GR_DRAWMODE drawmode = (GR_DRAWMODE) 0;
-    DISPLAY_OPTIONS save_opt;
+    PCB_DISPLAY_OPTIONS save_opt;
     BOARD*          Pcb   = GetBoard();
     int             defaultPenSize = Millimeter2iu( 0.2 );
-    bool            onePagePerLayer = false;
 
     PRINT_PARAMETERS* printParameters = (PRINT_PARAMETERS*) aData; // can be null
-    DISPLAY_OPTIONS* displ_opts = (DISPLAY_OPTIONS*)GetDisplayOptions();
-
-    if( printParameters && printParameters->m_OptionPrintPage == 0 )
-        onePagePerLayer = true;
+    auto displ_opts = (PCB_DISPLAY_OPTIONS*) GetDisplayOptions();
 
     PRINT_PARAMETERS::DrillShapeOptT drillShapeOpt = PRINT_PARAMETERS::FULL_DRILL_SHAPE;
 
@@ -132,69 +126,51 @@ void PCB_EDIT_FRAME::PrintPage( wxDC* aDC,
 
     save_opt = *displ_opts;
 
-    LAYER_ID activeLayer = GetScreen()->m_Active_Layer;
+    PCB_LAYER_ID activeLayer = GetScreen()->m_Active_Layer;
 
     displ_opts->m_ContrastModeDisplay = false;
     displ_opts->m_DisplayPadFill = true;
     displ_opts->m_DisplayViaFill = true;
 
-    if( !( aPrintMask & LSET::AllCuMask() ).any() )
-    {
-        if( onePagePerLayer )
-        {
-            // We can print mask layers (solder mask and solder paste) with the actual
-            // pad sizes.  To do that, we must set ContrastModeDisplay to true and set
-            // the GetScreen()->m_Active_Layer to the current printed layer
-            displ_opts->m_ContrastModeDisplay = true;
-            displ_opts->m_DisplayPadFill = true;
+    // Set all board layers as visible, because the print dialog has itself
+    // a layer selection, that have priority over the layer manager setup
+    LSET save_visible_brd_layers = Pcb->GetVisibleLayers();
+    Pcb->SetVisibleLayers( aPrintMask );
 
-            // Calculate the active layer number to print from its mask layer:
-            GetScreen()->m_Active_Layer = B_Cu;
+    int save_visible_brd_elements = Pcb->GetVisibleElements();
+    Pcb->SetElementVisibility( LAYER_PAD_FR, true );
+    Pcb->SetElementVisibility( LAYER_PAD_BK, true );
+    Pcb->SetElementVisibility( LAYER_MOD_TEXT_FR, true );
+    Pcb->SetElementVisibility( LAYER_MOD_TEXT_BK, true );
 
-            for( LAYER_NUM id = LAYER_ID_COUNT-1; id >= 0; --id )
-            {
-                if( aPrintMask[id] )
-                {
-                    GetScreen()->m_Active_Layer = LAYER_ID( id );
-                    break;
-                }
-            }
+    PCB_LAYER_ID layer = aPrintMask.ExtractLayer();
 
-            // pads on Silkscreen layer are usually plot in sketch mode:
-            if( GetScreen()->m_Active_Layer == B_SilkS ||
-                GetScreen()->m_Active_Layer == F_SilkS )
-            {
-                displ_opts->m_DisplayPadFill = false;
-            }
-        }
-        else
-        {
-            displ_opts->m_DisplayPadFill = false;
-        }
-    }
+    // pads on Silkscreen layer are usually printed in sketch mode:
+    if( layer == B_SilkS || layer == F_SilkS )
+        displ_opts->m_DisplayPadFill = false;
 
     displ_opts->m_DisplayPadNum = false;
 
-    bool nctmp = GetBoard()->IsElementVisible( NO_CONNECTS_VISIBLE );
+    bool nctmp = GetBoard()->IsElementVisible( LAYER_NO_CONNECTS );
 
-    GetBoard()->SetElementVisibility( NO_CONNECTS_VISIBLE, false );
+    GetBoard()->SetElementVisibility( LAYER_NO_CONNECTS, false );
 
-    bool anchorsTmp = GetBoard()->IsElementVisible( ANCHOR_VISIBLE );
+    bool anchorsTmp = GetBoard()->IsElementVisible( LAYER_ANCHOR );
 
-    GetBoard()->SetElementVisibility( ANCHOR_VISIBLE, false );
+    GetBoard()->SetElementVisibility( LAYER_ANCHOR, false );
 
     displ_opts->m_DisplayPadIsol = false;
     displ_opts->m_DisplayModEdgeFill = FILLED;
     displ_opts->m_DisplayModTextFill = FILLED;
     displ_opts->m_DisplayPcbTrackFill = true;
-    displ_opts->m_ShowTrackClearanceMode = DO_NOT_SHOW_CLEARANCE;
+    displ_opts->m_ShowTrackClearanceMode = PCB_DISPLAY_OPTIONS::DO_NOT_SHOW_CLEARANCE;
     displ_opts->m_DisplayDrawItemsFill    = FILLED;
     displ_opts->m_DisplayZonesMode    = 0;
     displ_opts->m_DisplayNetNamesMode = 0;
 
     m_canvas->SetPrintMirrored( aPrintMirrorMode );
 
-    for( BOARD_ITEM* item = Pcb->m_Drawings; item; item = item->Next() )
+    for( auto item : Pcb->Drawings() )
     {
         switch( item->Type() )
         {
@@ -223,7 +199,7 @@ void PCB_EDIT_FRAME::PrintPage( wxDC* aDC,
             int         radius = track->GetWidth() / 2;
             const VIA*  via = static_cast<const VIA*>( track );
 
-            EDA_COLOR_T color = g_ColorsSettings.GetItemColor( VIAS_VISIBLE + via->GetViaType() );
+            COLOR4D color = Settings().Colors().GetItemColor( LAYER_VIAS + via->GetViaType() );
 
             GRFilledCircle( m_canvas->GetClipBox(), aDC,
                             via->GetStart().x,
@@ -237,8 +213,8 @@ void PCB_EDIT_FRAME::PrintPage( wxDC* aDC,
         }
     }
 
-    // Outdated: only for compatibility to old boards
-    for( TRACK* track = Pcb->m_Zone; track; track = track->Next() )
+    // Deprecated: only for compatibility with very old boards
+    for( TRACK* track = Pcb->m_SegZoneDeprecated; track; track = track->Next() )
     {
         if( !( aPrintMask & track->GetLayerSet() ).any() )
             continue;
@@ -272,7 +248,7 @@ void PCB_EDIT_FRAME::PrintPage( wxDC* aDC,
     if( drillShapeOpt != PRINT_PARAMETERS::NO_DRILL_SHAPE )
     {
         TRACK*      track = Pcb->m_Track;
-        EDA_COLOR_T color = WHITE;
+        COLOR4D     color = COLOR4D::WHITE;
 
         bool blackpenstate = GetGRForceBlackPenState();
 
@@ -305,11 +281,14 @@ void PCB_EDIT_FRAME::PrintPage( wxDC* aDC,
 
     m_canvas->SetPrintMirrored( false );
 
+    // Restore settings:
     *displ_opts = save_opt;
+    Pcb->SetVisibleLayers( save_visible_brd_layers );
+    Pcb->SetVisibleElements( save_visible_brd_elements );
     GetScreen()->m_Active_Layer = activeLayer;
 
-    GetBoard()->SetElementVisibility( NO_CONNECTS_VISIBLE, nctmp );
-    GetBoard()->SetElementVisibility( ANCHOR_VISIBLE, anchorsTmp );
+    GetBoard()->SetElementVisibility( LAYER_NO_CONNECTS, nctmp );
+    GetBoard()->SetElementVisibility( LAYER_ANCHOR, anchorsTmp );
 }
 
 
@@ -318,7 +297,7 @@ static void Print_Module( EDA_DRAW_PANEL* aPanel, wxDC* aDC, MODULE* aModule,
                           PRINT_PARAMETERS::DrillShapeOptT aDrillShapeOpt )
 {
     // Print pads
-    for( D_PAD* pad = aModule->Pads();  pad;  pad = pad->Next() )
+    for( D_PAD* pad = aModule->PadsList();  pad;  pad = pad->Next() )
     {
         if( !( pad->GetLayerSet() & aMask ).any() )
             continue;
@@ -356,7 +335,7 @@ static void Print_Module( EDA_DRAW_PANEL* aPanel, wxDC* aDC, MODULE* aModule,
     if( aModule->Value().IsVisible() && aMask[aModule->Value().GetLayer()] )
         aModule->Value().Draw( aPanel, aDC, aDraw_mode );
 
-    for( EDA_ITEM* item = aModule->GraphicalItems();  item;  item = item->Next() )
+    for( EDA_ITEM* item = aModule->GraphicalItemsList();  item;  item = item->Next() )
     {
         switch( item->Type() )
         {

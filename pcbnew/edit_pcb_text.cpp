@@ -32,7 +32,7 @@
 #include <gr_basic.h>
 #include <class_drawpanel.h>
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <macros.h>
 
 #include <class_board.h>
@@ -110,7 +110,7 @@ void PCB_EDIT_FRAME::Place_Texte_Pcb( TEXTE_PCB* TextePcb, wxDC* DC )
     if( TextePcb->IsMoving() ) // If moved only
     {
         SaveCopyInUndoList( TextePcb, UR_MOVED,
-                            TextePcb->GetTextPosition() - s_TextCopy.GetTextPosition() );
+                            TextePcb->GetTextPos() - s_TextCopy.GetTextPos() );
     }
     else
     {
@@ -136,7 +136,7 @@ void PCB_EDIT_FRAME::StartMoveTextePcb( TEXTE_PCB* aTextePcb, wxDC* aDC, bool aE
 
     // if it is an existing item: prepare a copy to undo/abort command
     if( !aTextePcb->IsNew() )
-        s_TextCopy.Copy( aTextePcb );
+        s_TextCopy = *aTextePcb;
 
     aTextePcb->SetFlags( IS_MOVED );
     SetMsgPanel( aTextePcb );
@@ -145,7 +145,7 @@ void PCB_EDIT_FRAME::StartMoveTextePcb( TEXTE_PCB* aTextePcb, wxDC* aDC, bool aE
     m_canvas->Refresh();
 #endif
 
-    SetCrossHairPosition( aTextePcb->GetTextPosition() );
+    SetCrossHairPosition( aTextePcb->GetTextPos() );
     m_canvas->MoveCursorToCrossHair();
 
     m_canvas->SetMouseCapture( Move_Texte_Pcb, Abort_Edit_Pcb_Text );
@@ -166,7 +166,7 @@ static void Move_Texte_Pcb( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aP
     if( aErase )
         TextePcb->Draw( aPanel, aDC, GR_XOR );
 
-    TextePcb->SetTextPosition( aPanel->GetParent()->GetCrossHairPosition() );
+    TextePcb->SetTextPos( aPanel->GetParent()->GetCrossHairPosition() );
 
     TextePcb->Draw( aPanel, aDC, GR_XOR );
 }
@@ -192,7 +192,7 @@ TEXTE_PCB* PCB_EDIT_FRAME::CreateTextePcb( wxDC* aDC, TEXTE_PCB* aText )
 
     if( aText )
     {
-        textePcb->Copy( aText );
+        *textePcb = *aText;
         GetBoard()->Add( textePcb );
         textePcb->SetFlags( IS_NEW );
         if( aDC )
@@ -203,7 +203,7 @@ TEXTE_PCB* PCB_EDIT_FRAME::CreateTextePcb( wxDC* aDC, TEXTE_PCB* aText )
         GetBoard()->Add( textePcb );
         textePcb->SetFlags( IS_NEW );
 
-        LAYER_ID layer = GetActiveLayer();
+        PCB_LAYER_ID layer = GetActiveLayer();
 
         textePcb->SetLayer( layer );
 
@@ -214,8 +214,8 @@ TEXTE_PCB* PCB_EDIT_FRAME::CreateTextePcb( wxDC* aDC, TEXTE_PCB* aText )
             )
             textePcb->SetMirrored( true );
 
-        textePcb->SetSize( GetBoard()->GetDesignSettings().m_PcbTextSize );
-        textePcb->SetTextPosition( GetCrossHairPosition() );
+        textePcb->SetTextSize( GetBoard()->GetDesignSettings().m_PcbTextSize );
+        textePcb->SetTextPos( GetCrossHairPosition() );
         textePcb->SetThickness( GetBoard()->GetDesignSettings().m_PcbTextWidth );
 
         InstallTextPCBOptionsFrame( textePcb, aDC );
@@ -237,22 +237,20 @@ TEXTE_PCB* PCB_EDIT_FRAME::CreateTextePcb( wxDC* aDC, TEXTE_PCB* aText )
 
 void PCB_EDIT_FRAME::Rotate_Texte_Pcb( TEXTE_PCB* TextePcb, wxDC* DC )
 {
-    int angle    = 900;
-
     if( TextePcb == NULL )
         return;
 
     // Erase previous text:
     TextePcb->Draw( m_canvas, DC, GR_XOR );
 
-    TextePcb->SetOrientation( TextePcb->GetOrientation() + angle );
+    TextePcb->SetTextAngle( TextePcb->GetTextAngle() + 900 );
 
     // Redraw text in new position:
     TextePcb->Draw( m_canvas, DC, GR_XOR );
     SetMsgPanel( TextePcb );
 
     if( TextePcb->GetFlags() == 0 )    // i.e. not edited, or moved
-        SaveCopyInUndoList( TextePcb, UR_ROTATED, TextePcb->GetTextPosition() );
+        SaveCopyInUndoList( TextePcb, UR_ROTATED, TextePcb->GetTextPos() );
     else                 // set flag edit, to show it was a complex command
         TextePcb->SetFlags( IN_EDIT );
 
@@ -270,13 +268,13 @@ void PCB_EDIT_FRAME::FlipTextePcb( TEXTE_PCB* aTextePcb, wxDC* aDC )
 
     aTextePcb->Draw( m_canvas, aDC, GR_XOR );
 
-    aTextePcb->Flip( aTextePcb->GetTextPosition() );
+    aTextePcb->Flip( aTextePcb->GetTextPos() );
 
     aTextePcb->Draw( m_canvas, aDC, GR_XOR );
     SetMsgPanel( aTextePcb );
 
     if( aTextePcb->GetFlags() == 0 )    // i.e. not edited, or moved
-        SaveCopyInUndoList( aTextePcb, UR_FLIPPED, aTextePcb->GetTextPosition() );
+        SaveCopyInUndoList( aTextePcb, UR_FLIPPED, aTextePcb->GetTextPos() );
     else                 // set edit flag, for the current command
         aTextePcb->SetFlags( IN_EDIT );
 

@@ -1,7 +1,7 @@
 Source: kicad
 Section: electronics
 Priority: optional
-Maintainer: Debian Electronics Team <pkg-electronics-devel@lists.alioth.debian.org>
+Maintainer: Debian Electronics Team <pkg-electronics-devel@alioth-lists.debian.net>
 Uploaders:
  Carsten Schoenert <c.schoenert@t-online.de>,
  Georges Khaznadar <georgesk@debian.org>,
@@ -9,13 +9,15 @@ Build-Depends:
  asciidoc-base,
  asciidoc-dblatex,
  cmake,
+ chrpath,
  dblatex,
- debhelper (>= 9.20120417),
+ debhelper (>= 11),
  dh-python,
  docbook-utils,
  docbook-xsl,
  doxygen,
  dpkg-dev (>= 1.16.1.1~),
+ fonts-freefont-ttf,
  fonts-vlgothic,
  gettext,
  git,
@@ -29,12 +31,16 @@ Build-Depends:
  libboost-program-options-dev,
  libboost-regex-dev,
  libboost-system-dev,
+ libboost-test-dev,
  libboost-thread-dev,
  libbz2-dev,
  libcairo2-dev,
  libcurl4-openssl-dev,
  libglew-dev,
+ libglm-dev,
  liblocale-gettext-perl,
+ liboce-foundation-dev,
+ liboce-ocaf-dev,
  libpython-stdlib,
  libssl-dev,
  libterm-readkey-perl,
@@ -43,15 +49,14 @@ Build-Depends:
  libwxgtk3.0-dev,
  libxml2-utils,
  lmodern,
- pandoc,
  pkg-config,
  po4a,
  python-all,
  python-dev,
- python-wxgtk3.0-dev,
  source-highlight,
  swig,
  texlive-fonts-extra,
+ texlive-lang-chinese,
  texlive-lang-cyrillic,
  texlive-lang-english,
  texlive-lang-european,
@@ -64,24 +69,30 @@ Build-Depends:
  texlive-lang-spanish,
  texlive-xetex,
  xmlto,
-Vcs-Git: https://anonscm.debian.org/cgit/pkg-electronics/kicad.git
-Vcs-Browser: https://anonscm.debian.org/cgit/pkg-electronics/kicad.git
-Standards-Version: 4.0.1
+Vcs-Git: https://salsa.debian.org/electronics-team/KiCad/kicad
+Vcs-Browser: https://salsa.debian.org/electronics-team/KiCad/kicad.git
+Standards-Version: 4.2.0
 Homepage: http://www.kicad-pcb.org
 
 Package: kicad
-Architecture: any
+Architecture: any-amd64 any-i386 arm64 armhf
 Depends:
- kicad-common (>= ${source:Version}),
- python-wxgtk3.0,
+ python-wxgtk3.0 (>= 3.0.2.0+dfsg-7~),
  ${misc:Depends},
  ${python:Depends},
  ${shlibs:Depends},
 Suggests:
  extra-xdg-menus,
- kicad-doc-ca | kicad-doc-de | kicad-doc-en | kicad-doc-es | kicad-doc-fr | kicad-doc-it | kicad-doc-ja | kicad-doc-nl | kicad-doc-pl | kicad-doc-ru,
+ kicad-doc-ca | kicad-doc-de | kicad-doc-en | kicad-doc-es | kicad-doc-fr | kicad-doc-id | kicad-doc-it | kicad-doc-ja | kicad-doc-nl | kicad-doc-pl | kicad-doc-ru | kicad-doc-zh,
+ kicad-packages3d,
 Recommends:
+ kicad-libraries,
+ kicad-demos,
  xsltproc,
+Breaks:
+ kicad-common (<< 5.0.0~rc1+dfsg1-1~),
+Replaces:
+ kicad-common (<< 5.0.0~rc1+dfsg1-1~),
 Description: Electronic schematic and PCB design software
  Kicad is a suite of programs for the creation of printed circuit boards.
  It includes a schematic editor, a PCB layout tool, support tools and a
@@ -105,18 +116,42 @@ Description: Electronic schematic and PCB design software
   * Most components have corresponding 3D models
 
 Package: kicad-common
-Architecture: any
+Architecture: all
+Section: oldlibs
+Depends:
+ kicad-libraries,
+ ${misc:Depends},
+Description: Old common files used by kicad - Transitional Package
+ All the typical used an needed libraries like the schematic symbols, footprints
+ and templates are now provided by the metapackage 'kicad-libraries' which will
+ be pulled from this transitional package.
+ .
+ 3D models are moved over to package kicad-packages3d which is currently only
+ suggested due the installation size.
+ .
+ This is a transitional package. It can be safely removed.
+
+Package: kicad-demos
+Architecture: all
 Multi-Arch: foreign
 Depends:
- python,
  ${misc:Depends},
-Recommends:
- kicad,
-Description: Common files used by kicad
- This package contains the component libararies (schematics and footprints),
- also the 3D modell libraries. Also this package contains the i18n language
- files for KiCad and common used scripts, templates, demos, Python scripting
- plugins and MIME links.
+Suggests:
+ kicad (>= 5.0.0~rc1+dfsg1-1~),
+Provides:
+ kicad-common,
+Breaks:
+ kicad-common (<< 5.0.0~rc1+dfsg1-1~),
+Replaces:
+ kicad-common (<< 5.0.0~rc1+dfsg1-1~),
+Description: Demo projects for kicad
+ The KiCad projects within this package are various typical small use cases
+ which can be used for study or also for build own projects on top of these
+ existing projects.
+ .
+ The projects included are on one side easy and simple projects with classical
+ through hole mounted components with one or two layers but also rather more
+ complex projects based on surface mounted devices (SMD) with multiple layers.
 
 Package: kicad-doc-ca
 Section: doc
@@ -145,6 +180,7 @@ Description: Kicad help files (German)
   * Eeschema -schematic capture editor
   * GerbView - Gerber file viewer (RS 274 X format)
   * GSIK - Getting Started in KiCad
+  * GUI Translation - HowTo Help to do GUI translation
   * IDF Exporter - Export tool for IDFv3 boards and libraries
   * KiCad - The main project editor
   * Pcbnew - The printed circuit board software tool
@@ -164,13 +200,12 @@ Description: Kicad help files (English)
   * Eeschema -schematic capture editor
   * GerbView - Gerber file viewer (RS 274 X format)
   * GSIK - Getting Started in KiCad
+  * GUI Translation - HowTo Help to do GUI translation
   * IDF Exporter - Export tool for IDFv3 boards and libraries
   * KiCad - The main project editor
   * Pcbnew - The printed circuit board software tool
   * PlEditor - The layout editor for custom title block
- .
- You will also find a GUI translation HOWTO inside this package if you want to
- help with translation of the KiCad GUI into new or existing languages.
+  * Plugins - Introduction to the KiCad plugin system
 
 Package: kicad-doc-es
 Section: doc
@@ -214,9 +249,10 @@ Multi-Arch: foreign
 Depends:
  ${misc:Depends},
 Description: Kicad help files (Indonesian)
- This package provides various documentation files for KiCad in Indonesian, like
+ This package provides various documentation files for KiCad in German, like
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
+  * Eeschema -schematic capture editor
   * GSIK - Getting Started in KiCad
   * KiCad - The main project editor
 
@@ -253,10 +289,12 @@ Description: Kicad help files (Japanese)
   * Eeschema -schematic capture editor
   * GerbView - Gerber file viewer (RS 274 X format)
   * GSIK - Getting Started in KiCad
+  * GUI Translation - HowTo Help to do GUI translation
   * IDF Exporter - Export tool for IDFv3 boards and libraries
   * KiCad - The main project editor
   * Pcbnew - The printed circuit board software tool
   * PlEditor - The layout editor for custom title block
+  * Plugins - Introduction to the KiCad plugin system
 
 Package: kicad-doc-nl
 Section: doc
@@ -299,8 +337,56 @@ Description: Kicad help files (Russian)
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
   * CvPcb - Component association of Footprints
+  * Eeschema -schematic capture editor
   * GerbView - Gerber file viewer (RS 274 X format)
   * GSIK - Getting Started in KiCad
+  * GUI Translation - HowTo Help to do GUI translation
   * IDF Exporter - Export tool for IDFv3 boards and libraries
   * KiCad - The main project editor
+  * Pcbnew - The printed circuit board software tool
   * PlEditor - The layout editor for custom title block
+  * Plugins - Introduction to the KiCad plugin system
+
+Package: kicad-doc-zh
+Section: doc
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ ${misc:Depends},
+Description: Kicad help files (Chinese)
+ This package provides various documentation files for KiCad in German, like
+ the EPUB and the PDF files and also the OnLine HTML documentation for:
+ .
+  * CvPcb - Component association of Footprints
+
+Package: kicad-libraries
+Architecture: all
+Section: metapackages
+Multi-Arch: foreign
+Depends:
+ kicad-footprints,
+ kicad-symbols,
+ kicad-templates,
+ ${misc:Depends},
+Suggests:
+ kicad-packages3d,
+Provides:
+ kicad-common,
+Breaks:
+ kicad-common (<< 5.0.0~rc1+dfsg1-1~),
+Replaces:
+ kicad-common (<< 5.0.0~rc1+dfsg1-1~),
+Description: Virtual package providing common used libraries by kicad
+ This package contains dependencies on the component libraries (schematics
+ and footprints), and also on the templates that are used in KiCad.
+ .
+ If you prefer to control the installation of the dependent packages
+  * kicad-footprint
+  * kicad-symbols
+  * kicad-templates
+ you should not install kicad-libraries and install one or more of the above
+ packages.
+ .
+ Note! 3D model libraries are not set as a dependency due the installation
+ size of this package, if you want to use the 3D models you need to install
+ kicad-packages3d separately.

@@ -9,13 +9,13 @@ hurd and *freebsd.
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/include/kiway.h b/include/kiway.h
-index 3ec5af8..c8c919e 100644
+index fd58d91..adbfe12 100644
 --- a/include/kiway.h
 +++ b/include/kiway.h
-@@ -114,7 +114,7 @@ as such!  As such, it is OK to use UTF8 characters:
- // be mangled.
+@@ -116,7 +116,7 @@ as such!  As such, it is OK to use UTF8 characters:
  #define KIFACE_INSTANCE_NAME_AND_VERSION   "KIFACE_1"
  
+ #ifndef SWIG
 -#if defined(__linux__) || defined(__FreeBSD__)
 +#if defined(__linux__) || defined(__GLIBC__) || defined(__FreeBSD__) || defined(__GNU__)
   #define LIB_ENV_VAR    wxT( "LD_LIBRARY_PATH" )

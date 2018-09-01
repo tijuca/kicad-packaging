@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct  8 2012)
+// C++ code generated with wxFormBuilder (version Apr 19 2018)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #include "dialog_layer_selection_base.h"
@@ -26,7 +26,7 @@ DIALOG_LAYER_SELECTION_BASE::DIALOG_LAYER_SELECTION_BASE( wxWindow* parent, wxWi
 	m_leftGridLayers->EnableEditing( false );
 	m_leftGridLayers->EnableGridLines( true );
 	m_leftGridLayers->EnableDragGridSize( false );
-	m_leftGridLayers->SetMargins( 0, 3 );
+	m_leftGridLayers->SetMargins( 5, 3 );
 	
 	// Columns
 	m_leftGridLayers->EnableDragColMove( false );
@@ -45,6 +45,8 @@ DIALOG_LAYER_SELECTION_BASE::DIALOG_LAYER_SELECTION_BASE( wxWindow* parent, wxWi
 	// Cell Defaults
 	m_leftGridLayers->SetDefaultCellBackgroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_MENU ) );
 	m_leftGridLayers->SetDefaultCellAlignment( wxALIGN_LEFT, wxALIGN_TOP );
+	m_leftGridLayers->SetMinSize( wxSize( -1,100 ) );
+	
 	bSizerUpper->Add( m_leftGridLayers, 1, wxALL|wxEXPAND, 5 );
 	
 	m_rightGridLayers = new wxGrid( this, ID_RIGHT_LIST, wxDefaultPosition, wxDefaultSize, 0 );
@@ -54,7 +56,7 @@ DIALOG_LAYER_SELECTION_BASE::DIALOG_LAYER_SELECTION_BASE( wxWindow* parent, wxWi
 	m_rightGridLayers->EnableEditing( false );
 	m_rightGridLayers->EnableGridLines( true );
 	m_rightGridLayers->EnableDragGridSize( false );
-	m_rightGridLayers->SetMargins( 0, 3 );
+	m_rightGridLayers->SetMargins( 5, 3 );
 	
 	// Columns
 	m_rightGridLayers->EnableDragColMove( false );
@@ -75,11 +77,12 @@ DIALOG_LAYER_SELECTION_BASE::DIALOG_LAYER_SELECTION_BASE( wxWindow* parent, wxWi
 	bSizerUpper->Add( m_rightGridLayers, 1, wxALL|wxEXPAND, 5 );
 	
 	
-	bSizerMain->Add( bSizerUpper, 1, wxEXPAND, 5 );
+	bSizerMain->Add( bSizerUpper, 1, wxEXPAND|wxALL, 5 );
 	
 	
 	this->SetSizer( bSizerMain );
 	this->Layout();
+	bSizerMain->Fit( this );
 	
 	this->Centre( wxBOTH );
 	
@@ -113,7 +116,7 @@ DIALOG_COPPER_LAYER_PAIR_SELECTION_BASE::DIALOG_COPPER_LAYER_PAIR_SELECTION_BASE
 	wxBoxSizer* bSizerLeft;
 	bSizerLeft = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTextTopLayer = new wxStaticText( this, wxID_ANY, _("Top/Front Layer"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextTopLayer = new wxStaticText( this, wxID_ANY, _("Top/Front layer:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextTopLayer->Wrap( -1 );
 	bSizerLeft->Add( m_staticTextTopLayer, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -151,7 +154,7 @@ DIALOG_COPPER_LAYER_PAIR_SELECTION_BASE::DIALOG_COPPER_LAYER_PAIR_SELECTION_BASE
 	wxBoxSizer* bSizerRight;
 	bSizerRight = new wxBoxSizer( wxVERTICAL );
 	
-	m_staticTextBottomLayer = new wxStaticText( this, wxID_ANY, _("Bottom/Back Layer"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextBottomLayer = new wxStaticText( this, wxID_ANY, _("Bottom/Back layer:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticTextBottomLayer->Wrap( -1 );
 	bSizerRight->Add( m_staticTextBottomLayer, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
@@ -180,6 +183,8 @@ DIALOG_COPPER_LAYER_PAIR_SELECTION_BASE::DIALOG_COPPER_LAYER_PAIR_SELECTION_BASE
 	// Cell Defaults
 	m_rightGridLayers->SetDefaultCellBackgroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_MENU ) );
 	m_rightGridLayers->SetDefaultCellAlignment( wxALIGN_LEFT, wxALIGN_TOP );
+	m_rightGridLayers->SetMinSize( wxSize( -1,100 ) );
+	
 	bSizerRight->Add( m_rightGridLayers, 1, wxALL|wxEXPAND, 5 );
 	
 	
@@ -198,11 +203,12 @@ DIALOG_COPPER_LAYER_PAIR_SELECTION_BASE::DIALOG_COPPER_LAYER_PAIR_SELECTION_BASE
 	m_sdbSizer->AddButton( m_sdbSizerCancel );
 	m_sdbSizer->Realize();
 	
-	bSizerMain->Add( m_sdbSizer, 0, wxEXPAND, 5 );
+	bSizerMain->Add( m_sdbSizer, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 	
 	
 	this->SetSizer( bSizerMain );
 	this->Layout();
+	bSizerMain->Fit( this );
 	
 	this->Centre( wxBOTH );
 	

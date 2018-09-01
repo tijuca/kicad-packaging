@@ -22,10 +22,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <boost/foreach.hpp>
-#include <boost/bind.hpp>
+#include <functional>
+using namespace std::placeholders;
 
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 
 #include <class_board.h>
 #include <class_module.h>
@@ -33,6 +33,7 @@
 #include <class_zone.h>
 #include <class_draw_panel_gal.h>
 
+#include <view/view.h>
 #include <view/view_controls.h>
 #include <gal/graphics_abstraction_layer.h>
 
@@ -40,10 +41,25 @@
 
 #include "grid_helper.h"
 
+
 GRID_HELPER::GRID_HELPER( PCB_BASE_FRAME* aFrame ) :
     m_frame( aFrame )
 {
     m_diagonalAuxAxesEnable = true;
+    KIGFX::VIEW* view = m_frame->GetGalCanvas()->GetView();
+
+    m_viewAxis.SetSize( 20000 );
+    m_viewAxis.SetStyle( KIGFX::ORIGIN_VIEWITEM::CROSS );
+    m_viewAxis.SetColor( COLOR4D( 1.0, 1.0, 1.0, 0.4 ) );
+    m_viewAxis.SetDrawAtZero( true );
+    view->Add( &m_viewAxis );
+    view->SetVisible( &m_viewAxis, false );
+
+    m_viewSnapPoint.SetStyle( KIGFX::ORIGIN_VIEWITEM::CIRCLE_CROSS );
+    m_viewSnapPoint.SetColor( COLOR4D( 1.0, 1.0, 1.0, 1.0 ) );
+    m_viewSnapPoint.SetDrawAtZero( true );
+    view->Add( &m_viewSnapPoint );
+    view->SetVisible( &m_viewSnapPoint, false );
 }
 
 
@@ -82,10 +98,19 @@ VECTOR2I GRID_HELPER::GetOrigin() const
 
 void GRID_HELPER::SetAuxAxes( bool aEnable, const VECTOR2I& aOrigin, bool aEnableDiagonal )
 {
+    KIGFX::VIEW* view = m_frame->GetGalCanvas()->GetView();
+
     if( aEnable )
+    {
         m_auxAxis = aOrigin;
+        m_viewAxis.SetPosition( aOrigin );
+        view->SetVisible( &m_viewAxis, true );
+    }
     else
-        m_auxAxis = boost::optional<VECTOR2I>();
+    {
+        m_auxAxis = OPT<VECTOR2I>();
+        view->SetVisible( &m_viewAxis, false );
+    }
 
     m_diagonalAuxAxesEnable = aEnable;
 }
@@ -112,12 +137,9 @@ VECTOR2I GRID_HELPER::Align( const VECTOR2I& aPoint ) const
 }
 
 
-VECTOR2I GRID_HELPER::AlignToSegment ( const VECTOR2I& aPoint, const SEG& aSeg )
+VECTOR2I GRID_HELPER::AlignToSegment( const VECTOR2I& aPoint, const SEG& aSeg )
 {
     OPT_VECTOR2I pts[6];
-
-    VECTOR2I origin( GetOrigin() );
-    VECTOR2I grid( GetGrid() );
 
     const VECTOR2D gridOffset( GetOrigin() );
     const VECTOR2D gridSize( GetGrid() );
@@ -148,6 +170,7 @@ VECTOR2I GRID_HELPER::AlignToSegment ( const VECTOR2I& aPoint, const SEG& aSeg )
 
     return nearest;
 }
+
 
 VECTOR2I GRID_HELPER::BestDragOrigin( const VECTOR2I &aMousePos, BOARD_ITEM* aItem )
 {
@@ -199,12 +222,14 @@ std::set<BOARD_ITEM*> GRID_HELPER::queryVisible( const BOX2I& aArea ) const
     std::vector<KIGFX::VIEW::LAYER_ITEM_PAIR> selectedItems;
     std::vector<KIGFX::VIEW::LAYER_ITEM_PAIR>::iterator it, it_end;
 
-    m_frame->GetGalCanvas()->GetView()->Query( aArea, selectedItems );         // Get the list of selected items
+    auto view = m_frame->GetGalCanvas()->GetView();
+    view->Query( aArea, selectedItems );         // Get the list of selected items
 
     for( it = selectedItems.begin(), it_end = selectedItems.end(); it != it_end; ++it )
     {
         BOARD_ITEM* item = static_cast<BOARD_ITEM*>( it->first );
-        if( item->ViewIsVisible() )
+
+        if( view->IsVisible( item ) )
             items.insert ( item );
     }
 
@@ -221,24 +246,36 @@ VECTOR2I GRID_HELPER::BestSnapAnchor( const VECTOR2I& aOrigin, BOARD_ITEM* aDrag
 
     clearAnchors();
 
-    BOOST_FOREACH( BOARD_ITEM* item, queryVisible( bb ) )
+    for( BOARD_ITEM* item : queryVisible( bb ) )
     {
         computeAnchors( item, aOrigin );
     }
 
-    LSET layers( aDraggedItem->GetLayer() );
+    LSET layers;
+
+    if( aDraggedItem )
+        layers = aDraggedItem->GetLayer();
+    else
+        layers = LSET::AllLayersMask();
+
     ANCHOR* nearest = nearestAnchor( aOrigin, CORNER | SNAPPABLE, layers );
 
     VECTOR2I nearestGrid = Align( aOrigin );
     double gridDist = ( nearestGrid - aOrigin ).EuclideanNorm();
+
     if( nearest )
     {
         double snapDist = nearest->Distance( aOrigin );
 
         if( nearest && snapDist < gridDist )
-             return nearest->pos;
+        {
+            m_viewSnapPoint.SetPosition( nearest->pos );
+            m_frame->GetGalCanvas()->GetView()->SetVisible( &m_viewSnapPoint, true );
+            return nearest->pos;
+        }
     }
 
+    m_frame->GetGalCanvas()->GetView()->SetVisible( &m_viewSnapPoint, false );
     return nearestGrid;
 }
 
@@ -252,14 +289,20 @@ void GRID_HELPER::computeAnchors( BOARD_ITEM* aItem, const VECTOR2I& aRefPos )
         case PCB_MODULE_T:
         {
             MODULE* mod = static_cast<MODULE*>( aItem );
+
+            for( auto pad : mod->Pads() )
+            {
+                if( pad->GetBoundingBox().Contains( wxPoint( aRefPos.x, aRefPos.y ) ) )
+                {
+                    addAnchor( pad->GetPosition(), CORNER | SNAPPABLE, pad );
+                    break;
+                }
+            }
+
+            // if the cursor is not over a pad, then drag the module by its origin
             addAnchor( mod->GetPosition(), ORIGIN | SNAPPABLE, mod );
-
-            for( D_PAD* pad = mod->Pads(); pad; pad = pad->Next() )
-                addAnchor( pad->GetPosition(), CORNER | SNAPPABLE, pad );
-
             break;
         }
-
 
         case PCB_PAD_T:
         {
@@ -275,7 +318,7 @@ void GRID_HELPER::computeAnchors( BOARD_ITEM* aItem, const VECTOR2I& aRefPos )
             DRAWSEGMENT* dseg = static_cast<DRAWSEGMENT*>( aItem );
             VECTOR2I start = dseg->GetStart();
             VECTOR2I end = dseg->GetEnd();
-            //LAYER_ID layer = dseg->GetLayer();
+            //PCB_LAYER_ID layer = dseg->GetLayer();
 
             switch( dseg->GetShape() )
             {
@@ -310,6 +353,15 @@ void GRID_HELPER::computeAnchors( BOARD_ITEM* aItem, const VECTOR2I& aRefPos )
                     break;
                 }
 
+                case S_POLYGON:
+                {
+                    for( const auto& p : dseg->BuildPolyPointsList() )
+                    {
+                        addAnchor( p, CORNER | SNAPPABLE, dseg );
+                    }
+                    break;
+                }
+
                 default:
                 {
                     origin = dseg->GetStart();
@@ -339,17 +391,15 @@ void GRID_HELPER::computeAnchors( BOARD_ITEM* aItem, const VECTOR2I& aRefPos )
 
         case PCB_ZONE_AREA_T:
         {
-            const CPolyLine* outline = static_cast<const ZONE_CONTAINER*>( aItem )->Outline();
-            int cornersCount = outline->GetCornersCount();
+            const SHAPE_POLY_SET* outline = static_cast<const ZONE_CONTAINER*>( aItem )->Outline();
 
             SHAPE_LINE_CHAIN lc;
             lc.SetClosed( true );
 
-            for( int i = 0; i < cornersCount; ++i )
+            for( auto iter = outline->CIterateWithHoles(); iter; iter++ )
             {
-                const VECTOR2I p ( outline->GetPos( i ) );
-                addAnchor( p, CORNER, aItem );
-                lc.Append( p );
+                addAnchor( *iter, CORNER, aItem );
+                lc.Append( *iter );
             }
 
             addAnchor( lc.NearestPoint( aRefPos ), OUTLINE, aItem );
@@ -369,25 +419,25 @@ void GRID_HELPER::computeAnchors( BOARD_ITEM* aItem, const VECTOR2I& aRefPos )
 
 GRID_HELPER::ANCHOR* GRID_HELPER::nearestAnchor( const VECTOR2I& aPos, int aFlags, LSET aMatchLayers )
 {
-     double minDist = std::numeric_limits<double>::max();
-     ANCHOR* best = NULL;
+    double minDist = std::numeric_limits<double>::max();
+    ANCHOR* best = NULL;
 
-     BOOST_FOREACH( ANCHOR& a, m_anchors )
-     {
-         if( !aMatchLayers[a.item->GetLayer()] )
-             continue;
+    for( ANCHOR& a : m_anchors )
+    {
+        if( !aMatchLayers[a.item->GetLayer()] )
+            continue;
 
-         if( ( aFlags & a.flags ) != aFlags )
-             continue;
+        if( ( aFlags & a.flags ) != aFlags )
+            continue;
 
-         double dist = a.Distance( aPos );
+        double dist = a.Distance( aPos );
 
-         if( dist < minDist )
-         {
-             minDist = dist;
-             best = &a;
-         }
-     }
+        if( dist < minDist )
+        {
+            minDist = dist;
+            best = &a;
+        }
+    }
 
-     return best;
+    return best;
 }

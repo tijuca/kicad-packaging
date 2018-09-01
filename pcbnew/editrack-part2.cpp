@@ -33,7 +33,7 @@
 #include <gr_basic.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 
 #include <class_board.h>
 #include <class_module.h>
@@ -41,7 +41,9 @@
 #include <class_marker_pcb.h>
 
 #include <pcbnew.h>
-#include <drc_stuff.h>
+#include <drc.h>
+
+#include <connectivity_data.h>
 
 
 bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
@@ -71,16 +73,17 @@ bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
     }
 
     // Is the current segment Ok (no DRC error) ?
-    if( g_Drc_On )
+    if( Settings().m_legacyDrcOn )
     {
-        if( BAD_DRC==m_drc->Drc( g_CurrentTrackSegment, GetBoard()->m_Track ) )
+        if( BAD_DRC==m_drc->DrcOnCreatingTrack( g_CurrentTrackSegment, GetBoard()->m_Track ) )
             // DRC error, the change layer is not made
             return false;
 
         // Handle 2 segments.
-        if( g_TwoSegmentTrackBuild && g_CurrentTrackSegment->Back() )
+        if( Settings().m_legacyUseTwoSegmentTracks && g_CurrentTrackSegment->Back() )
         {
-            if( BAD_DRC == m_drc->Drc( g_CurrentTrackSegment->Back(), GetBoard()->m_Track ) )
+            if( BAD_DRC == m_drc->DrcOnCreatingTrack( g_CurrentTrackSegment->Back(),
+                                                      GetBoard()->m_Track ) )
                 return false;
         }
     }
@@ -108,8 +111,8 @@ bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
     // layer pair is B_Cu and F_Cu.
     via->SetLayerPair( B_Cu, F_Cu );
 
-    LAYER_ID first_layer = GetActiveLayer();
-    LAYER_ID last_layer;
+    PCB_LAYER_ID first_layer = GetActiveLayer();
+    PCB_LAYER_ID last_layer;
 
     // prepare switch to new active layer:
     if( first_layer != GetScreen()->m_Route_Layer_TOP )
@@ -126,7 +129,7 @@ bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
 
     case VIA_MICROVIA:  // from external to the near neighbor inner layer
         {
-            LAYER_ID last_inner_layer = ToLAYER_ID( ( GetBoard()->GetCopperLayerCount() - 2 ) );
+            PCB_LAYER_ID last_inner_layer = ToLAYER_ID( ( GetBoard()->GetCopperLayerCount() - 2 ) );
 
             if( first_layer == B_Cu )
                 last_layer = last_inner_layer;
@@ -151,7 +154,8 @@ bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
         break;
     }
 
-    if( g_Drc_On && BAD_DRC == m_drc->Drc( via, GetBoard()->m_Track ) )
+    if( Settings().m_legacyDrcOn &&
+        BAD_DRC == m_drc->DrcOnCreatingTrack( via, GetBoard()->m_Track ) )
     {
         // DRC fault: the Via cannot be placed here ...
         delete via;
@@ -205,7 +209,7 @@ bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
 
     g_CurrentTrackList.PushBack( track );
 
-    if( g_TwoSegmentTrackBuild )
+    if( Settings().m_legacyUseTwoSegmentTracks )
     {
         // Create a second segment (we must have 2 track segments to adjust)
         g_CurrentTrackList.PushBack( (TRACK*)g_CurrentTrackSegment->Clone() );
@@ -218,97 +222,290 @@ bool PCB_EDIT_FRAME::Other_Layer_Route( TRACK* aTrack, wxDC* DC )
     return true;
 }
 
+static void ListSetState( EDA_ITEM* Start, int NbItem, STATUS_FLAGS State,
+                          bool onoff );
 
-void PCB_EDIT_FRAME::Show_1_Ratsnest( EDA_ITEM* item, wxDC* DC )
+
+void DrawTraces( EDA_DRAW_PANEL* panel, wxDC* DC, TRACK* aTrackList, int nbsegment,
+                 GR_DRAWMODE draw_mode )
 {
-    D_PAD*   pt_pad = NULL;
-    MODULE*  Module = NULL;
-
-    if( GetBoard()->IsElementVisible(RATSNEST_VISIBLE) )
-        return;
-
-    if( ( GetBoard()->m_Status_Pcb & LISTE_RATSNEST_ITEM_OK ) == 0 )
-        Compile_Ratsnest( DC, true );
-
-    if( item )
+    // preserve the start of the list for debugging.
+    for( TRACK* track = aTrackList; nbsegment > 0 && track; nbsegment--, track = track->Next() )
     {
-        if( item->Type() == PCB_PAD_T )
-        {
-            pt_pad = (D_PAD*) item;
-            Module = pt_pad->GetParent();
-        }
+        track->Draw( panel, DC, draw_mode );
+    }
+}
 
-        if( pt_pad ) // Displaying the ratsnest of the corresponding net.
-        {
-            SetMsgPanel( pt_pad );
 
-            for( unsigned ii = 0; ii < GetBoard()->GetRatsnestsCount(); ii++ )
-            {
-                RATSNEST_ITEM* net = &GetBoard()->m_FullRatsnest[ii];
+/*
+ * This function try to remove an old track, when a new track is created,
+ * and the old track is no more needed
+ */
+int PCB_EDIT_FRAME::EraseRedundantTrack( wxDC*              aDC,
+                                         TRACK*             aNewTrack,
+                                         int                aNewTrackSegmentsCount,
+                                         PICKED_ITEMS_LIST* aItemsListPicker )
+{
+    TRACK*  StartTrack, * EndTrack;
+    TRACK*  pt_segm;
+    TRACK*  pt_del;
+    int     nb_segm, nbconnect;
+    wxPoint start;
+    wxPoint end;
+    LSET startmasklayer, endmasklayer;
+    int     netcode = aNewTrack->GetNetCode();
 
-                if( net->GetNet() == pt_pad->GetNetCode() )
-                {
-                    if( ( net->m_Status & CH_VISIBLE ) != 0 )
-                        continue;
+    // Reconstruct the complete track (the new track has to start on a segment of track).
+    // Note: aNewTrackSegmentsCount conatins the number of new track segments
+    ListSetState( aNewTrack, aNewTrackSegmentsCount, BUSY, false );
 
-                    net->m_Status |= CH_VISIBLE;
+    /* If the new track begins with a via, complete the track segment using
+     * the following segment as a reference because a  via is often a hub of
+     * segments, and does not characterize track.
+     */
+    if( aNewTrack->Type() == PCB_VIA_T && ( aNewTrackSegmentsCount > 1 ) )
+        aNewTrack = aNewTrack->Next();
 
-                    if( ( net->m_Status & CH_ACTIF ) == 0 )
-                        continue;
+    // When MarkTrace try to find the entire track, if the starting segment
+    // is fully inside a pad, MarkTrace does not find correctly the full trace,
+    // because the entire track is the set of segments between 2 nodes
+    // (pads or point connecting more than 2 items)
+    // so use another (better) starting segment in this case
+    TRACK* track_segment = aNewTrack;
 
-                    net->Draw( m_canvas, DC, GR_XOR, wxPoint( 0, 0 ) );
-                }
-            }
-        }
+    for( int ii = 0; ii < aNewTrackSegmentsCount; ii++ )
+    {
+        D_PAD* pad_st = m_Pcb->GetPad( aNewTrack->GetStart() );
+        D_PAD* pad_end = m_Pcb->GetPad( aNewTrack->GetEnd() );
+
+        if( pad_st && pad_st == pad_end )
+            track_segment = aNewTrack->Next();
         else
+            break;
+    }
+
+    // Mark the full trace containing track_segment, and recalculate the
+    // beginning of the trace, and the number of segments, as the new trace
+    // can contain also already existing track segments
+    aNewTrack = GetBoard()->MarkTrace( GetBoard()->m_Track, track_segment,
+                                       &aNewTrackSegmentsCount,
+                                       nullptr, nullptr, true );
+    wxASSERT( aNewTrack );
+
+    TRACK* bufStart = m_Pcb->m_Track->GetStartNetCode( netcode ); // Beginning of tracks of the net
+    TRACK* bufEnd = bufStart->GetEndNetCode( netcode );           // End of tracks of the net
+
+    // Flags for cleaning the net.
+    for( pt_del = bufStart;  pt_del;  pt_del = pt_del->Next() )
+    {
+        // printf( "track %p turning off BUSY | IN_EDIT | IS_LINKED\n", pt_del );
+        pt_del->SetState( BUSY | IN_EDIT | IS_LINKED, false );
+
+        if( pt_del == bufEnd )  // Last segment reached
+            break;
+    }
+
+    if( aNewTrack->GetEndSegments( aNewTrackSegmentsCount, &StartTrack, &EndTrack ) == 0 )
+        return 0;
+
+    if( ( StartTrack == NULL ) || ( EndTrack == NULL ) )
+        return 0;
+
+    start = StartTrack->GetStart();
+    end   = EndTrack->GetEnd();
+
+    // The start and end points cannot be the same.
+    if( start == end )
+        return 0;
+
+    // Determine layers interconnected these points.
+    startmasklayer = StartTrack->GetLayerSet();
+    endmasklayer   = EndTrack->GetLayerSet();
+
+    // There may be a via or a pad on the end points.
+    pt_segm = m_Pcb->m_Track->GetVia( NULL, start, startmasklayer );
+
+    if( pt_segm )
+        startmasklayer |= pt_segm->GetLayerSet();
+
+    if( StartTrack->start && ( StartTrack->start->Type() == PCB_PAD_T ) )
+    {
+        // Start on pad.
+        D_PAD* pad = (D_PAD*) StartTrack->start;
+        startmasklayer |= pad->GetLayerSet();
+    }
+
+    pt_segm = m_Pcb->m_Track->GetVia( NULL, end, endmasklayer );
+
+    if( pt_segm )
+        endmasklayer |= pt_segm->GetLayerSet();
+
+    if( EndTrack->end && ( EndTrack->end->Type() == PCB_PAD_T ) )
+    {
+        D_PAD* pad = (D_PAD*) EndTrack->end;
+        endmasklayer |= pad->GetLayerSet();
+    }
+
+    // Mark as deleted a new track (which is not involved in the search for other connections)
+    ListSetState( aNewTrack, aNewTrackSegmentsCount, IS_DELETED, true );
+
+    /* A segment must be connected to the starting point, otherwise
+     * it is unnecessary to analyze the other point
+     */
+    pt_segm = GetTrack( bufStart, bufEnd, start, startmasklayer );
+
+    if( pt_segm == NULL )     // Not connected to the track starting point.
+    {
+        // Clear the delete flag.
+        ListSetState( aNewTrack, aNewTrackSegmentsCount, IS_DELETED, false );
+        return 0;
+    }
+
+    /* Marking a list of candidate segmented connect to endpoint
+     * Note: the vias are not taken into account because they do
+     * not define a track, since they are on an intersection.
+     */
+    for( pt_del = bufStart, nbconnect = 0; ; )
+    {
+        pt_segm = GetTrack( pt_del, bufEnd, end, endmasklayer );
+
+        if( pt_segm == NULL )
+            break;
+
+        if( pt_segm->Type() != PCB_VIA_T )
         {
-            if( item->Type() == PCB_MODULE_TEXT_T )
+            if( pt_segm->GetState( IS_LINKED ) == 0 )
             {
-                if( item->GetParent() && ( item->GetParent()->Type() == PCB_MODULE_T ) )
-                    Module = static_cast<MODULE*>( item->GetParent() );
+                pt_segm->SetState( IS_LINKED, true );
+                nbconnect++;
             }
-            else if( item->Type() == PCB_MODULE_T )
-            {
-                Module = static_cast<MODULE*>( item );
-            }
+        }
 
-            if( Module )
-            {
-                SetMsgPanel( Module );
-                pt_pad = Module->Pads();
+        if( pt_del == bufEnd )
+            break;
 
-                for( ; pt_pad != NULL; pt_pad = pt_pad->Next() )
+        pt_del = pt_segm->Next();
+    }
+
+    if( nbconnect == 0 )
+    {
+        // Clear used flags
+        for( pt_del = bufStart; pt_del; pt_del = pt_del->Next() )
+        {
+            pt_del->SetState( BUSY | IS_DELETED | IN_EDIT | IS_LINKED, false );
+
+            if( pt_del == bufEnd )  // Last segment reached
+                break;
+        }
+
+        return 0;
+    }
+
+    // Mark trace as edited (which does not involve searching for other tracks)
+    ListSetState( aNewTrack, aNewTrackSegmentsCount, IS_DELETED, false );
+    ListSetState( aNewTrack, aNewTrackSegmentsCount, IN_EDIT, true );
+
+    // Test all marked segments.
+    while( nbconnect )
+    {
+        for( pt_del = bufStart; pt_del; pt_del = pt_del->Next() )
+        {
+            if( pt_del->GetState( IS_LINKED ) )
+                break;
+
+            if( pt_del == bufEnd )  // Last segment reached
+                break;
+        }
+
+        nbconnect--;
+
+        if( pt_del )
+            pt_del->SetState( IS_LINKED, false );
+
+        pt_del = GetBoard()->MarkTrace( GetBoard()->m_Track, pt_del, &nb_segm,
+                                        NULL, NULL, true );
+
+        /* Test if the marked track is redundant, i.e. if one of marked segments
+         * is connected to the starting point of the new track.
+         */
+
+        pt_segm = pt_del;
+
+        for( int ii = 0; pt_segm && (ii < nb_segm); pt_segm = pt_segm->Next(), ii++ )
+        {
+            if( pt_segm->GetState( BUSY ) == 0 )
+                break;
+
+            if( pt_segm->GetStart() == start || pt_segm->GetEnd() == start )
+            {
+                // Marked track can be erased.
+                TRACK* NextS;
+
+                DrawTraces( m_canvas, aDC, pt_del, nb_segm, GR_XOR | GR_HIGHLIGHT );
+
+                for( int jj = 0; jj < nb_segm; jj++, pt_del = NextS )
                 {
-                    for( unsigned ii = 0; ii < GetBoard()->GetRatsnestsCount(); ii++ )
+                    NextS = pt_del->Next();
+
+                    if( aItemsListPicker )
                     {
-                        RATSNEST_ITEM* net = &GetBoard()->m_FullRatsnest[ii];
-
-                        if( ( net->m_PadStart == pt_pad ) || ( net->m_PadEnd == pt_pad ) )
-                        {
-                            if( net->m_Status & CH_VISIBLE )
-                                continue;
-
-                            net->m_Status |= CH_VISIBLE;
-
-                            if( (net->m_Status & CH_ACTIF) == 0 )
-                                continue;
-
-                            net->Draw( m_canvas, DC, GR_XOR, wxPoint( 0, 0 ) );
-                        }
+                        pt_del->UnLink();
+                        pt_del->SetStatus( 0 );
+                        pt_del->ClearFlags();
+                        GetBoard()->GetConnectivity()->Remove( pt_del );
+                        ITEM_PICKER picker( pt_del, UR_DELETED );
+                        aItemsListPicker->PushItem( picker );
+                    }
+                    else
+                    {
+                        GetBoard()->GetConnectivity()->Remove( pt_del );
+                        pt_del->DeleteStructure();
                     }
                 }
 
-                pt_pad = NULL;
+                // Clean up flags.
+                for( pt_del = m_Pcb->m_Track; pt_del != NULL; pt_del = pt_del->Next() )
+                {
+                    if( pt_del->GetState( IN_EDIT ) )
+                    {
+                        pt_del->SetState( IN_EDIT, false );
+
+                        if( aDC )
+                            pt_del->Draw( m_canvas, aDC, GR_OR );
+                    }
+
+                    pt_del->SetState( IN_EDIT | IS_LINKED, false );
+                }
+
+                return 1;
             }
         }
+
+        // Clear BUSY flag here because the track did not get marked.
+        ListSetState( pt_del, nb_segm, BUSY, false );
     }
 
-    // Erase if no pad or module has been selected.
-    if( ( pt_pad == NULL ) && ( Module == NULL ) )
+    // Clear used flags
+    for( pt_del = m_Pcb->m_Track; pt_del; pt_del = pt_del->Next() )
     {
-        DrawGeneralRatsnest( DC );
+        pt_del->SetState( BUSY | IS_DELETED | IN_EDIT | IS_LINKED, false );
 
-        for( unsigned ii = 0; ii < GetBoard()->GetRatsnestsCount(); ii++ )
-            GetBoard()->m_FullRatsnest[ii].m_Status &= ~CH_VISIBLE;
+        if( pt_del == bufEnd )  // Last segment reached
+            break;
+    }
+
+    return 0;
+}
+
+
+/* Set the bits of .m_State member to on/off value, using bit mask State
+ * of a list of EDA_ITEM
+ */
+static void ListSetState( EDA_ITEM* Start, int NbItem, STATUS_FLAGS State,
+                          bool onoff )
+{
+    for( ; (Start != NULL ) && ( NbItem > 0 ); NbItem--, Start = Start->Next() )
+    {
+        Start->SetState( State, onoff );
     }
 }

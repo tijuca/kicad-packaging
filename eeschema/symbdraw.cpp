@@ -25,20 +25,17 @@
 
 /**
  * @file symbdraw.cpp
- * @brief Create, move .. graphic shapes used to build and draw a component (lines, arcs ..)
+ * @brief Create, move .. graphic shapes used to build and draw a symbol (lines, arcs ..)
  */
 
 #include <fctsys.h>
-#include <gr_basic.h>
 #include <class_drawpanel.h>
 #include <confirm.h>
-#include <class_sch_screen.h>
 #include <base_units.h>
 #include <msgpanel.h>
 
 #include <eeschema_id.h>
-#include <general.h>
-#include <libeditframe.h>
+#include <lib_edit_frame.h>
 #include <class_libentry.h>
 #include <lib_arc.h>
 #include <lib_circle.h>
@@ -60,7 +57,7 @@ void LIB_EDIT_FRAME::EditGraphicSymbol( wxDC* DC, LIB_ITEM* DrawItem )
     if( DrawItem == NULL )
         return;
 
-    LIB_PART*      component = DrawItem->GetParent();
+    LIB_PART*      symbol = DrawItem->GetParent();
 
     DIALOG_LIB_EDIT_DRAW_ITEM dialog( this, DrawItem->GetTypeName() );
 
@@ -69,9 +66,17 @@ void LIB_EDIT_FRAME::EditGraphicSymbol( wxDC* DC, LIB_ITEM* DrawItem )
     wxString val = StringFromValue( g_UserUnit, DrawItem->GetWidth() );
     dialog.SetWidth( val );
     dialog.SetApplyToAllUnits( DrawItem->GetUnit() == 0 );
-    dialog.EnableApplyToAllUnits( component && component->GetUnitCount() > 1 );
+    dialog.EnableApplyToAllUnits( symbol && symbol->GetUnitCount() > 1 );
     dialog.SetApplyToAllConversions( DrawItem->GetConvert() == 0 );
-    dialog.EnableApplyToAllConversions( component && component->HasConversion() );
+    bool enblConvOptStyle = symbol && symbol->HasConversion();
+    // if a symbol contains no graphic items, symbol->HasConversion() returns false.
+    // but when creating a new symbol, with DeMorgan option set, the ApplyToAllConversions
+    // must be enabled even if symbol->HasConversion() returns false in order to be able
+    // to create graphic items shared by all body styles
+    if( GetShowDeMorgan() )
+        enblConvOptStyle = true;
+
+    dialog.EnableApplyToAllConversions( enblConvOptStyle );
     dialog.SetFillStyle( DrawItem->GetFillMode() );
     dialog.EnableFillStyle( DrawItem->IsFillable() );
 
@@ -113,9 +118,6 @@ void LIB_EDIT_FRAME::EditGraphicSymbol( wxDC* DC, LIB_ITEM* DrawItem )
 
     DrawItem->SetWidth( m_drawLineWidth );
 
-    if( component )
-        component->GetDrawItemList().sort();
-
     OnModify( );
 
     MSG_PANEL_ITEMS items;
@@ -148,53 +150,55 @@ static void AbortSymbolTraceOn( EDA_DRAW_PANEL* Panel, wxDC* DC )
 }
 
 
-LIB_ITEM* LIB_EDIT_FRAME::CreateGraphicItem( LIB_PART*      LibEntry, wxDC* DC )
+LIB_ITEM* LIB_EDIT_FRAME::CreateGraphicItem( LIB_PART* LibEntry, wxDC* DC )
 {
+    LIB_ITEM* item = GetDrawItem();
     m_canvas->SetMouseCapture( SymbolDisplayDraw, AbortSymbolTraceOn );
     wxPoint drawPos = GetCrossHairPosition( true );
 
-    // no temp copy -> the current version of component will be used for Undo
-    // This is normal when adding new items to the current component
+    // no temp copy -> the current version of symbol will be used for Undo
+    // This is normal when adding new items to the current symbol
     ClearTempCopyComponent();
 
     switch( GetToolId() )
     {
     case ID_LIBEDIT_BODY_ARC_BUTT:
-        m_drawItem = new LIB_ARC( LibEntry );
+        item = new LIB_ARC( LibEntry );
         break;
 
     case ID_LIBEDIT_BODY_CIRCLE_BUTT:
-        m_drawItem = new LIB_CIRCLE( LibEntry );
+        item = new LIB_CIRCLE( LibEntry );
         break;
 
     case ID_LIBEDIT_BODY_RECT_BUTT:
-        m_drawItem = new LIB_RECTANGLE( LibEntry );
+        item = new LIB_RECTANGLE( LibEntry );
         break;
 
     case ID_LIBEDIT_BODY_LINE_BUTT:
-        m_drawItem = new LIB_POLYLINE( LibEntry );
+        item = new LIB_POLYLINE( LibEntry );
         break;
 
     case ID_LIBEDIT_BODY_TEXT_BUTT:
         {
-            LIB_TEXT* Text = new LIB_TEXT( LibEntry );
-            Text->SetSize( wxSize( m_textSize, m_textSize ) );
-            Text->SetOrientation( m_textOrientation );
+            LIB_TEXT* text = new LIB_TEXT( LibEntry );
+            text->SetTextSize( wxSize( m_textSize, m_textSize ) );
+            text->SetTextAngle( m_current_text_angle );
 
             // Enter the graphic text info
             m_canvas->SetIgnoreMouseEvents( true );
-            EditSymbolText( NULL, Text );
+            EditSymbolText( NULL, text );
+
             m_canvas->SetIgnoreMouseEvents( false );
             m_canvas->MoveCursorToCrossHair();
 
-            if( Text->GetText().IsEmpty() )
+            if( text->GetText().IsEmpty() )
             {
-                delete Text;
-                m_drawItem = NULL;
+                delete text;
+                item = NULL;
             }
             else
             {
-                m_drawItem = Text;
+                item = text;
             }
         }
         break;
@@ -204,22 +208,22 @@ LIB_ITEM* LIB_EDIT_FRAME::CreateGraphicItem( LIB_PART*      LibEntry, wxDC* DC )
         return NULL;
     }
 
-    if( m_drawItem )
+    if( item )
     {
-        m_drawItem->BeginEdit( IS_NEW, drawPos );
+        item->BeginEdit( IS_NEW, drawPos );
 
         // Don't set line parameters for text objects.
-        if( m_drawItem->Type() != LIB_TEXT_T )
+        if( item->Type() != LIB_TEXT_T )
         {
-            m_drawItem->SetWidth( m_drawLineWidth );
-            m_drawItem->SetFillMode( m_drawFillStyle );
+            item->SetWidth( m_drawLineWidth );
+            item->SetFillMode( m_drawFillStyle );
         }
 
         if( m_drawSpecificUnit )
-            m_drawItem->SetUnit( m_unit );
+            item->SetUnit( m_unit );
 
         if( m_drawSpecificConvert )
-            m_drawItem->SetConvert( m_convert );
+            item->SetConvert( m_convert );
 
         // Draw initial symbol:
         m_canvas->CallMouseCapture( DC, wxDefaultPosition, false );
@@ -232,21 +236,23 @@ LIB_ITEM* LIB_EDIT_FRAME::CreateGraphicItem( LIB_PART*      LibEntry, wxDC* DC )
 
     m_canvas->MoveCursorToCrossHair();
     m_canvas->SetIgnoreMouseEvents( false );
+    SetDrawItem( item );
 
-    return m_drawItem;
+    return item;
 }
 
 
 void LIB_EDIT_FRAME::GraphicItemBeginDraw( wxDC* DC )
 {
-    if( m_drawItem == NULL )
+    if( GetDrawItem() == NULL )
         return;
 
     wxPoint pos = GetCrossHairPosition( true );
 
-    if( m_drawItem->ContinueEdit( pos ) )
+    if( GetDrawItem()->ContinueEdit( pos ) )
     {
-        m_drawItem->Draw( m_canvas, DC, pos, UNSPECIFIED_COLOR, g_XorMode, NULL, DefaultTransform );
+        GetDrawItem()->Draw( m_canvas, DC, pos, COLOR4D::UNSPECIFIED, g_XorMode, NULL,
+                          DefaultTransform );
         return;
     }
 
@@ -276,19 +282,19 @@ static void RedrawWhileMovingCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wx
         wxString    text = ((LIB_FIELD*)item)->GetFullText( unit );
 
         item->Draw( aPanel, aDC, aPanel->GetParent()->GetCrossHairPosition( true ),
-                    UNSPECIFIED_COLOR, g_XorMode, &text,
+                    COLOR4D::UNSPECIFIED, g_XorMode, &text,
                     DefaultTransform );
     }
     else
         item->Draw( aPanel, aDC, aPanel->GetParent()->GetCrossHairPosition( true ),
-                    UNSPECIFIED_COLOR, g_XorMode, NULL,
+                    COLOR4D::UNSPECIFIED, g_XorMode, NULL,
                     DefaultTransform );
 }
 
 
-void LIB_EDIT_FRAME::StartMoveDrawSymbol( wxDC* DC )
+void LIB_EDIT_FRAME::StartMoveDrawSymbol( wxDC* DC, LIB_ITEM* aItem )
 {
-    if( m_drawItem == NULL )
+    if( aItem == NULL )
         return;
 
     SetCursor( wxCURSOR_HAND );
@@ -297,23 +303,23 @@ void LIB_EDIT_FRAME::StartMoveDrawSymbol( wxDC* DC )
 
     // For fields only, move the anchor point of the field
     // to the cursor position to allow user to see the text justification
-    if( m_drawItem->Type() == LIB_FIELD_T )
-        m_drawItem->BeginEdit( IS_MOVED, m_drawItem->GetPosition() );
+    if( aItem->Type() == LIB_FIELD_T )
+        aItem->BeginEdit( IS_MOVED, aItem->GetPosition() );
     else
-        m_drawItem->BeginEdit( IS_MOVED, GetCrossHairPosition( true ) );
+        aItem->BeginEdit( IS_MOVED, GetCrossHairPosition( true ) );
 
     m_canvas->SetMouseCapture( RedrawWhileMovingCursor, AbortSymbolTraceOn );
     m_canvas->CallMouseCapture( DC, wxDefaultPosition, true );
 }
 
 
-void LIB_EDIT_FRAME::StartModifyDrawSymbol( wxDC* DC )
+void LIB_EDIT_FRAME::StartModifyDrawSymbol( wxDC* DC, LIB_ITEM* aItem )
 {
-    if( m_drawItem == NULL )
+    if( aItem == NULL )
         return;
 
     TempCopyComponent();
-    m_drawItem->BeginEdit( IS_RESIZED, GetCrossHairPosition( true ) );
+    aItem->BeginEdit( IS_RESIZED, GetCrossHairPosition( true ) );
     m_canvas->SetMouseCapture( SymbolDisplayDraw, AbortSymbolTraceOn );
     m_canvas->CallMouseCapture( DC, wxDefaultPosition, true );
 }
@@ -329,18 +335,20 @@ static void SymbolDisplayDraw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint&
         return;
 
     item->SetEraseLastDrawItem( aErase );
-    item->Draw( aPanel, aDC, aPanel->GetParent()->GetCrossHairPosition( true ), UNSPECIFIED_COLOR,
-                g_XorMode, NULL, DefaultTransform );
+    item->Draw( aPanel, aDC, aPanel->GetParent()->GetCrossHairPosition( true ),
+                COLOR4D::UNSPECIFIED, g_XorMode, NULL, DefaultTransform );
 }
 
 
 void LIB_EDIT_FRAME::EndDrawGraphicItem( wxDC* DC )
 {
+    LIB_ITEM* item = GetDrawItem();
+
+    if( item == NULL )
+        return;
+
     if( LIB_PART* part = GetCurPart() )
     {
-        if( !m_drawItem )
-            return;
-
         if( GetToolId() != ID_NO_TOOL_SELECTED )
             SetCursor( wxCURSOR_PENCIL );
         else
@@ -351,16 +359,16 @@ void LIB_EDIT_FRAME::EndDrawGraphicItem( wxDC* DC )
         else
         {
             // When creating a new item, there is still no change for the
-            // current component. So save it.
+            // current symbol. So save it.
             SaveCopyInUndoList( part );
         }
 
-        if( m_drawItem->IsNew() )
-            part->AddDrawItem( m_drawItem );
+        if( item->IsNew() )
+            part->AddDrawItem( item );
 
-        m_drawItem->EndEdit( GetCrossHairPosition( true ) );
+        item->EndEdit( GetCrossHairPosition( true ) );
 
-        m_drawItem = NULL;
+        SetDrawItem( NULL );
 
         OnModify();
 

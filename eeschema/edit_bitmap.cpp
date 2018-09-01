@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 jean-pierre.charras
- * Copyright (C) 2012 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2012-2016 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,7 +29,7 @@
 #include <fctsys.h>
 #include <class_drawpanel.h>
 
-#include <schframe.h>
+#include <sch_edit_frame.h>
 #include <sch_bitmap.h>
 #include <dialog_image_editor.h>
 
@@ -112,7 +112,7 @@ SCH_BITMAP* SCH_EDIT_FRAME::CreateNewImage( wxDC* aDC )
 
     if( !wxFileExists( fullFilename ) )
     {
-        wxMessageBox( _( "Couldn't load image from <%s>" ), GetChars( fullFilename ) );
+        wxMessageBox( _( "Couldn't load image from \"%s\"" ), GetChars( fullFilename ) );
         return NULL;
     }
 
@@ -122,7 +122,7 @@ SCH_BITMAP* SCH_EDIT_FRAME::CreateNewImage( wxDC* aDC )
 
     if( !image->ReadImageFile( fullFilename ) )
     {
-        wxMessageBox( _( "Couldn't load image from <%s>" ), GetChars( fullFilename ) );
+        wxMessageBox( _( "Couldn't load image from \"%s\"" ), GetChars( fullFilename ) );
         delete image;
         return NULL;
     }
@@ -137,6 +137,7 @@ SCH_BITMAP* SCH_EDIT_FRAME::CreateNewImage( wxDC* aDC )
     OnModify();
     return image;
 }
+
 
 void SCH_EDIT_FRAME::MoveImage( SCH_BITMAP* aImageItem, wxDC* aDC )
 {
@@ -156,15 +157,17 @@ void SCH_EDIT_FRAME::MoveImage( SCH_BITMAP* aImageItem, wxDC* aDC )
     OnModify();
 }
 
+
 void SCH_EDIT_FRAME::RotateImage( SCH_BITMAP* aItem )
 {
     if( aItem->GetFlags( ) == 0 )
-        SaveCopyInUndoList( aItem, UR_ROTATED, aItem->GetPosition() );
+        SaveCopyInUndoList( aItem, UR_ROTATED, false, aItem->GetPosition() );
 
     aItem->Rotate( aItem->GetPosition() );
     OnModify();
     m_canvas->Refresh();
 }
+
 
 void SCH_EDIT_FRAME::MirrorImage( SCH_BITMAP* aItem, bool Is_X_axis )
 {
@@ -180,10 +183,12 @@ void SCH_EDIT_FRAME::MirrorImage( SCH_BITMAP* aItem, bool Is_X_axis )
     m_canvas->Refresh();
 }
 
+
 void SCH_EDIT_FRAME::EditImage( SCH_BITMAP* aItem )
 {
     // TODO: change image scale or more
-    DIALOG_IMAGE_EDITOR dlg( this, aItem->m_Image );
+    DIALOG_IMAGE_EDITOR dlg( this, aItem->GetImage() );
+
     if( dlg.ShowModal() != wxID_OK )
         return;
 
@@ -193,7 +198,7 @@ void SCH_EDIT_FRAME::EditImage( SCH_BITMAP* aItem )
         GetScreen()->m_BlockLocate.GetState() != STATE_NO_BLOCK )
         SaveCopyInUndoList( aItem, UR_CHANGED );
 
-    dlg.TransfertToImage(aItem->m_Image);
+    dlg.TransfertToImage( aItem->GetImage() );
     OnModify();
     m_canvas->Refresh();
 }

@@ -33,7 +33,7 @@
 #include <macros.h>
 #include <common.h>
 #include <base_struct.h>
-#include <class_base_screen.h>
+#include <base_screen.h>
 #include <id.h>
 #include <base_units.h>
 
@@ -185,7 +185,7 @@ int BASE_SCREEN::BuildGridsChoiceList( wxArrayString& aGridsList, bool aMmFirst)
 
         if( grid.m_CmdId == ID_POPUP_GRID_USER )
         {
-            msg = _( "User Grid" );
+            msg = _( "Custom User Grid" );
             idx_usergrid = i;
         }
         else
@@ -245,8 +245,8 @@ int BASE_SCREEN::SetGrid( const wxRealPoint& size )
 
     m_Grid = nearest_grid;
 
-    wxLogWarning( wxT( "Grid size( %f, %f ) not in grid list, falling back " ) \
-                  wxT( "to grid size( %f, %f )." ),
+    wxLogWarning( _( "Grid size( %f, %f ) not in grid list, falling back "
+                     "to grid size( %f, %f )." ),
                   size.x, size.y, m_Grid.m_Size.x, m_Grid.m_Size.y );
 
     return gridIdx;
@@ -268,8 +268,8 @@ int BASE_SCREEN::SetGrid( int aCommandId  )
 
     m_Grid = m_grids[0];
 
-    wxLogWarning( wxT( "Grid ID %d not in grid list, falling back to " ) \
-                  wxT( "grid size( %g, %g )." ), aCommandId,
+    wxLogWarning( _( "Grid ID %d not in grid list, falling back to "
+                     "grid size( %g, %g )." ), aCommandId,
                   m_Grid.m_Size.x, m_Grid.m_Size.y );
 
     return m_grids[0].m_CmdId - ID_POPUP_GRID_LEVEL_1000;

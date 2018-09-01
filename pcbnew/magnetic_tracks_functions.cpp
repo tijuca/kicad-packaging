@@ -34,13 +34,12 @@
 
 #include <fctsys.h>
 #include <pcbnew.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <macros.h>
 
 #include <class_board.h>
 #include <class_track.h>
 
-#include <protos.h>
 #include <pcbnew_id.h>
 
 
@@ -95,7 +94,7 @@ static bool Join( wxPoint* aIntersectPoint, wxPoint a0, wxPoint a1, wxPoint b0, 
  * "Project" finds the projection of a grid point on a track. This is the point
  * from where we want to draw new orthogonal tracks when starting on a track.
  */
-bool Project( wxPoint* aNearPos, wxPoint on_grid, const TRACK* track )
+bool FindBestGridPointOnTrack( wxPoint* aNearPos, wxPoint on_grid, const TRACK* track )
 {
     if( track->GetStart ()== track->GetEnd() )
         return false;
@@ -127,15 +126,19 @@ bool Project( wxPoint* aNearPos, wxPoint on_grid, const TRACK* track )
  * @param curpos The initial position, and what to adjust if a change is needed.
  * @return bool - true if the position was adjusted magnetically, else false.
  */
-bool Magnetize( PCB_EDIT_FRAME* frame, int aCurrentTool, wxSize aGridSize,
+bool Magnetize( PCB_BASE_EDIT_FRAME* frame, int aCurrentTool, wxSize aGridSize,
                 wxPoint on_grid, wxPoint* curpos )
 {
-    bool    doCheckNet = g_MagneticPadOption != capture_always && g_Drc_On;
+    // Note: only used for routing in the Legacy Toolset and for the measurement tool in the
+    // Modern Toolset.  Can be greatly simplified when the Legacy Toolset is retired.
+
+    bool    doCheckNet = frame->Settings().m_magneticPads != CAPTURE_ALWAYS && frame->Settings().m_legacyDrcOn;
+    bool    doCheckLayer = aCurrentTool == ID_TRACK_BUTT;
     bool    doTrack = false;
     bool    doPad = false;
     bool    amMovingVia = false;
 
-    BOARD* m_Pcb = frame->GetBoard();
+    BOARD*      m_Pcb = frame->GetBoard();
     TRACK*      currTrack = g_CurrentTrackSegment;
     BOARD_ITEM* currItem  = frame->GetCurItem();
     PCB_SCREEN* screen = frame->GetScreen();
@@ -156,31 +159,31 @@ bool Magnetize( PCB_EDIT_FRAME* frame, int aCurrentTool, wxSize aGridSize,
         currTrack = NULL;
     }
 
-    if( g_MagneticPadOption == capture_always )
+    if( frame->Settings().m_magneticPads == CAPTURE_ALWAYS )
         doPad = true;
 
-    if( g_MagneticTrackOption == capture_always )
+    if( frame->Settings().m_magneticTracks == CAPTURE_ALWAYS )
         doTrack = true;
 
     if( aCurrentTool == ID_TRACK_BUTT || amMovingVia )
     {
-        int q = capture_cursor_in_track_tool;
+        int q = CAPTURE_CURSOR_IN_TRACK_TOOL;
 
-        if( g_MagneticPadOption == q )
+        if( frame->Settings().m_magneticPads == q )
             doPad = true;
 
-        if( g_MagneticTrackOption == q )
+        if( frame->Settings().m_magneticTracks == q )
             doTrack = true;
     }
 
-    // D(printf("doPad=%d doTrack=%d aCurrentTool=%d amMovingVia=%d\n", doPad, doTrack, aCurrentTool, amMovingVia );)
-
     //  The search precedence order is pads, then tracks/vias
-
     if( doPad )
     {
-        LSET    layer_mask( screen->m_Active_Layer );
-        D_PAD*  pad = m_Pcb->GetPad( pos, layer_mask );
+        D_PAD*  pad;
+        if( doCheckLayer )
+            pad = m_Pcb->GetPad( pos, LSET( screen->m_Active_Layer ) );
+        else
+            pad = m_Pcb->GetPad( pos );
 
         if( pad )
         {
@@ -195,7 +198,7 @@ bool Magnetize( PCB_EDIT_FRAME* frame, int aCurrentTool, wxSize aGridSize,
     // after pads, only track & via tests remain, skip them if not desired
     if( doTrack )
     {
-        LAYER_ID layer = screen->m_Active_Layer;
+        PCB_LAYER_ID layer = screen->m_Active_Layer;
 
         for( TRACK* via = m_Pcb->m_Track;
                 via && (via = via->GetVia( *curpos, layer )) != NULL;
@@ -214,24 +217,22 @@ bool Magnetize( PCB_EDIT_FRAME* frame, int aCurrentTool, wxSize aGridSize,
 
         if( !currTrack )
         {
-            LSET layer_mask( layer );
+            LSET layers( layer );
 
-            TRACK* track = m_Pcb->GetTrack( m_Pcb->m_Track, pos, layer_mask );
+            TRACK* track = m_Pcb->GetVisibleTrack( m_Pcb->m_Track, pos, layers );
 
             if( !track || track->Type() != PCB_TRACE_T )
             {
-                // D(printf("!currTrack and track=%p not found, layer_mask=0x%X\n", track, layer_mask );)
                 return false;
             }
 
-            // D( printf( "Project\n" ); )
-            return Project( curpos, on_grid, track );
+            return FindBestGridPointOnTrack( curpos, on_grid, track );
         }
 
         /*
          * In two segment mode, ignore the final segment if it's inside a grid square.
          */
-        if( !amMovingVia && currTrack && g_TwoSegmentTrackBuild && currTrack->Back()
+        if( !amMovingVia && currTrack && frame->Settings().m_legacyUseTwoSegmentTracks && currTrack->Back()
             && currTrack->GetStart().x - aGridSize.x < currTrack->GetEnd().x
             && currTrack->GetStart().x + aGridSize.x > currTrack->GetEnd().x
             && currTrack->GetStart().y - aGridSize.y < currTrack->GetEnd().y
@@ -259,11 +260,8 @@ bool Magnetize( PCB_EDIT_FRAME* frame, int aCurrentTool, wxSize aGridSize,
             if( !track->HitTest( *curpos ) )
                 continue;
 
-            // D(printf( "have track prospect\n");)
-
             if( Join( curpos, track->GetStart(), track->GetEnd(), currTrack->GetStart(), currTrack->GetEnd() ) )
             {
-                // D(printf( "join currTrack->Type()=%d\n", currTrack->Type() );)
                 return true;
             }
 

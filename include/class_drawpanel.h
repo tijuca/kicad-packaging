@@ -2,8 +2,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2011 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,9 +31,9 @@
 #ifndef  PANEL_WXSTRUCT_H
 #define  PANEL_WXSTRUCT_H
 
-#include <colors.h>
 #include <base_struct.h>
 #include <gr_basic.h>
+#include <eda_rect.h>
 
 
 class BASE_SCREEN;
@@ -66,6 +66,9 @@ private:
     wxPoint m_PanStartCenter;               ///< Initial scroll center position when pan started
     wxPoint m_PanStartEventPosition;        ///< Initial position of mouse event when pan started
 
+    wxPoint m_CursorClickPos;               ///< Used for maintaining click position
+    wxTimer *m_ClickTimer;
+
     /// The drawing area used to redraw the screen which is usually the visible area
     /// of the drawing in internal units.
     EDA_RECT    m_ClipBox;
@@ -74,10 +77,6 @@ private:
 
     bool    m_enableZoomNoCenter;           ///< True to enable zooming around the crosshair instead of the center
     bool    m_enableMousewheelPan;          ///< True to enable mousewheel panning by default.
-    bool    m_enableMiddleButtonPan;        ///< True to enable middle mouse button panning.
-    bool    m_panScrollbarLimits;           ///< has meaning only if m_enableMiddleButtonPan = true
-                                            ///< true to limit panning to scrollbar current limits
-                                            ///< false to used unlimited pan
 
     bool    m_enableAutoPan;                ///< True to enable automatic panning.
 
@@ -113,9 +112,11 @@ private:
     END_MOUSE_CAPTURE_CALLBACK m_endMouseCaptureCallback;
 
     /// useful to avoid false start block in certain cases
-    /// (like switch from a sheet to an other sheet
+    /// (like switch from a sheet to another sheet
     /// >= 0 (or >= n) if a block can start
     int     m_canStartBlock;
+
+    int     m_doubleClickInterval;
 
 public:
 
@@ -147,21 +148,13 @@ public:
 
     void SetEnableMousewheelPan( bool aEnable );
 
-    bool GetEnableMiddleButtonPan() const { return m_enableMiddleButtonPan; }
-
-    void SetEnableMiddleButtonPan( bool aEnable ) { m_enableMiddleButtonPan = aEnable; }
-
     bool GetEnableZoomNoCenter() const { return m_enableZoomNoCenter; }
 
     void SetEnableZoomNoCenter( bool aEnable );
 
-    bool GetMiddleButtonPanLimited() const { return m_panScrollbarLimits; }
-
-    void SetMiddleButtonPanLimited( bool aEnable ) { m_panScrollbarLimits = aEnable; }
-
     bool GetEnableAutoPan() const { return m_enableAutoPan; }
 
-    void SetEnableAutoPan( bool aEnable ) { m_enableAutoPan = aEnable; }
+    void SetEnableAutoPan( bool aEnable );
 
     void SetAutoPanRequest( bool aEnable ) { m_requestAutoPan = aEnable; }
 
@@ -229,6 +222,17 @@ public:
     void OnActivate( wxActivateEvent& event );
 
     /**
+     * Function OnTimer
+     * handle timer events
+     * <p>
+     * The class will start a timer when a mouse-up event is handled.  If a
+     * double-click event is not handled inside of a specified interval,
+     * the timer event will fire, causing the single-click event to be handled.
+     * Otherwise, the system will process the double-click.
+     */
+    void OnTimer( wxTimerEvent& event );
+
+    /**
      * Function DoPrepareDC
      * sets up the device context \a aDC for drawing.
      * <p>
@@ -242,7 +246,7 @@ public:
      * </p>
      * @param aDC The device context to prepare.
      */
-    virtual void DoPrepareDC( wxDC& aDC );
+    virtual void DoPrepareDC( wxDC& aDC ) override;
 
     /**
      * Function DeviceToLogical
@@ -268,7 +272,7 @@ public:
      *</p>
      */
     void OnMouseWheel( wxMouseEvent& event );
-#ifdef USE_OSX_MAGNIFY_EVENT
+#if wxCHECK_VERSION( 3, 1, 0 ) || defined( USE_OSX_MAGNIFY_EVENT )
     void OnMagnify( wxMouseEvent& event );
 #endif
     void OnMouseEvent( wxMouseEvent& event );
@@ -334,7 +338,7 @@ public:
     void RefreshDrawingRect( const EDA_RECT& aRect, bool aEraseBackground = true );
 
     /// @copydoc wxWindow::Refresh()
-    virtual void Refresh( bool eraseBackground = true, const wxRect* rect = NULL );
+    virtual void Refresh( bool eraseBackground = true, const wxRect* rect = NULL ) override;
 
     /**
      * Function GetScreenCenterLogicalPosition
@@ -380,7 +384,7 @@ public:
      * @param aDC - the device context to draw the cursor
      * @param aColor - the color to draw the cursor
      */
-    void DrawCrossHair( wxDC* aDC, EDA_COLOR_T aColor = WHITE );
+    void DrawCrossHair( wxDC* aDC, COLOR4D aColor = COLOR4D::WHITE );
 
     // Hide the cross hair.
     void CrossHairOff( wxDC* DC );
@@ -457,13 +461,13 @@ public:
 
     /**
      * Function GetDefaultCursor
-     * return the default cursor shape
+     * @return the default cursor shape
      */
     int GetDefaultCursor() const { return m_defaultCursor; }
 
     /**
      * Function GetCurrentCursor
-     * return the current cursor shape, depending on the current selected tool
+     * @return the current cursor shape, depending on the current selected tool
      */
     int GetCurrentCursor() const { return m_currentCursor; }
 

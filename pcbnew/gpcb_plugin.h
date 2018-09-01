@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012-2017 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -52,28 +52,34 @@ public:
 
     //-----<PLUGIN API>---------------------------------------------------------
 
-    const wxString PluginName() const
+    const wxString PluginName() const override
     {
         return wxT( "Geda PCB" );
     }
 
-    const wxString GetFileExtension() const
+    const wxString GetFileExtension() const override
     {
         return wxT( "fp" );
     }
 
-    wxArrayString FootprintEnumerate( const wxString& aLibraryPath,
-                                      const PROPERTIES* aProperties = NULL);
+    void FootprintEnumerate( wxArrayString& aFootprintNames, const wxString& aLibraryPath,
+                             const PROPERTIES* aProperties = NULL) override;
+
+    MODULE* LoadEnumeratedFootprint( const wxString& aLibraryPath, const wxString& aFootprintName,
+            const PROPERTIES* aProperties = NULL ) override;
 
     MODULE* FootprintLoad( const wxString& aLibraryPath, const wxString& aFootprintName,
-            const PROPERTIES* aProperties = NULL );
+            const PROPERTIES* aProperties = NULL ) override;
 
     void FootprintDelete( const wxString& aLibraryPath, const wxString& aFootprintName,
-            const PROPERTIES* aProperties = NULL );
+            const PROPERTIES* aProperties = NULL ) override;
 
-    bool FootprintLibDelete( const wxString& aLibraryPath, const PROPERTIES* aProperties = NULL );
+    bool FootprintLibDelete( const wxString& aLibraryPath,
+                             const PROPERTIES* aProperties = NULL ) override;
 
-    bool IsFootprintLibWritable( const wxString& aLibraryPath );
+    long long GetLibraryTimestamp( const wxString& aLibraryPath ) const override;
+
+    bool IsFootprintLibWritable( const wxString& aLibraryPath ) override;
 
     //-----</PLUGIN API>--------------------------------------------------------
 
@@ -93,8 +99,10 @@ protected:
     wxString          m_filename;     ///< for saves only, name is in m_reader for loads
 
 private:
-    /// we only cache one footprint library for now, this determines which one.
-    void cacheLib( const wxString& aLibraryPath, const wxString& aFootprintName = wxEmptyString );
+    void validateCache( const wxString& aLibraryPath, bool checkModified = true );
+
+    MODULE* doLoadFootprint( const wxString& aLibraryPath, const wxString& aFootprintName,
+            const PROPERTIES* aProperties, bool checkModified );
 
     void init( const PROPERTIES* aProperties );
 };

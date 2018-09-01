@@ -1,8 +1,7 @@
-
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,11 +21,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-//#include <wx/wx.h>
 #include <pcb_plot_params_parser.h>
 #include <pcb_plot_params.h>
 #include <layers_id_colors_and_visibility.h>
-#include <plot_common.h>
+#include <plotter.h>
 #include <macros.h>
 #include <convert_to_biu.h>
 
@@ -35,13 +33,11 @@
 #define PLOT_LINEWIDTH_MAX        (2*IU_PER_MM)     // max value for default line thickness
 #define PLOT_LINEWIDTH_DEFAULT    (0.15*IU_PER_MM)  // def. value for default line thickness
 #define HPGL_PEN_DIAMETER_MIN     0
-#define HPGL_PEN_DIAMETER_MAX     100       // Unit = mil
+#define HPGL_PEN_DIAMETER_MAX     100.0     // Unit = mil
 #define HPGL_PEN_SPEED_MIN        1         // this param is always in cm/s
 #define HPGL_PEN_SPEED_MAX        99        // this param is always in cm/s
 #define HPGL_PEN_NUMBER_MIN       1
 #define HPGL_PEN_NUMBER_MAX       16
-#define HPGL_PEN_OVERLAP_MIN      0
-#define HPGL_PEN_OVERLAP_MAX      50        // Unit = mil
 
 
 /**
@@ -64,7 +60,7 @@ static const char* getTokenName( T aTok )
 }
 
 
-static bool setInt( int* aInt, int aValue, int aMin, int aMax )
+static bool setInt( int* aTarget, int aValue, int aMin, int aMax )
 {
     int temp = aValue;
 
@@ -73,17 +69,32 @@ static bool setInt( int* aInt, int aValue, int aMin, int aMax )
     else if( aValue > aMax )
         temp = aMax;
 
-    *aInt = temp;
+    *aTarget = temp;
+    return (temp == aValue);
+}
+
+
+static bool setDouble( double* aTarget, double aValue, double aMin, double aMax )
+{
+    double temp = aValue;
+
+    if( aValue < aMin )
+        temp = aMin;
+    else if( aValue > aMax )
+        temp = aMax;
+
+    *aTarget = temp;
     return (temp == aValue);
 }
 
 // PCB_PLOT_PARAMS
 
-PCB_PLOT_PARAMS::PCB_PLOT_PARAMS() :
-    m_layerSelection( 4, B_Cu, F_Cu, F_SilkS, B_SilkS )
+PCB_PLOT_PARAMS::PCB_PLOT_PARAMS()
 {
     m_useGerberProtelExtensions  = false;
     m_useGerberAttributes        = false;
+    m_includeGerberNetlistInfo   = false;
+    m_createGerberJobFile        = false;
     m_gerberPrecision            = gbrDefaultPrecision;
     m_excludeEdgeLayer           = true;
     m_lineWidth                  = g_DrawDefaultLineThickness;
@@ -95,7 +106,6 @@ PCB_PLOT_PARAMS::PCB_PLOT_PARAMS() :
     m_HPGLPenNum                 = 1;
     m_HPGLPenSpeed               = 20;        // this param is always in cm/s
     m_HPGLPenDiam                = 15;        // in mils
-    m_HPGLPenOvr                 = 2;         // in mils
     m_negative                   = false;
     m_A4Output                   = false;
     m_plotReference              = true;
@@ -115,7 +125,9 @@ PCB_PLOT_PARAMS::PCB_PLOT_PARAMS() :
     m_outputDirectory.clear();
     m_color                      = BLACK;
     m_textMode                   = PLOTTEXTMODE_DEFAULT;
-
+    m_layerSelection             = LSET( 7, F_SilkS, B_SilkS, F_Mask, B_Mask,
+                                         F_Paste, B_Paste, Edge_Cuts )
+                                         | LSET::AllCuMask();
     // This parameter controls if the NPTH pads will be plotted or not
     // it is a "local" parameter
     m_skipNPTH_Pads              = false;
@@ -135,7 +147,7 @@ void PCB_PLOT_PARAMS::SetGerberPrecision( int aPrecision )
 
 // PLEASE NOTE: only plot dialog options are processed
 void PCB_PLOT_PARAMS::Format( OUTPUTFORMATTER* aFormatter,
-                              int aNestLevel, int aControl ) const throw( IO_ERROR )
+                              int aNestLevel, int aControl ) const
 {
     const char* falseStr = getTokenName( T_false );
     const char* trueStr = getTokenName( T_true );
@@ -148,9 +160,14 @@ void PCB_PLOT_PARAMS::Format( OUTPUTFORMATTER* aFormatter,
     aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_usegerberextensions ),
                        m_useGerberProtelExtensions ? trueStr : falseStr );
 
-    if( m_useGerberAttributes ) // save this option only if active,
-                                // to avoid incompatibility with older Pcbnew version
-        aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_usegerberattributes ), trueStr );
+    aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_usegerberattributes ),
+                       GetUseGerberAttributes() ? trueStr : falseStr );
+
+    aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_usegerberadvancedattributes ),
+                       GetIncludeGerberNetlistInfo() ? trueStr : falseStr );
+
+    aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_creategerberjobfile ),
+                       GetCreateGerberJobFile() ? trueStr : falseStr );
 
     if( m_gerberPrecision != gbrDefaultPrecision ) // save this option only if it is not the default value,
                                                    // to avoid incompatibility with older Pcbnew version
@@ -179,10 +196,8 @@ void PCB_PLOT_PARAMS::Format( OUTPUTFORMATTER* aFormatter,
 
     aFormatter->Print( aNestLevel+1, "(%s %d)\n", getTokenName( T_hpglpenspeed ),
                        m_HPGLPenSpeed );
-    aFormatter->Print( aNestLevel+1, "(%s %d)\n", getTokenName( T_hpglpendiameter ),
+    aFormatter->Print( aNestLevel+1, "(%s %f)\n", getTokenName( T_hpglpendiameter ),
                        m_HPGLPenDiam );
-    aFormatter->Print( aNestLevel+1, "(%s %d)\n", getTokenName( T_hpglpenoverlay ),
-                       m_HPGLPenOvr );
     aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_psnegative ),
                        m_negative ? trueStr : falseStr );
     aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_psa4output ),
@@ -205,14 +220,13 @@ void PCB_PLOT_PARAMS::Format( OUTPUTFORMATTER* aFormatter,
                        m_drillMarks );
     aFormatter->Print( aNestLevel+1, "(%s %d)\n", getTokenName( T_scaleselection ),
                        m_scaleSelection );
-    aFormatter->Print( aNestLevel+1, "(%s %s)", getTokenName( T_outputdirectory ),
-                       aFormatter->Quotew( m_outputDirectory ).c_str() );
+    aFormatter->Print( aNestLevel+1, "(%s \"%s\")", getTokenName( T_outputdirectory ),
+                       (const char*) m_outputDirectory.utf8_str() );
     aFormatter->Print( 0, ")\n" );
 }
 
 
 void PCB_PLOT_PARAMS::Parse( PCB_PLOT_PARAMS_PARSER* aParser )
-                      throw( PARSE_ERROR, IO_ERROR )
 {
     aParser->Parse( this );
 }
@@ -226,6 +240,10 @@ bool PCB_PLOT_PARAMS::IsSameAs( const PCB_PLOT_PARAMS &aPcbPlotParams, bool aCom
         return false;
     if( m_useGerberAttributes != aPcbPlotParams.m_useGerberAttributes )
         return false;
+    if( m_useGerberAttributes && m_includeGerberNetlistInfo != aPcbPlotParams.m_includeGerberNetlistInfo )
+        return false;
+    if( m_createGerberJobFile != aPcbPlotParams.m_createGerberJobFile )
+        return false;
     if( m_gerberPrecision != aPcbPlotParams.m_gerberPrecision )
         return false;
     if( m_excludeEdgeLayer != aPcbPlotParams.m_excludeEdgeLayer )
@@ -238,13 +256,11 @@ bool PCB_PLOT_PARAMS::IsSameAs( const PCB_PLOT_PARAMS &aPcbPlotParams, bool aCom
         return false;
     if( m_plotMode != aPcbPlotParams.m_plotMode )
         return false;
-
     if( !aCompareOnlySavedPrms )
     {
         if( m_DXFplotPolygonMode != aPcbPlotParams.m_DXFplotPolygonMode )
         return false;
     }
-
     if( m_useAuxOrigin != aPcbPlotParams.m_useAuxOrigin )
         return false;
     if( m_HPGLPenNum != aPcbPlotParams.m_HPGLPenNum )
@@ -252,8 +268,6 @@ bool PCB_PLOT_PARAMS::IsSameAs( const PCB_PLOT_PARAMS &aPcbPlotParams, bool aCom
     if( m_HPGLPenSpeed != aPcbPlotParams.m_HPGLPenSpeed )
         return false;
     if( m_HPGLPenDiam != aPcbPlotParams.m_HPGLPenDiam )
-        return false;
-    if( m_HPGLPenOvr != aPcbPlotParams.m_HPGLPenOvr )
         return false;
     if( m_negative != aPcbPlotParams.m_negative )
         return false;
@@ -287,36 +301,29 @@ bool PCB_PLOT_PARAMS::IsSameAs( const PCB_PLOT_PARAMS &aPcbPlotParams, bool aCom
         return false;
     if( m_widthAdjust != aPcbPlotParams.m_widthAdjust )
         return false;
-
     if( !aCompareOnlySavedPrms )
     {
         if( m_color != aPcbPlotParams.m_color )
             return false;
     }
-
     if( m_textMode != aPcbPlotParams.m_textMode )
         return false;
     if( !m_outputDirectory.IsSameAs( aPcbPlotParams.m_outputDirectory ) )
         return false;
+
     return true;
 }
 
 
-bool PCB_PLOT_PARAMS::SetHPGLPenDiameter( int aValue )
+bool PCB_PLOT_PARAMS::SetHPGLPenDiameter( double aValue )
 {
-    return setInt( &m_HPGLPenDiam, aValue, HPGL_PEN_DIAMETER_MIN, HPGL_PEN_DIAMETER_MAX );
+    return setDouble( &m_HPGLPenDiam, aValue, HPGL_PEN_DIAMETER_MIN, HPGL_PEN_DIAMETER_MAX );
 }
 
 
 bool PCB_PLOT_PARAMS::SetHPGLPenSpeed( int aValue )
 {
     return setInt( &m_HPGLPenSpeed, aValue, HPGL_PEN_SPEED_MIN, HPGL_PEN_SPEED_MAX );
-}
-
-
-bool PCB_PLOT_PARAMS::SetHPGLPenOverlay( int aValue )
-{
-    return setInt( &m_HPGLPenOvr, aValue, HPGL_PEN_OVERLAP_MIN, HPGL_PEN_OVERLAP_MAX );
 }
 
 
@@ -340,7 +347,6 @@ PCB_PLOT_PARAMS_PARSER::PCB_PLOT_PARAMS_PARSER( char* aLine, const wxString& aSo
 
 
 void PCB_PLOT_PARAMS_PARSER::Parse( PCB_PLOT_PARAMS* aPcbPlotParams )
-                             throw( PARSE_ERROR, IO_ERROR )
 {
     T   token;
 
@@ -378,7 +384,7 @@ void PCB_PLOT_PARAMS_PARSER::Parse( PCB_PLOT_PARAMS* aPcbPlotParams )
                     */
 
                     // sorry, use the UI once to fix:
-                    aPcbPlotParams->m_layerSelection = LSET( 4, B_Cu, F_Cu, F_SilkS, B_SilkS );
+                    aPcbPlotParams->m_layerSelection = LSET( 2, F_SilkS, B_SilkS) | LSET::AllCuMask();
                 }
                 else if( cur.find_first_of( "0x" ) == 0 )   // pretty ver. 4.
                 {
@@ -396,6 +402,14 @@ void PCB_PLOT_PARAMS_PARSER::Parse( PCB_PLOT_PARAMS* aPcbPlotParams )
 
         case T_usegerberattributes:
             aPcbPlotParams->m_useGerberAttributes = parseBool();
+            break;
+
+        case T_usegerberadvancedattributes:
+            aPcbPlotParams->m_includeGerberNetlistInfo = parseBool();
+            break;
+
+        case T_creategerberjobfile:
+            aPcbPlotParams->m_createGerberJobFile = parseBool();
             break;
 
         case T_gerberprecision:
@@ -442,18 +456,21 @@ void PCB_PLOT_PARAMS_PARSER::Parse( PCB_PLOT_PARAMS* aPcbPlotParams )
             aPcbPlotParams->m_HPGLPenNum = parseInt( HPGL_PEN_NUMBER_MIN,
                                                      HPGL_PEN_NUMBER_MAX );
             break;
+
         case T_hpglpenspeed:
             aPcbPlotParams->m_HPGLPenSpeed = parseInt( HPGL_PEN_SPEED_MIN,
                                                        HPGL_PEN_SPEED_MAX );
             break;
+
         case T_hpglpendiameter:
-            aPcbPlotParams->m_HPGLPenDiam = parseInt( HPGL_PEN_DIAMETER_MIN,
-                                                      HPGL_PEN_DIAMETER_MAX );
+            aPcbPlotParams->m_HPGLPenDiam = parseDouble();
             break;
+
         case T_hpglpenoverlay:
-            aPcbPlotParams->m_HPGLPenOvr = parseInt( HPGL_PEN_OVERLAP_MIN,
-                                                     HPGL_PEN_OVERLAP_MAX );
+            // No more used. juste here for compatibility with old versions
+            parseInt( 0, HPGL_PEN_DIAMETER_MAX );
             break;
+
         case T_pscolor:
             NeedSYMBOL(); // This actually was never used...
             break;
@@ -501,7 +518,7 @@ void PCB_PLOT_PARAMS_PARSER::Parse( PCB_PLOT_PARAMS* aPcbPlotParams )
             break;
 
         case T_outputdirectory:
-            NeedSYMBOL();
+            NeedSYMBOLorNUMBER();   // a dir name can be like a number
             aPcbPlotParams->m_outputDirectory = FROM_UTF8( CurText() );
             break;
 
@@ -558,7 +575,8 @@ double PCB_PLOT_PARAMS_PARSER::parseDouble()
     return val;
 }
 
-void PCB_PLOT_PARAMS_PARSER::skipCurrent() throw( IO_ERROR, PARSE_ERROR )
+
+void PCB_PLOT_PARAMS_PARSER::skipCurrent()
 {
     int curr_level = 0;
     T token;

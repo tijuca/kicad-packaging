@@ -2,8 +2,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2008 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 2004-2018 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -39,8 +39,9 @@
 #include <confirm.h>
 #include <kicad_string.h>
 #include <gestfich.h>
-#include <schframe.h>
+#include <sch_edit_frame.h>
 #include <base_units.h>
+#include <trace_helpers.h>
 
 #include <general.h>
 #include <class_library.h>
@@ -49,10 +50,9 @@
 #include <sch_component.h>
 #include <sch_sheet.h>
 #include <sch_sheet_path.h>
+#include <symbol_lib_table.h>
 
 #include <kicad_device_context.h>
-
-#include <boost/foreach.hpp>
 
 #include <dialogs/dialog_schematic_find.h>
 
@@ -62,7 +62,7 @@ void SCH_EDIT_FRAME::OnFindDrcMarker( wxFindDialogEvent& event )
     static SCH_MARKER* lastMarker = NULL;
 
     wxString           msg;
-    SCH_SHEET_LIST     schematic;
+    SCH_SHEET_LIST     schematic( g_RootSheet );
     SCH_SHEET_PATH*    sheetFoundIn = NULL;
     bool               wrap = ( event.GetFlags() & FR_SEARCH_WRAP ) != 0;
     bool               warpCursor = ( ( event.GetId() == wxEVT_COMMAND_FIND_CLOSE ) ||
@@ -113,7 +113,7 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
                                                 const wxString& aSearchText,
                                                 bool            aWarpMouse )
 {
-    SCH_SHEET_PATH* sheet;
+    SCH_SHEET_PATH* sheet = NULL;
     SCH_SHEET_PATH* sheetWithComponentFound = NULL;
     SCH_ITEM*       item = NULL;
     SCH_COMPONENT*  Component = NULL;
@@ -121,16 +121,17 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
     bool            centerAndRedraw = false;
     bool            notFound = true;
     LIB_PIN*        pin;
-    SCH_SHEET_LIST  sheetList;
-
-    sheet = sheetList.GetFirst();
+    SCH_SHEET_LIST  sheetList( g_RootSheet );
 
     if( !aSearchHierarchy )
-        sheet = m_CurrentSheet;
+        sheetList.push_back( *m_CurrentSheet );
+    else
+        sheetList.BuildSheetList( g_RootSheet );
 
-    for( ; sheet != NULL; sheet = sheetList.GetNext() )
+    for( SCH_SHEET_PATHS_ITER it = sheetList.begin(); it != sheetList.end(); ++it )
     {
-        item = sheet->LastDrawList();
+        sheet = &(*it);
+        item = (*it).LastDrawList();
 
         for( ; ( item != NULL ) && ( notFound == true ); item = item->Next() )
         {
@@ -181,7 +182,7 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
             }
         }
 
-        if( (aSearchHierarchy == false) || (notFound == false) )
+        if( notFound == false )
             break;
     }
 
@@ -194,6 +195,7 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
             sheet->LastScreen()->SetZoom( GetScreen()->GetZoom() );
             *m_CurrentSheet = *sheet;
             m_CurrentSheet->UpdateAllScreenReferences();
+            sheet->LastScreen()->TestDanglingEnds();
             centerAndRedraw = true;
         }
 
@@ -286,8 +288,7 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
 
 bool SCH_EDIT_FRAME::IsSearchCacheObsolete( const SCH_FIND_REPLACE_DATA& aSearchCriteria )
 {
-    PART_LIBS*  libs = Prj().SchLibs();
-    int         mod_hash = libs->GetModifyHash();
+    int mod_hash = Prj().SchSymbolLibTable()->GetModifyHash();
 
     // the cache is obsolete whenever any library changes.
     if( mod_hash != m_foundItems.GetLibHash() )
@@ -316,20 +317,6 @@ void SCH_EDIT_FRAME::OnFindSchematicItem( wxFindDialogEvent& aEvent )
     {
         if( m_foundItems.GetCount() == 0 )
             return;
-
-        // Refresh the search cache in case something has changed.  This prevents any stale
-        // pointers from crashing Eeschema when the wxEVT_FIND_CLOSE event is handled.
-        if( IsSearchCacheObsolete( searchCriteria ) )
-        {
-            if( aEvent.GetFlags() & FR_CURRENT_SHEET_ONLY && g_RootSheet->CountSheets() > 1 )
-            {
-                m_foundItems.Collect( searchCriteria, m_CurrentSheet );
-            }
-            else
-            {
-                m_foundItems.Collect( searchCriteria );
-            }
-        }
     }
     else if( IsSearchCacheObsolete( searchCriteria ) )
     {
@@ -358,10 +345,9 @@ void SCH_EDIT_FRAME::OnFindSchematicItem( wxFindDialogEvent& aEvent )
 
 void SCH_EDIT_FRAME::OnFindReplace( wxFindDialogEvent& aEvent )
 {
-    static int              nextFoundIndex = 0;
     SCH_ITEM*               item;
     SCH_SHEET_PATH*         sheet;
-    SCH_SHEET_LIST          schematic;
+    SCH_SHEET_LIST          schematic( g_RootSheet );
     SCH_FIND_COLLECTOR_DATA data;
     SCH_FIND_REPLACE_DATA   searchCriteria;
 
@@ -380,10 +366,6 @@ void SCH_EDIT_FRAME::OnFindReplace( wxFindDialogEvent& aEvent )
         {
             m_foundItems.Collect( searchCriteria );
         }
-
-        // Restore the next found index on cache refresh.  Prevents single replace events
-        // from starting back at the beginning of the cache.
-        m_foundItems.SetFoundIndex( nextFoundIndex );
     }
 
     if( aEvent.GetEventType() == wxEVT_COMMAND_FIND_REPLACE_ALL )
@@ -437,10 +419,12 @@ void SCH_EDIT_FRAME::OnFindReplace( wxFindDialogEvent& aEvent )
             OnModify();
             SaveUndoItemInUndoList( undoItem );
             updateFindReplaceView( aEvent );
+
+            // A single replace is part of the search; it does not dirty it.
+            m_foundItems.SetForceSearch( false );
         }
 
         m_foundItems.IncrementIndex();
-        nextFoundIndex = m_foundItems.GetFoundIndex();
     }
 
     // End the replace if we are at the end if the list.  This prevents an infinite loop if
@@ -454,7 +438,7 @@ void SCH_EDIT_FRAME::OnFindReplace( wxFindDialogEvent& aEvent )
 void SCH_EDIT_FRAME::updateFindReplaceView( wxFindDialogEvent& aEvent )
 {
     wxString                msg;
-    SCH_SHEET_LIST          schematic;
+    SCH_SHEET_LIST          schematic( g_RootSheet );
     SCH_FIND_COLLECTOR_DATA data;
     SCH_FIND_REPLACE_DATA   searchCriteria;
     bool                    warpCursor = !( aEvent.GetFlags() & FR_NO_WARP_CURSOR );
@@ -491,6 +475,7 @@ void SCH_EDIT_FRAME::updateFindReplaceView( wxFindDialogEvent& aEvent )
             *m_CurrentSheet = *sheet;
             m_CurrentSheet->UpdateAllScreenReferences();
             SetScreen( sheet->LastScreen() );
+            sheet->LastScreen()->TestDanglingEnds();
         }
 
         // careful here

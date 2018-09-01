@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2004-2011 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,10 +29,10 @@
 
 #include <fctsys.h>
 #include <class_drawpanel.h>
-#include <schframe.h>
+#include <sch_edit_frame.h>
 
 #include <general.h>
-#include <protos.h>
+#include <list_operations.h>
 #include <sch_bus_entry.h>
 #include <sch_marker.h>
 #include <sch_junction.h>
@@ -102,14 +102,17 @@
 
 
 /* Used if undo / redo command:
- *  swap data between Item and its copy, pointed by its .m_Image member
+ * swap data between Item and its copy, pointed by its picked item link member
  * swapped data is data modified by edition, so not all values are swapped
  */
 
 void SCH_EDIT_FRAME::SaveCopyInUndoList( SCH_ITEM*      aItem,
                                          UNDO_REDO_T    aCommandType,
+                                         bool           aAppend,
                                          const wxPoint& aTransformPoint )
 {
+     PICKED_ITEMS_LIST* commandToUndo = NULL;
+
     /* Does not save a null item or a UR_WIRE_IMAGE command type.  UR_WIRE_IMAGE commands
      * are handled by the overloaded version of SaveCopyInUndoList that takes a reference
      * to a PICKED_ITEMS_LIST.
@@ -117,8 +120,14 @@ void SCH_EDIT_FRAME::SaveCopyInUndoList( SCH_ITEM*      aItem,
     if( aItem == NULL || aCommandType == UR_WIRE_IMAGE )
         return;
 
-    PICKED_ITEMS_LIST* commandToUndo = new PICKED_ITEMS_LIST();
-    commandToUndo->m_TransformPoint = aTransformPoint;
+    if( aAppend )
+        commandToUndo = GetScreen()->PopCommandFromUndoList();
+
+    if( !commandToUndo )
+    {
+        commandToUndo = new PICKED_ITEMS_LIST();
+        commandToUndo->m_TransformPoint = aTransformPoint;
+    }
 
     ITEM_PICKER itemWrapper( aItem, aCommandType );
     itemWrapper.SetFlags( aItem->GetFlags() );
@@ -160,15 +169,41 @@ void SCH_EDIT_FRAME::SaveCopyInUndoList( SCH_ITEM*      aItem,
 
 void SCH_EDIT_FRAME::SaveCopyInUndoList( const PICKED_ITEMS_LIST& aItemsList,
                                          UNDO_REDO_T        aTypeCommand,
+                                         bool               aAppend,
                                          const wxPoint&     aTransformPoint )
 {
-    PICKED_ITEMS_LIST* commandToUndo = new PICKED_ITEMS_LIST();
+    PICKED_ITEMS_LIST* commandToUndo = NULL;
 
-    commandToUndo->m_TransformPoint = aTransformPoint;
-    commandToUndo->m_Status = aTypeCommand;
+    if( !aItemsList.GetCount() )
+        return;
+
+    // Can't append a WIRE IMAGE, so fail to a new undo point
+    if( aAppend && ( aTypeCommand != UR_WIRE_IMAGE ) )
+    {
+        commandToUndo = GetScreen()->PopCommandFromUndoList();
+        if( commandToUndo && commandToUndo->m_Status == UR_WIRE_IMAGE )
+        {
+            GetScreen()->PushCommandToUndoList( commandToUndo );
+            commandToUndo = NULL;
+        }
+    }
+
+    if( !commandToUndo )
+    {
+        commandToUndo = new PICKED_ITEMS_LIST();
+        commandToUndo->m_TransformPoint = aTransformPoint;
+        commandToUndo->m_Status = aTypeCommand;
+    }
 
     // Copy picker list:
-    commandToUndo->CopyList( aItemsList );
+    if( !commandToUndo->GetCount() )
+        commandToUndo->CopyList( aItemsList );
+    else
+    {
+        // Unless we are appending, in which case, get the picker items
+        for( unsigned ii = 0; ii < aItemsList.GetCount(); ii++ )
+            commandToUndo->PushItem( aItemsList.GetItemWrapper( ii) );
+    }
 
     // Verify list, and creates data if needed
     for( unsigned ii = 0; ii < commandToUndo->GetCount(); ii++ )
@@ -338,7 +373,7 @@ void SCH_EDIT_FRAME::PutDataInPreviousState( PICKED_ITEMS_LIST* aList, bool aRed
 
 void SCH_EDIT_FRAME::GetSchematicFromUndoList( wxCommandEvent& event )
 {
-    if( GetScreen()->GetUndoCommandCount() <= 0 )
+    if( GetScreen()->GetUndoCommandCount() <= 0 || isBusy() )
         return;
 
     /* Get the old list */
@@ -361,7 +396,7 @@ void SCH_EDIT_FRAME::GetSchematicFromUndoList( wxCommandEvent& event )
 
 void SCH_EDIT_FRAME::GetSchematicFromRedoList( wxCommandEvent& event )
 {
-    if( GetScreen()->GetRedoCommandCount() == 0 )
+    if( GetScreen()->GetRedoCommandCount() == 0 || isBusy() )
         return;
 
     /* Get the old list */

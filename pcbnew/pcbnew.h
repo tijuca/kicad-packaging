@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2007-2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -33,13 +33,17 @@
 #include <fctsys.h>         // wxWidgets include.
 #include <base_struct.h>    // IS_DRAGGED and IN_EDIT definitions.
 #include <dlist.h>
-#include <convert_to_biu.h> // to define DMils2iu() conversion function
+#include <convert_to_biu.h> // to define Mils2iu() conversion function
 #include <layers_id_colors_and_visibility.h>
 
 // Arcs are approximated by segments: define the number of segments per 360 deg (KiCad uses 0.1
 // deg approximation).  Be aware 3600 / ARC_APPROX_SEGMENTS_COUNT_LOW_DEF is an integer.
 #define ARC_APPROX_SEGMENTS_COUNT_LOW_DEF 16
 #define ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF 32
+
+// The new absolute-error-based algorithm uses the stored segment count as a hint on whether
+// to use ARC_HIGH_DEF or ARC_LOW_DEF.  This defines the crossover point.
+#define SEGMENT_COUNT_CROSSOVER 24
 
 /* Flag used in locate functions. The locate ref point is the on grid cursor or the off
  * grid mouse cursor. */
@@ -59,10 +63,9 @@ enum ENDPOINT_T {
 #define DIM_ANCRE_MODULE 3       // Anchor size (footprint center)
 
 
-#define TEXTS_MIN_SIZE  DMils2iu( 50 )      ///< Minimum text size in Pcbnew units value (50 * 0.0001 mils)
-#define TEXTS_MAX_SIZE  DMils2iu( 10000 )   ///< Maximum text size in Pcbnew units value (1 inch) )
-#define TEXTS_MAX_WIDTH DMils2iu( 5000 )    ///< Maximum text width in Pcbnew units value (0.5 inches)
-#define MIN_DRAW_WIDTH  1                   ///< Minimum trace drawing width in pixels.
+#define TEXTS_MIN_SIZE  Mils2iu( 5 )        ///< Minimum text size in Pcbnew units value (5 mils)
+#define TEXTS_MAX_SIZE  Mils2iu( 1000 )     ///< Maximum text size in Pcbnew units value (1 inch) )
+#define TEXTS_MAX_WIDTH Mils2iu( 500 )      ///< Maximum text width in Pcbnew units value (0.5 inches)
 
 
 // Flag to force the SKETCH mode to display items (.m_Flags member)
@@ -77,23 +80,16 @@ enum ENDPOINT_T {
 extern wxString g_DocModulesFileName;
 
 // variables
-extern bool     g_Drc_On;
-extern bool     g_AutoDeleteOldTrack;
 extern bool     g_Raccord_45_Auto;
-extern bool     g_Track_45_Only_Allowed;
 extern bool     g_Alternate_Track_Posture;
-extern bool     g_Segments_45_Only;
-
 // Layer pair for auto routing and switch layers by hotkey
-extern LAYER_ID g_Route_Layer_TOP;
-extern LAYER_ID g_Route_Layer_BOTTOM;
+extern PCB_LAYER_ID g_Route_Layer_TOP;
+extern PCB_LAYER_ID g_Route_Layer_BOTTOM;
 
 extern bool     g_TwoSegmentTrackBuild;
 
 extern int      g_MagneticPadOption;
 extern int      g_MagneticTrackOption;
-
-extern bool     g_DumpZonesWhenFilling;
 
 extern wxPoint  g_Offset_Module;         // Offset trace when moving footprint.
 
@@ -104,11 +100,15 @@ extern DLIST<TRACK> g_CurrentTrackList;
 #define g_FirstTrackSegment   g_CurrentTrackList.GetFirst()   ///< first segment created
 
 
-enum MagneticPadOptionValues {
-    no_effect,
-    capture_cursor_in_track_tool,
-    capture_always
-};
+
+/**
+ * Helper function PythonPluginsReloadBase
+ * Reload Python plugins if they are newer than
+ * the already loaded, and load new plugins if any
+ * It calls the LoadPlugins(bundlepath) Python method
+ * see kicadplugins.i
+ */
+void PythonPluginsReloadBase();
 
 
 #endif // PCBNEW_H

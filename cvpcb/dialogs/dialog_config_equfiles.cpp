@@ -6,7 +6,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -49,13 +49,15 @@ DIALOG_CONFIG_EQUFILES::DIALOG_CONFIG_EQUFILES( CVPCB_MAINFRAME* aParent ) :
     m_Config = Pgm().CommonSettings();
 
     PROJECT&    prj = Prj();
-    SetTitle( wxString::Format( _( "Project file: '%s'" ), GetChars( prj.GetProjectFullName() ) ) );
+    SetTitle( wxString::Format( _( "Project file: \"%s\"" ),
+                                GetChars( prj.GetProjectFullName() ) ) );
 
     Init( );
 
     GetSizer()->SetSizeHints( this );
     Center();
 }
+
 
 void CVPCB_MAINFRAME::OnEditEquFilesList( wxCommandEvent& aEvent )
 {
@@ -69,7 +71,9 @@ void DIALOG_CONFIG_EQUFILES::Init()
 {
     m_sdbSizerOK->SetDefault();
     m_ListChanged = false;
-    m_ListEquiv->InsertItems( m_Parent->m_EquFilesNames, 0 );
+
+    if( !m_Parent->m_EquFilesNames.IsEmpty() )
+        m_ListEquiv->InsertItems( m_Parent->m_EquFilesNames, 0 );
 
     if( getEnvVarCount() < 2 )
         m_gridEnvVars->AppendRows(2 - getEnvVarCount() );
@@ -90,13 +94,14 @@ void DIALOG_CONFIG_EQUFILES::Init()
 
 }
 
+
 void DIALOG_CONFIG_EQUFILES::OnEditEquFile( wxCommandEvent& event )
 {
     wxString    editorname = Pgm().GetEditorName();
 
     if( editorname.IsEmpty() )
     {
-        wxMessageBox( _( "No editor defined in Kicad. Please chose it" ) );
+        wxMessageBox( _( "No editor defined in KiCad. Please choose it." ) );
         return;
     }
 
@@ -116,12 +121,6 @@ void DIALOG_CONFIG_EQUFILES::OnEditEquFile( wxCommandEvent& event )
 }
 
 
-void DIALOG_CONFIG_EQUFILES::OnCancelClick( wxCommandEvent& event )
-{
-    EndModal( wxID_CANCEL );
-}
-
-
 void DIALOG_CONFIG_EQUFILES::OnOkClick( wxCommandEvent& event )
 {
     // Save new equ file list if the files list was modified
@@ -134,7 +133,7 @@ void DIALOG_CONFIG_EQUFILES::OnOkClick( wxCommandEvent& event )
             m_Parent->m_EquFilesNames.Add( m_ListEquiv->GetString( ii ) );
 
         wxCommandEvent evt( ID_SAVE_PROJECT );
-        m_Parent->SaveProjectFile( evt );
+        m_Parent->SaveProjectFile();
     }
 
     EndModal( wxID_OK );
@@ -147,9 +146,7 @@ void DIALOG_CONFIG_EQUFILES::OnCloseWindow( wxCloseEvent& event )
 }
 
 
-/********************************************************************/
 void DIALOG_CONFIG_EQUFILES::OnButtonMoveUp( wxCommandEvent& event )
-/********************************************************************/
 {
     wxArrayInt selections;
 
@@ -182,9 +179,7 @@ void DIALOG_CONFIG_EQUFILES::OnButtonMoveUp( wxCommandEvent& event )
 }
 
 
-/*********************************************************************/
 void DIALOG_CONFIG_EQUFILES::OnButtonMoveDown( wxCommandEvent& event )
-/*********************************************************************/
 {
     wxArrayInt selections;
     m_ListEquiv->GetSelections( selections );
@@ -201,7 +196,7 @@ void DIALOG_CONFIG_EQUFILES::OnButtonMoveDown( wxCommandEvent& event )
     for( int ii = selections.GetCount()-1; ii >= 0; ii-- )
     {
         int jj = selections[ii];
-        std::swap( libnames[jj],  libnames[jj+1]);
+        std::swap( libnames[jj],  libnames[jj+1] );
     }
 
     m_ListEquiv->Set( libnames );
@@ -210,7 +205,7 @@ void DIALOG_CONFIG_EQUFILES::OnButtonMoveDown( wxCommandEvent& event )
     for( size_t ii = 0; ii < selections.GetCount(); ii++ )
     {
         int jj = selections[ii];
-        m_ListEquiv->SetSelection(jj+1);
+        m_ListEquiv->SetSelection( jj+1 );
     }
 
     m_ListChanged = true;
@@ -229,22 +224,17 @@ void DIALOG_CONFIG_EQUFILES::OnRemoveFiles( wxCommandEvent& event )
 
     for( int ii = selections.GetCount()-1; ii >= 0; ii-- )
     {
-        m_ListEquiv->Delete(selections[ii] );
+        m_ListEquiv->Delete( selections[ii] );
         m_ListChanged = true;
     }
 }
 
 
-/* Insert or add a library to the library list:
- *   The new library is put in list before (insert button) the selection,
- *   or added (add button) to end of list
- */
 void DIALOG_CONFIG_EQUFILES::OnAddFiles( wxCommandEvent& event )
 {
-    wxString   equFilename, wildcard;
+    wxString   equFilename;
     wxFileName fn;
 
-    wildcard = EquFilesWildcard;
     wxListBox* list = m_ListEquiv;
 
     // Get a default path to open the file dialog:
@@ -256,8 +246,8 @@ void DIALOG_CONFIG_EQUFILES::OnAddFiles( wxCommandEvent& event )
 
     libpath = m_gridEnvVars->GetCellValue( wxGridCellCoords( row, 1 ) );
 
-    wxFileDialog FilesDialog( this, _( "Equ files:" ), libpath,
-                              wxEmptyString, wildcard,
+    wxFileDialog FilesDialog( this, _( "Footprint Association File" ), libpath,
+                              wxEmptyString, EquFileWildcard(),
                               wxFD_DEFAULT_STYLE | wxFD_MULTIPLE );
 
     if( FilesDialog.ShowModal() != wxID_OK )
@@ -279,7 +269,7 @@ void DIALOG_CONFIG_EQUFILES::OnAddFiles( wxCommandEvent& event )
 
                 if( fn.MakeRelativeTo( libpath ) )
                 {
-                    equFilename.Printf( wxT("${%s}%c%s"),
+                    equFilename.Printf( wxT( "${%s}%c%s" ),
                                         GetChars( m_gridEnvVars->GetCellValue( wxGridCellCoords( row, 0 ) ) ),
                                         fn.GetPathSeparator(),
                                         GetChars( fn.GetFullPath() ) );
@@ -295,13 +285,13 @@ void DIALOG_CONFIG_EQUFILES::OnAddFiles( wxCommandEvent& event )
         if( list->FindString( equFilename, fn.IsCaseSensitive() ) == wxNOT_FOUND )
         {
             m_ListChanged = true;
-            equFilename.Replace( wxT("\\"), wxT("/") );     // Use unix separators only.
+            equFilename.Replace( wxT( "\\" ), wxT( "/" ) );     // Use unix separators only.
             list->Append( equFilename );
         }
         else
         {
             wxString msg;
-            msg.Printf( _( "File '%s' already exists in list" ), equFilename.GetData() );
+            msg.Printf( _( "File \"%s\" already exists in list" ), equFilename.GetData() );
             DisplayError( this, msg );
         }
     }

@@ -2,6 +2,7 @@
  * KiRouter - a push-and-(sometimes-)shove PCB router
  *
  * Copyright (C) 2013-2014 CERN
+ * Copyright (C) 2016 KiCad Developers, see AUTHORS.txt for contributors.
  * Author: Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -24,12 +25,14 @@
 #include <geometry/shape_line_chain.h>
 #include <geometry/shape_rect.h>
 #include <geometry/shape_circle.h>
-#include <geometry/shape_convex.h>
-
 #include "pns_solid.h"
+
+#include "../../include/geometry/shape_simple.h"
 #include "pns_utils.h"
 
-const SHAPE_LINE_CHAIN PNS_SOLID::Hull( int aClearance, int aWalkaroundThickness ) const
+namespace PNS {
+
+const SHAPE_LINE_CHAIN SOLID::Hull( int aClearance, int aWalkaroundThickness ) const
 {
     int cl = aClearance + ( aWalkaroundThickness + 1 )/ 2;
 
@@ -55,9 +58,9 @@ const SHAPE_LINE_CHAIN PNS_SOLID::Hull( int aClearance, int aWalkaroundThickness
         return SegmentHull( *seg, aClearance, aWalkaroundThickness );
     }
 
-    case SH_CONVEX:
+    case SH_SIMPLE:
     {
-        SHAPE_CONVEX* convex = static_cast<SHAPE_CONVEX*>( m_shape );
+        SHAPE_SIMPLE* convex = static_cast<SHAPE_SIMPLE*>( m_shape );
 
         return ConvexHull( *convex, cl );
     }
@@ -70,8 +73,10 @@ const SHAPE_LINE_CHAIN PNS_SOLID::Hull( int aClearance, int aWalkaroundThickness
 }
 
 
-PNS_ITEM* PNS_SOLID::Clone() const
+ITEM* SOLID::Clone() const
 {
-    PNS_ITEM* solid = new PNS_SOLID( *this );
+    ITEM* solid = new SOLID( *this );
     return solid;
+}
+
 }

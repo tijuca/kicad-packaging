@@ -14,6 +14,7 @@
         <property name="file">dialog_layers_setup_base</property>
         <property name="first_id">1000</property>
         <property name="help_provider">none</property>
+        <property name="indent_with_spaces"></property>
         <property name="internationalize">1</property>
         <property name="name">DIALOG_LAYERS_SETUP_BASE</property>
         <property name="namespace"></property>
@@ -40,11 +41,11 @@
             <property name="font"></property>
             <property name="hidden">0</property>
             <property name="id">wxID_ANY</property>
-            <property name="maximum_size"></property>
-            <property name="minimum_size">550,600</property>
+            <property name="maximum_size">-1,-1</property>
+            <property name="minimum_size">200,200</property>
             <property name="name">DIALOG_LAYERS_SETUP_BASE</property>
             <property name="pos"></property>
-            <property name="size">550,1580</property>
+            <property name="size">-1,-1</property>
             <property name="style">wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER</property>
             <property name="subclass">DIALOG_SHIM; dialog_shim.h</property>
             <property name="title">Layer Setup</property>
@@ -67,7 +68,7 @@
             <event name="OnHibernate"></event>
             <event name="OnIconize"></event>
             <event name="OnIdle"></event>
-            <event name="OnInitDialog"></event>
+            <event name="OnInitDialog">OnInitDialog</event>
             <event name="OnKeyDown"></event>
             <event name="OnKeyUp"></event>
             <event name="OnKillFocus"></event>
@@ -143,7 +144,7 @@
                                         <property name="gripper">0</property>
                                         <property name="hidden">0</property>
                                         <property name="id">wxID_ANY</property>
-                                        <property name="label">Preset Layer Groupings</property>
+                                        <property name="label">Preset Layer Groupings:</property>
                                         <property name="max_size"></property>
                                         <property name="maximize_button">0</property>
                                         <property name="maximum_size"></property>
@@ -325,7 +326,7 @@
                                         <property name="gripper">0</property>
                                         <property name="hidden">0</property>
                                         <property name="id">wxID_ANY</property>
-                                        <property name="label">Copper Layers</property>
+                                        <property name="label">Copper Layers:</property>
                                         <property name="max_size"></property>
                                         <property name="maximize_button">0</property>
                                         <property name="maximum_size"></property>
@@ -507,7 +508,7 @@
                                         <property name="gripper">0</property>
                                         <property name="hidden">0</property>
                                         <property name="id">wxID_ANY</property>
-                                        <property name="label">Board Thickness</property>
+                                        <property name="label">Board Thickness:</property>
                                         <property name="max_size"></property>
                                         <property name="maximize_button">0</property>
                                         <property name="maximum_size"></property>
@@ -609,7 +610,7 @@
                                                 <property name="max_size"></property>
                                                 <property name="maximize_button">0</property>
                                                 <property name="maximum_size"></property>
-                                                <property name="maxlength"></property>
+                                                <property name="maxlength">20</property>
                                                 <property name="min_size"></property>
                                                 <property name="minimize_button">0</property>
                                                 <property name="minimum_size"></property>
@@ -795,7 +796,7 @@
                                 <property name="gripper">0</property>
                                 <property name="hidden">0</property>
                                 <property name="id">wxID_ANY</property>
-                                <property name="label">Layers</property>
+                                <property name="label">Layers:</property>
                                 <property name="max_size"></property>
                                 <property name="maximize_button">0</property>
                                 <property name="maximum_size"></property>
@@ -909,7 +910,7 @@
                                         <property name="tooltip"></property>
                                         <property name="window_extra_style"></property>
                                         <property name="window_name"></property>
-                                        <property name="window_style">wxRAISED_BORDER|wxTAB_TRAVERSAL</property>
+                                        <property name="window_style">wxTAB_TRAVERSAL</property>
                                         <event name="OnChar"></event>
                                         <event name="OnEnterWindow"></event>
                                         <event name="OnEraseBackground"></event>
@@ -937,11 +938,11 @@
                                 </object>
                             </object>
                         </object>
-                        <object class="sizeritem" expanded="0">
+                        <object class="sizeritem" expanded="1">
                             <property name="border">5</property>
                             <property name="flag">wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT</property>
                             <property name="proportion">1</property>
-                            <object class="wxScrolledWindow" expanded="0">
+                            <object class="wxScrolledWindow" expanded="1">
                                 <property name="BottomDockable">1</property>
                                 <property name="LeftDockable">1</property>
                                 <property name="RightDockable">1</property>
@@ -1017,7 +1018,7 @@
                                 <event name="OnSetFocus"></event>
                                 <event name="OnSize"></event>
                                 <event name="OnUpdateUI"></event>
-                                <object class="wxFlexGridSizer" expanded="0">
+                                <object class="wxFlexGridSizer" expanded="1">
                                     <property name="cols">3</property>
                                     <property name="flexible_direction">wxHORIZONTAL</property>
                                     <property name="growablecols">0</property>
@@ -1112,11 +1113,11 @@
                                             <event name="OnUpdateUI"></event>
                                         </object>
                                     </object>
-                                    <object class="sizeritem" expanded="0">
+                                    <object class="sizeritem" expanded="1">
                                         <property name="border">5</property>
                                         <property name="flag">wxEXPAND</property>
                                         <property name="proportion">1</property>
-                                        <object class="wxPanel" expanded="0">
+                                        <object class="wxPanel" expanded="1">
                                             <property name="BottomDockable">1</property>
                                             <property name="LeftDockable">1</property>
                                             <property name="RightDockable">1</property>
@@ -1190,7 +1191,7 @@
                                             <event name="OnSetFocus"></event>
                                             <event name="OnSize"></event>
                                             <event name="OnUpdateUI"></event>
-                                            <object class="wxBoxSizer" expanded="0">
+                                            <object class="wxBoxSizer" expanded="1">
                                                 <property name="minimum_size"></property>
                                                 <property name="name">bSizer611</property>
                                                 <property name="orient">wxHORIZONTAL</property>
@@ -2018,7 +2019,7 @@
                                             <property name="gripper">0</property>
                                             <property name="hidden">0</property>
                                             <property name="id">ID_ADHESFRONTCHOICE</property>
-                                            <property name="label">Off-board, manufacturing</property>
+                                            <property name="label">On-board, non-copper</property>
                                             <property name="max_size"></property>
                                             <property name="maximize_button">0</property>
                                             <property name="maximum_size"></property>
@@ -3755,7 +3756,7 @@
                                             <property name="pin_button">1</property>
                                             <property name="pos"></property>
                                             <property name="resize">Resizable</property>
-                                            <property name="selection">0</property>
+                                            <property name="selection">3</property>
                                             <property name="show">1</property>
                                             <property name="size"></property>
                                             <property name="style"></property>
@@ -15694,7 +15695,7 @@
                                             <property name="gripper">0</property>
                                             <property name="hidden">0</property>
                                             <property name="id">ID_ADHESBACKCHOICE</property>
-                                            <property name="label">Off-board, manufacturing</property>
+                                            <property name="label">On-board, non-copper</property>
                                             <property name="max_size"></property>
                                             <property name="maximize_button">0</property>
                                             <property name="maximum_size"></property>
@@ -16305,7 +16306,7 @@
                                                         <property name="style"></property>
                                                         <property name="subclass"></property>
                                                         <property name="toolbar_pane">0</property>
-                                                        <property name="tooltip">If you want a courtyard layer for the front side of the board</property>
+                                                        <property name="tooltip">If you want a courtyard layer for the back side of the board</property>
                                                         <property name="validator_data_type"></property>
                                                         <property name="validator_style">wxFILTER_NONE</property>
                                                         <property name="validator_type">wxDefaultValidator</property>
@@ -18487,11 +18488,11 @@
                         <property name="name">m_sdbSizer</property>
                         <property name="permission">protected</property>
                         <event name="OnApplyButtonClick"></event>
-                        <event name="OnCancelButtonClick">OnCancelButtonClick</event>
+                        <event name="OnCancelButtonClick"></event>
                         <event name="OnContextHelpButtonClick"></event>
                         <event name="OnHelpButtonClick"></event>
                         <event name="OnNoButtonClick"></event>
-                        <event name="OnOKButtonClick">OnOkButtonClick</event>
+                        <event name="OnOKButtonClick"></event>
                         <event name="OnSaveButtonClick"></event>
                         <event name="OnYesButtonClick"></event>
                     </object>

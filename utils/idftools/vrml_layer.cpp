@@ -3,7 +3,7 @@
  *
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013  Cirilo Bernardo
+ * Copyright (C) 2013-2017  Cirilo Bernardo
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -36,6 +36,7 @@
 #include <iomanip>
 #include <cmath>
 #include <vrml_layer.h>
+#include <trigo.h>
 
 #ifndef CALLBACK
 #define CALLBACK
@@ -317,9 +318,6 @@ int VRML_LAYER::NewContour(  bool aPlatedHole )
 
     std::list<int>* contour = new std::list<int>;
 
-    if( !contour )
-        return -1;
-
     contours.push_back( contour );
     areas.push_back( 0.0 );
 
@@ -347,13 +345,6 @@ bool VRML_LAYER::AddVertex( int aContourID, double aXpos, double aYpos )
     }
 
     VERTEX_3D* vertex = new VERTEX_3D;
-
-    if( !vertex )
-    {
-        error = "AddVertex(): a new vertex could not be allocated";
-        return false;
-    }
-
     vertex->x   = aXpos;
     vertex->y   = aYpos;
     vertex->i   = idx++;
@@ -468,7 +459,7 @@ bool VRML_LAYER::AppendCircle( double aXpos, double aYpos,
 }
 
 
-// adds a circle the existing list; if 'hole' is true the contour is
+// adds a circle to the existing list; if 'hole' is true the contour is
 // a hole. Returns true if OK.
 bool VRML_LAYER::AddCircle( double aXpos, double aYpos, double aRadius,
                             bool aHoleFlag, bool aPlatedHole )
@@ -576,6 +567,31 @@ bool VRML_LAYER::AddSlot( double aCenterX, double aCenterY,
     }
 
     return !fail;
+}
+
+
+bool VRML_LAYER::AddPolygon( const std::vector< wxRealPoint >& aPolySet, double aCenterX,
+        double aCenterY, double aAngle )
+{
+    int pad = NewContour( false );
+
+    if( pad < 0 )
+    {
+        error = "AddPolygon(): failed to add a contour";
+        return false;
+    }
+
+    for( auto corner : aPolySet )
+    {
+        // The sense of polygon rotations is reversed
+        RotatePoint( &corner.x, &corner.y, -aAngle );
+        AddVertex( pad, aCenterX + corner.x, aCenterY + corner.y );
+    }
+
+    if( !EnsureWinding( pad, false ) )
+        return false;
+
+    return true;
 }
 
 
@@ -980,7 +996,7 @@ bool VRML_LAYER::pushOutline( VRML_LAYER* holes )
 
 
 // writes out the vertex list for a planar feature
-bool VRML_LAYER::WriteVertices( double aZcoord, std::ofstream& aOutFile, int aPrecision )
+bool VRML_LAYER::WriteVertices( double aZcoord, std::ostream& aOutFile, int aPrecision )
 {
     if( ordmap.size() < 3 )
     {
@@ -1026,7 +1042,7 @@ bool VRML_LAYER::WriteVertices( double aZcoord, std::ofstream& aOutFile, int aPr
 // writes out the vertex list for a 3D feature; top and bottom are the
 // Z values for the top and bottom; top must be > bottom
 bool VRML_LAYER::Write3DVertices( double aTopZ, double aBottomZ,
-                                  std::ofstream& aOutFile, int aPrecision )
+                                  std::ostream& aOutFile, int aPrecision )
 {
     if( ordmap.size() < 3 )
     {
@@ -1113,7 +1129,7 @@ bool VRML_LAYER::Write3DVertices( double aTopZ, double aBottomZ,
 // writes out the index list;
 // 'top' indicates the vertex ordering and should be
 // true for a polygon visible from above the PCB
-bool VRML_LAYER::WriteIndices( bool aTopFlag, std::ofstream& aOutFile )
+bool VRML_LAYER::WriteIndices( bool aTopFlag, std::ostream& aOutFile )
 {
     if( triplets.empty() )
     {
@@ -1161,7 +1177,7 @@ bool VRML_LAYER::WriteIndices( bool aTopFlag, std::ofstream& aOutFile )
 
 
 // writes out the index list for a 3D feature
-bool VRML_LAYER::Write3DIndices( std::ofstream& aOutFile, bool aIncludePlatedHoles )
+bool VRML_LAYER::Write3DIndices( std::ostream& aOutFile, bool aIncludePlatedHoles )
 {
     if( outline.empty() )
     {
@@ -1344,28 +1360,32 @@ bool VRML_LAYER::addTriplet( VERTEX_3D* p0, VERTEX_3D* p1, VERTEX_3D* p2 )
 {
     double  dx0 = p1->x - p0->x;
     double  dx1 = p2->x - p0->x;
+    double  dx2 = p2->x - p1->x;
 
     double  dy0 = p1->y - p0->y;
     double  dy1 = p2->y - p0->y;
+    double  dy2 = p2->y - p1->y;
+
+    dx0 *= dx0;
+    dx1 *= dx1;
+    dx2 *= dx2;
+
+    dy0 *= dy0;
+    dy1 *= dy1;
+    dy2 *= dy2;
 
     // this number is chosen because we shall only write 9 decimal places
     // at most on the VRML output
     double err = 0.000000001;
 
-    // test if the triangles are degenerate (parallel sides)
-
-    if( dx0 < err && dx0 > -err && dx1 < err && dx1 > -err )
+    // test if the triangles are degenerate (equal points)
+    if( ( dx0 + dy0 ) < err )
         return false;
 
-    if( dy0 < err && dy0 > -err && dy1 < err && dy1 > -err )
+    if( ( dx1 + dy1 ) < err )
         return false;
 
-    double  sl0 = dy0 / dx0;
-    double  sl1 = dy1 / dx1;
-
-    double dsl = sl1 - sl0;
-
-    if( dsl < err && dsl > -err )
+    if( ( dx2 + dy2 ) < err )
         return false;
 
     triplets.push_back( TRIPLET_3D( p0->o, p1->o, p2->o ) );
@@ -1378,12 +1398,6 @@ bool VRML_LAYER::addTriplet( VERTEX_3D* p0, VERTEX_3D* p1, VERTEX_3D* p2 )
 VERTEX_3D* VRML_LAYER::AddExtraVertex( double aXpos, double aYpos, bool aPlatedHole )
 {
     VERTEX_3D* vertex = new VERTEX_3D;
-
-    if( !vertex )
-    {
-        error = "AddExtraVertex(): could not allocate a new vertex";
-        return NULL;
-    }
 
     if( eidx == 0 )
         eidx = idx + hidx;
@@ -1432,9 +1446,6 @@ void VRML_LAYER::glEnd( void )
         {
             // add the loop to the list of outlines
             std::list<int>* loop = new std::list<int>;
-
-            if( !loop )
-                break;
 
             double firstX = 0.0;
             double firstY = 0.0;
@@ -1592,9 +1603,6 @@ int VRML_LAYER::checkNContours( bool holes )
     if( contours.empty() )
         return 0;
 
-    std::list<int>::const_iterator  begin;
-    std::list<int>::const_iterator  end;
-
     for( size_t i = 0; i < contours.size(); ++i )
     {
         if( contours[i]->size() < 3 )
@@ -1702,7 +1710,7 @@ int VRML_LAYER::GetSize( void )
 // renumbering of all vertices from 'start'. Returns the end number.
 // Take care when using this call since tesselators cannot work on
 // the internal data concurrently
-int VRML_LAYER::Import( int start, GLUtesselator* tess )
+int VRML_LAYER::Import( int start, GLUtesselator* aTesselator )
 {
     if( start < 0 )
     {
@@ -1710,7 +1718,7 @@ int VRML_LAYER::Import( int start, GLUtesselator* tess )
         return -1;
     }
 
-    if( !tess )
+    if( !aTesselator )
     {
         error = "Import(): NULL tesselator pointer";
         return -1;
@@ -1740,7 +1748,7 @@ int VRML_LAYER::Import( int start, GLUtesselator* tess )
         cbeg = contours[i]->begin();
         cend = contours[i]->end();
 
-        gluTessBeginContour( tess );
+        gluTessBeginContour( aTesselator );
 
         while( cbeg != cend )
         {
@@ -1748,10 +1756,10 @@ int VRML_LAYER::Import( int start, GLUtesselator* tess )
             pt[0] = vp->x;
             pt[1] = vp->y;
             pt[2] = 0.0;
-            gluTessVertex( tess, pt, vp );
+            gluTessVertex( aTesselator, pt, vp );
         }
 
-        gluTessEndContour( tess );
+        gluTessEndContour( aTesselator );
     }
 
     return start;
@@ -1785,4 +1793,252 @@ void VRML_LAYER::SetVertexOffsets( double aXoffset, double aYoffset )
     offsetX = aXoffset;
     offsetY = aYoffset;
     return;
+}
+
+
+bool VRML_LAYER::Get3DTriangles( std::vector< double >& aVertexList,
+    std::vector< int > &aIndexPlane, std::vector< int > &aIndexSide,
+    double aTopZ, double aBotZ )
+{
+    aVertexList.clear();
+    aIndexPlane.clear();
+    aIndexSide.clear();
+
+    if( ordmap.size() < 3 || outline.empty() )
+        return false;
+
+    if( aTopZ <= aBotZ )
+    {
+        double tmp = aBotZ;
+        aBotZ = aTopZ;
+        aTopZ = tmp;
+    }
+
+    VERTEX_3D* vp = getVertexByIndex( ordmap[0], pholes );
+
+    if( !vp )
+        return false;
+
+    size_t i;
+    size_t vsize = ordmap.size();
+
+    // top vertices
+    for( i = 0; i < vsize; ++i )
+    {
+        vp = getVertexByIndex( ordmap[i], pholes );
+
+        if( !vp )
+        {
+            aVertexList.clear();
+            return false;
+        }
+
+        aVertexList.push_back( vp->x + offsetX );
+        aVertexList.push_back( vp->y + offsetY );
+        aVertexList.push_back( aTopZ );
+    }
+
+    // bottom vertices
+    for( i = 0; i < vsize; ++i )
+    {
+        vp = getVertexByIndex( ordmap[i], pholes );
+
+        aVertexList.push_back( vp->x + offsetX );
+        aVertexList.push_back( vp->y + offsetY );
+        aVertexList.push_back( aBotZ );
+    }
+
+    // create the index lists .. it is difficult to estimate the list size
+    // a priori so instead we use a vector to help
+
+    bool holes_only = triplets.empty();
+
+    if( !holes_only )
+    {
+        // go through the triplet list and write out the indices based on order
+        std::list< TRIPLET_3D >::const_iterator tbeg = triplets.begin();
+        std::list< TRIPLET_3D >::const_iterator tend = triplets.end();
+
+        std::vector< int > aIndexBot;
+
+        while( tbeg != tend )
+        {
+            // top vertices
+            aIndexPlane.push_back( (int) tbeg->i1 );
+            aIndexPlane.push_back( (int) tbeg->i2 );
+            aIndexPlane.push_back( (int) tbeg->i3 );
+
+            // bottom vertices
+            aIndexBot.push_back( (int) ( tbeg->i2 + vsize ) );
+            aIndexBot.push_back( (int) ( tbeg->i1 + vsize ) );
+            aIndexBot.push_back( (int) ( tbeg->i3 + vsize ) );
+
+            ++tbeg;
+        }
+
+        aIndexPlane.insert( aIndexPlane.end(), aIndexBot.begin(), aIndexBot.end() );
+    }
+
+    // compile indices for the walls joining top to bottom
+    int lastPoint;
+    int curPoint;
+    int curContour = 0;
+
+    std::list< std::list< int >* >::const_iterator  obeg = outline.begin();
+    std::list< std::list< int >* >::const_iterator  oend = outline.end();
+    std::list< int >* cp;
+    std::list< int >::const_iterator  cbeg;
+    std::list< int >::const_iterator  cend;
+
+    i = 2;
+    while( obeg != oend )
+    {
+        cp = *obeg;
+
+        if( cp->size() < 3 )
+        {
+            ++obeg;
+            ++curContour;
+            continue;
+        }
+
+        cbeg      = cp->begin();
+        cend      = cp->end();
+        lastPoint = *(cbeg++);
+
+        while( cbeg != cend )
+        {
+            curPoint = *(cbeg++);
+
+            if( !holes_only )
+            {
+                aIndexSide.push_back( curPoint );
+                aIndexSide.push_back( lastPoint );
+                aIndexSide.push_back( (int)( curPoint + vsize ) );
+
+                aIndexSide.push_back( (int)( curPoint + vsize ) );
+                aIndexSide.push_back( lastPoint );
+                aIndexSide.push_back( (int)( lastPoint + vsize ) );
+            }
+            else
+            {
+                aIndexSide.push_back( curPoint );
+                aIndexSide.push_back( (int)( curPoint + vsize ) );
+                aIndexSide.push_back( lastPoint );
+
+                aIndexSide.push_back( (int)( curPoint + vsize ) );
+                aIndexSide.push_back( (int)( lastPoint + vsize ) );
+                aIndexSide.push_back( lastPoint );
+            }
+
+            lastPoint = curPoint;
+        }
+
+        // check if the loop needs to be closed
+        cbeg = cp->begin();
+        cend = --cp->end();
+
+        curPoint = *(cbeg);
+        lastPoint  = *(cend);
+
+        if( !holes_only )
+        {
+            aIndexSide.push_back( curPoint );
+            aIndexSide.push_back( lastPoint );
+            aIndexSide.push_back( (int)( curPoint + vsize ) );
+
+            aIndexSide.push_back( (int)( curPoint + vsize ) );
+            aIndexSide.push_back( lastPoint );
+            aIndexSide.push_back( (int)( lastPoint + vsize ) );
+        }
+        else
+        {
+            aIndexSide.push_back( curPoint );
+            aIndexSide.push_back( (int)( curPoint + vsize ) );
+            aIndexSide.push_back( lastPoint );
+
+            aIndexSide.push_back( (int)( curPoint + vsize ) );
+            aIndexSide.push_back( (int)( lastPoint + vsize ) );
+            aIndexSide.push_back( lastPoint );
+        }
+
+        ++obeg;
+        ++curContour;
+    }
+
+    return true;
+}
+
+
+bool VRML_LAYER::Get2DTriangles( std::vector< double >& aVertexList,
+    std::vector< int > &aIndexPlane, double aHeight, bool aTopPlane )
+{
+    aVertexList.clear();
+    aIndexPlane.clear();
+
+    if( ordmap.size() < 3 || outline.empty() )
+        return false;
+
+    VERTEX_3D* vp = getVertexByIndex( ordmap[0], pholes );
+
+    if( !vp )
+        return false;
+
+    size_t i;
+    size_t vsize = ordmap.size();
+
+    // vertices
+    for( i = 0; i < vsize; ++i )
+    {
+        vp = getVertexByIndex( ordmap[i], pholes );
+
+        if( !vp )
+        {
+            aVertexList.clear();
+            return false;
+        }
+
+        aVertexList.push_back( vp->x + offsetX );
+        aVertexList.push_back( vp->y + offsetY );
+        aVertexList.push_back( aHeight );
+    }
+
+    // create the index lists .. it is difficult to estimate the list size
+    // a priori so instead we use a vector to help
+
+    if( triplets.empty() )
+        return false;
+
+    // go through the triplet list and write out the indices based on order
+    std::list< TRIPLET_3D >::const_iterator tbeg = triplets.begin();
+    std::list< TRIPLET_3D >::const_iterator tend = triplets.end();
+
+    std::vector< int > aIndexBot;
+
+    if( aTopPlane )
+    {
+        while( tbeg != tend )
+        {
+            // top vertices
+            aIndexPlane.push_back( (int) tbeg->i1 );
+            aIndexPlane.push_back( (int) tbeg->i2 );
+            aIndexPlane.push_back( (int) tbeg->i3 );
+
+            ++tbeg;
+        }
+    }
+    else
+    {
+        while( tbeg != tend )
+        {
+            // bottom vertices
+            aIndexPlane.push_back( (int) ( tbeg->i2 ) );
+            aIndexPlane.push_back( (int) ( tbeg->i1 ) );
+            aIndexPlane.push_back( (int) ( tbeg->i3 ) );
+
+            ++tbeg;
+        }
+    }
+
+    return true;
 }

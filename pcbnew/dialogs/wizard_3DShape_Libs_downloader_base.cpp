@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun 17 2015)
+// C++ code generated with wxFormBuilder (version Aug  4 2017)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -36,7 +36,7 @@ WIZARD_3DSHAPE_LIBS_DOWNLOADER_BASE::WIZARD_3DSHAPE_LIBS_DOWNLOADER_BASE( wxWind
 	m_staticText8->Wrap( -1 );
 	bSizer19->Add( m_staticText8, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
-	m_textCtrlGithubURL = new wxTextCtrl( m_wizPage1, wxID_ANY, _("http://github.com/KiCad"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_textCtrlGithubURL = new wxTextCtrl( m_wizPage1, wxID_ANY, _("https://github.com/KiCad/packages3d"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_textCtrlGithubURL->SetMinSize( wxSize( 300,-1 ) );
 	
 	bSizer19->Add( m_textCtrlGithubURL, 0, wxALL|wxEXPAND, 5 );
@@ -58,10 +58,10 @@ WIZARD_3DSHAPE_LIBS_DOWNLOADER_BASE::WIZARD_3DSHAPE_LIBS_DOWNLOADER_BASE( wxWind
 	bSizerDinname->Add( m_staticText9, 0, wxTOP|wxRIGHT|wxLEFT, 5 );
 	
 	m_downloadDir = new wxTextCtrl( m_wizPage1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	bSizerDinname->Add( m_downloadDir, 0, wxALL|wxALIGN_CENTER_VERTICAL|wxEXPAND, 5 );
+	bSizerDinname->Add( m_downloadDir, 0, wxRIGHT|wxEXPAND, 5 );
 	
 	
-	fgSizerLocalFolder->Add( bSizerDinname, 1, wxEXPAND|wxALIGN_CENTER_VERTICAL, 5 );
+	fgSizerLocalFolder->Add( bSizerDinname, 1, wxEXPAND, 5 );
 	
 	wxBoxSizer* bSizerButts;
 	bSizerButts = new wxBoxSizer( wxVERTICAL );
@@ -79,13 +79,13 @@ WIZARD_3DSHAPE_LIBS_DOWNLOADER_BASE::WIZARD_3DSHAPE_LIBS_DOWNLOADER_BASE( wxWind
 	bSizerWarnMsg = new wxBoxSizer( wxHORIZONTAL );
 	
 	m_bitmapDirWarn = new wxStaticBitmap( m_wizPage1, wxID_ANY, wxArtProvider::GetBitmap( wxART_ERROR, wxART_OTHER ), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizerWarnMsg->Add( m_bitmapDirWarn, 0, wxALL|wxALIGN_CENTER_VERTICAL|wxALIGN_CENTER_HORIZONTAL, 5 );
+	bSizerWarnMsg->Add( m_bitmapDirWarn, 0, wxALL, 5 );
 	
 	m_invalidDirWarningText = new wxStaticText( m_wizPage1, wxID_ANY, _("It is not possible to write in the selected directory.\nPlease choose another one."), wxDefaultPosition, wxDefaultSize, wxALIGN_CENTRE );
 	m_invalidDirWarningText->Wrap( -1 );
 	m_invalidDirWarningText->SetForegroundColour( wxColour( 255, 0, 0 ) );
 	
-	bSizerWarnMsg->Add( m_invalidDirWarningText, 0, wxALL|wxALIGN_CENTER_VERTICAL|wxEXPAND, 5 );
+	bSizerWarnMsg->Add( m_invalidDirWarningText, 0, wxALL|wxEXPAND, 5 );
 	
 	
 	fgSizerLocalFolder->Add( bSizerWarnMsg, 1, wxEXPAND, 5 );
@@ -109,7 +109,7 @@ WIZARD_3DSHAPE_LIBS_DOWNLOADER_BASE::WIZARD_3DSHAPE_LIBS_DOWNLOADER_BASE( wxWind
 	bSizerOfficialRepo->Add( 0, 0, 0, wxRIGHT|wxLEFT, 10 );
 	
 	m_hyperlinkGithubKicad = new wxHyperlinkCtrl( m_wizPage1, wxID_ANY, _("Visit our official Kicad repository on Github and get more libraries"), wxT("https://github.com/KiCad"), wxDefaultPosition, wxDefaultSize, wxHL_DEFAULT_STYLE );
-	bSizerOfficialRepo->Add( m_hyperlinkGithubKicad, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
+	bSizerOfficialRepo->Add( m_hyperlinkGithubKicad, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	
 	bSizer1->Add( bSizerOfficialRepo, 0, wxEXPAND, 5 );
@@ -148,7 +148,7 @@ WIZARD_3DSHAPE_LIBS_DOWNLOADER_BASE::WIZARD_3DSHAPE_LIBS_DOWNLOADER_BASE( wxWind
 	m_searchCtrl3Dlibs->ShowSearchButton( true );
 	#endif
 	m_searchCtrl3Dlibs->ShowCancelButton( false );
-	bSizer7->Add( m_searchCtrl3Dlibs, 2, wxALL, 5 );
+	bSizer7->Add( m_searchCtrl3Dlibs, 2, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 	
 	
 	bSizer111->Add( bSizer7, 0, wxEXPAND, 5 );
@@ -185,6 +185,8 @@ WIZARD_3DSHAPE_LIBS_DOWNLOADER_BASE::WIZARD_3DSHAPE_LIBS_DOWNLOADER_BASE( wxWind
 	m_gridLibReview->SetMargins( 5, 0 );
 	
 	// Columns
+	m_gridLibReview->SetColSize( 0, 150 );
+	m_gridLibReview->SetColSize( 1, 300 );
 	m_gridLibReview->EnableDragColMove( false );
 	m_gridLibReview->EnableDragColSize( true );
 	m_gridLibReview->SetColLabelSize( 30 );

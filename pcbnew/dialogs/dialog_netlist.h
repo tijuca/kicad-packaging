@@ -28,14 +28,14 @@
 #ifndef _DIALOG_NETLIST_H_
 #define _DIALOG_NETLIST_H_
 
-#include <dialog_netlist_fbp.h>
+#include <dialog_netlist_base.h>
 
 
 class MODULE;
 class NETLIST;
 
 
-class DIALOG_NETLIST : public DIALOG_NETLIST_FBP
+class DIALOG_NETLIST : public DIALOG_NETLIST_BASE
 {
 private:
     PCB_EDIT_FRAME* m_parent;
@@ -78,19 +78,17 @@ private:
     void loadFootprints( NETLIST& aNetlist );
 
     // Virtual event handlers:
-    void OnOpenNetlistClick( wxCommandEvent& event );
-    void OnReadNetlistFileClick( wxCommandEvent& event );
-    void OnTestFootprintsClick( wxCommandEvent& event );
-    void OnCompileRatsnestClick( wxCommandEvent& event );
-    void OnCancelClick( wxCommandEvent& event );
-    void OnSaveMessagesToFile( wxCommandEvent& aEvent );
-    void OnClickSilentMode( wxCommandEvent& event )
+    void OnOpenNetlistClick( wxCommandEvent& event ) override;
+    void OnReadNetlistFileClick( wxCommandEvent& event ) override;
+    void OnTestFootprintsClick( wxCommandEvent& event ) override;
+    void OnCompileRatsnestClick( wxCommandEvent& event ) override;
+    void OnCancelClick( wxCommandEvent& event ) override;
+    void OnClickSilentMode( wxCommandEvent& event ) override
     {
         m_silentMode = m_checkBoxSilentMode->GetValue();
     }
 
-    void OnUpdateUISaveMessagesToFile( wxUpdateUIEvent& aEvent );
-    void OnUpdateUIValidNetlistFile( wxUpdateUIEvent& aEvent );
+    void OnUpdateUIValidNetlistFile( wxUpdateUIEvent& aEvent ) override;
 };
 
 

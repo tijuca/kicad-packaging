@@ -29,6 +29,7 @@
 
 #include <wx/wx.h>
 #include <wx/config.h>
+#include <wx/regex.h>
 
 #include <common.h>
 #include <convert_to_biu.h>
@@ -37,8 +38,17 @@
 
 namespace PCAD2KICAD {
 
-// PCAD stroke font average ratio of width to height
-const double TEXT_WIDTH_TO_HEIGHT = 0.79;
+// PCAD stroke font average ratio of width to size
+const double TEXT_WIDTH_TO_SIZE_AVERAGE = 0.5;
+// PCAD proportions of stroke font
+const double STROKE_HEIGHT_TO_SIZE = 0.656;
+const double STROKE_WIDTH_TO_SIZE = 0.69;
+// TrueType font
+const double TRUETYPE_HEIGHT_TO_SIZE = 0.585;
+const double TRUETYPE_WIDTH_TO_SIZE = 0.585;
+const double TRUETYPE_THICK_PER_HEIGHT = 0.073;
+const double TRUETYPE_BOLD_THICK_MUL = 1.6;
+const long TRUETYPE_BOLD_MIN_WEIGHT = 700;
 
 wxString GetWord( wxString* aStr )
 {
@@ -99,7 +109,7 @@ XNODE* FindPinMap( XNODE* aNode )
 }
 
 
-double StrToDoublePrecisionUnits( wxString aStr, char aAxe, wxString aActualConversion )
+double StrToDoublePrecisionUnits( const wxString& aStr, char aAxe, const wxString& aActualConversion )
 {
     wxString    ls;
     double      i;
@@ -158,13 +168,13 @@ double StrToDoublePrecisionUnits( wxString aStr, char aAxe, wxString aActualConv
 }
 
 
-int StrToIntUnits( wxString aStr, char aAxe, wxString aActualConversion )
+int StrToIntUnits( const wxString& aStr, char aAxe, const wxString& aActualConversion )
 {
     return KiROUND( StrToDoublePrecisionUnits( aStr, aAxe, aActualConversion ) );
 }
 
 
-wxString GetAndCutWordWithMeasureUnits( wxString* aStr, wxString aDefaultMeasurementUnit )
+wxString GetAndCutWordWithMeasureUnits( wxString* aStr, const wxString& aDefaultMeasurementUnit )
 {
     wxString result;
 
@@ -203,7 +213,7 @@ wxString GetAndCutWordWithMeasureUnits( wxString* aStr, wxString aDefaultMeasure
 }
 
 
-int StrToInt1Units( wxString aStr )
+int StrToInt1Units( const wxString& aStr )
 {
     double num, precision = 10;
 
@@ -222,10 +232,22 @@ wxString ValidateName( wxString aName )
 }
 
 
-void SetWidth( wxString aStr,
-               wxString aDefaultMeasurementUnit,
-               int*     aWidth,
-               wxString aActualConversion )
+wxString ValidateReference( wxString aRef )
+{
+    wxRegEx reRef;
+    reRef.Compile( wxT( "^[[:digit:]][[:digit:]]*$" ) );
+
+    if( reRef.Matches( aRef ) )
+        aRef.Prepend( wxT( '.' ) );
+
+    return aRef;
+}
+
+
+void SetWidth( wxString        aStr,
+               const wxString& aDefaultMeasurementUnit,
+               int*            aWidth,
+               const wxString& aActualConversion )
 {
     *aWidth = StrToIntUnits( GetAndCutWordWithMeasureUnits( &aStr,
                                                             aDefaultMeasurementUnit ), wxT( ' ' ),
@@ -233,10 +255,10 @@ void SetWidth( wxString aStr,
 }
 
 
-void SetHeight( wxString    aStr,
-                wxString    aDefaultMeasurementUnit,
-                int*        aHeight,
-                wxString    aActualConversion )
+void SetHeight( wxString        aStr,
+                const wxString& aDefaultMeasurementUnit,
+                int*            aHeight,
+                const wxString& aActualConversion )
 {
     *aHeight = StrToIntUnits( GetAndCutWordWithMeasureUnits( &aStr,
                                                              aDefaultMeasurementUnit ), wxT( ' ' ),
@@ -244,11 +266,11 @@ void SetHeight( wxString    aStr,
 }
 
 
-void SetPosition( wxString  aStr,
-                  wxString  aDefaultMeasurementUnit,
-                  int*      aX,
-                  int*      aY,
-                  wxString  aActualConversion )
+void SetPosition( wxString        aStr,
+                  const wxString& aDefaultMeasurementUnit,
+                  int*            aX,
+                  int*            aY,
+                  const wxString& aActualConversion )
 {
     *aX = StrToIntUnits( GetAndCutWordWithMeasureUnits( &aStr,
                                                         aDefaultMeasurementUnit ), wxT( 'X' ),
@@ -259,11 +281,11 @@ void SetPosition( wxString  aStr,
 }
 
 
-void SetDoublePrecisionPosition( wxString   aStr,
-                                 wxString   aDefaultMeasurementUnit,
-                                 double*    aX,
-                                 double*    aY,
-                                 wxString   aActualConversion )
+void SetDoublePrecisionPosition( wxString        aStr,
+                                 const wxString& aDefaultMeasurementUnit,
+                                 double*         aX,
+                                 double*         aY,
+                                 const wxString& aActualConversion )
 {
     *aX = StrToDoublePrecisionUnits( GetAndCutWordWithMeasureUnits( &aStr,
                                                                     aDefaultMeasurementUnit ), wxT( 'X' ),
@@ -273,7 +295,8 @@ void SetDoublePrecisionPosition( wxString   aStr,
                                      aActualConversion );
 }
 
-TTEXT_JUSTIFY GetJustifyIdentificator( wxString aJustify )
+
+TTEXT_JUSTIFY GetJustifyIdentificator( const wxString& aJustify )
 {
     TTEXT_JUSTIFY id;
 
@@ -299,10 +322,11 @@ TTEXT_JUSTIFY GetJustifyIdentificator( wxString aJustify )
     return id;
 }
 
-void SetTextParameters( XNODE*      aNode,
-                        TTEXTVALUE* aTextValue,
-                        wxString    aDefaultMeasurementUnit,
-                        wxString    aActualConversion )
+
+void SetTextParameters( XNODE*          aNode,
+                        TTEXTVALUE*     aTextValue,
+                        const wxString& aDefaultMeasurementUnit,
+                        const wxString& aActualConversion )
 {
     XNODE*      tNode;
     wxString    str;
@@ -324,12 +348,16 @@ void SetTextParameters( XNODE*      aNode,
         str.Trim( false );
         aTextValue->textRotation = StrToInt1Units( str );
     }
+    else
+    {
+        aTextValue->textRotation = 0;
+    }
 
     str = FindNodeGetContent( aNode, wxT( "isVisible" ) );
 
     if( str == wxT( "True" ) )
         aTextValue->textIsVisible = 1;
-    else if( str == wxT( "False" ) )
+    else
         aTextValue->textIsVisible = 0;
 
     str = FindNodeGetContent( aNode, wxT( "justify" ) );
@@ -339,6 +367,8 @@ void SetTextParameters( XNODE*      aNode,
 
     if( str == wxT( "True" ) )
         aTextValue->mirror = 1;
+    else
+        aTextValue->mirror = 0;
 
     tNode = FindNode( aNode, wxT( "textStyleRef" ) );
 
@@ -347,10 +377,10 @@ void SetTextParameters( XNODE*      aNode,
 }
 
 
-void SetFontProperty( XNODE*        aNode,
-                      TTEXTVALUE*   aTextValue,
-                      wxString      aDefaultMeasurementUnit,
-                      wxString      aActualConversion )
+void SetFontProperty( XNODE*          aNode,
+                      TTEXTVALUE*     aTextValue,
+                      const wxString& aDefaultMeasurementUnit,
+                      const wxString& aActualConversion )
 {
     wxString n, propValue;
 
@@ -360,150 +390,175 @@ void SetFontProperty( XNODE*        aNode,
         aNode = aNode->GetParent();
 
     aNode = FindNode( aNode, wxT( "library" ) );
-
     if( aNode )
         aNode = FindNode( aNode, wxT( "textStyleDef" ) );
 
+    while( aNode )
+    {
+        aNode->GetAttribute( wxT( "Name" ), &propValue );
+        propValue.Trim( false );
+        propValue.Trim( true );
+
+        if( propValue == n )
+            break;
+
+        aNode = aNode->GetNext();
+    }
+
     if( aNode )
     {
-        while( true )
-        {
-            aNode->GetAttribute( wxT( "Name" ), &propValue );
-            propValue.Trim( false );
-            propValue.Trim( true );
+        wxString fontType;
 
-            if( propValue == n )
-                break;
+        propValue = FindNodeGetContent( aNode, wxT( "textStyleDisplayTType" ) );
+        aTextValue->isTrueType = ( propValue == wxT( "True" ) );
 
+        aNode = FindNode( aNode, wxT( "font" ) );
+        fontType = FindNodeGetContent( aNode, wxT( "fontType" ) );
+        if( ( aTextValue->isTrueType && ( fontType != wxT( "TrueType" ) ) ) ||
+            ( !aTextValue->isTrueType && ( fontType != wxT( "Stroke" ) ) ) )
             aNode = aNode->GetNext();
-        }
 
         if( aNode )
         {
-            aNode = FindNode( aNode, wxT( "font" ) );
-
-            if( aNode )
+            if( aTextValue->isTrueType )
             {
-                if( FindNode( aNode, wxT( "fontHeight" ) ) )
-                    // // SetWidth(iNode.ChildNodes.FindNode('fontHeight').Text,
-                    // //          DefaultMeasurementUnit,tv.TextHeight);
-                    // Fixed By Lubo, 02/2008
-                    SetHeight( FindNode( aNode, wxT(
-                                             "fontHeight" ) )->GetNodeContent(),
-                               aDefaultMeasurementUnit, &aTextValue->textHeight,
-                               aActualConversion );
+                propValue = FindNodeGetContent( aNode, wxT( "fontItalic" ) );
+                aTextValue->isItalic = ( propValue == wxT( "True" ) );
 
-                if( FindNode( aNode, wxT( "strokeWidth" ) ) )
-                    SetWidth( FindNode( aNode, wxT(
-                                            "strokeWidth" ) )->GetNodeContent(),
-                              aDefaultMeasurementUnit, &aTextValue->textstrokeWidth,
-                              aActualConversion );
+                propValue = FindNodeGetContent( aNode, wxT( "fontWeight" ) );
+                if( propValue != wxEmptyString )
+                {
+                    long fontWeight;
+
+                    propValue.ToLong( &fontWeight );
+                    aTextValue->isBold = ( fontWeight >= TRUETYPE_BOLD_MIN_WEIGHT );
+                }
+            }
+
+            XNODE* lNode;
+
+            lNode = FindNode( aNode, wxT( "fontHeight" ) );
+            if( lNode )
+                SetHeight( lNode->GetNodeContent(), aDefaultMeasurementUnit,
+                           &aTextValue->textHeight, aActualConversion );
+
+            if( aTextValue->isTrueType )
+            {
+                aTextValue->textstrokeWidth = TRUETYPE_THICK_PER_HEIGHT * aTextValue->textHeight;
+                if( aTextValue->isBold )
+                    aTextValue->textstrokeWidth *= TRUETYPE_BOLD_THICK_MUL;
+            }
+            else
+            {
+                lNode = FindNode( aNode, wxT( "strokeWidth" ) );
+                if( lNode )
+                    SetWidth( lNode->GetNodeContent(), aDefaultMeasurementUnit,
+                              &aTextValue->textstrokeWidth, aActualConversion );
             }
         }
     }
 }
 
-int CalculateTextLengthSize( TTEXTVALUE* aText )
+
+void SetTextJustify( EDA_TEXT* aText, TTEXT_JUSTIFY aJustify )
 {
-    return KiROUND( (double) aText->text.Len() *
-                    (double) aText->textHeight * TEXT_WIDTH_TO_HEIGHT );
-}
-
-void CorrectTextPosition( TTEXTVALUE* aValue )
-{
-    int cm = aValue->mirror ? -1 : 1;
-    // sizes of justify correction
-    int cl = KiROUND( (double) CalculateTextLengthSize( aValue ) / 2.0 );
-    int ch = KiROUND( (double) aValue->textHeight / 2.0 );
-
-    aValue->correctedPositionX = aValue->textPositionX;
-    aValue->correctedPositionY = aValue->textPositionY;
-
-    switch( aValue->textRotation )
+    switch( aJustify )
     {
-    case 0:
-        if( aValue->justify == LowerLeft ||
-            aValue->justify == Left ||
-            aValue->justify == UpperLeft )
-            aValue->correctedPositionX += cl * cm;
-        else if( aValue->justify == LowerRight ||
-                 aValue->justify == Right ||
-                 aValue->justify == UpperRight )
-            aValue->correctedPositionX -= cl * cm;
-
-        if( aValue->justify == LowerLeft ||
-            aValue->justify == LowerCenter ||
-            aValue->justify == LowerRight )
-            aValue->correctedPositionY -= ch;
-        else if( aValue->justify == UpperLeft ||
-                 aValue->justify == UpperCenter ||
-                 aValue->justify == UpperRight )
-            aValue->correctedPositionY += ch;
+    case LowerLeft:
+        aText->SetVertJustify( GR_TEXT_VJUSTIFY_BOTTOM );
+        aText->SetHorizJustify( GR_TEXT_HJUSTIFY_LEFT );
         break;
-    case 900:
-        if( aValue->justify == LowerLeft ||
-            aValue->justify == LowerCenter ||
-            aValue->justify == LowerRight )
-            aValue->correctedPositionX -= ch * cm;
-        else if( aValue->justify == UpperLeft ||
-                 aValue->justify == UpperCenter ||
-                 aValue->justify == UpperRight )
-            aValue->correctedPositionX += ch * cm;
-
-        if( aValue->justify == LowerLeft ||
-            aValue->justify == Left ||
-            aValue->justify == UpperLeft )
-            aValue->correctedPositionY -= cl;
-        else if( aValue->justify == LowerRight ||
-                 aValue->justify == Right ||
-                 aValue->justify == UpperRight )
-            aValue->correctedPositionY += cl;
+    case LowerCenter:
+        aText->SetVertJustify( GR_TEXT_VJUSTIFY_BOTTOM );
+        aText->SetHorizJustify( GR_TEXT_HJUSTIFY_CENTER );
         break;
-    case 1800:
-        if( aValue->justify == LowerLeft ||
-            aValue->justify == Left ||
-            aValue->justify == UpperLeft )
-            aValue->correctedPositionX -= cl * cm;
-        else if( aValue->justify == LowerRight ||
-                 aValue->justify == Right ||
-                 aValue->justify == UpperRight )
-            aValue->correctedPositionX += cl * cm;
-
-        if( aValue->justify == LowerLeft ||
-            aValue->justify == LowerCenter ||
-            aValue->justify == LowerRight )
-            aValue->correctedPositionY += ch;
-        else if( aValue->justify == UpperLeft ||
-                 aValue->justify == UpperCenter ||
-                 aValue->justify == UpperRight )
-            aValue->correctedPositionY -= ch;
+    case LowerRight:
+        aText->SetVertJustify( GR_TEXT_VJUSTIFY_BOTTOM );
+        aText->SetHorizJustify( GR_TEXT_HJUSTIFY_RIGHT );
         break;
-    case 2700:
-        if( aValue->justify == LowerLeft ||
-            aValue->justify == LowerCenter ||
-            aValue->justify == LowerRight )
-            aValue->correctedPositionX += ch * cm;
-        else if( aValue->justify == UpperLeft ||
-                 aValue->justify == UpperCenter ||
-                 aValue->justify == UpperRight )
-            aValue->correctedPositionX -= ch * cm;
-
-        if( aValue->justify == LowerLeft ||
-            aValue->justify == Left ||
-            aValue->justify == UpperLeft )
-            aValue->correctedPositionY += cl;
-        else if( aValue->justify == LowerRight ||
-                 aValue->justify == Right ||
-                 aValue->justify == UpperRight )
-            aValue->correctedPositionY -= cl;
+    case UpperLeft:
+        aText->SetVertJustify( GR_TEXT_VJUSTIFY_TOP );
+        aText->SetHorizJustify( GR_TEXT_HJUSTIFY_LEFT );
         break;
-    default:
+    case UpperCenter:
+        aText->SetVertJustify( GR_TEXT_VJUSTIFY_TOP );
+        aText->SetHorizJustify( GR_TEXT_HJUSTIFY_CENTER );
+        break;
+    case UpperRight:
+        aText->SetVertJustify( GR_TEXT_VJUSTIFY_TOP );
+        aText->SetHorizJustify( GR_TEXT_HJUSTIFY_RIGHT );
+        break;
+    case Left:
+        aText->SetVertJustify( GR_TEXT_VJUSTIFY_CENTER );
+        aText->SetHorizJustify( GR_TEXT_HJUSTIFY_LEFT );
+        break;
+    case Center:
+        aText->SetVertJustify( GR_TEXT_VJUSTIFY_CENTER );
+        aText->SetHorizJustify( GR_TEXT_HJUSTIFY_CENTER );
+        break;
+    case Right:
+        aText->SetVertJustify( GR_TEXT_VJUSTIFY_CENTER );
+        aText->SetHorizJustify( GR_TEXT_HJUSTIFY_RIGHT );
         break;
     }
 }
 
 
-XNODE* FindNode( XNODE* aChild, wxString aTag )
+int CalculateTextLengthSize( TTEXTVALUE* aText )
+{
+    return KiROUND( (double) aText->text.Len() *
+                    (double) aText->textHeight * TEXT_WIDTH_TO_SIZE_AVERAGE );
+}
+
+
+void CorrectTextPosition( TTEXTVALUE* aValue )
+{
+    int cm = aValue->mirror ? -1 : 1;
+    int cl = KiROUND( (double) CalculateTextLengthSize( aValue ) / 2.0 );
+    int ch = KiROUND( (double) aValue->textHeight / 2.0 );
+    int posX = 0;
+    int posY = 0;
+
+    if( aValue->justify == LowerLeft ||
+        aValue->justify == Left ||
+        aValue->justify == UpperLeft )
+        posX += cl * cm;
+    else if( aValue->justify == LowerRight ||
+             aValue->justify == Right ||
+             aValue->justify == UpperRight )
+        posX -= cl * cm;
+
+    if( aValue->justify == LowerLeft ||
+        aValue->justify == LowerCenter ||
+        aValue->justify == LowerRight )
+        posY -= ch;
+    else if( aValue->justify == UpperLeft ||
+             aValue->justify == UpperCenter ||
+             aValue->justify == UpperRight )
+        posY += ch;
+
+    RotatePoint( &posX, &posY, aValue->textRotation );
+
+    aValue->correctedPositionX = aValue->textPositionX + posX;
+    aValue->correctedPositionY = aValue->textPositionY + posY;
+}
+
+
+void SetTextSizeFromStrokeFontHeight( EDA_TEXT* aText, int aTextHeight )
+{
+    aText->SetTextSize( wxSize( KiROUND( aTextHeight * STROKE_WIDTH_TO_SIZE ),
+                                KiROUND( aTextHeight * STROKE_HEIGHT_TO_SIZE ) ) );
+}
+
+
+void SetTextSizeFromTrueTypeFontHeight( EDA_TEXT* aText, int aTextHeight )
+{
+    aText->SetTextSize( wxSize( KiROUND( aTextHeight * TRUETYPE_WIDTH_TO_SIZE ),
+                                KiROUND( aTextHeight * TRUETYPE_HEIGHT_TO_SIZE ) ) );
+}
+
+
+XNODE* FindNode( XNODE* aChild, const wxString& aTag )
 {
     aChild = aChild->GetChildren();
 
@@ -518,7 +573,7 @@ XNODE* FindNode( XNODE* aChild, wxString aTag )
     return NULL;
 }
 
-wxString FindNodeGetContent( XNODE* aChild, wxString aTag )
+wxString FindNodeGetContent( XNODE* aChild, const wxString& aTag )
 {
     wxString str = wxEmptyString;
 
@@ -548,6 +603,9 @@ void InitTTextValue( TTEXTVALUE* aTextValue )
     aTextValue->correctedPositionX  = 0;
     aTextValue->correctedPositionY  = 0;
     aTextValue->justify = LowerLeft;
+    aTextValue->isBold = false;
+    aTextValue->isItalic = false;
+    aTextValue->isTrueType = false;
 }
 
 } // namespace PCAD2KICAD

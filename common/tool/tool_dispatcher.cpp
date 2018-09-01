@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2013 CERN
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
+ * Last changes: 2018
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,20 +23,20 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <wxPcbStruct.h>
-#include <wxBasePcbFrame.h>
+#include <pcb_edit_frame.h>
+#include <trace_helpers.h>
 
 #include <tool/tool_manager.h>
 #include <tool/tool_dispatcher.h>
-#include <tools/common_actions.h>
+#include <tool/actions.h>
 #include <view/view.h>
 #include <view/wx_view_controls.h>
 
 #include <class_draw_panel_gal.h>
 #include <pcbnew_id.h>
 
-#include <boost/optional.hpp>
-#include <boost/foreach.hpp>
+#include <core/optional.h>
+
 
 ///> Stores information about a mouse button state
 struct TOOL_DISPATCHER::BUTTON_STATE
@@ -115,8 +116,9 @@ struct TOOL_DISPATCHER::BUTTON_STATE
 };
 
 
-TOOL_DISPATCHER::TOOL_DISPATCHER( TOOL_MANAGER* aToolMgr ) :
-    m_toolMgr( aToolMgr )
+TOOL_DISPATCHER::TOOL_DISPATCHER( TOOL_MANAGER* aToolMgr, ACTIONS *aActions ) :
+    m_toolMgr( aToolMgr ),
+    m_actions( aActions )
 {
     m_buttons.push_back( new BUTTON_STATE( BUT_LEFT, wxEVT_LEFT_DOWN,
                          wxEVT_LEFT_UP, wxEVT_LEFT_DCLICK ) );
@@ -131,21 +133,21 @@ TOOL_DISPATCHER::TOOL_DISPATCHER( TOOL_MANAGER* aToolMgr ) :
 
 TOOL_DISPATCHER::~TOOL_DISPATCHER()
 {
-    BOOST_FOREACH( BUTTON_STATE* st, m_buttons )
+    for( BUTTON_STATE* st : m_buttons )
         delete st;
 }
 
 
 void TOOL_DISPATCHER::ResetState()
 {
-    BOOST_FOREACH( BUTTON_STATE* st, m_buttons )
+    for( BUTTON_STATE* st : m_buttons )
         st->Reset();
 }
 
 
 KIGFX::VIEW* TOOL_DISPATCHER::getView()
 {
-    return static_cast<EDA_DRAW_FRAME*>( m_toolMgr->GetEditFrame() )->GetGalCanvas()->GetView();
+    return m_toolMgr->GetView();
 }
 
 
@@ -153,7 +155,7 @@ bool TOOL_DISPATCHER::handleMouseButton( wxEvent& aEvent, int aIndex, bool aMoti
 {
     BUTTON_STATE* st = m_buttons[aIndex];
     wxEventType type = aEvent.GetEventType();
-    boost::optional<TOOL_EVENT> evt;
+    OPT<TOOL_EVENT> evt;
     bool isClick = false;
 
 //    bool up = type == st->upEvent;
@@ -168,7 +170,8 @@ bool TOOL_DISPATCHER::handleMouseButton( wxEvent& aEvent, int aIndex, bool aMoti
         // in the dragging mode even if the mouse button is not held anymore
         if( st->pressed && !state )
             up = true;
-        else if( !st->pressed && state )
+        // Don't apply same logic to down events as it kills touchpad tapping
+        else if( !st->pressed && type == st->downEvent )
             down = true;
     }
 
@@ -178,7 +181,10 @@ bool TOOL_DISPATCHER::handleMouseButton( wxEvent& aEvent, int aIndex, bool aMoti
     if( down )      // Handle mouse button press
     {
         st->downTimestamp = wxGetLocalTimeMillis();
-        st->dragOrigin = m_lastMousePos;
+
+        if( !st->pressed )      // save the drag origin on the first click only
+            st->dragOrigin = m_lastMousePos;
+
         st->downPosition = m_lastMousePos;
         st->dragMaxDelta = 0;
         st->pressed = true;
@@ -241,31 +247,100 @@ bool TOOL_DISPATCHER::handleMouseButton( wxEvent& aEvent, int aIndex, bool aMoti
 }
 
 
+// Helper function to know if a special key ( see key list ) should be captured
+// or if the event can be skipped
+// on Linux, the event must be passed to the GUI if they are not used by KiCad,
+// especially the wxEVENT_CHAR_HOOK, if it is not handled
+// unfortunately, m_toolMgr->ProcessEvent( const TOOL_EVENT& aEvent)
+// does not return info about that. So the event is filtered before passed to
+// the GUI. These key codes are known to be used in Pcbnew to move the cursor
+// or change active layer, and have a default action (moving scrollbar button) if
+// the event is skipped
+bool isKeySpecialCode( int aKeyCode )
+{
+    const enum wxKeyCode special_keys[] =
+    {
+        WXK_UP, WXK_DOWN, WXK_LEFT, WXK_RIGHT,
+        WXK_PAGEUP, WXK_PAGEDOWN,
+        WXK_NUMPAD_UP,  WXK_NUMPAD_DOWN, WXK_NUMPAD_LEFT,  WXK_NUMPAD_RIGHT,
+        WXK_NUMPAD_PAGEUP,  WXK_NUMPAD_PAGEDOWN
+    };
+
+    bool isInList = false;
+
+    for( unsigned ii = 0; ii < DIM( special_keys ) && !isInList; ii++ )
+    {
+        if( special_keys[ii] == aKeyCode )
+            isInList = true;
+    }
+
+    return isInList;
+}
+
+
+/* aHelper class that convert some special key codes to an equivalent.
+ *  WXK_NUMPAD_UP to WXK_UP,
+ *  WXK_NUMPAD_DOWN to WXK_DOWN,
+ *  WXK_NUMPAD_LEFT to WXK_LEFT,
+ *  WXK_NUMPAD_RIGHT,
+ *  WXK_NUMPAD_PAGEUP,
+ *  WXK_NUMPAD_PAGEDOWN
+ * note:
+ * wxEVT_CHAR_HOOK does this conversion when it is skipped by firing a wxEVT_CHAR
+ * with this converted code, but we do not skip these key events because they also
+ * have default action (scroll the panel)
+ */
+int translateSpecialCode( int aKeyCode )
+{
+    switch( aKeyCode )
+    {
+    case WXK_NUMPAD_UP: return WXK_UP;
+    case WXK_NUMPAD_DOWN: return WXK_DOWN;
+    case WXK_NUMPAD_LEFT: return WXK_LEFT;
+    case WXK_NUMPAD_RIGHT: return WXK_RIGHT;
+    case WXK_NUMPAD_PAGEUP: return WXK_PAGEUP;
+    case WXK_NUMPAD_PAGEDOWN: return WXK_PAGEDOWN;
+    default: break;
+    };
+
+    return aKeyCode;
+}
+
+
 void TOOL_DISPATCHER::DispatchWxEvent( wxEvent& aEvent )
 {
     bool motion = false, buttonEvents = false;
-    boost::optional<TOOL_EVENT> evt;
+    OPT<TOOL_EVENT> evt;
+    int key = 0;    // key = 0 if the event is not a key event
+    bool keyIsSpecial = false;  // True if the key is a special key code
 
     int type = aEvent.GetEventType();
 
+    // Sometimes there is no window that has the focus (it happens when another PCB_BASE_FRAME
+    // is opened and is iconized on Windows).
+    // In this case, gives the focus to the parent PCB_BASE_FRAME (for an obscure reason,
+    // when happens, the GAL canvas itself does not accept the focus)
+    if( wxWindow::FindFocus() == nullptr )
+        static_cast<PCB_BASE_FRAME*>( m_toolMgr->GetEditFrame() )->SetFocus();
+
     // Mouse handling
+    // Note: wxEVT_LEFT_DOWN event must always be skipped.
     if( type == wxEVT_MOTION || type == wxEVT_MOUSEWHEEL ||
-#ifdef USE_OSX_MAGNIFY_EVENT
+#if wxCHECK_VERSION( 3, 1, 0 ) || defined( USE_OSX_MAGNIFY_EVENT )
         type == wxEVT_MAGNIFY ||
 #endif
         type == wxEVT_LEFT_DOWN || type == wxEVT_LEFT_UP ||
         type == wxEVT_MIDDLE_DOWN || type == wxEVT_MIDDLE_UP ||
         type == wxEVT_RIGHT_DOWN || type == wxEVT_RIGHT_UP ||
         type == wxEVT_LEFT_DCLICK || type == wxEVT_MIDDLE_DCLICK || type == wxEVT_RIGHT_DCLICK ||
-        // Event issued whem mouse retains position in screen coordinates,
+        // Event issued when mouse retains position in screen coordinates,
         // but changes in world coordinates (e.g. autopanning)
         type == KIGFX::WX_VIEW_CONTROLS::EVT_REFRESH_MOUSE )
     {
         wxMouseEvent* me = static_cast<wxMouseEvent*>( &aEvent );
         int mods = decodeModifiers( me );
 
-        VECTOR2D screenPos = m_toolMgr->GetViewControls()->GetMousePosition();
-        VECTOR2D pos = getView()->ToWorld( screenPos );
+        VECTOR2D pos = m_toolMgr->GetViewControls()->GetMousePosition();
 
         if( pos != m_lastMousePos )
         {
@@ -289,31 +364,42 @@ void TOOL_DISPATCHER::DispatchWxEvent( wxEvent& aEvent )
             static_cast<PCB_BASE_FRAME*>( m_toolMgr->GetEditFrame() )->GetGalCanvas()->SetFocus();
 #endif /* __APPLE__ */
     }
-
-    // Keyboard handling
-    else if( type == wxEVT_CHAR )
+    else if( type == wxEVT_CHAR_HOOK || type == wxEVT_CHAR )
     {
         wxKeyEvent* ke = static_cast<wxKeyEvent*>( &aEvent );
-        int key = ke->GetKeyCode();
+        key = ke->GetKeyCode();
+        keyIsSpecial = isKeySpecialCode( key );
+
+        wxLogTrace( kicadTraceKeyEvent, "TOOL_DISPATCHER::DispatchWxEvent %s", dump( *ke ) );
+
+        // if the key event must be skipped, skip it here if the event is a wxEVT_CHAR_HOOK
+        // and do nothing.
+        // a wxEVT_CHAR will be fired by wxWidgets later for this key.
+        if( type == wxEVT_CHAR_HOOK )
+        {
+            if( !keyIsSpecial )
+            {
+                aEvent.Skip();
+                return;
+            }
+            else
+                key = translateSpecialCode( key );
+        }
+
         int mods = decodeModifiers( ke );
 
         if( mods & MD_CTRL )
         {
-#if !wxCHECK_VERSION( 2, 9, 0 )
-            // I really look forward to the day when we will use only one version of wxWidgets..
-            const int WXK_CONTROL_A = 1;
-            const int WXK_CONTROL_Z = 26;
-#endif
-
-            // wxWidgets have a quirk related to Ctrl+letter hot keys handled by CHAR_EVT
-            // http://docs.wxwidgets.org/trunk/classwx_key_event.html:
-            // "char events for ASCII letters in this case carry codes corresponding to the ASCII
-            // value of Ctrl-Latter, i.e. 1 for Ctrl-A, 2 for Ctrl-B and so on until 26 for Ctrl-Z."
+            // wxWidgets maps key codes related to Ctrl+letter handled by CHAR_EVT
+            // (http://docs.wxwidgets.org/trunk/classwx_key_event.html):
+            // char events for ASCII letters in this case carry codes corresponding to the ASCII
+            // value of Ctrl-Latter, i.e. 1 for Ctrl-A, 2 for Ctrl-B and so on until 26 for Ctrl-Z.
+            // They are remapped here to be more easy to handle in code
             if( key >= WXK_CONTROL_A && key <= WXK_CONTROL_Z )
                 key += 'A' - 1;
         }
 
-        if( key == WXK_ESCAPE ) // ESC is the special key for cancelling tools
+        if( key == WXK_ESCAPE ) // ESC is the special key for canceling tools
             evt = TOOL_EVENT( TC_COMMAND, TA_CANCEL_TOOL );
         else
             evt = TOOL_EVENT( TC_KEYBOARD, TA_KEY_PRESSED, key | mods );
@@ -323,41 +409,56 @@ void TOOL_DISPATCHER::DispatchWxEvent( wxEvent& aEvent )
         m_toolMgr->ProcessEvent( *evt );
 
     // pass the event to the GUI, it might still be interested in it
-#ifdef __APPLE__
+    // Note wxEVT_CHAR_HOOK event is already skipped for special keys not used by KiCad
+    // and wxEVT_LEFT_DOWN must be always Skipped.
+    //
     // On OS X, key events are always meant to be caught.  An uncaught key event is assumed
     // to be a user input error by OS X (as they are pressing keys in a context where nothing
     // is there to catch the event).  This annoyingly makes OS X beep and/or flash the screen
-    // in pcbnew and the footprint editor any time a hotkey is used.  The correct procedure is
-    // to NOT pass key events to the GUI under OS X.
+    // in Pcbnew and the footprint editor any time a hotkey is used.  The correct procedure is
+    // to NOT pass wxEVT_CHAR events to the GUI under OS X.
+    //
+    // On Windows, avoid to call wxEvent::Skip for special keys because some keys (ARROWS,
+    // PAGE_UP, PAGE_DOWN have predefined actions (like move thumbtrack cursor), and we do
+    // not want these actions executed (most are handled by KiCad)
 
-    if( type != wxEVT_CHAR )
+    if( !evt || type == wxEVT_LEFT_DOWN )
         aEvent.Skip();
-#else
-    aEvent.Skip();
+
+    // The suitable Skip is already called, but the wxEVT_CHAR
+    // must be Skipped (sent to GUI).
+    // Otherwise accelerators and shortcuts in main menu or toolbars are not seen.
+#ifndef __APPLE__
+    if( type == wxEVT_CHAR && !keyIsSpecial )
+        aEvent.Skip();
 #endif
 
-    updateUI();
+    updateUI( aEvent );
 }
 
 
 void TOOL_DISPATCHER::DispatchWxCommand( wxCommandEvent& aEvent )
 {
-    boost::optional<TOOL_EVENT> evt = COMMON_ACTIONS::TranslateLegacyId( aEvent.GetId() );
+    OPT<TOOL_EVENT> evt = m_actions->TranslateLegacyId( aEvent.GetId() );
 
     if( evt )
         m_toolMgr->ProcessEvent( *evt );
     else
         aEvent.Skip();
 
-    updateUI();
+    updateUI( aEvent );
 }
 
 
-void TOOL_DISPATCHER::updateUI()
+void TOOL_DISPATCHER::updateUI( wxEvent& aEvent )
 {
     // TODO I don't feel it is the right place for updating UI,
     // but at the moment I cannot think of a better one..
-    EDA_DRAW_FRAME* frame = static_cast<EDA_DRAW_FRAME*>( m_toolMgr->GetEditFrame() );
-    frame->UpdateStatusBar();
-    frame->UpdateMsgPanel();
+
+    auto frame = dynamic_cast<EDA_DRAW_FRAME*>( m_toolMgr->GetEditFrame() );
+    if( frame )
+    {
+        frame->UpdateStatusBar();
+        frame->SyncMenusAndToolbars( aEvent );
+    }
 }

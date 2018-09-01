@@ -36,44 +36,56 @@
 #include <view/view.h>
 #include <painter.h>
 #include <gal/graphics_abstraction_layer.h>
-#include <boost/foreach.hpp>
 #include <layers_id_colors_and_visibility.h>
 
 using namespace KIGFX;
 
 VIEW_GROUP::VIEW_GROUP( VIEW* aView ) :
-    m_layer( ITEM_GAL_LAYER( GP_OVERLAY ) )
+    m_layer( LAYER_GP_OVERLAY )
 {
-    m_view = aView;
 }
 
 
 VIEW_GROUP::~VIEW_GROUP()
 {
+    // VIEW_ITEM destructor removes the object from its parent view
 }
 
 
 void VIEW_GROUP::Add( VIEW_ITEM* aItem )
 {
-    m_items.insert( aItem );
+    m_groupItems.push_back( aItem );
 }
 
 
 void VIEW_GROUP::Remove( VIEW_ITEM* aItem )
 {
-    m_items.erase( aItem );
+    for( auto iter = m_groupItems.begin(); iter != m_groupItems.end(); ++iter )
+    {
+        if( aItem == *iter )
+        {
+            m_groupItems.erase( iter );
+            break;
+        }
+    }
 }
 
 
 void VIEW_GROUP::Clear()
 {
-    m_items.clear();
+    m_groupItems.clear();
 }
 
 
 unsigned int VIEW_GROUP::GetSize() const
 {
-    return m_items.size();
+    return m_groupItems.size();
+}
+
+
+VIEW_ITEM *VIEW_GROUP::GetItem( unsigned int idx ) const
+{
+    return m_groupItems[idx];
 }
 
 
@@ -86,32 +98,61 @@ const BOX2I VIEW_GROUP::ViewBBox() const
 }
 
 
-void VIEW_GROUP::ViewDraw( int aLayer, GAL* aGal ) const
+void VIEW_GROUP::ViewDraw( int aLayer, VIEW* aView ) const
 {
-    PAINTER* painter = m_view->GetPainter();
+    auto gal = aView->GetGAL();
+    PAINTER* painter = aView->GetPainter();
 
-    // Draw all items immediately (without caching)
-    BOOST_FOREACH( VIEW_ITEM* item, m_items )
+    const auto drawList = updateDrawList();
+
+    std::unordered_map<int, std::vector<VIEW_ITEM*>> layer_item_map;
+
+    // Build a list of layers used by the items in the group
+    for( auto item : drawList )
     {
-        aGal->PushDepth();
+        int item_layers[VIEW::VIEW_MAX_LAYERS], item_layers_count;
+        item->ViewGetLayers( item_layers, item_layers_count );
 
-        int layers[VIEW::VIEW_MAX_LAYERS], layers_count;
-        item->ViewGetLayers( layers, layers_count );
-        m_view->SortLayers( layers, layers_count );
-
-        for( int i = 0; i < layers_count; i++ )
+        for( int i = 0; i < item_layers_count; i++ )
         {
-            if( m_view->IsCached( layers[i] ) && m_view->IsLayerVisible( layers[i] ) )
+            if( layer_item_map.count( item_layers[i] ) == 0 )
             {
-                aGal->AdvanceDepth();
+                layer_item_map.emplace( std::make_pair( item_layers[i],
+                                                        std::vector<VIEW_ITEM*>() ) );
+            }
 
+            layer_item_map[ item_layers[i] ].push_back( item );
+        }
+    }
+
+    int layers[VIEW::VIEW_MAX_LAYERS], layers_count = 0;
+
+    for( const auto& entry : layer_item_map )
+    {
+        layers[ layers_count++ ] = entry.first;
+    }
+
+    aView->SortLayers( layers, layers_count );
+
+    // Now draw the layers in sorted order
+
+    gal->PushDepth();
+
+    for( int i = 0; i < layers_count; i++ )
+    {
+        if( aView->IsLayerVisible( layers[i] ) )
+        {
+            gal->AdvanceDepth();
+
+            for( auto item : layer_item_map[ layers[i] ] )
+            {
                 if( !painter->Draw( item, layers[i] ) )
-                    item->ViewDraw( layers[i], aGal ); // Alternative drawing method
+                    item->ViewDraw( layers[i], aView ); // Alternative drawing method
             }
         }
-
-        aGal->PopDepth();
     }
+
+    gal->PopDepth();
 }
 
 
@@ -125,38 +166,28 @@ void VIEW_GROUP::ViewGetLayers( int aLayers[], int& aCount ) const
 
 void VIEW_GROUP::FreeItems()
 {
-    BOOST_FOREACH( VIEW_ITEM* item, m_items )
-    {
-        delete item;
-    }
-    m_items.clear();
+    for( unsigned int i = 0 ; i < GetSize(); i++ )
+        delete GetItem( i );
+
+    Clear();
 }
 
 
-void VIEW_GROUP::ItemsSetVisibility( bool aVisible )
+const VIEW_GROUP::ITEMS VIEW_GROUP::updateDrawList() const
 {
-    std::set<VIEW_ITEM*>::const_iterator it, it_end;
+    return m_groupItems;
+}
 
-    for( it = m_items.begin(), it_end = m_items.end(); it != it_end; ++it )
-        (*it)->ViewSetVisible( aVisible );
+
+/*void VIEW_GROUP::ItemsSetVisibility( bool aVisible )
+{
+    for(unsigned int i = 0 ; i < GetSize(); i++)
+        GetItem(i)->ViewSetVisible( aVisible );
 }
 
 
 void VIEW_GROUP::ItemsViewUpdate( VIEW_ITEM::VIEW_UPDATE_FLAGS aFlags )
 {
-    std::set<VIEW_ITEM*>::const_iterator it, it_end;
-
-    for( it = m_items.begin(), it_end = m_items.end(); it != it_end; ++it )
-        (*it)->ViewUpdate( aFlags );
-}
-
-
-void VIEW_GROUP::updateBbox()
-{
-    // Save the used VIEW, as it used nulled during Remove()
-    VIEW* view = m_view;
-
-    // Reinsert the group, so the bounding box can be updated
-    view->Remove( this );
-    view->Add( this );
-}
+    for(unsigned int i = 0 ; i < GetSize(); i++)
+        GetItem(i)->ViewUpdate( aFlags );
+}*/

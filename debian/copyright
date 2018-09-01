@@ -1,60 +1,742 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: kicad
-Source: see file get-kicad.sh; lp:kicad/4.0; https://github.com/KiCad/kicad-doc;
- https://github.com/KiCad/library; https://github.com/KiCad/*.pretty
+Source: lp:kicad/4.0 or https://github.com/KiCad/kicad-source-mirror
+ https://github.com/KiCad/kicad-doc
+ https://github.com/KiCad/kicad-i18qn
+Comment: The source contains two PDF files were no source is available for
+ ./pcb_calculator/docs/tracks_width_thickness.pdf
+ ./pcb_calculator/docs/tracks_width_formulas.pdf
+ We filter them out while we importing the kicad_$(version).orig.tar.xz to
+ get a source packages that is complying with the DFSG.
 
 Files: *
-Copyright: (C) 2015-2017 KiCad Developers <kicad-developers@lists.launchpad.net>
+Copyright: (C) 2015-2018 KiCad Developers <kicad-developers@lists.launchpad.net>
 License: GPL-2+
 
-Files: 3d-viewer/trackball.*
-Copyright: (C) 1993, 1994, Silicon Graphics, Inc.
-License: SG1
+Files: 3d-viewer/*
+Copyright: 2015-2017, Mario Luzeiro <mrluzeiro@ua.pt>
+ 1992-2019, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: 3d-viewer/3d_cache/*
+Copyright: 2015-2017, Cirilo Bernardo <cirilo.bernardo@gmail.com>
+License: GPL-2+
+
+Files: 3d-viewer/3d_cache/3d_info.h
+Copyright: 2015, Mario Luzeiro <mrluzeiro@ua.pt>
+ 2015, Cirilo Bernardo <cirilo.bernardo@gmail.com>
+ 2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 2004, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2015, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: 3d-viewer/3d_cache/dialogs/dlg_select_3dmodel.cpp
+Copyright: 2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2016, Mario Luzeiro <mrluzeiro@ua.pt>
+ 2016, Cirilo Bernardo <cirilo.bernardo@gmail.com>
+License: GPL-2+
+
+Files: 3d-viewer/3d_cache/dialogs/panel_prev_model.cpp
+Copyright: 2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2016, Mario Luzeiro <mrluzeiro@ua.pt>
+ 2015-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2015, Cirilo Bernardo <cirilo.bernardo@gmail.com>
+License: GPL-2+
+
+Files: 3d-viewer/3d_cache/dialogs/panel_prev_model.h
+Copyright: 2016, Mario Luzeiro <mrluzeiro@ua.pt>
+ 2015, Cirilo Bernardo <cirilo.bernardo@gmail.com>
+ 2015, 2016, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: 3d-viewer/3d_canvas/status_text_reporter.h
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: 3d-viewer/3d_rendering/3d_render_raytracing/accelerators/cbvh_pbrt.cpp
+ 3d-viewer/3d_rendering/3d_render_raytracing/accelerators/cbvh_pbrt.h
+Copyright: 2015, 2016, Mario Luzeiro <mrluzeiro@ua.pt>
+ 1992-2016, KiCad Developers, see AUTHORS.txt for contributors.
+License: BSD-2-clause or GPL-2+
+
+Files: 3d-viewer/3d_rendering/3d_render_raytracing/shapes2D/edgeshrink.cpp
+Copyright: 2016, Mario Luzeiro <mrluzeiro@ua.pt>
+ 1992-2016, KiCad Developers, see AUTHORS.txt for contributors.
+License: Expat or GPL-2+
+
+Files: 3d-viewer/3d_rendering/trackball.cpp
+ 3d-viewer/3d_rendering/trackball.h
+Copyright: 1993, 1994, Silicon Graphics, Inc.
+License: Expat
+
+Files: 3d-viewer/3d_viewer.h
+Copyright: 2015, 2016, Mario Luzeiro <mrluzeiro@ua.pt>
+ 2014, 2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2011, 2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: 3d-viewer/3d_viewer/*
+Copyright: 2015, 2016, Mario Luzeiro <mrluzeiro@ua.pt>
+ 2014, 2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2011, 2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: 3d-viewer/3d_viewer/dialogs/*
+Copyright: 2004, 2007-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: 3d-viewer/3d_viewer/eda_3d_viewer.cpp
+Copyright: 2015-2017, Mario Luzeiro <mrluzeiro@ua.pt>
+ 1992-2019, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: bitmap2component/*
+Copyright: 1992-2017, Kicad Developers, see change_log.txt for contributors.
+ 1992-2010, jean-pierre.charras
+License: GPL-2+
+
+Files: bitmap2component/bitmap2component.cpp
+Copyright: 1992-2015, jean-pierre.charras
+ 1992-2015, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: bitmap2component/bitmap2component.h
+Copyright: 1992-2017, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: common/base_screen.cpp
+Copyright: 2012, 2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 2012, 2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2012, 2013, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/base_struct.cpp
+ common/copy_to_clipboard.cpp
+Copyright: 2004, 2006, 2007, 2009, 2010, 2015, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/base_units.cpp
+Copyright: 2012, 2014, 2016, CERN
+ 1992-2013, 2016, 2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: common/basic_gal.cpp
+ common/build_version.cpp
+ common/confirm.cpp
+ common/convert_basic_shapes_to_polygon.cpp
+ common/eda_graphic_text_ctrl.cpp
+ common/zoom.cpp
+Copyright: 2004, 2007-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/bezier_curves.cpp
+ common/colors.cpp
+ common/eda_dde.cpp
+ common/selcolor.cpp
+ common/trigo.cpp
+Copyright: 2007-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2007-2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: common/bin_mod.cpp
+ common/prependpath.cpp
+ common/searchhelpfilefullpath.cpp
+ common/systemdirsappend.cpp
+Copyright: 2014, 2015, 2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2010, 2013-2017, CERN
+License: GPL-2+
+
+Files: common/bitmap.cpp
+ common/dialog_shim.cpp
+ common/exceptions.cpp
+ common/kiway_player.cpp
+ common/lset.cpp
+ common/richio.cpp
+Copyright: 2012-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2007-2016, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: common/bitmap_base.cpp
+Copyright: 2017, jean-pierre.charras
+ 2011-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/block_commande.cpp
+Copyright: 2004-2018, KiCad Developers, see change_log.txt for contributors.
+ 2001, 2004, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+License: GPL-2+
+
+Files: common/colors_design_settings.cpp
+ common/eda_doc.cpp
+ common/gbr_metadata.cpp
+ common/html_messagebox.cpp
+ common/layer_box_selector.cpp
+ common/marker_base.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: common/common.cpp
+ common/executable_names.cpp
+Copyright: 2012-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/config_params.cpp
+Copyright: 2008, 2009, 2011, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004, 2007, 2009, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/dialog_about/*
+Copyright: 2010-2018, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2010, 2014, Rafael Sokolowski <Rafael.Sokolowski@web.de>
+License: GPL-2+
+
+Files: common/dialog_about/dialog_about_base.cpp
+Copyright: 2010-2018, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+Comment: This file is autogenerated.
+
+Files: common/dialogs/*
+Copyright: 1992-2018, Kicad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/dialogs/dialog_env_var_config.cpp
+Copyright: 2015-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2015, Wayne Stambaugh <stambaughw@gmail.com>
+License: GPL-2+
+
+Files: common/dialogs/dialog_image_editor.cpp
+Copyright: 2011-2018, Kicad Developers, see AUTHORS.txt for contributors.
+ 2011, jean-pierre.charras
+License: GPL-2+
+
+Files: common/dialogs/dialog_image_editor.h
+Copyright: 1992-2015, jean-pierre.charras
+ 1992-2015, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: common/dialogs/wx_html_report_panel.cpp
+ common/dialogs/wx_html_report_panel.h
+Copyright: 2015-2017, KiCad Developers, see change_log.txt for contributors.
+ 2015, CERN
+License: GPL-2+
+
+Files: common/displlst.cpp
+Copyright: 2012-2014, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2007, 2010, 2012, 2014, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/dlist.cpp
+ common/filter_reader.cpp
+ common/getrunningmicrosecs.cpp
+ common/grid_tricks.cpp
+ common/xnode.cpp
+Copyright: 2007-2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: common/draw_frame.cpp
+Copyright: 2008, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2004-2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: common/draw_graphic_text.cpp
+Copyright: 2014-2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008-2016, Wayne Stambaugh <stambaughw@verizon.net>
+ 2007-2015, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/draw_panel.cpp
+Copyright: 2009, Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
+ 2007, Wayne Stambaugh <stambaughw@gmail.com>
+ 1992-2016, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/draw_panel_gal.cpp
+ common/gl_context_mgr.cpp
+Copyright: 2012-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2012-2017, CERN
+License: GPL-2+
+
+Files: common/dsnlexer.cpp
+Copyright: 2007-2017, KiCad Developers, see change_log.txt for contributors.
+ 2007-2014, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: common/eagle_parser.cpp
+Copyright: 2017, CERN.
+ 2012-2016, KiCad Developers, see AUTHORS.txt for contributors.
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: common/eda_base_frame.cpp
+Copyright: 2013, 2015-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008, 2009, 2011-2013, 2015, Wayne Stambaugh <stambaughw@gmail.com>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/eda_pattern_match.cpp
+Copyright: 2015-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2015-2017, Chris Pavlina <pavlina.chris@gmail.com>
+License: GPL-2+
+
+Files: common/eda_text.cpp
+Copyright: 2004-2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: common/env_paths.cpp
+Copyright: 2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2017, CERN
+License: GPL-3+
+
+Files: common/footprint_filter.cpp
+Copyright: 2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: common/footprint_info.cpp
+Copyright: 2013-2016, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2011, Jean-Pierre Charras, <jp.charras@wanadoo.fr>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/fp_lib_table.cpp
+Copyright: 2012-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2012-2016, Wayne Stambaugh <stambaughw@gmail.com>
+ 2010-2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: common/gal/cairo/cairo_gal.cpp
+Copyright: 2013-2017, CERN
+ 2012, Torsten Hueter, torstenhtr <at> gmx.de
+ 2012, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: common/gal/color4d.cpp
+Copyright: 2017, Kicad Developers, see AUTHORS.txt for contributors.
+ 2012, Torsten Hueter, torstenhtr <at> gmx.de
+License: GPL-2+
+
+Files: common/gal/gal_display_options.cpp
+Copyright: 1992-2017, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: common/gal/graphics_abstraction_layer.cpp
+Copyright: 2012-2017, Kicad Developers, see change_log.txt for contributors.
+ 2012, Torsten Hueter, torstenhtr <at> gmx.de
+License: GPL-2+
+
+Files: common/gal/hidpi_gl_canvas.cpp
+Copyright: 2017, Bernhard Stegmaier <stegmaier@sw-systems.de>
+ 2016, 2017, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: common/gal/opengl/SmaaAreaTex.h
+ common/gal/opengl/SmaaSearchTex.h
+Copyright: 2013, Jose I. Echevarria (joseignacioechevarria@gmail.com)
+ 2013, Jorge Jimenez (jorge@iryoku.com)
+ 2013, Fernando Navarro (fernandn@microsoft.com)
+ 2013, Diego Gutierrez (diegog@unizar.es)
+ 2013, Belen Masia (bmasia@unizar.es)
+License: Expat
+
+Files: common/gal/opengl/antialiasing.cpp
+ common/gal/opengl/antialiasing.h
+ common/gal/opengl/gl_builtin_shaders.cpp
+ common/gal/opengl/gl_builtin_shaders.h
+ common/gal/opengl/gl_resources.cpp
+ common/gal/opengl/gl_resources.h
+Copyright: 1992-2017, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: common/gal/opengl/opengl_gal.cpp
+Copyright: 2013-2017, CERN
+ 2012-2016, Kicad Developers, see AUTHORS.txt for contributors.
+ 2012, Torsten Hueter, torstenhtr <at> gmx.de
+License: GPL-2+
+
+Files: common/gal/opengl/shader.cpp
+Copyright: 2012, Torsten Hueter, torstenhtr <at> gmx.de
+ 2012, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: common/gal/stroke_font.cpp
+Copyright: 2016, Kicad Developers, see change_log.txt for contributors.
+ 2013, CERN
+ 2012, Torsten Hueter, torstenhtr <at> gmx.de
+License: GPL-2+
+
+Files: common/geometry/convex_hull.cpp
+Copyright: 2004, 2007-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
 
 Files: common/geometry/hetriang.cpp
-Copyright: (C) 1998, 2000-2007, 2010-2013 SINTEF ICT, Applied Mathematics, Norway
-           (C) 2013 CERN, Maciej Suminski <maciej.suminski@cern.ch>
-License: AFPL1
+Copyright: 2013, CERN
+ 1998, 2000-2007, 2010-2013, SINTEF ICT
+License: AGPL-3+
 
-Files: include/ttl/*
-Copyright: (C) 1998, 2000-2007, 2010-2013 SINTEF ICT, Applied Mathematics, Norway
-License: AFPL1
-
-Files: polygon/clipper.*
-Copyright: (C) 2010-2014 Angus Johnson
-License: BOOST1
-
-Files: polygon/poly2tri/*
-Copyright: (C) 2009-2010, Poly2Tri Contributors https://github.com/jhasse/poly2tri
-License: Poly2Tri
-
-Files: eeschema/plugins/xsl_scripts/bom2csv.xsl
-Copyright: (C) 2013 Stefan Helmert
+Files: common/geometry/shape_poly_set.cpp
+Copyright: Angus Johnson, / 2015-2017, CERN
 License: GPL-2+
 
-Files: eeschema/plugins/xsl_scripts/netlist_form_*.xsl
-Copyright: (C) 2010, SoftPLC Corporation
+Files: common/gestfich.cpp
+ common/msgpanel.cpp
+Copyright: 2008-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 2004, 2007, 2009, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
 License: GPL-2+
 
-Files: pcbnew/specctra.keywords
-Copyright: (C) 2007-2011 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+Files: common/gr_basic.cpp
+Copyright: 2015, 2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2011, 2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: common/hotkeys_basic.cpp
+Copyright: 2015, Jean-Pierre Charras, j-p.charras at wanadoo.fr
+ 2010, 2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2016, KiCad Developers, see AUTHORS.txt for contributors.
 License: GPL-2+
 
-Files: pcbnew/autorouter/rect_placement/rect_placement.*
-Copyright: (C) 2000-2002 by Javier Arevalo
-License: other
- This code is free to use and modify for all purposes
+Files: common/incremental_text_ctrl.cpp
+Copyright: 2009-2016, Jean-Pierre Charras, jean-pierre.charras at wanadoo.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
 
-Files: include/gal/opengl/glm/*
-Copyright: (C) 2005-2013 G-Truc Creation (www.g-truc.net)
-License: GLM1
+Files: common/kicad_curl/*
+Copyright: 2016, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2015, Mark Roszko <mark.roszko@gmail.com>
+ 2015, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-3+
 
-Files: potrace/*
-Copyright: (C) 2001-2007 Peter Selinger
+Files: common/kicad_curl/kicad_curl_easy.cpp
+Copyright: 2015, Mark Roszko <mark.roszko@gmail.com>
+ 2015, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-3+
+
+Files: common/kiface_i.cpp
+Copyright: 2014, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2008-2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2014, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/kiway.cpp
+ common/kiway_holder.cpp
+ common/lockfile.cpp
+Copyright: 2014-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2010, 2014, 2015, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: common/kiway_express.cpp
+ common/page_info.cpp
+ common/ptree.cpp
+ common/single_top.cpp
+ common/utf8.cpp
+Copyright: 2012-2017, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: common/lib_id.cpp
+Copyright: 2012, Wayne Stambaugh <stambaughw@gmail.com>
+ 2010-2017, KiCad Developers, see change_log.txt for contributors.
+ 2010-2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: common/lib_table_base.cpp
+Copyright: 2012-2017, Wayne Stambaugh <stambaughw@gmail.com>
+ 2012-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2010-2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: common/libeval/*
+Copyright: 2017, Michael Geselbracht, mgeselbracht3@gmail.com
+License: GPL-3+
+
+Files: common/math/*
+Copyright: CERN / 2005, Michael Niedermayer <michaelni@gmx.at>
+License: GPL-2+
+
+Files: common/md5_hash.cpp
+Copyright: no-info-found
+License: GPL-1
+
+Files: common/newstroke_font.cpp
+Copyright: 2010, vladimir uryvaev <vovanius@bk.ru>
+ 1992-2010, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: common/observable.cpp
+Copyright: 1992-2017, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: common/page_layout/*
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras <jp.charras at wanadoo.fr>.
+License: GPL-2+
+
+Files: common/painter.cpp
+Copyright: 2013, CERN
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: common/pgm_base.cpp
+Copyright: 2008-2016, Wayne Stambaugh <stambaughw@verizon.net>
+ 2004-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/plotters/*
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: common/plotters/DXF_plotter.cpp
+ common/plotters/common_plot_functions.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/plotters/PDF_plotter.cpp
+Copyright: 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2012, Lorenzo Marcantonio, l.marcantonio@logossrl.com
+License: GPL-2+
+
+Files: common/plotters/SVG_plotter.cpp
+Copyright: 2004, 2007-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/preview_items/*
+Copyright: 1992-2018, Kicad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/preview_items/bright_box.cpp
+ common/preview_items/selection_area.cpp
+Copyright: 2013-2018, CERN
+License: GPL-2+
+
+Files: common/preview_items/centreline_rect_item.cpp
+ common/preview_items/preview_utils.cpp
+ common/preview_items/ruler_item.cpp
+ common/preview_items/simple_overlay_item.cpp
+Copyright: 1992-2017, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: common/project.cpp
+ common/string.cpp
+ common/worksheet.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/properties.cpp
+Copyright: 2016, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2016, Kicad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/reporter.cpp
+ common/validators.cpp
+Copyright: 2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2015, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: common/search_stack.cpp
+Copyright: 2014, CERN
+ 1992-2015, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: common/settings.cpp
+Copyright: 1992-2018, Kicad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/streamwrapper.cpp
+Copyright: 2017, Cirilo Bernardo <cirilo.bernardo@gmail.com>
+License: GPL-3+
+
+Files: common/swig/*
+Copyright: 2012-2014, Miguel Angel Ajo <miguelangel@nbee.es>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/system/*
+Copyright: Thomas Sailer 2013. / Sergue E. Leontiev 2013, / Oliver Kowalke 2009. / Martin Husemann 2013.
+License: BSL-1.0
+
+Files: common/tool/grid_menu.cpp
+Copyright: 2012-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2012-2017, CERN
+License: GPL-2+
+
+Files: common/tool/tool_menu.cpp
+Copyright: 2017, KiCad Developers, see CHANGELOG.txt for contributors.
+License: GPL-2+
+
+Files: common/tool/zoom_tool.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: common/undo_redo_container.cpp
+Copyright: 2018, jp.charras at wanadoo.fr
+ 2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2011, Wayne Stambaugh <stambaughw@verizon.net>
+License: GPL-2+
+
+Files: common/view/view_controls.cpp
+Copyright: 2013-2015, CERN
+ 2012, Torsten Hueter, torstenhtr <at> gmx.de
+License: GPL-2+
+
+Files: common/view/wx_view_controls.cpp
+Copyright: 2013-2015, CERN
+ 2012-2016, KiCad Developers, see AUTHORS.txt for contributors.
+ 2012, Torsten Hueter, torstenhtr <at> gmx.de
+License: GPL-2+
+
+Files: common/widgets/color_swatch.cpp
+ common/widgets/gal_options_panel.cpp
+ common/widgets/indicator_icon.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/widgets/footprint_choice.cpp
+ common/widgets/footprint_select_widget.cpp
+ common/widgets/stepped_slider.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: common/widgets/footprint_preview_widget.cpp
+ common/widgets/two_column_tree_list.cpp
+Copyright: 2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2017, Chris Pavlina <pavlina.chris@gmail.com>
+License: GPL-3+
+
+Files: common/widgets/mathplot.cpp
+Copyright: 2016, David Schalig, Davide Rondini
+License: WXWINDOWS
+
+Files: common/widgets/text_ctrl_eval.cpp
+Copyright: 2013-2018, CERN
+License: GPL-3+
+
+Files: common/widgets/widget_hotkey_list.cpp
+Copyright: 2016, Chris Pavlina <pavlina.chris@gmail.com>
+ 2016, 2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: common/wildcards_and_files_ext.cpp
+Copyright: 2012, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ 2008, Wayne Stambaugh <stambaughw@gmail.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: common/wxdataviewctrl_helpers.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: copyright.h
+Copyright: template / message which may be added to all source files at their top.
+License: GPL-3+
+
+Files: cvpcb/*
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: cvpcb/cfg.cpp
+ cvpcb/cvpcb_mainframe.h
+ cvpcb/footprints_listbox.cpp
+Copyright: 2004, 2007-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: cvpcb/common_help_msg.h
+Copyright: 2007-2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: cvpcb/cvpcb.cpp
+Copyright: 2014, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2007, Jean-Pierre Charras, jp..charras at wanadoo.fr
+ 1992-2014, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: cvpcb/cvpcb.h
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: cvpcb/cvpcb_id.h
+Copyright: 2007-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2007-2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: cvpcb/cvpcb_mainframe.cpp
+ cvpcb/display_footprints_frame.cpp
+Copyright: 2012-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: cvpcb/dialogs/*
+Copyright: 2010-2014, Jean-Pierre Charras <jp.charras at wanadoo.fr>
+ 1992-2014, Kicad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: cvpcb/dialogs/dialog_config_equfiles.cpp
+Copyright: 2004, 2007-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: cvpcb/dialogs/dialog_config_equfiles.h
+Copyright: 2010-2015, Jean-Pierre Charras jp.charras at wanadoo.fr
+ 1992-2015, Kicad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: cvpcb/dialogs/dialog_display_options.cpp
+ cvpcb/dialogs/dialog_display_options.h
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: cvpcb/display_footprints_frame.h
+Copyright: 2007-2011, KiCad Developers, see AUTHORS.txt for contributors.
+ 2007, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+License: GPL-2+
+
+Files: cvpcb/menubar.cpp
+Copyright: 2004-2018, KiCad Developers, see change_log.txt for contributors.
+ 2001, 2004, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+License: GPL-2+
+
+Files: cvpcb/readwrite_dlgs.cpp
+Copyright: 2018, Jean-Pierre Charras, jean-pierre.charras
+ 2011-2016, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: cvpcb/tool_cvpcb.cpp
+Copyright: 2015, 2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2011, 2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: demos/*
+Copyright: 1992-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
 License: GPL-2+
 
 Files: doc/*
-Copyright: (C) 2006-2017 KiCad Developers
+Copyright: (C) 2006-2018 KiCad Developers
 License: GPL-2+ or CC-BY-SA-3.0
 Comment:
  The KiCad documentation is dual licensed.
@@ -65,93 +747,3634 @@ Comment:
  .
  See: http://kicad-pcb.org/about/licenses/
 
-Files: libraries/*
-Copyright: (C) 2006-2015 KiCad Developers
+Files: eeschema/*
+Copyright: 2004, 2007-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/annotate.cpp
+ eeschema/drc_erc_item.cpp
+ eeschema/libedit_onrightclick.cpp
+ eeschema/pin_shape.cpp
+ eeschema/pin_shape.h
+ eeschema/pin_type.cpp
+ eeschema/pin_type.h
+ eeschema/plot_schematic_PS.cpp
+Copyright: 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/autoplace_fields.cpp
+ eeschema/project_rescue.cpp
+ eeschema/project_rescue.h
+Copyright: 2015-2018, KiCad Developers, see change_log.txt for contributors.
+ 2015, Chris Pavlina <pavlina.chris@gmail.com>
+License: GPL-2+
+
+Files: eeschema/backanno.cpp
+ eeschema/getpart.cpp
+ eeschema/lib_edit_frame.cpp
+ eeschema/lib_export.cpp
+ eeschema/lib_pin.cpp
+ eeschema/libedit.cpp
+ eeschema/menubar.cpp
+ eeschema/netlist_object_list.cpp
+ eeschema/sch_sheet_path.cpp
+ eeschema/sch_sheet_path.h
+ eeschema/viewlib_frame.cpp
+ eeschema/viewlib_frame.h
+Copyright: 2013, 2015-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008, 2009, 2011-2013, 2015, Wayne Stambaugh <stambaughw@gmail.com>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/block.cpp
+Copyright: 2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2009-2016, Wayne Stambaugh <stambaughw@verizon.net>
+ 2004-2016, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/block_libedit.cpp
+ eeschema/controle.cpp
+Copyright: 2008-2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 2004-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2004, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+License: GPL-2+
+
+Files: eeschema/bus-wire-junction.cpp
+Copyright: 1992-2016, KiCad Developers, see change_log.txt for contributors.
+ 1992-2009, Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
+License: GPL-2+
+
+Files: eeschema/busentry.cpp
+ eeschema/cross-probing.cpp
+ eeschema/eeschema.cpp
+Copyright: 2008-2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 2004-2017, KiCad Developers, see change_log.txt for contributors.
+ 2004, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+License: GPL-2+
+
+Files: eeschema/class_libentry.cpp
+ eeschema/class_library.cpp
+ eeschema/symbedit.cpp
+Copyright: 2008, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2004-2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: eeschema/class_libentry.h
+ eeschema/hierarch.cpp
+Copyright: 2008, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004-2017, KiCad Developers, see change_log.txt for contributors.
+ 2004-2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: eeschema/class_library.h
+ eeschema/edit_component_in_schematic.cpp
+ eeschema/onrightclick.cpp
+Copyright: 2014-2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/cmp_tree_model.cpp
+ eeschema/cmp_tree_model.h
+ eeschema/cmp_tree_model_adapter.cpp
+ eeschema/cmp_tree_model_adapter.h
+ eeschema/cmp_tree_model_adapter_base.cpp
+ eeschema/cmp_tree_model_adapter_base.h
+Copyright: 2017, Chris Pavlina <pavlina.chris@gmail.com>
+ 2014-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2014, Henner Zeller <h.zeller@acm.org>
+License: GPL-3+
+
+Files: eeschema/component_references_lister.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2011, jean-pierre Charras <jp.charras at wanadoo.fr>
+ 1992-2011, Wayne Stambaugh <stambaughw@verizon.net>
+License: GPL-2+
+
+Files: eeschema/dialog_erc_listbox.h
+ eeschema/eeschema_config.cpp
+ eeschema/highlight_connection.cpp
+ eeschema/lib_bezier.cpp
+ eeschema/lib_text.cpp
+ eeschema/libedit_plot_component.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/*
+Copyright: 2013-2018, CERN
+License: GPL-3+
+
+Files: eeschema/dialogs/dialog_annotate.cpp
+Copyright: 1992-2017, jean-pierre Charras jp.charras at wanadoo.fr
+ 1992-2017, Kicad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_bom.cpp
+ eeschema/dialogs/dialog_erc.h
+Copyright: 2004, 2007-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_choose_component.cpp
+ eeschema/dialogs/dialog_choose_component.h
+Copyright: 2014-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2014, Henner Zeller <h.zeller@acm.org>
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_edit_component_in_lib.cpp
+ eeschema/dialogs/dialog_edit_component_in_lib.h
+ eeschema/dialogs/dialog_edit_component_in_schematic.cpp
+ eeschema/dialogs/dialog_lib_edit_pin_table.cpp
+ eeschema/dialogs/dialog_rescue_each.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_edit_components_libid.cpp
+Copyright: 2007, 2009, 2017, Jean-Pierre Charras, jp.charras@wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_edit_label.cpp
+Copyright: 2008-2016, Wayne Stambaugh <stambaughw@verizon.net>
+ 2004-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_edit_libentry_fields_in_lib.cpp
+Copyright: 2007, 2008, 2011-2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2004-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_edit_line_style.cpp
+ eeschema/dialogs/dialog_edit_line_style.h
+Copyright: 2017, Seth Hillbrand <hillbrand@ucdavis.edu>
+ 2014, 2015, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_edit_one_field.cpp
+ eeschema/dialogs/dialog_edit_one_field.h
+Copyright: 2016, Wayne Stambaugh, stambaughw@gmail.com
+ 2012, Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.com
+ 2004-2018, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_eeschema_options.cpp
+ eeschema/dialogs/dialog_eeschema_options.h
+ eeschema/dialogs/dialog_libedit_options.h
+ eeschema/dialogs/dialog_schematic_find.cpp
+ eeschema/dialogs/dialog_schematic_find.h
+Copyright: 2009-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_erc.cpp
+Copyright: 2013, 2015-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008, 2009, 2011-2013, 2015, Wayne Stambaugh <stambaughw@gmail.com>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_fields_editor_global.cpp
+ eeschema/dialogs/dialog_fields_editor_global.h
+Copyright: 2017, Oliver Walters
+ 2017, 2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_global_sym_lib_table_config.cpp
+ eeschema/dialogs/dialog_global_sym_lib_table_config.h
+ eeschema/dialogs/dialog_sym_lib_table.cpp
+ eeschema/dialogs/dialog_sym_lib_table.h
+Copyright: 2017, Wayne Stambaugh <stambaughw@gmail.com>
+ 2017, 2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: eeschema/dialogs/dialog_lib_edit_draw_item.cpp
+Copyright: 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_lib_edit_draw_item.h
+ eeschema/dialogs/dialog_lib_new_component.h
+ eeschema/dialogs/dialog_sch_sheet_props.cpp
+ eeschema/dialogs/dialog_sch_sheet_props.h
+Copyright: 2014, 2015, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2009-2105, Wayne Stambaugh <stambaughw@verizon.net>
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_lib_edit_pin.cpp
+ eeschema/dialogs/dialog_lib_edit_pin.h
+Copyright: 2007-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2007-2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_lib_edit_text.cpp
+Copyright: 2004-2018, KiCad Developers, see change_log.txt for contributors.
+ 2001, 2004, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_lib_edit_text.h
+Copyright: 1992-2012, KiCad Developers, see change_log.txt for contributors.
+ 1992-2012, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_lib_new_component.cpp
+ eeschema/dialogs/dialog_sch_edit_sheet_pin.cpp
+ eeschema/dialogs/dialog_sch_edit_sheet_pin.h
+Copyright: 2007-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2007-2011, Wayne Stambaugh <stambaughw@verizon.net>
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_libedit_options.cpp
+Copyright: 2012-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_netlist.cpp
+Copyright: 2013-2017, Jean-Pierre Charras, jp.charras@wanadoo.fr
+ 2013, Wayne Stambaugh <stambaughw@gmail.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_plot_schematic.cpp
+Copyright: 2011, Wayne Stambaugh <stambaughw@gmail.com>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras jp.charras at wanadoo.fr
+ 1992-2010, Lorenzo Marcantonio
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_plot_schematic.h
+Copyright: 2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras jp.charras at wanadoo.fr
+ 1992-2010, Lorenzo Marcantonio
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_print_using_printer.cpp
+Copyright: 2007-2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: eeschema/dialogs/dialog_symbol_remap.cpp
+ eeschema/dialogs/dialog_symbol_remap.h
+Copyright: 2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 2017, 2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: eeschema/edit_bitmap.cpp
+ eeschema/sch_bitmap.cpp
+ eeschema/sch_bitmap.h
+Copyright: 2011-2017, KiCad Developers, see change_log.txt for contributors.
+ 2011, 2012, jean-pierre.charras
+License: GPL-2+
+
+Files: eeschema/eeredraw.cpp
+ eeschema/symbdraw.cpp
+Copyright: 2009-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 2006, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ 2004-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/eeschema_config.h
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: eeschema/eeschema_id.h
+Copyright: 2008-2017, KiCad Developers, see change_log.txt for contributors.
+ 2008, Wayne Stambaugh <stambaughw@gmail.com>
+License: GPL-2+
+
+Files: eeschema/erc.cpp
+ eeschema/hotkeys.cpp
+ eeschema/netlist_object.cpp
+ eeschema/onleftclick.cpp
+ eeschema/pinedit.cpp
+ eeschema/sch_text.cpp
+ eeschema/schedit.cpp
+ eeschema/sheetlab.cpp
+ eeschema/tool_sch.cpp
+Copyright: 2012-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/erc.h
+Copyright: 2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 2009-2015, KiCad Developers, see change_log.txt for contributors.
+ 2009, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: eeschema/events_called_functions_for_edit.cpp
+ eeschema/general.h
+ eeschema/libedit_undo_redo.cpp
+ eeschema/libfield.cpp
+ eeschema/operations_on_items_lists.cpp
+ eeschema/selpart.cpp
+Copyright: 2007-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2007-2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: eeschema/files-io.cpp
+Copyright: 2013, Wayne Stambaugh <stambaughw@gmail.com>
+ 2013, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2013, CERN (www.cern.ch)
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/find.cpp
+Copyright: 2008, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004-2017, KiCad Developers, see change_log.txt for contributors.
+ 2004, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+License: GPL-2+
+
+Files: eeschema/generate_alias_info.cpp
+ eeschema/generate_alias_info.h
+Copyright: 2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2017, Chris Pavlina <pavlina.chris@gmail.com>
+License: GPL-3+
+
+Files: eeschema/help_common_strings.h
+Copyright: 2014, 2015, 2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2010, 2013-2017, CERN
+License: GPL-2+
+
+Files: eeschema/hotkeys.h
+ eeschema/sch_bus_entry.cpp
+ eeschema/viewlibs.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: eeschema/invoke_sch_dialog.h
+ eeschema/sch_base_frame.cpp
+Copyright: 2007-2017, KiCad Developers, see change_log.txt for contributors.
+ 2007-2014, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: eeschema/lib_arc.h
+ eeschema/lib_bezier.h
+ eeschema/lib_circle.h
+ eeschema/lib_field.h
+ eeschema/lib_polyline.h
+ eeschema/lib_rectangle.h
+ eeschema/lib_text.h
+ eeschema/sch_bus_entry.h
+ eeschema/sch_item_struct.h
+ eeschema/schematic_undo_redo.cpp
+Copyright: 2004-2018, KiCad Developers, see change_log.txt for contributors.
+ 2001, 2004, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+License: GPL-2+
+
+Files: eeschema/lib_collectors.cpp
+ eeschema/lib_collectors.h
+ eeschema/sch_collectors.cpp
+Copyright: 2009-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/lib_draw_item.cpp
+Copyright: 2015, Wayne Stambaugh <stambaughw@verizon.net>
+ 2015, Jean-Pierre Charras, jaen-pierre.charras at wanadoo.fr
+ 2004-2015, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/lib_draw_item.h
+Copyright: 2015, Wayne Stambaugh <stambaughw@gmail.com>
+ 2015, Jean-Pierre Charras, jaen-pierre.charras at wanadoo.fr
+ 2004-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/lib_edit_frame.h
+Copyright: 2017, CERN
+ 2014, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/lib_manager.cpp
+ eeschema/lib_manager.h
+ eeschema/lib_manager_adapter.cpp
+ eeschema/lib_manager_adapter.h
+ eeschema/sch_eagle_plugin.cpp
+ eeschema/sch_eagle_plugin.h
+Copyright: 2013-2018, CERN
+License: GPL-3+
+
+Files: eeschema/lib_pin.h
+Copyright: 2015, Wayne Stambaugh <stambaughw@gmail.com>
+ 2015, Jean-Pierre Charras, jaen-pierre.charras at wanadoo.fr
+ 2004-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/libarch.cpp
+Copyright: 2008, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2004, Jean-Pierre Charras, jp.charras ar wanadoo.fr
+License: GPL-2+
+
+Files: eeschema/libedit_onleftclick.cpp
+ eeschema/netlist_object.h
+ eeschema/plot_schematic_SVG.cpp
+Copyright: 2008-2016, Wayne Stambaugh <stambaughw@verizon.net>
+ 2004-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/list_operations.h
+Copyright: 1992-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: eeschema/menubar_libedit.cpp
+Copyright: 2008, 2009, 2011, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004, 2007, 2009, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/netlist.h
+Copyright: 1992-2015, KiCad Developers, see changelog.txt for contributors.
+ 1992-2011, jean-pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+ 1992-2011, Wayne Stambaugh <stambaughw@verizon.net>
+License: GPL-2+
+
+Files: eeschema/netlist_exporters/*
+Copyright: 2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers
+ 1992-2013, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: eeschema/netlist_exporters/netlist_exporter.cpp
+Copyright: 2013-2017, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, jp.charras at wanadoo.fr
+ 1992-2017, KiCad Developers, see AUTHORS.TXT for contributors.
+License: GPL-2+
+
+Files: eeschema/netlist_exporters/netlist_exporter_cadstar.cpp
+ eeschema/netlist_exporters/netlist_exporter_kicad.cpp
+ eeschema/netlist_exporters/netlist_exporter_orcadpcb2.cpp
+ eeschema/netlist_exporters/netlist_exporter_pspice.cpp
+Copyright: 2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see AUTHORS.TXT for contributors.
+ 1992-2013, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: eeschema/netlist_exporters/netlist_exporter_generic.cpp
+Copyright: 2013-2017, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2013, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: eeschema/netlist_generator.cpp
+Copyright: 2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2018, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/pin_number.cpp
+ eeschema/pin_number.h
+Copyright: 2015, Simon Richter
+ 2015, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-3+
+
+Files: eeschema/plot_schematic_DXF.cpp
+Copyright: 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2010, Lorenzo Marcantonio
+License: GPL-2+
+
+Files: eeschema/plot_schematic_HPGL.cpp
+ eeschema/plot_schematic_PDF.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: eeschema/plugins/*
+Copyright: various people
+License: GPL-2+
+
+Files: eeschema/plugins/xsl_scripts/netlist_form*.xsl
+Copyright: 2010, SoftPLC Corporation
+License: GPL-2
+
+Files: eeschema/plugins/xsl_scripts/bom2csv.xsl
+Copyright: 2013, Stefan Helmert.
+License: GPL-2
+
+Files: eeschema/plugins/xsl_scripts/bom2grouped_csv.xsl
+Copyright: 2014, Wolf Walter.
+ 2013, Stefan Helmert.
+License: GPL-2
+
+Files: eeschema/qa/*
+Copyright: 2013-2018, CERN
+License: GPL-2+
+
+Files: eeschema/sch_base_frame.h
+Copyright: 2012-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2007-2016, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: eeschema/sch_collectors.h
+ eeschema/transform.cpp
+ eeschema/transform.h
+Copyright: 2007-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2007-2011, Wayne Stambaugh <stambaughw@verizon.net>
+License: GPL-2+
+
+Files: eeschema/sch_component.h
+Copyright: 2015, Wayne Stambaugh <stambaughw@gmail.com>
+ 2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2014, Dick Hollenbeck, dick@softplc.com
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/sch_edit_frame.h
+Copyright: 2015, Jean-Pierre Charras, jp.charras wanadoo.fr
+ 2008, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/sch_field.h
+ eeschema/sch_marker.h
+ eeschema/sheet.cpp
+Copyright: 2004-2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/sch_io_mgr.cpp
+ eeschema/sch_legacy_plugin.h
+Copyright: 2012, 2014, 2016, CERN
+ 1992-2013, 2016, 2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/sch_io_mgr.h
+Copyright: 2016, CERN
+ 2016, 2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-3+
+
+Files: eeschema/sch_item_struct.cpp
+ eeschema/sch_junction.h
+ eeschema/sch_line.h
+ eeschema/sch_marker.cpp
+ eeschema/sch_no_connect.h
+ eeschema/sch_screen.h
+ eeschema/sch_sheet_pin.cpp
+Copyright: 2004, 2006, 2007, 2009, 2010, 2015, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/sch_legacy_plugin.cpp
+ eeschema/sch_plugin.cpp
+Copyright: 2012, 2014, 2016, CERN
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/sch_no_connect.cpp
+Copyright: 2015, Jean-Pierre Charras, jp.charras at wanoadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/sch_reference_list.h
+Copyright: 1992-2015, KiCad Developers, see authors.txt for contributors.
+ 1992-2011, jean-pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+ 1992-2011, Wayne Stambaugh <stambaughw@verizon.net>
+License: GPL-2+
+
+Files: eeschema/sch_screen.cpp
+Copyright: 2013, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2008, Wayne Stambaugh <stambaughw@gmail.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/sch_sheet.cpp
+Copyright: 2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2017, Kicad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/sch_validators.cpp
+ eeschema/sch_validators.h
+Copyright: 2016, Wayne Stambaugh, stambaughw@gmail.com
+ 2016, 2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/sim/*
+Copyright: 2013-2018, CERN
+License: GPL-3+
+
+Files: eeschema/sim/netlist_exporter_pspice_sim.h
+ eeschema/sim/sim_plot_frame.cpp
+ eeschema/sim/sim_plot_frame.h
+Copyright: 2016-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2013-2017, CERN
+License: GPL-3+
+
+Files: eeschema/sim/sim_plot_panel.h
+Copyright: 2016, CERN
+ 2016, 2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: eeschema/symbol_lib_table.cpp
+Copyright: 2012, 2016, 2017, Wayne Stambaugh <stambaughw@gmail.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/symbol_lib_table.h
+Copyright: 2016, Wayne Stambaugh <stambaughw@gmail.com>
+ 2016, 2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: eeschema/template_fieldnames.cpp
+ eeschema/template_fieldnames.h
+Copyright: 2014-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2010, 2014, 2015, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: eeschema/tool_lib.cpp
+Copyright: 2008, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2004, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+License: GPL-2+
+
+Files: eeschema/tool_viewlib.cpp
+Copyright: 2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: eeschema/widgets/*
+Copyright: 2015, Simon Richter <Simon.Richter@hogyros.de>
+License: GPL-2+
+
+Files: eeschema/widgets/cmp_tree_pane.cpp
+ eeschema/widgets/cmp_tree_pane.h
+ eeschema/widgets/tuner_slider.cpp
+ eeschema/widgets/tuner_slider.h
+Copyright: 2013-2018, CERN
+License: GPL-3+
+
+Files: eeschema/widgets/component_tree.cpp
+ eeschema/widgets/component_tree.h
+Copyright: 2014-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2014, Henner Zeller <h.zeller@acm.org>
+License: GPL-2+
+
+Files: eeschema/widgets/widget_eeschema_color_config.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: eeschema/widgets/widget_eeschema_color_config.h
+Copyright: 2007, G. Harland
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: gerbview/*
+Copyright: 2007-2016, Jean-Pierre Charras jp.charras at wanadoo.fr
+ 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: gerbview/DCodeSelectionbox.cpp
+ gerbview/DCodeSelectionbox.h
+Copyright: 2007-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2007-2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: gerbview/X2_gerber_attributes.cpp
+ gerbview/X2_gerber_attributes.h
+ gerbview/events_called_functions.cpp
+ gerbview/excellon_image.h
+ gerbview/gbr_screen.h
+ gerbview/gerber_file_image.h
+ gerbview/gerber_file_image_list.h
+ gerbview/job_file_reader.cpp
+ gerbview/readgerb.cpp
+ gerbview/rs274x.cpp
+ gerbview/select_layers_to_pcb.h
+Copyright: 2007-2018, Jean-Pierre Charras jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: gerbview/am_param.cpp
+ gerbview/am_primitive.cpp
+ gerbview/am_primitive.h
+Copyright: 2010, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2017, Jean-Pierre Charras <jp.charras at wanadoo.fr>
+License: GPL-2+
+
+Files: gerbview/am_param.h
+ gerbview/gbr_layer_box_selector.cpp
+Copyright: 2010, 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see change_log.txt for contributors.
+ 1992-2017, Jean-Pierre Charras <jp.charras at wanadoo.fr>
+License: GPL-2+
+
+Files: gerbview/block.cpp
+Copyright: 1992-2010, KiCad Developers, see change_log.txt for contributors.
+ 1992-2010, <Jean-Pierre Charras>
+License: GPL-2+
+
+Files: gerbview/clear_gbr_drawlayers.cpp
+ gerbview/files.cpp
+ gerbview/printout_control.cpp
+Copyright: 2004, 2007-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: gerbview/controle.cpp
+ gerbview/gerber_draw_item.cpp
+ gerbview/gerber_draw_item.h
+Copyright: 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2017, <Jean-Pierre Charras>
+License: GPL-2+
+
+Files: gerbview/dcode.cpp
+ gerbview/menubar.cpp
+Copyright: 2012-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: gerbview/dcode.h
+Copyright: 2010, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2010, KiCad Developers, see change_log.txt for contributors.
+ 1992-2010, Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+License: GPL-2+
+
+Files: gerbview/dialogs/*
+Copyright: 2011, jean-pierre.charras@gipsa-lab.inpg.fr
+ 2007, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: gerbview/dialogs/dialog_print_using_printer.cpp
+Copyright: 2007-2018, Jean-Pierre Charras jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: gerbview/dialogs/dialog_select_one_pcb_layer.cpp
+Copyright: 2007-2016, Jean-Pierre Charras jp.charras at wanadoo.fr
+ 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: gerbview/dialogs/gerbview_dialog_display_options_frame.cpp
+Copyright: 2010-2014, Jean-Pierre Charras jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: gerbview/draw_gerber_screen.cpp
+Copyright: 2013-2015, Wayne Stambaugh <stambaughw@verizon.net>
+ 2013, Jean-Pierre Charras, jpierre.charras at wanadoo
+ 1992-2015, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: gerbview/evaluate.cpp
+Copyright: 1992-2017, KiCad Developers, see change_log.txt for contributors.
+ 1992-2017, Jean-Pierre Charras <jp.charras at wanadoo.fr>
+License: GPL-2+
+
+Files: gerbview/excellon_read_drill_file.cpp
+Copyright: 1992-2016, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2016, Jean-Pierre Charras <jp.charras at wanadoo.fr>
+License: GPL-2+
+
+Files: gerbview/gerber_collectors.cpp
+ gerbview/gerber_collectors.h
+ gerbview/gerbview_draw_panel_gal.cpp
+ gerbview/gerbview_draw_panel_gal.h
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: gerbview/gerber_file_image.cpp
+ gerbview/gerber_file_image_list.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: gerbview/gerbview.cpp
+Copyright: 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: gerbview/gerbview_config.cpp
+Copyright: 2008-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 2004, 2007, 2009, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: gerbview/gerbview_frame.cpp
+Copyright: 2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: gerbview/gerbview_frame.h
+Copyright: 2015, 2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2011, 2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: gerbview/gerbview_layer_widget.cpp
+Copyright: 2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2010, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2004-2010, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: gerbview/gerbview_layer_widget.h
+Copyright: 2010, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2010, KiCad Developers, see change_log.txt for contributors.
+ 2004-2010, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: gerbview/gerbview_painter.cpp
+ gerbview/gerbview_painter.h
+Copyright: 2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2017, Jon Evans <jon@craftyjon.com>
+License: GPL-3+
+
+Files: gerbview/hotkeys.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: gerbview/locate.cpp
+Copyright: 2004-2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: gerbview/rs274d.cpp
+ gerbview/select_layers_to_pcb.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: gerbview/toolbars_gerber.cpp
+Copyright: 2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 2013, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: gerbview/tools/*
+Copyright: 2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2017, Jon Evans <jon@craftyjon.com>
+License: GPL-3+
+
+Files: i18n/*
+Copyright: 2016, Nick Østergaard <oe.nick at gmail dot com>
+ 2016, KiCad Developers
+License: GPL-2+ or CC-BY-SA-3.0
+Comment:
+ The KiCad localization is dual licensed.
+ You may distribute it and/or modify it under the terms of either
+ the GNU General Public License (http://www.gnu.org/licenses/gpl.html),
+ version 3 or later, or the Creative Commons Attribution License
+ (http://creativecommons.org/licenses/by/3.0/), version 3.0 or later.
+ .
+ See: http://kicad-pcb.org/about/licenses/
+
+Files: i18n/update-po-files.sh
+Copyright: 2015, Marco Ciampa <ciampix@libero.it>
+ 2015, 2016, KiCad Developers
+License: GPL-3+
+
+Files: include/base_screen.h
+Copyright: 2015, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ 2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2015, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/base_struct.h
+Copyright: 2013-2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008-2015, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2008, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/base_units.h
+ include/frame_type.h
+Copyright: 2012, 2014, 2016, CERN
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/basic_gal.h
+ include/bitmap_types.h
+ include/confirm.h
+ include/layer_box_selector.h
+ include/pcb_display_options.h
+ include/pcb_screen.h
+ include/pcbstruct.h
+ include/plotter.h
+ include/worksheet_shape_builder.h
+Copyright: 2004, 2007-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/bezier_curves.h
+ include/bitmaps.h
+ include/build_version.h
+ include/convert_to_biu.h
+ include/eda_dde.h
+ include/fctsys.h
+ include/html_messagebox.h
+ include/macros.h
+ include/marker_base.h
+ include/worksheet_dataitem.h
+Copyright: 2007-2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: include/bin_mod.h
+ include/eda_pattern_match.h
+ include/executable_names.h
+ include/hotkeys_basic.h
+ include/i18n_utility.h
+ include/kiface_i.h
+ include/kiface_ids.h
+ include/lockfile.h
+ include/make_unique.h
+ include/project.h
+ include/scoped_set_reset.h
+ include/systemdirsappend.h
+ include/worksheet.h
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/bitmap_base.h
+Copyright: 2018, jean-pierre.charras jp.charras at wanadoo.fr
+ 2013-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/block_commande.h
+Copyright: 2004-2018, KiCad Developers, see change_log.txt for contributors.
+ 2001, 2004, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+License: GPL-2+
+
+Files: include/board_design_settings.h
+Copyright: 2009-2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2015, KiCad Developers, see CHANGELOG.txt for contributors.
+License: GPL-2+
+
+Files: include/class_board_item.h
+Copyright: 2018, Jean-Pierre Charras, jp.charras at wandadoo.fr
+ 1992-2016, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/class_drawpanel.h
+ include/config_params.h
+ include/msgpanel.h
+Copyright: 2008-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 2004, 2007, 2009, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/collector.h
+ include/filter_reader.h
+ include/grid_tricks.h
+ include/import_export.h
+Copyright: 2007-2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/colors.h
+Copyright: 2007-2014, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2014, KiCad Developers, see AUTHORS.TXT for contributors.
+License: GPL-2+
+
+Files: include/colors_design_settings.h
+ include/gbr_netlist_metadata.h
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: include/common.h
+Copyright: 2014-2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008-2016, Wayne Stambaugh <stambaughw@verizon.net>
+ 2007-2015, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/config_map.h
+ include/observable.h
+Copyright: 1992-2017, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/convert_basic_shapes_to_polygon.h
+Copyright: 2004-2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/core/lockable.h
+Copyright: 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/core/typeinfo.h
+Copyright: 2012, 2014, 2016, CERN
+ 1992-2013, 2016, 2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/dialog_env_var_config.h
+Copyright: 2015, Wayne Stambaugh <stambaughw@gmail.com>
+ 2015, Kicad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/dialog_helpers.h
+Copyright: 2004, 2006, 2007, 2009, 2010, 2015, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/dialog_hotkeys_editor.h
+Copyright: 2004-2016, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-3+
+
+Files: include/dialog_shim.h
+ include/ki_exception.h
+ include/richio.h
+Copyright: 2012-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2007-2016, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: include/dlist.h
+Copyright: 2008, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2008, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/draw_frame.h
+Copyright: 2008, 2009, 2011, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004, 2007, 2009, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/draw_graphic_text.h
+ include/eda_doc.h
+ include/gestfich.h
+Copyright: 2009-2014, Jerry Jacobs
+ 1992-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: include/drc_item.h
+Copyright: 2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2007, Dick Hollenbeck, dick@softplc.com
+License: GPL-2+
+
+Files: include/dsnlexer.h
+Copyright: 2007-2015, Kicad Developers, see change_log.txt for contributors.
+ 2007-2010, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: include/eagle_parser.h
+Copyright: 2013, 2017, CERN
+ 2012-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: include/eda_base_frame.h
+Copyright: 2011, Wayne Stambaugh <stambaughw@gmail.com>
+ 2009-2015, Jean-Pierre Charras, jp.charras wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/eda_rect.h
+Copyright: 2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2004-2014, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/eda_text.h
+Copyright: 2013, Jean-Pierre Charras, jpe.charras at wanadoo.fr
+ 2004-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/enum_vector.h
+Copyright: 2013-2018, CERN
+License: GPL-3+
+
+Files: include/env_paths.h
+Copyright: 2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2017, CERN
+License: GPL-3+
+
+Files: include/footprint_filter.h
+ include/lib_table_grid.h
+ include/sync_queue.h
+ include/wxdataviewctrl_helpers.h
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: include/footprint_info.h
+Copyright: 2011, Jean-Pierre Charras, <jp.charras@wanadoo.fr>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/fp_lib_table.h
+Copyright: 2012-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 2012-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2010-2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: include/gal/cairo/cairo_gal.h
+Copyright: 2012, Torsten Hueter, torstenhtr <at> gmx.de
+ 2012, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/gal/color4d.h
+Copyright: 2017, Kicad Developers, see AUTHORS.txt for contributors.
+ 2012, Torsten Hueter, torstenhtr <at> gmx.de
+License: GPL-2+
+
+Files: include/gal/definitions.h
+Copyright: 2012, Torsten Hueter, torstenhtr <at> gmx.de
+ 2012, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/gal/gal_display_options.h
+Copyright: 1992-2017, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/gal/graphics_abstraction_layer.h
+Copyright: 2012-2017, Kicad Developers, see change_log.txt for contributors.
+ 2012, Torsten Hueter, torstenhtr <at> gmx.de
+License: GPL-2+
+
+Files: include/gal/hidpi_gl_canvas.h
+Copyright: 2017, Bernhard Stegmaier <stegmaier@sw-systems.de>
+ 2016, 2017, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/gal/opengl/opengl_gal.h
+Copyright: 2013-2017, CERN
+ 2012, Torsten Hueter, torstenhtr <at> gmx.de
+ 2012, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/gal/opengl/shader.h
+Copyright: 2012, Torsten Hueter, torstenhtr <at> gmx.de
+ 2012, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/gal/stroke_font.h
+Copyright: 2016, Kicad Developers, see change_log.txt for contributors.
+ 2013, CERN
+ 2012, Torsten Hueter, torstenhtr <at> gmx.de
+License: GPL-2+
+
+Files: include/geometry/convex_hull.h
+Copyright: 2004, 2007-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/geometry/direction45.h
+Copyright: 2016-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2013-2017, CERN
+License: GPL-3+
+
+Files: include/geometry/shape_line_chain.h
+Copyright: 2013-2017
+ 2013, CERN
+License: GPL-2+
+
+Files: include/gr_basic.h
+Copyright: 2015, 2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2011, 2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: include/hashtables.h
+ include/ki_mutex.h
+ include/kiway_express.h
+ include/kiway_mgr.h
+ include/ptree.h
+ include/utf8.h
+Copyright: 2012-2017, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: include/id.h
+ include/pcb_base_frame.h
+Copyright: 2012-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/kicad_curl/*
+Copyright: 2015, Mark Roszko <mark.roszko@gmail.com>
+ 2015, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-3+
+
+Files: include/kicad_device_context.h
+ include/undo_redo_container.h
+Copyright: 2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 2009, jean-pierre.charras@gipsa-lab.inpg.fr
+ 2007, 2009, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/kicad_string.h
+ include/title_block.h
+ include/trigo.h
+ include/unit_format.h
+Copyright: 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/kiway.h
+Copyright: 2014-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2010, 2014, 2015, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: include/kiway_player.h
+Copyright: 2007-2017, KiCad Developers, see change_log.txt for contributors.
+ 2007-2014, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: include/layers_id_colors_and_visibility.h
+Copyright: 2012-2014, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2007, 2010, 2012, 2014, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/lib_id.h
+Copyright: 2012, Wayne Stambaugh <stambaughw@gmail.com>
+ 2010-2017, KiCad Developers, see change_log.txt for contributors.
+ 2010-2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: include/lib_table_base.h
+Copyright: 2012-2017, KiCad Developers, see change_log.txt for contributors.
+ 2012, Wayne Stambaugh <stambaughw@gmail.com>
+ 2010-2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: include/libeval/*
+Copyright: 2017, Michael Geselbracht, mgeselbracht3@gmail.com
+License: GPL-3+
+
+Files: include/lru_cache.h
+Copyright: 2015-2017, Mario Luzeiro <mrluzeiro@ua.pt>
+ 1992-2019, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/mail_type.h
+ include/search_stack.h
+Copyright: 2014, CERN
+ 1992-2015, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: include/math/*
+Copyright: CERN / 2005, Michael Niedermayer <michaelni@gmx.at>
+License: GPL-2+
+
+Files: include/math/box2.h
+Copyright: 2013, CERN
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2012, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/math/matrix3x3.h
+Copyright: 2012, Torsten Hueter, torstenhtr <at> gmx.de
+ 2012, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/math/vector2d.h
+Copyright: 2013, CERN
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2012, Kicad Developers, see change_log.txt for contributors.
+ 2010, Virtenio GmbH, Torsten Hueter, torsten.hueter <at> virtenio.de
+License: GPL-2+
+
+Files: include/md5_hash.h
+Copyright: no-info-found
+License: GPL-1
+
+Files: include/menus_helpers.h
+Copyright: 2004-2017, KiCad Developers.
+License: GPL-2+
+
+Files: include/newstroke_font.h
+Copyright: 2010, vladimir uryvaev <vovanius@bk.ru>
+ 1992-2010, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/pad_shapes.h
+Copyright: 1992-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: include/page_info.h
+Copyright: 2008-2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 2007-2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2013, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/painter.h
+Copyright: 2013, CERN
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: include/pgm_base.h
+Copyright: 2008-2016, Wayne Stambaugh <stambaughw@verizon.net>
+ 2004-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/plugins/*
+Copyright: 2015-2017, Cirilo Bernardo <cirilo.bernardo@gmail.com>
+License: GPL-2+
+
+Files: include/plugins/3dapi/c3dmodel.h
+ include/plugins/3dapi/xv3d_types.h
+Copyright: 2015-2017, Mario Luzeiro <mrluzeiro@ua.pt>
+ 1992-2019, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/plugins/3dapi/ifsg_defs.h
+Copyright: 2007-2017, KiCad Developers, see change_log.txt for contributors.
+ 2007-2014, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: include/plugins/kicad_plugin.h
+Copyright: 2017, 2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2015, 2016, Cirilo Bernardo <cirilo.bernardo@gmail.com>
+License: GPL-2+
+
+Files: include/preview_items/*
+Copyright: 1992-2018, Kicad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/preview_items/bright_box.h
+ include/preview_items/selection_area.h
+Copyright: 2013-2018, CERN
+License: GPL-2+
+
+Files: include/preview_items/centreline_rect_item.h
+ include/preview_items/ruler_item.h
+ include/preview_items/two_point_geom_manager.h
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/preview_items/polygon_item.h
+ include/preview_items/preview_utils.h
+ include/preview_items/simple_overlay_item.h
+Copyright: 1992-2017, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/properties.h
+Copyright: 2016, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2016, Kicad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/reporter.h
+ include/validators.h
+Copyright: 2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2015, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: include/streamwrapper.h
+Copyright: 2017, Cirilo Bernardo <cirilo.bernardo@gmail.com>
+License: GPL-3+
+
+Files: include/system/*
+Copyright: Thomas Sailer 2013. / Sergue E. Leontiev 2013. / Oliver Kowalke 2009. / Martin Husemann 2013.
+License: BSL-1.0
+
+Files: include/tool/actions.h
+ include/tool/coroutine.h
+ include/tool/tool_base.h
+ include/tool/tool_interactive.h
+Copyright: 2012-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2012-2017, CERN
+License: GPL-2+
+
+Files: include/tool/tool_menu.h
+Copyright: 2017, KiCad Developers, see CHANGELOG.txt for contributors.
+License: GPL-2+
+
+Files: include/tool/zoom_tool.h
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: include/ttl/*
+Copyright: 1998, 2000-2007, 2010-2013, SINTEF ICT
+License: AGPL-3+
+
+Files: include/ttl/halfedge/hetriang.h
+Copyright: 2013, CERN
+ 1998, 2000-2007, 2010-2013, SINTEF ICT
+License: AGPL-3+
+
+Files: include/view/view_controls.h
+Copyright: 2013-2016, KiCad Developers, see AUTHORS.txt for contributors.
+ 2013, CERN
+ 2012, Torsten Hueter, torstenhtr <at> gmx.de
+License: GPL-2+
+
+Files: include/view/wx_view_controls.h
+Copyright: 2013-2015, CERN
+ 2012, Torsten Hueter, torstenhtr <at> gmx.de
+License: GPL-2+
+
+Files: include/widgets/color_swatch.h
+ include/widgets/gal_options_panel.h
+ include/widgets/indicator_icon.h
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/widgets/footprint_choice.h
+ include/widgets/footprint_select_widget.h
+ include/widgets/stepped_slider.h
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: include/widgets/footprint_preview_widget.h
+ include/widgets/two_column_tree_list.h
+Copyright: 2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2017, Chris Pavlina <pavlina.chris@gmail.com>
+License: GPL-3+
+
+Files: include/widgets/mathplot.h
+Copyright: 2016, David Schalig, Davide Rondini
+License: WXWINDOWS
+
+Files: include/widgets/text_ctrl_eval.h
+Copyright: 2013-2018, CERN
+License: GPL-3+
+
+Files: include/widgets/widget_hotkey_list.h
+Copyright: 2016, Chris Pavlina <pavlina.chris@gmail.com>
+ 2016, 2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: include/wildcards_and_files_ext.h
+Copyright: 2013, 2015, 2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008, 2012, 2013, Wayne Stambaugh <stambaughw@gmail.com>
+ 2007-2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: include/xnode.h
+Copyright: 2010, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2010, KiCAd Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: kicad/*
+Copyright: 2012, Brian Sidebotham <brian.sidebotham@gmail.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: kicad/commandframe.cpp
+ kicad/files-io.cpp
+Copyright: 2004-2017, KiCad Developers, see change_log.txt for contributors.
+ 2004-2015, Jean-Pierre Charras
+License: GPL-2+
+
+Files: kicad/import_project.cpp
+ kicad/treeproject_item.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: kicad/kicad.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: kicad/kicad.h
+Copyright: 2017, KiCad Developers, see CHANGELOG.txt for contributors.
+ 2013, CERN (www.cern.ch)
+License: GPL-2+
+
+Files: kicad/mainframe.cpp
+Copyright: 2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2013, CERN (www.cern.ch)
+ 2004-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: kicad/menubar.cpp
+ kicad/preferences.cpp
+Copyright: 2012-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: kicad/pgm_kicad.h
+Copyright: 2012-2017, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: kicad/prjconfig.cpp
+ kicad/treeprojectfiles.cpp
+Copyright: 2004-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2004-2015, Jean-Pierre Charras
+License: GPL-2+
+
+Files: kicad/tree_project_frame.cpp
+Copyright: 2012-2014, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2007, 2010, 2012, 2014, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: kicad/tree_project_frame.h
+Copyright: 1992-2012, KiCad Developers, see change_log.txt for contributors.
+ 1992-2012, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: kicad/treeproject_item.h
+ kicad/treeprojectfiles.h
+Copyright: 2010-2014, Jean-Pierre Charras
+ 2004-2014, KiCad Developers, see AUTHORS.txt for contributors.
 License: GPL-2+
 
 Files: lib_dxf/*
-Copyright: (C) 2011 Rallaz <rallazz@gmail.com>
+Copyright: 2011, Rallaz, rallazz@gmail.com
+License: GPL-2+
+
+Files: new/*
+Copyright: 2007-2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: new/sch_dir_lib_source.cpp
+Copyright: 2010, SoftPLC Corporation, <dick@softplc.com>
+ 2010, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: new/sch_lib_table.cpp
+ new/test_sch_lib_table.cpp
+Copyright: 2007-2017, KiCad Developers, see change_log.txt for contributors.
+ 2007-2014, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: pagelayout_editor/block.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pagelayout_editor/events_functions.cpp
+ pagelayout_editor/files.cpp
+ pagelayout_editor/hotkeys.cpp
+ pagelayout_editor/menubar.cpp
+ pagelayout_editor/pl_editor_frame.cpp
+ pagelayout_editor/pl_editor_frame.h
+Copyright: 2012-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2012-2017, CERN
+License: GPL-2+
+
+Files: pagelayout_editor/invoke_pl_editor_dialog.h
+Copyright: 2007-2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pagelayout_editor/onleftclick.cpp
+ pagelayout_editor/onrightclick.cpp
+Copyright: 2013, 2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2013, CERN
+License: GPL-2+
+
+Files: pagelayout_editor/toolbars_pl_editor.cpp
+Copyright: 2016-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2013-2017, CERN
+License: GPL-3+
+
+Files: pcb_calculator/*
+Copyright: 1992-2015, jean-pierre.charras
+ 1992-2015, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcb_calculator/UnitSelector.cpp
+ pcb_calculator/UnitSelector.h
+ pcb_calculator/datafile_read_write.cpp
+ pcb_calculator/transline_ident.cpp
+ pcb_calculator/transline_ident.h
+ pcb_calculator/units_scales.h
+Copyright: 2011-2014, 2016, Jean-Pierre Charras
+ 1992-2016, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcb_calculator/datafile_read_write.h
+Copyright: 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcb_calculator/pcb_calculator.h
+Copyright: 1992-2017, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcb_calculator/transline/*
+Copyright: 2011, Michael Margraf <michael.margraf@alumni.tu-berlin.de>
+License: GPL-2+
+
+Files: pcb_calculator/transline/c_microstrip.cpp
+Copyright: 2005, 2006, Stefan Jahn <stefan@lkcc.org>
+ 2002, Claudio Girardi <claudio.girardi@ieee.org>
+License: GPL-2+
+
+Files: pcb_calculator/transline/c_microstrip.h
+Copyright: 2005, Stefan Jahn <stefan@lkcc.org>
+ 2002, Claudio Girardi <in3otd@qsl.net>
+License: GPL-2+
+
+Files: pcb_calculator/transline/coax.cpp
+ pcb_calculator/transline/microstrip.cpp
+Copyright: 2005, 2006, Stefan Jahn <stefan@lkcc.org>
+ 2002, Claudio Girardi <claudio.girardi@ieee.org>
+ 2001, Gopal Narayanan <gopal@astro.umass.edu>
+License: GPL-2+
+
+Files: pcb_calculator/transline/coax.h
+ pcb_calculator/transline/microstrip.h
+ pcb_calculator/transline/rectwaveguide.cpp
+ pcb_calculator/transline/rectwaveguide.h
+Copyright: 2005, 2006, Stefan Jahn <stefan@lkcc.org>
+ 2001, Gopal Narayanan <gopal@astro.umass.edu>
+License: GPL-2+
+
+Files: pcb_calculator/transline/coplanar.cpp
+ pcb_calculator/transline/coplanar.h
+Copyright: 2008, Michael Margraf <michael.margraf@alumni.tu-berlin.de>
+ 2005, 2006, Stefan Jahn <stefan@lkcc.org>
+License: GPL-2+
+
+Files: pcb_calculator/transline/transline.cpp
+ pcb_calculator/transline/transline.h
+Copyright: 2005, Stefan Jahn <stefan@lkcc.org>
+License: GPL-2+
+
+Files: pcb_calculator/transline/units.h
+Copyright: 1992-2015, jean-pierre.charras
+ 1992-2015, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/*
+Copyright: 2004, 2007-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/action_plugin.cpp
+ pcbnew/action_plugin.h
+ pcbnew/array_creator.cpp
+ pcbnew/array_creator.h
+ pcbnew/board_design_settings.cpp
+ pcbnew/footprint_editor_utils.cpp
+ pcbnew/footprint_libraries_utils.cpp
+ pcbnew/netinfo_list.cpp
+ pcbnew/pcb_plot_params.cpp
+ pcbnew/pcbplot.h
+ pcbnew/plot_board_layers.cpp
+ pcbnew/plot_brditems_plotter.cpp
+ pcbnew/print_board_functions.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/append_board_to_current.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: pcbnew/attribut.cpp
+ pcbnew/block.cpp
+ pcbnew/pad_edition_functions.cpp
+Copyright: 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2012, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2016, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/autorouter/*
+Copyright: 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2012, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2015, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/autorouter/autorout.h
+Copyright: 2012, Wayne Stambaugh <stambaughw@verizon.net>
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2012, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 1992-2012, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/autorouter/cell.h
+ pcbnew/autorouter/work.cpp
+Copyright: Randy Nevin, 1989, (see PCBCA package)
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2012, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2012, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/autorouter/dist.cpp
+Copyright: 1989, Randy Nevin
+ 1992-2012, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/autorouter/move_and_route_event_functions.cpp
+Copyright: 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2012, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2016, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/autorouter/queue.cpp
+Copyright: 1989, Randy Nevin
+ 2015, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2015, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/autorouter/rect_placement/*
+Copyright: 2000-2002, Javier Arevalo
+License: CC-BY-SA-3.0
+Comment: This code is free to use and modify for all purposes
+
+Files: pcbnew/autorouter/solve.cpp
+Copyright:  1989, Randy Nevin
+ 2015, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2012, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2012, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/autorouter/spread_footprints.cpp
+Copyright: 2012, 2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 2012, 2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2012, 2013, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/block_footprint_editor.cpp
+ pcbnew/class_dimension.cpp
+ pcbnew/class_pcb_target.cpp
+ pcbnew/class_track.cpp
+ pcbnew/controle.cpp
+ pcbnew/deltrack.cpp
+ pcbnew/editrack.cpp
+ pcbnew/move_or_drag_track.cpp
+ pcbnew/pcb_display_options.cpp
+ pcbnew/pcb_legacy_draw_utils.cpp
+ pcbnew/pcb_screen.cpp
+Copyright: 2012, 2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 2012, 2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2012, 2013, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/board_commit.cpp
+ pcbnew/board_commit.h
+ pcbnew/connectivity_algo.cpp
+ pcbnew/connectivity_algo.h
+ pcbnew/connectivity_data.cpp
+ pcbnew/connectivity_data.h
+ pcbnew/pcb_base_edit_frame.cpp
+ pcbnew/pcb_base_edit_frame.h
+ pcbnew/pcb_draw_panel_gal.cpp
+ pcbnew/pcb_draw_panel_gal.h
+ pcbnew/pcb_painter.cpp
+ pcbnew/pcb_view.cpp
+ pcbnew/pcb_view.h
+ pcbnew/ratsnest_data.cpp
+ pcbnew/ratsnest_data.h
+ pcbnew/ratsnest_viewitem.cpp
+ pcbnew/ratsnest_viewitem.h
+Copyright: 2013-2018, CERN
+License: GPL-2+
+
+Files: pcbnew/board_connected_item.cpp
+ pcbnew/class_pad.cpp
+ pcbnew/class_text_mod.cpp
+ pcbnew/class_zone.cpp
+ pcbnew/convert_drawsegment_list_to_polygon.cpp
+ pcbnew/dimension.cpp
+ pcbnew/pcbnew.cpp
+ pcbnew/pcbplot.cpp
+ pcbnew/zone_settings.cpp
+Copyright: 2015-2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2012, 2015, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/board_connected_item.h
+ pcbnew/class_board_item.cpp
+ pcbnew/class_marker_pcb.cpp
+ pcbnew/class_pcb_text.cpp
+ pcbnew/connect.cpp
+ pcbnew/edit_pcb_text.cpp
+ pcbnew/editedge.cpp
+ pcbnew/highlight.cpp
+ pcbnew/load_select_footprint.cpp
+ pcbnew/netinfo_item.cpp
+ pcbnew/tool_onrightclick.cpp
+Copyright: 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2012, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/board_item_container.h
+Copyright: 2012, 2014, 2016, CERN
+ 1992-2013, 2016, 2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/board_netlist_updater.cpp
+ pcbnew/board_netlist_updater.h
+Copyright: 2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2015, CERN
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2015, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/build_BOM_from_board.cpp
+ pcbnew/class_marker_pcb.h
+ pcbnew/pcb_layer_box_selector.h
+ pcbnew/printout_controler.cpp
+ pcbnew/printout_controler.h
+ pcbnew/zone_settings.h
+ pcbnew/zones_test_and_combine_areas.cpp
+Copyright: 2008-2015, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/class_board.cpp
+ pcbnew/class_drawsegment.cpp
+ pcbnew/onrightclick.cpp
+Copyright: 2015, 2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2012, 2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2007-2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/class_board.h
+ pcbnew/class_dimension.h
+ pcbnew/class_drawsegment.h
+ pcbnew/class_pcb_target.h
+ pcbnew/class_pcb_text.h
+ pcbnew/class_text_mod.h
+ pcbnew/class_track.h
+Copyright: 2004, 2006, 2007, 2009, 2010, 2015, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/class_edge_mod.cpp
+ pcbnew/editrack-part2.cpp
+ pcbnew/pad_draw_functions.cpp
+ pcbnew/pcb_footprint_edit_utils.cpp
+Copyright: 2015-2017, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 2012, Wayne Stambaugh <stambaughw@verizon.net>
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/class_edge_mod.h
+ pcbnew/footprint_viewer_frame.cpp
+Copyright: 2012-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/class_module.cpp
+ pcbnew/microwave.cpp
+ pcbnew/zones_by_polygon.cpp
+Copyright: 2014-2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008-2016, Wayne Stambaugh <stambaughw@verizon.net>
+ 2007-2015, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/collectors.cpp
+ pcbnew/collectors.h
+Copyright: 2007, 2008, 2011-2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2004-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/*
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_SVG_print.cpp
+Copyright: 1992-2012, KiCad Developers, see change_log.txt for contributors.
+ 1992-2012, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_cleaning_options.cpp
+ pcbnew/dialogs/dialog_netlist.cpp
+ pcbnew/dialogs/dialog_netlist.h
+ pcbnew/dialogs/dialog_update_pcb.cpp
+ pcbnew/dialogs/dialog_update_pcb.h
+Copyright: 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_cleaning_options.h
+ pcbnew/dialogs/dialog_design_rules_aux_helper_class.h
+ pcbnew/dialogs/dialog_edit_footprint_for_BoardEditor.h
+ pcbnew/dialogs/dialog_edit_footprint_for_fp_editor.h
+ pcbnew/dialogs/dialog_exchange_footprints.h
+ pcbnew/dialogs/dialog_freeroute_exchange.h
+ pcbnew/dialogs/dialog_general_options.h
+ pcbnew/dialogs/dialog_global_edit_tracks_and_vias.cpp
+ pcbnew/dialogs/dialog_graphic_items_options.cpp
+ pcbnew/dialogs/dialog_mask_clearance.h
+ pcbnew/dialogs/dialog_print_for_modedit.cpp
+ pcbnew/dialogs/dialog_print_using_printer.cpp
+Copyright: 2009-2016, Jean-Pierre Charras, jean-pierre.charras at wanadoo.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_copper_zones.cpp
+Copyright: 2017, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_create_array.cpp
+ pcbnew/dialogs/dialog_create_array.h
+Copyright: 2014, 2015, John Beard, john.j.beard@gmail.com
+ 1992-2015, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_design_rules.cpp
+Copyright: 2009-2015, 2017, 2018, KiCad Developers, see change_log.txt for contributors.
+ 2009, 2014, Dick Hollenbeck, dick@softplc.com
+ 2004-2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_design_rules.h
+Copyright: 2009-2015, KiCad Developers, see change_log.txt for contributors.
+ 2009, Dick Hollenbeck, dick@softplc.com
+ 2004-2009, Jean-Pierre Charras, jean-pierre.charras@gpisa-lab.inpg.fr
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_display_options.cpp
+ pcbnew/dialogs/dialog_display_options.h
+Copyright: 2010-2015, Jean-Pierre Charras, jean-pierre.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: pcbnew/dialogs/dialog_drc.cpp
+Copyright: 2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2009-2016, Dick Hollenbeck, dick@softplc.com
+ 2004-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_drc.h
+Copyright: 2011, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 2009, Dick Hollenbeck, dick@softplc.com
+ 2004-2012, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_drclistbox.h
+Copyright: 2009-2016, Dick Hollenbeck, dick@softplc.com
+ 2004-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_edit_footprint_for_BoardEditor.cpp
+Copyright: 2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2016, Mario Luzeiro <mrluzeiro@ua.pt>
+ 2015, Dick Hollenbeck, dick@softplc.com
+ 2004-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor.cpp
+Copyright: 2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2015, Dick Hollenbeck, dick@softplc.com
+ 2008, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_edit_footprint_text.cpp
+Copyright: 2015, Jean-Pierre Charras
+ 2013, Dick Hollenbeck, dick@softplc.com
+ 2008, Wayne Stambaugh <stambaughw@gmail.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_edit_footprint_text.h
+Copyright: 2018, Jean-Pierre Charras
+ 2013, Dick Hollenbeck, dick@softplc.com
+ 2008-2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_enum_pads.cpp
+ pcbnew/dialogs/dialog_enum_pads.h
+ pcbnew/dialogs/dialog_gencad_export_options.cpp
+ pcbnew/dialogs/dialog_gencad_export_options.h
+ pcbnew/dialogs/dialog_track_via_properties.cpp
+ pcbnew/dialogs/dialog_track_via_properties.h
+Copyright: 2013-2018, CERN
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_exchange_footprints.cpp
+Copyright: 2013, 2015, 2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008, 2012, 2013, Wayne Stambaugh <stambaughw@gmail.com>
+ 2007-2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_export_idf.cpp
+Copyright: 2013-2017, KiCad Developers, see change_log.txt for contributors.
+ 2013-2015, Cirilo Bernardo
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_export_step.cpp
+Copyright: 2016-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2016, Cirilo Bernardo
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_export_vrml.cpp
+Copyright: 2013, Jean-Pierre Charras jp.charras at wanadoo.fr
+ 2009-2013, Lorenzo Mercantonio
+ 2004-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_find.cpp
+Copyright: 2018, Jean-Pierre Charras jp.charras at wanadoo.fr
+ 2012, Marco Mattila <marcom99@gmail.com>
+ 1992-2018, Kicad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_find.h
+Copyright: 2012, Marco Mattila <marcom99@gmail.com>
+ 2006, Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+ 1992-2012, Kicad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_footprint_wizard_list.cpp
+ pcbnew/dialogs/dialog_footprint_wizard_list.h
+ pcbnew/dialogs/dialog_scripting.cpp
+ pcbnew/dialogs/dialog_scripting.h
+Copyright: 2012-2014, Miguel Angel Ajo <miguelangel@nbee.es>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_fp_lib_table.cpp
+Copyright: 2013, 2017, CERN
+ 2012-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_fp_plugin_options.cpp
+Copyright: 2013-2016, KiCad Developers, see change_log.txt for contributors.
+ 2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2013, CERN
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_gendrill.cpp
+Copyright: 1992-2017, KiCad Developers, see change_log.txt for contributors.
+ 1992-2017, Jean_Pierre Charras <jp.charras at wanadoo.fr>
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_gendrill.h
+Copyright: 1992-2010, KiCad Developers, see change_log.txt for contributors.
+ 1992-2010, Jean_Pierre Charras <jp.charras@ujf-grenoble.fr>
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_general_options.cpp
+Copyright: 2004, 2006, 2007, 2009, 2010, 2015, Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_get_footprint_by_name.h
+Copyright: 2008-2015, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_global_edit_tracks_and_vias.h
+Copyright: 1992-2016, KiCad Developers, see change_log.txt for contributors.
+ 1992-2009, Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_global_footprints_fields_edition.cpp
+Copyright: 2012, Jean-Pierre Charras, jp.charras at wanadoo.fr / 1992-201_ KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_graphic_item_properties.cpp
+Copyright: 2007-2018, Jean-Pierre Charras jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_graphic_item_properties_for_fp_editor.cpp
+ pcbnew/dialogs/dialog_pad_basicshapes_properties.cpp
+ pcbnew/dialogs/dialog_select_net_from_list.cpp
+Copyright: 2004, 2007-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_graphic_items_options.h
+Copyright: 1992-2016, KiCad Developers, see change_log.txt for contributors.
+ 1992-2010, <Jean-Pierre Charras> jean-pierre.charras@gipsa-lab.inpg.fr
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_keepout_area_properties.cpp
+ pcbnew/dialogs/dialog_non_copper_zones_properties.cpp
+Copyright: 2012-2014, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2007, 2010, 2012, 2014, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_layers_setup.cpp
+Copyright: 2009-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2009, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2009, Isaac Marino Bavaresco, isaacbavaresco@yahoo.com.br
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_modedit_display_options.cpp
+ pcbnew/dialogs/dialog_modedit_display_options.h
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: pcbnew/dialogs/dialog_move_exact.cpp
+ pcbnew/dialogs/dialog_move_exact.h
+Copyright: 2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2014, John Beard, john.j.beard@gmail.com
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_pad_properties.cpp
+ pcbnew/dialogs/dialog_pad_properties.h
+Copyright: 2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2013, Dick Hollenbeck, dick@softplc.com
+ 2008-2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_pcb_text_properties.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_pns_diff_pair_dimensions.cpp
+ pcbnew/dialogs/dialog_pns_diff_pair_dimensions.h
+ pcbnew/dialogs/dialog_pns_length_tuning_settings.cpp
+ pcbnew/dialogs/dialog_pns_length_tuning_settings.h
+ pcbnew/dialogs/dialog_pns_settings.cpp
+ pcbnew/dialogs/dialog_pns_settings.h
+Copyright: 2016-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2013-2017, CERN
+License: GPL-3+
+
+Files: pcbnew/dialogs/dialog_select_pretty_lib.cpp
+ pcbnew/dialogs/dialog_select_pretty_lib.h
+Copyright: 2004-2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/dialogs/dialog_track_via_size.cpp
+ pcbnew/dialogs/dialog_track_via_size.h
+Copyright: 2013-2018, CERN
+License: GPL-3+
+
+Files: pcbnew/dialogs/wizard_3DShape_Libs_downloader.cpp
+ pcbnew/dialogs/wizard_3DShape_Libs_downloader.h
+Copyright: 2015, CERN
+ 2014, 2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/drag.h
+ pcbnew/dragsegm.cpp
+ pcbnew/target_edit.cpp
+Copyright: 2004-2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/drc.cpp
+Copyright: 2009-2015, 2017, 2018, KiCad Developers, see change_log.txt for contributors.
+ 2009, 2014, Dick Hollenbeck, dick@softplc.com
+ 2004-2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: pcbnew/drc.h
+ pcbnew/drc_item.cpp
+Copyright: 2015, 2017, 2018, KiCad Developers, see change_log.txt for contributors.
+ 2007-2016, Dick Hollenbeck, dick@softplc.com
+License: GPL-2+
+
+Files: pcbnew/drc_clearance_test_functions.cpp
+ pcbnew/drc_marker_functions.cpp
+Copyright: 2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2007, 2010, Dick Hollenbeck, dick@softplc.com
+ 2004-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: pcbnew/eagle_plugin.cpp
+ pcbnew/eagle_plugin.h
+ pcbnew/io_mgr.cpp
+ pcbnew/legacy_plugin.h
+ pcbnew/plugin.cpp
+Copyright: 2012-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2007-2016, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: pcbnew/edgemod.cpp
+ pcbnew/menubar_footprint_editor.cpp
+Copyright: 2013, 2015, Wayne Stambaugh <stambaughw@verizon.net>
+ 2013, 2015, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2013, 2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/edit.cpp
+Copyright: 2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2015, Wayne Stambaugh <stambaughw@verizon.net>
+ 2015, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: pcbnew/exporters/*
+Copyright: 1992-2017, KiCad Developers, see change_log.txt for contributors.
+ 1992-2017, Jean_Pierre Charras <jp.charras at wanadoo.fr>
+License: GPL-2+
+
+Files: pcbnew/exporters/export_d356.cpp
+Copyright: 2011-2013, Lorenzo Marcantonio <l.marcantonio@logossrl.com>
+ 2004-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/exporters/export_gencad.cpp
+Copyright: 2015-2017, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 2012, Wayne Stambaugh <stambaughw@verizon.net>
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/exporters/export_idf.cpp
+Copyright: 2013-2017, Cirilo Bernardo
+License: GPL-2+
+
+Files: pcbnew/exporters/export_vrml.cpp
+Copyright: 2018, Jean-Pierre Charras jp.charras at wanadoo.fr
+ 2014-2017, Cirilo Bernardo
+ 2009-2013, Lorenzo Mercantonio
+ 2004-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/exporters/gen_drill_report_files.cpp
+Copyright: 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2017, Jean_Pierre Charras <jp.charras at wanadoo.fr>
+License: GPL-2+
+
+Files: pcbnew/exporters/gen_footprints_placefile.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/exporters/gendrill_Excellon_writer.cpp
+Copyright: 2017, Jean_Pierre Charras <jp.charras at wanadoo.fr>
+ 2015, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/exporters/gendrill_file_writer_base.cpp
+Copyright: 2017, Jean_Pierre Charras <jp.charras at wanadoo.fr>
+ 2015, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/exporters/gendrill_gerber_writer.cpp
+ pcbnew/exporters/gerber_jobfile_writer.cpp
+Copyright: 2017, Jean_Pierre Charras <jp.charras at wanadoo.fr>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/files.cpp
+Copyright: 2016, 2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2011, Wayne Stambaugh <stambaughw@gmail.com>
+ 2004-2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: pcbnew/footprint_edit_frame.cpp
+Copyright: 2015, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2015, 2016, Wayne Stambaugh <stambaughw@gmail.com>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: pcbnew/footprint_edit_frame.h
+ pcbnew/footprint_info_impl.h
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: pcbnew/footprint_editor_options.cpp
+Copyright: 2015, Wayne Stambaugh <stambaughw@verizon.net>
+ 2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2015, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/footprint_info_impl.cpp
+Copyright: 2013-2016, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2011, Jean-Pierre Charras, <jp.charras@wanadoo.fr>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: pcbnew/footprint_preview_panel.cpp
+ pcbnew/footprint_preview_panel.h
+Copyright: 2017, Chris Pavlina <pavlina.chris@gmail.com>
+ 2016, Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
+ 2016, 2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: pcbnew/footprint_viewer_frame.h
+Copyright: 2018, Jean-Pierre Charras, jap.charras at wanadoo.fr
+ 2004-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/footprint_wizard.cpp
+ pcbnew/footprint_wizard.h
+Copyright: 2013, NBEE Embedded Systems SL, Miguel Angel Ajo <miguelangel@ajo.es>
+ 2013, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/footprint_wizard_frame.cpp
+Copyright: 2012-2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2012-2015, Miguel Angel Ajo Pelayo <miguelangel@nbee.es>
+ 2008-2015, Wayne Stambaugh <stambaughw@verizon.net>
+ 2004-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/footprint_wizard_frame.h
+ pcbnew/footprint_wizard_frame_functions.cpp
+Copyright: 2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2012, Miguel Angel Ajo Pelayo, miguelangel@nbee.es
+ 2004-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/github/*
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/github/github_getliblist.cpp
+Copyright: 2015, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2015, Jean-Pierre Charras jp.charras at wanadoo.fr
+ 2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: pcbnew/github/github_getliblist.h
+Copyright: 2015-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2015, Jean-Pierre Charras jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: pcbnew/github/github_plugin.cpp
+ pcbnew/github/github_plugin.h
+Copyright: 2012-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2007-2016, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: pcbnew/gpcb_plugin.cpp
+Copyright: 2012, 2016, 2017, Wayne Stambaugh <stambaughw@gmail.com>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/gpcb_plugin.h
+Copyright: 2009-2017, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/hotkeys_board_editor.cpp
+ pcbnew/protos.h
+Copyright: 2007, 2009, 2017, Jean-Pierre Charras, jp.charras@wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/import_dxf/dxf2brd_items.h
+Copyright: 2011, Rallaz, rallazz@gmail.com
+ 2010, R. van Twisk (librecad@rvt.dds.nl)
+License: GPL-2+
+
+Files: pcbnew/invoke_pcb_dialog.h
+Copyright: 2007-2017, KiCad Developers, see change_log.txt for contributors.
+ 2007-2014, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: pcbnew/io_mgr.h
+Copyright: 2016, 2017, Kicad Developers, see AUTHORS.txt for contributors.
+ 2011, 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: pcbnew/kicad_clipboard.cpp
+ pcbnew/kicad_clipboard.h
+Copyright: 1992-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: pcbnew/kicad_netlist_reader.cpp
+Copyright: 1992-2016, KiCad Developers, see change_log.txt for contributors.
+ 1992-2011, Jean-Pierre Charras.
+License: GPL-2+
+
+Files: pcbnew/kicad_plugin.cpp
+Copyright: 2012, 2014, 2016, CERN
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/kicad_plugin.h
+Copyright: 2012, CERN.
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/layer_widget.cpp
+ pcbnew/layer_widget.h
+Copyright: 2007-2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/legacy_netlist_reader.cpp
+ pcbnew/netlist_reader.cpp
+Copyright: 2013-2016, Wayne Stambaugh <stambaughw@verizon.net>.
+ 1992-2016, KiCad Developers, see change_log.txt for contributors.
+ 1992-2011, Jean-Pierre Charras.
+License: GPL-2+
+
+Files: pcbnew/legacy_plugin.cpp
+Copyright: 2007-2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2004, Jean-Pierre Charras, jp.charras@wanadoo.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/menubar_pcb_editor.cpp
+ pcbnew/pcbnew_config.cpp
+Copyright: 2013, 2015, 2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008, 2012, 2013, Wayne Stambaugh <stambaughw@gmail.com>
+ 2007-2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/microwave/*
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/minimun_spanning_tree.cpp
+Copyright: 2011-2014, 2016, Jean-Pierre Charras
+ 1992-2016, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/netclass.cpp
+ pcbnew/netclass.h
+Copyright: 2009, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2009, KiCad Developers, see change_log.txt for contributors.
+ 2009, Jean-Pierre Charras, jean-pierre.charras@inpg.fr
+License: GPL-2+
+
+Files: pcbnew/netlist.cpp
+Copyright: 2013-2016, Wayne Stambaugh <stambaughw@verizon.net>
+ 2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2016, KiCad Developers, see change_log.txt for contributors.
+ 1992-2013, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: pcbnew/netlist_reader.h
+Copyright: 2013-2017, Wayne Stambaugh <stambaughw@gmail.com>.
+ 2012-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2012, Jean-Pierre Charras.
+License: GPL-2+
+
+Files: pcbnew/onleftclick.cpp
+Copyright: 2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 2007, Jean-Pierre Charras, jean-pierre.charras@gipsa-lab.inpg.fr
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/pcad2kicadpcb_plugin/*
+Copyright: 2012-2016, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2007, 2008, Lubo Racko <developer@lura.sk>
+ 2007, 2008, 2012, 2013, Alexander Lunev <al.lunev@yahoo.com>
+License: GPL-2+
+
+Files: pcbnew/pcad2kicadpcb_plugin/pcad2kicad_common.cpp
+ pcbnew/pcad2kicadpcb_plugin/pcad2kicad_common.h
+Copyright: 2012, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2008, 2012, Alexander Lunev <al.lunev@yahoo.com>
+ 2007, 2008, Lubo Racko <developer@lura.sk>
+License: GPL-2+
+
+Files: pcbnew/pcad2kicadpcb_plugin/pcad_plugin.cpp
+ pcbnew/pcad2kicadpcb_plugin/pcad_plugin.h
+ pcbnew/pcad2kicadpcb_plugin/pcb_keepout.cpp
+ pcbnew/pcad2kicadpcb_plugin/pcb_keepout.h
+ pcbnew/pcad2kicadpcb_plugin/pcb_plane.cpp
+ pcbnew/pcad2kicadpcb_plugin/pcb_plane.h
+ pcbnew/pcad2kicadpcb_plugin/s_expr_loader.cpp
+ pcbnew/pcad2kicadpcb_plugin/s_expr_loader.h
+Copyright: 2012, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2007, 2008, 2012, 2013, Alexander Lunev <al.lunev@yahoo.com>
+License: GPL-2+
+
+Files: pcbnew/pcad2kicadpcb_plugin/pcb_polygon.cpp
+Copyright: 2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2007, 2008, Lubo Racko <developer@lura.sk>
+ 2007, 2008, 2012, 2013, Alexander Lunev <al.lunev@yahoo.com>
+License: GPL-2+
+
+Files: pcbnew/pcb_base_frame.cpp
+Copyright: 2018, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2011, Wayne Stambaugh <stambaughw@verizon.net>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/pcb_edit_frame.cpp
+Copyright: 2017, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2013-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2013, Wayne Stambaugh <stambaughw@gmail.com>
+ 2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-3+
+
+Files: pcbnew/pcb_edit_frame.h
+Copyright: 2010, Jean-Pierre Charras, jp.charras@wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: pcbnew/pcb_general_settings.cpp
+ pcbnew/pcb_general_settings.h
+Copyright: 1992-2018, Kicad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/pcb_layer_box_selector.cpp
+Copyright: 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2015, Jean-Pierre Charras <jean-pierre.charras@ujf-grenoble.fr>
+License: GPL-2+
+
+Files: pcbnew/pcb_layer_widget.cpp
+Copyright: 2010-2017, KiCad Developers, see change_log.txt for contributors.
+ 2010-2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2004-2017, Jean-Pierre Charras, jean-pierre.charras@gpisa-lab.inpg.fr
+License: GPL-2+
+
+Files: pcbnew/pcb_layer_widget.h
+Copyright: 2010-2018, KiCad Developers, see cAUTHORS.txt for contributors.
+ 2010, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2004-2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: pcbnew/pcb_netlist.cpp
+ pcbnew/pcb_netlist.h
+Copyright: 2013-2016, Wayne Stambaugh <stambaughw@verizon.net>.
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2012, Jean-Pierre Charras.
+License: GPL-2+
+
+Files: pcbnew/pcb_painter.h
+ pcbnew/pcb_parser.cpp
+ pcbnew/pcb_parser.h
+ pcbnew/zone_filler.cpp
+ pcbnew/zone_filler.h
+Copyright: 2012-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2012-2017, CERN
+License: GPL-2+
+
+Files: pcbnew/pcb_plot_params.h
+ pcbnew/pcb_plot_params_parser.h
+Copyright: 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/plotcontroller.h
+Copyright: 2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2012, Lorenzo Marcantonio, <l.marcantonio@logossrl.com>
+ 1992-2015, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/python/*
+Copyright: no-info-found
+License: GPL-2+
+
+Files: pcbnew/python/plugins/PadArray.py
+Copyright: 2014, john <john@johndev>
+License: GPL-2+
+
+Files: pcbnew/python/plugins/qrcode.py
+Copyright: 2012, Kazuhiko Arase
+License: Expat
+
+Files: pcbnew/python/plugins/touch_slider_wizard.py
+Copyright: 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/router/*
+Copyright: 2016-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2013-2017, CERN
+License: GPL-3+
+
+Files: pcbnew/router/pns_tune_status_popup.cpp
+ pcbnew/router/pns_tune_status_popup.h
+Copyright: 2012-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2012-2017, CERN
+License: GPL-2+
+
+Files: pcbnew/router/range.h
+ pcbnew/router/ranged_num.h
+Copyright: 2013-2018, CERN
+License: GPL-3+
+
+Files: pcbnew/specctra_import_export/*
+Copyright: 2007-2017, KiCad Developers, see change_log.txt for contributors.
+ 2007-2014, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: pcbnew/specctra_import_export/specctra_export.cpp
+Copyright: 2012-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2007-2016, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: pcbnew/specctra_import_export/specctra_import.cpp
+ pcbnew/specctra_import_export/specctra_test.cpp
+Copyright: 2007-2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/swig/*
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/swig/pcbnew_footprint_wizards.cpp
+ pcbnew/swig/pcbnew_footprint_wizards.h
+ pcbnew/swig/pcbnew_scripting_helpers.h
+Copyright: 2013-2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2013, NBEE Embedded Systems SL, Miguel Angel Ajo <miguelangel@ajo.es>
+License: GPL-2+
+
+Files: pcbnew/swig/pcbnew_scripting_helpers.cpp
+ pcbnew/swig/python_scripting.cpp
+Copyright: 2012, NBEE Embedded Systems, Miguel Angel Ajo <miguelangel@nbee.es>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/tool_footprint_editor.cpp
+ pcbnew/tool_footprint_viewer.cpp
+Copyright: 2014, 2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2012-2015, Wayne Stambaugh <stambaughw@verizon.net>
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: pcbnew/tool_pcb_editor.cpp
+Copyright: 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2012, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 2012
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/toolbars_update_user_interface.cpp
+Copyright: 2012-2016, KiCad Developers, see AUTHORS.txt for contributors.
+ 2012, Wayne Stambaugh <stambaughw@verizon.net>
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2012, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: pcbnew/tools/*
+Copyright: 2013-2018, CERN
+License: GPL-2+
+
+Files: pcbnew/tools/drawing_tool.cpp
+ pcbnew/tools/pcb_actions.cpp
+ pcbnew/tools/pcb_actions.h
+ pcbnew/tools/pcb_editor_control.cpp
+ pcbnew/tools/tools_common.cpp
+ pcbnew/tools/zone_filler_tool.cpp
+Copyright: 2012-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2012-2017, CERN
+License: GPL-2+
+
+Files: pcbnew/tools/edit_tool.cpp
+ pcbnew/tools/selection.cpp
+ pcbnew/tools/selection_tool.cpp
+ pcbnew/tools/selection_tool.h
+Copyright: 2014, 2015, 2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2010, 2013-2017, CERN
+License: GPL-2+
+
+Files: pcbnew/tools/microwave_tool.cpp
+ pcbnew/tools/microwave_tool.h
+Copyright: 1992-2017, Kicad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/tools/pad_tool.cpp
+ pcbnew/tools/pad_tool.h
+ pcbnew/tools/pcb_tool.cpp
+ pcbnew/tools/position_relative_tool.cpp
+ pcbnew/tools/position_relative_tool.h
+ pcbnew/tools/tool_event_utils.cpp
+ pcbnew/tools/tool_event_utils.h
+ pcbnew/tools/zone_create_helper.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/tools/pcb_bright_box.cpp
+ pcbnew/tools/pcb_bright_box.h
+Copyright: 1992-2017, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/tools/size_menu.cpp
+ pcbnew/tools/size_menu.h
+Copyright: 2013-2018, CERN
+License: GPL-3+
+
+Files: pcbnew/tools/zone_create_helper.h
+Copyright: 1992-2018, Kicad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/tracks_cleaner.cpp
+Copyright: 2008-2016, Wayne Stambaugh <stambaughw@verizon.net>
+ 2004-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/undo_redo.cpp
+Copyright: 2016, CERN
+ 2012, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 2012, Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ 1992-2016, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/zones_by_polygon_fill_functions.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 1992-2018, Jean-Pierre Charras jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: pcbnew/zones_functions_for_undo_redo.cpp
+Copyright: 2009, Jean-Pierre Charras <jp.charras@wanadoo.fr>
+ 2007-2015, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: pcbnew/zones_functions_for_undo_redo.h
+Copyright: 2009, Jean-Pierre Charras <jean-pierre.charras@gipsa-lab.inpg.fr>
+ 2007, KiCad Developers, see change_log.txt for contributors.
+License: GPL-2+
+
+Files: plugins/*
+Copyright: 2015-2017, Cirilo Bernardo <cirilo.bernardo@gmail.com>
+License: GPL-2+
+
+Files: plugins/3d/vrml/x3d.cpp
+Copyright: 2016, Cirilo Bernardo <cirilo.bernardo@gmail.com>
+ 2013, Tuomas Vaherkoski <tuomasvaherkoski@gmail.com>
+ 1992-2015, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: polygon/*
+Copyright: 2007-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2007-2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
+License: GPL-2+
+
+Files: polygon/PolyLine.h
+Copyright: 2012-2015, KiCad Developers, see CHANGELOG.TXT for contributors.
+ 2012-2015, Jean-Pierre Charras, jp.charras at wanadoo.fr
+ 2008-2013, Wayne Stambaugh <stambaughw@verizon.net>
+ 2008-2013, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+License: GPL-2+
+
+Files: polygon/SutherlandHodgmanClipPoly.h
+Copyright: 2004, Sjaak Priester
+License: GPL-2+
+
+Files: polygon/clipper.cpp
+ polygon/clipper.hpp
+Copyright: 2010-2017, Angus Johnson
+License: BSL-1.0
+
+Files: polygon/poly2tri/*
+Copyright: 2009, 2010, Poly2Tri Contributors
+License: BSD-3-clause
+
+Files: potrace/*
+Copyright: 2001-2017, Peter Selinger.
+License: GPL-1
+
+Files: resources/linux/appdata/kicad.appdata.xml
+Copyright: 2016-2017 Lubomir Rintel <lkundrak@v3.sk>
+ 2016-2017 KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+ or CC0-1.0
+
+Files: qa/common/mocks.cpp
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: scripting/kicadplugins.i
+Copyright: 2012 NBEE Embedded Systems, Miguel Angel Ajo <miguelangel@nbee.es>
+ 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: scripting/build_tools/extract_docstrings.py
+Copyright: Prabhu Ramachandran
+License: BSD-2-clause
+
+Files: tools/*
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: tools/property_tree.cpp
+Copyright: 2012-2017, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+ 1992-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
+License: GPL-2+
+
+Files: utils/*
+Copyright: 2016, Cirilo Bernardo <cirilo.bernardo@gmail.com>
+ 2016, 2017, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-2+
+
+Files: utils/idftools/*
+Copyright: 2013-2017, Cirilo Bernardo
+License: GPL-2+
+
+Files: utils/kicad-ogltest/*
+Copyright: 1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
+License: GPL-3+
+
+Files: utils/kicad2step/pcb/*
+Copyright: 2015-2017, Cirilo Bernardo <cirilo.bernardo@gmail.com>
+License: GPL-2+
+
+Files: utils/kicad2step/pcb/kicadmodule.cpp
+Copyright: 2017, 2018, KiCad Developers, see AUTHORS.txt for contributors.
+ 2015, 2016, Cirilo Bernardo <cirilo.bernardo@gmail.com>
+License: GPL-2+
+
+Files: utils/kicad2step/sexpr/*
+Copyright: 2016, Mark Roszko <mark.roszko@gmail.com>
+License: GPL-2+
+
+Files: utils/kicad2step/sexpr/sexpr_exception.h
+ utils/kicad2step/sexpr/sexpr_parser.cpp
+Copyright: 2017, KiCad Developers, see AUTHORS.txt for contributors.
+ 2016, Mark Roszko <mark.roszko@gmail.com>
 License: GPL-2+
 
 Files: CMakeModules/FindPackageMessage.cmake
 Copyright: (C) 2008-2009 Kitware, Inc.
-License: BSD1
+License: BSD-3-clause
 
 Files: CMakeModules/FindCairo.cmake
 Copyright: (C) 2012 Dmitry Baryshnikov <polimax at mail dot ru>
-License: BSD1
+License: BSD-3-clause
 
 Files: CMakeModules/FindwxWidgets.cmake
 Copyright: (C) 2004-2009 Kitware, Inc.
            (C) 2007-2009 Miguel A. Figueroa-Villanueva <miguelf at ieee dot org>
-License: BSD1
+License: BSD-3-clause
 
 Files: CMakeModules/SelectLibraryConfigurations.cmake
 Copyright: (C) 2009 Will Dicharry <wdicharry@stellarscience.com>
            (C) 2005-2009 Kitware, Inc.
-License: BSD1
+License: BSD-3-clause
 
 Files: CMakeModules/UsewxWidgets.cmake
 Copyright: (C) 2004-2009 Kitware, Inc.
            (C) 2006      Jan Woetzel
-License: BSD1
-
-Files: CMakeModules/CheckCXXSymbolExists.cmake
-Copyright: (C) 2003-2011 Kitware, Inc.
-License: BSD1
+License: BSD-3-clause
 
 Files: CMakeModules/CMakeFindFrameworks.cmake
 Copyright: (C) 2003-2011 Kitware, Inc.
-License: BSD1
-
-Files: CMakeModules/FindSubversion.cmake
-Copyright: (C) 2006, Tristan Carel
-License: BSD1
+License: BSD-3-clause
 
 Files: CMakeModules/FindPythonLibs.cmake
 Copyright: (C) 2001-2009 Kitware, Inc.
-License: BSD1
+License: BSD-3-clause
 
 Files: CMakeModules/FindGLEW.cmake
 Copyright: (C) 2009 Boudewijn Rempt <boud@valdyas.org>
-License: BSD1
+License: BSD-3-clause
 
 Files: CMakeModules/FindPythonInterp.cmake
 Copyright: (C) 2005-2010 Kitware, Inc.
            (C) 2011 Bjoern Ricks <bjoern.ricks@gmail.com>
            (C) 2012 Rolf Eike Beer <eike@sf-mail.de>
-License: BSD1
+License: BSD-3-clause
 
 Files: debian/*
 Copyright: (C) 2006-2010 Richard A Burton <richardaburton@gmail.com>
            (C) 2015-2016 Georges Khaznadar <georgesk@debian.org>
-           (C) 2016-2017 Carsten schoenert <c.schoenert@t-online.de>
+           (C) 2016-2018 Carsten schoenert <c.schoenert@t-online.de>
 License: GPL-2+
 
-Files: pcbnew/github/avhttp-master.zip
-Copyright: (C) 2015 Jack <jack.wgm@gmail.com>
-           (C) 2015 coleman <omegacoleman@gmail.com>
-           (C) 2015 eahydra <xxeaglenet@gmail.com>
-           (C) 2015 kiki <kiki.caicai@gmail.com>
-           (C) 2015 microcai <microcaicai@gmail.com>
-License: BOOST1
-
+Files: debian/kicad-packages-relations.dia
+Copyright: (C) 2018 Carsten schoenert <c.schoenert@t-online.de>
 License: GPL-2+
- This package is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation; either version 2 of the License, or
- (at your option) any later version.
+
+License: AGPL-3+
+                     GNU AFFERO GENERAL PUBLIC LICENSE
+                        Version 3, 19 November 2007
  .
- This package is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+  Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
+  Everyone is permitted to copy and distribute verbatim copies
+  of this license document, but changing it is not allowed.
  .
- You should have received a copy of the GNU General Public License
- along with this program. If not, see <https://www.gnu.org/licenses/>
+                             Preamble
  .
- On Debian systems, the complete text of the GNU General
- Public License version 2 can be found in "/usr/share/common-licenses/GPL-2".
+   The GNU Affero General Public License is a free, copyleft license for
+ software and other kinds of works, specifically designed to ensure
+ cooperation with the community in the case of network server software.
+ .
+   The licenses for most software and other practical works are designed
+ to take away your freedom to share and change the works.  By contrast,
+ our General Public Licenses are intended to guarantee your freedom to
+ share and change all versions of a program--to make sure it remains free
+ software for all its users.
+ .
+   When we speak of free software, we are referring to freedom, not
+ price.  Our General Public Licenses are designed to make sure that you
+ have the freedom to distribute copies of free software (and charge for
+ them if you wish), that you receive source code or can get it if you
+ want it, that you can change the software or use pieces of it in new
+ free programs, and that you know you can do these things.
+ .
+   Developers that use our General Public Licenses protect your rights
+ with two steps: (1) assert copyright on the software, and (2) offer
+ you this License which gives you legal permission to copy, distribute
+ and/or modify the software.
+ .
+   A secondary benefit of defending all users' freedom is that
+ improvements made in alternate versions of the program, if they
+ receive widespread use, become available for other developers to
+ incorporate.  Many developers of free software are heartened and
+ encouraged by the resulting cooperation.  However, in the case of
+ software used on network servers, this result may fail to come about.
+ The GNU General Public License permits making a modified version and
+ letting the public access it on a server without ever releasing its
+ source code to the public.
+ .
+   The GNU Affero General Public License is designed specifically to
+ ensure that, in such cases, the modified source code becomes available
+ to the community.  It requires the operator of a network server to
+ provide the source code of the modified version running there to the
+ users of that server.  Therefore, public use of a modified version, on
+ a publicly accessible server, gives the public access to the source
+ code of the modified version.
+ .
+   An older license, called the Affero General Public License and
+ published by Affero, was designed to accomplish similar goals.  This is
+ a different license, not a version of the Affero GPL, but Affero has
+ released a new version of the Affero GPL which permits relicensing under
+ this license.
+ .
+   The precise terms and conditions for copying, distribution and
+ modification follow.
+ .
+                        TERMS AND CONDITIONS
+ .
+   0. Definitions.
+ .
+   "This License" refers to version 3 of the GNU Affero General Public License.
+ .
+   "Copyright" also means copyright-like laws that apply to other kinds of
+ works, such as semiconductor masks.
+ .
+   "The Program" refers to any copyrightable work licensed under this
+ License.  Each licensee is addressed as "you".  "Licensees" and
+ "recipients" may be individuals or organizations.
+ .
+   To "modify" a work means to copy from or adapt all or part of the work
+ in a fashion requiring copyright permission, other than the making of an
+ exact copy.  The resulting work is called a "modified version" of the
+ earlier work or a work "based on" the earlier work.
+ .
+   A "covered work" means either the unmodified Program or a work based
+ on the Program.
+ .
+   To "propagate" a work means to do anything with it that, without
+ permission, would make you directly or secondarily liable for
+ infringement under applicable copyright law, except executing it on a
+ computer or modifying a private copy.  Propagation includes copying,
+ distribution (with or without modification), making available to the
+ public, and in some countries other activities as well.
+ .
+   To "convey" a work means any kind of propagation that enables other
+ parties to make or receive copies.  Mere interaction with a user through
+ a computer network, with no transfer of a copy, is not conveying.
+ .
+   An interactive user interface displays "Appropriate Legal Notices"
+ to the extent that it includes a convenient and prominently visible
+ feature that (1) displays an appropriate copyright notice, and (2)
+ tells the user that there is no warranty for the work (except to the
+ extent that warranties are provided), that licensees may convey the
+ work under this License, and how to view a copy of this License.  If
+ the interface presents a list of user commands or options, such as a
+ menu, a prominent item in the list meets this criterion.
+ .
+   1. Source Code.
+ .
+   The "source code" for a work means the preferred form of the work
+ for making modifications to it.  "Object code" means any non-source
+ form of a work.
+ .
+   A "Standard Interface" means an interface that either is an official
+ standard defined by a recognized standards body, or, in the case of
+ interfaces specified for a particular programming language, one that
+ is widely used among developers working in that language.
+ .
+   The "System Libraries" of an executable work include anything, other
+ than the work as a whole, that (a) is included in the normal form of
+ packaging a Major Component, but which is not part of that Major
+ Component, and (b) serves only to enable use of the work with that
+ Major Component, or to implement a Standard Interface for which an
+ implementation is available to the public in source code form.  A
+ "Major Component", in this context, means a major essential component
+ (kernel, window system, and so on) of the specific operating system
+ (if any) on which the executable work runs, or a compiler used to
+ produce the work, or an object code interpreter used to run it.
+ .
+   The "Corresponding Source" for a work in object code form means all
+ the source code needed to generate, install, and (for an executable
+ work) run the object code and to modify the work, including scripts to
+ control those activities.  However, it does not include the work's
+ System Libraries, or general-purpose tools or generally available free
+ programs which are used unmodified in performing those activities but
+ which are not part of the work.  For example, Corresponding Source
+ includes interface definition files associated with source files for
+ the work, and the source code for shared libraries and dynamically
+ linked subprograms that the work is specifically designed to require,
+ such as by intimate data communication or control flow between those
+ subprograms and other parts of the work.
+ .
+   The Corresponding Source need not include anything that users
+ can regenerate automatically from other parts of the Corresponding
+ Source.
+ .
+   The Corresponding Source for a work in source code form is that
+ same work.
+ .
+   2. Basic Permissions.
+ .
+   All rights granted under this License are granted for the term of
+ copyright on the Program, and are irrevocable provided the stated
+ conditions are met.  This License explicitly affirms your unlimited
+ permission to run the unmodified Program.  The output from running a
+ covered work is covered by this License only if the output, given its
+ content, constitutes a covered work.  This License acknowledges your
+ rights of fair use or other equivalent, as provided by copyright law.
+ .
+   You may make, run and propagate covered works that you do not
+ convey, without conditions so long as your license otherwise remains
+ in force.  You may convey covered works to others for the sole purpose
+ of having them make modifications exclusively for you, or provide you
+ with facilities for running those works, provided that you comply with
+ the terms of this License in conveying all material for which you do
+ not control copyright.  Those thus making or running the covered works
+ for you must do so exclusively on your behalf, under your direction
+ and control, on terms that prohibit them from making any copies of
+ your copyrighted material outside their relationship with you.
+ .
+   Conveying under any other circumstances is permitted solely under
+ the conditions stated below.  Sublicensing is not allowed; section 10
+ makes it unnecessary.
+ .
+   3. Protecting Users' Legal Rights From Anti-Circumvention Law.
+ .
+   No covered work shall be deemed part of an effective technological
+ measure under any applicable law fulfilling obligations under article
+ 11 of the WIPO copyright treaty adopted on 20 December 1996, or
+ similar laws prohibiting or restricting circumvention of such
+ measures.
+ .
+   When you convey a covered work, you waive any legal power to forbid
+ circumvention of technological measures to the extent such circumvention
+ is effected by exercising rights under this License with respect to
+ the covered work, and you disclaim any intention to limit operation or
+ modification of the work as a means of enforcing, against the work's
+ users, your or third parties' legal rights to forbid circumvention of
+ technological measures.
+ .
+   4. Conveying Verbatim Copies.
+ .
+   You may convey verbatim copies of the Program's source code as you
+ receive it, in any medium, provided that you conspicuously and
+ appropriately publish on each copy an appropriate copyright notice;
+ keep intact all notices stating that this License and any
+ non-permissive terms added in accord with section 7 apply to the code;
+ keep intact all notices of the absence of any warranty; and give all
+ recipients a copy of this License along with the Program.
+ .
+   You may charge any price or no price for each copy that you convey,
+ and you may offer support or warranty protection for a fee.
+ .
+   5. Conveying Modified Source Versions.
+ .
+   You may convey a work based on the Program, or the modifications to
+ produce it from the Program, in the form of source code under the
+ terms of section 4, provided that you also meet all of these conditions:
+ .
+     a) The work must carry prominent notices stating that you modified
+     it, and giving a relevant date.
+ .
+     b) The work must carry prominent notices stating that it is
+     released under this License and any conditions added under section
+     7.  This requirement modifies the requirement in section 4 to
+     "keep intact all notices".
+ .
+     c) You must license the entire work, as a whole, under this
+     License to anyone who comes into possession of a copy.  This
+     License will therefore apply, along with any applicable section 7
+     additional terms, to the whole of the work, and all its parts,
+     regardless of how they are packaged.  This License gives no
+     permission to license the work in any other way, but it does not
+     invalidate such permission if you have separately received it.
+ .
+     d) If the work has interactive user interfaces, each must display
+     Appropriate Legal Notices; however, if the Program has interactive
+     interfaces that do not display Appropriate Legal Notices, your
+     work need not make them do so.
+ .
+   A compilation of a covered work with other separate and independent
+ works, which are not by their nature extensions of the covered work,
+ and which are not combined with it such as to form a larger program,
+ in or on a volume of a storage or distribution medium, is called an
+ "aggregate" if the compilation and its resulting copyright are not
+ used to limit the access or legal rights of the compilation's users
+ beyond what the individual works permit.  Inclusion of a covered work
+ in an aggregate does not cause this License to apply to the other
+ parts of the aggregate.
+ .
+   6. Conveying Non-Source Forms.
+ .
+   You may convey a covered work in object code form under the terms
+ of sections 4 and 5, provided that you also convey the
+ machine-readable Corresponding Source under the terms of this License,
+ in one of these ways:
+ .
+     a) Convey the object code in, or embodied in, a physical product
+     (including a physical distribution medium), accompanied by the
+     Corresponding Source fixed on a durable physical medium
+     customarily used for software interchange.
+ .
+     b) Convey the object code in, or embodied in, a physical product
+     (including a physical distribution medium), accompanied by a
+     written offer, valid for at least three years and valid for as
+     long as you offer spare parts or customer support for that product
+     model, to give anyone who possesses the object code either (1) a
+     copy of the Corresponding Source for all the software in the
+     product that is covered by this License, on a durable physical
+     medium customarily used for software interchange, for a price no
+     more than your reasonable cost of physically performing this
+     conveying of source, or (2) access to copy the
+     Corresponding Source from a network server at no charge.
+ .
+     c) Convey individual copies of the object code with a copy of the
+     written offer to provide the Corresponding Source.  This
+     alternative is allowed only occasionally and noncommercially, and
+     only if you received the object code with such an offer, in accord
+     with subsection 6b.
+ .
+     d) Convey the object code by offering access from a designated
+     place (gratis or for a charge), and offer equivalent access to the
+     Corresponding Source in the same way through the same place at no
+     further charge.  You need not require recipients to copy the
+     Corresponding Source along with the object code.  If the place to
+     copy the object code is a network server, the Corresponding Source
+     may be on a different server (operated by you or a third party)
+     that supports equivalent copying facilities, provided you maintain
+     clear directions next to the object code saying where to find the
+     Corresponding Source.  Regardless of what server hosts the
+     Corresponding Source, you remain obligated to ensure that it is
+     available for as long as needed to satisfy these requirements.
+ .
+     e) Convey the object code using peer-to-peer transmission, provided
+     you inform other peers where the object code and Corresponding
+     Source of the work are being offered to the general public at no
+     charge under subsection 6d.
+ .
+   A separable portion of the object code, whose source code is excluded
+ from the Corresponding Source as a System Library, need not be
+ included in conveying the object code work.
+ .
+   A "User Product" is either (1) a "consumer product", which means any
+ tangible personal property which is normally used for personal, family,
+ or household purposes, or (2) anything designed or sold for incorporation
+ into a dwelling.  In determining whether a product is a consumer product,
+ doubtful cases shall be resolved in favor of coverage.  For a particular
+ product received by a particular user, "normally used" refers to a
+ typical or common use of that class of product, regardless of the status
+ of the particular user or of the way in which the particular user
+ actually uses, or expects or is expected to use, the product.  A product
+ is a consumer product regardless of whether the product has substantial
+ commercial, industrial or non-consumer uses, unless such uses represent
+ the only significant mode of use of the product.
+ .
+   "Installation Information" for a User Product means any methods,
+ procedures, authorization keys, or other information required to install
+ and execute modified versions of a covered work in that User Product from
+ a modified version of its Corresponding Source.  The information must
+ suffice to ensure that the continued functioning of the modified object
+ code is in no case prevented or interfered with solely because
+ modification has been made.
+ .
+   If you convey an object code work under this section in, or with, or
+ specifically for use in, a User Product, and the conveying occurs as
+ part of a transaction in which the right of possession and use of the
+ User Product is transferred to the recipient in perpetuity or for a
+ fixed term (regardless of how the transaction is characterized), the
+ Corresponding Source conveyed under this section must be accompanied
+ by the Installation Information.  But this requirement does not apply
+ if neither you nor any third party retains the ability to install
+ modified object code on the User Product (for example, the work has
+ been installed in ROM).
+ .
+   The requirement to provide Installation Information does not include a
+ requirement to continue to provide support service, warranty, or updates
+ for a work that has been modified or installed by the recipient, or for
+ the User Product in which it has been modified or installed.  Access to a
+ network may be denied when the modification itself materially and
+ adversely affects the operation of the network or violates the rules and
+ protocols for communication across the network.
+ .
+   Corresponding Source conveyed, and Installation Information provided,
+ in accord with this section must be in a format that is publicly
+ documented (and with an implementation available to the public in
+ source code form), and must require no special password or key for
+ unpacking, reading or copying.
+ .
+   7. Additional Terms.
+ .
+   "Additional permissions" are terms that supplement the terms of this
+ License by making exceptions from one or more of its conditions.
+ Additional permissions that are applicable to the entire Program shall
+ be treated as though they were included in this License, to the extent
+ that they are valid under applicable law.  If additional permissions
+ apply only to part of the Program, that part may be used separately
+ under those permissions, but the entire Program remains governed by
+ this License without regard to the additional permissions.
+ .
+   When you convey a copy of a covered work, you may at your option
+ remove any additional permissions from that copy, or from any part of
+ it.  (Additional permissions may be written to require their own
+ removal in certain cases when you modify the work.)  You may place
+ additional permissions on material, added by you to a covered work,
+ for which you have or can give appropriate copyright permission.
+ .
+   Notwithstanding any other provision of this License, for material you
+ add to a covered work, you may (if authorized by the copyright holders of
+ that material) supplement the terms of this License with terms:
+ .
+     a) Disclaiming warranty or limiting liability differently from the
+     terms of sections 15 and 16 of this License; or
+ .
+     b) Requiring preservation of specified reasonable legal notices or
+     author attributions in that material or in the Appropriate Legal
+     Notices displayed by works containing it; or
+ .
+     c) Prohibiting misrepresentation of the origin of that material, or
+     requiring that modified versions of such material be marked in
+     reasonable ways as different from the original version; or
+ .
+     d) Limiting the use for publicity purposes of names of licensors or
+     authors of the material; or
+ .
+     e) Declining to grant rights under trademark law for use of some
+     trade names, trademarks, or service marks; or
+ .
+     f) Requiring indemnification of licensors and authors of that
+     material by anyone who conveys the material (or modified versions of
+     it) with contractual assumptions of liability to the recipient, for
+     any liability that these contractual assumptions directly impose on
+     those licensors and authors.
+ .
+   All other non-permissive additional terms are considered "further
+ restrictions" within the meaning of section 10.  If the Program as you
+ received it, or any part of it, contains a notice stating that it is
+ governed by this License along with a term that is a further
+ restriction, you may remove that term.  If a license document contains
+ a further restriction but permits relicensing or conveying under this
+ License, you may add to a covered work material governed by the terms
+ of that license document, provided that the further restriction does
+ not survive such relicensing or conveying.
+ .
+   If you add terms to a covered work in accord with this section, you
+ must place, in the relevant source files, a statement of the
+ additional terms that apply to those files, or a notice indicating
+ where to find the applicable terms.
+ .
+   Additional terms, permissive or non-permissive, may be stated in the
+ form of a separately written license, or stated as exceptions;
+ the above requirements apply either way.
+ .
+   8. Termination.
+ .
+   You may not propagate or modify a covered work except as expressly
+ provided under this License.  Any attempt otherwise to propagate or
+ modify it is void, and will automatically terminate your rights under
+ this License (including any patent licenses granted under the third
+ paragraph of section 11).
+ .
+   However, if you cease all violation of this License, then your
+ license from a particular copyright holder is reinstated (a)
+ provisionally, unless and until the copyright holder explicitly and
+ finally terminates your license, and (b) permanently, if the copyright
+ holder fails to notify you of the violation by some reasonable means
+ prior to 60 days after the cessation.
+ .
+   Moreover, your license from a particular copyright holder is
+ reinstated permanently if the copyright holder notifies you of the
+ violation by some reasonable means, this is the first time you have
+ received notice of violation of this License (for any work) from that
+ copyright holder, and you cure the violation prior to 30 days after
+ your receipt of the notice.
+ .
+   Termination of your rights under this section does not terminate the
+ licenses of parties who have received copies or rights from you under
+ this License.  If your rights have been terminated and not permanently
+ reinstated, you do not qualify to receive new licenses for the same
+ material under section 10.
+ .
+   9. Acceptance Not Required for Having Copies.
+ .
+   You are not required to accept this License in order to receive or
+ run a copy of the Program.  Ancillary propagation of a covered work
+ occurring solely as a consequence of using peer-to-peer transmission
+ to receive a copy likewise does not require acceptance.  However,
+ nothing other than this License grants you permission to propagate or
+ modify any covered work.  These actions infringe copyright if you do
+ not accept this License.  Therefore, by modifying or propagating a
+ covered work, you indicate your acceptance of this License to do so.
+ .
+   10. Automatic Licensing of Downstream Recipients.
+ .
+   Each time you convey a covered work, the recipient automatically
+ receives a license from the original licensors, to run, modify and
+ propagate that work, subject to this License.  You are not responsible
+ for enforcing compliance by third parties with this License.
+ .
+   An "entity transaction" is a transaction transferring control of an
+ organization, or substantially all assets of one, or subdividing an
+ organization, or merging organizations.  If propagation of a covered
+ work results from an entity transaction, each party to that
+ transaction who receives a copy of the work also receives whatever
+ licenses to the work the party's predecessor in interest had or could
+ give under the previous paragraph, plus a right to possession of the
+ Corresponding Source of the work from the predecessor in interest, if
+ the predecessor has it or can get it with reasonable efforts.
+ .
+   You may not impose any further restrictions on the exercise of the
+ rights granted or affirmed under this License.  For example, you may
+ not impose a license fee, royalty, or other charge for exercise of
+ rights granted under this License, and you may not initiate litigation
+ (including a cross-claim or counterclaim in a lawsuit) alleging that
+ any patent claim is infringed by making, using, selling, offering for
+ sale, or importing the Program or any portion of it.
+ .
+   11. Patents.
+ .
+   A "contributor" is a copyright holder who authorizes use under this
+ License of the Program or a work on which the Program is based.  The
+ work thus licensed is called the contributor's "contributor version".
+ .
+   A contributor's "essential patent claims" are all patent claims
+ owned or controlled by the contributor, whether already acquired or
+ hereafter acquired, that would be infringed by some manner, permitted
+ by this License, of making, using, or selling its contributor version,
+ but do not include claims that would be infringed only as a
+ consequence of further modification of the contributor version.  For
+ purposes of this definition, "control" includes the right to grant
+ patent sublicenses in a manner consistent with the requirements of
+ this License.
+ .
+   Each contributor grants you a non-exclusive, worldwide, royalty-free
+ patent license under the contributor's essential patent claims, to
+ make, use, sell, offer for sale, import and otherwise run, modify and
+ propagate the contents of its contributor version.
+ .
+   In the following three paragraphs, a "patent license" is any express
+ agreement or commitment, however denominated, not to enforce a patent
+ (such as an express permission to practice a patent or covenant not to
+ sue for patent infringement).  To "grant" such a patent license to a
+ party means to make such an agreement or commitment not to enforce a
+ patent against the party.
+ .
+   If you convey a covered work, knowingly relying on a patent license,
+ and the Corresponding Source of the work is not available for anyone
+ to copy, free of charge and under the terms of this License, through a
+ publicly available network server or other readily accessible means,
+ then you must either (1) cause the Corresponding Source to be so
+ available, or (2) arrange to deprive yourself of the benefit of the
+ patent license for this particular work, or (3) arrange, in a manner
+ consistent with the requirements of this License, to extend the patent
+ license to downstream recipients.  "Knowingly relying" means you have
+ actual knowledge that, but for the patent license, your conveying the
+ covered work in a country, or your recipient's use of the covered work
+ in a country, would infringe one or more identifiable patents in that
+ country that you have reason to believe are valid.
+ .
+   If, pursuant to or in connection with a single transaction or
+ arrangement, you convey, or propagate by procuring conveyance of, a
+ covered work, and grant a patent license to some of the parties
+ receiving the covered work authorizing them to use, propagate, modify
+ or convey a specific copy of the covered work, then the patent license
+ you grant is automatically extended to all recipients of the covered
+ work and works based on it.
+ .
+   A patent license is "discriminatory" if it does not include within
+ the scope of its coverage, prohibits the exercise of, or is
+ conditioned on the non-exercise of one or more of the rights that are
+ specifically granted under this License.  You may not convey a covered
+ work if you are a party to an arrangement with a third party that is
+ in the business of distributing software, under which you make payment
+ to the third party based on the extent of your activity of conveying
+ the work, and under which the third party grants, to any of the
+ parties who would receive the covered work from you, a discriminatory
+ patent license (a) in connection with copies of the covered work
+ conveyed by you (or copies made from those copies), or (b) primarily
+ for and in connection with specific products or compilations that
+ contain the covered work, unless you entered into that arrangement,
+ or that patent license was granted, prior to 28 March 2007.
+ .
+   Nothing in this License shall be construed as excluding or limiting
+ any implied license or other defenses to infringement that may
+ otherwise be available to you under applicable patent law.
+ .
+   12. No Surrender of Others' Freedom.
+ .
+   If conditions are imposed on you (whether by court order, agreement or
+ otherwise) that contradict the conditions of this License, they do not
+ excuse you from the conditions of this License.  If you cannot convey a
+ covered work so as to satisfy simultaneously your obligations under this
+ License and any other pertinent obligations, then as a consequence you may
+ not convey it at all.  For example, if you agree to terms that obligate you
+ to collect a royalty for further conveying from those to whom you convey
+ the Program, the only way you could satisfy both those terms and this
+ License would be to refrain entirely from conveying the Program.
+ .
+   13. Remote Network Interaction; Use with the GNU General Public License.
+ .
+   Notwithstanding any other provision of this License, if you modify the
+ Program, your modified version must prominently offer all users
+ interacting with it remotely through a computer network (if your version
+ supports such interaction) an opportunity to receive the Corresponding
+ Source of your version by providing access to the Corresponding Source
+ from a network server at no charge, through some standard or customary
+ means of facilitating copying of software.  This Corresponding Source
+ shall include the Corresponding Source for any work covered by version 3
+ of the GNU General Public License that is incorporated pursuant to the
+ following paragraph.
+ .
+   Notwithstanding any other provision of this License, you have
+ permission to link or combine any covered work with a work licensed
+ under version 3 of the GNU General Public License into a single
+ combined work, and to convey the resulting work.  The terms of this
+ License will continue to apply to the part which is the covered work,
+ but the work with which it is combined will remain governed by version
+ 3 of the GNU General Public License.
+ .
+   14. Revised Versions of this License.
+ .
+   The Free Software Foundation may publish revised and/or new versions of
+ the GNU Affero General Public License from time to time.  Such new versions
+ will be similar in spirit to the present version, but may differ in detail to
+ address new problems or concerns.
+ .
+   Each version is given a distinguishing version number.  If the
+ Program specifies that a certain numbered version of the GNU Affero General
+ Public License "or any later version" applies to it, you have the
+ option of following the terms and conditions either of that numbered
+ version or of any later version published by the Free Software
+ Foundation.  If the Program does not specify a version number of the
+ GNU Affero General Public License, you may choose any version ever published
+ by the Free Software Foundation.
+ .
+   If the Program specifies that a proxy can decide which future
+ versions of the GNU Affero General Public License can be used, that proxy's
+ public statement of acceptance of a version permanently authorizes you
+ to choose that version for the Program.
+ .
+   Later license versions may give you additional or different
+ permissions.  However, no additional obligations are imposed on any
+ author or copyright holder as a result of your choosing to follow a
+ later version.
+ .
+   15. Disclaimer of Warranty.
+ .
+   THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY
+ APPLICABLE LAW.  EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT
+ HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY
+ OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO,
+ THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM
+ IS WITH YOU.  SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF
+ ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
+ .
+   16. Limitation of Liability.
+ .
+   IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
+ WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MODIFIES AND/OR CONVEYS
+ THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY
+ GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE
+ USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED TO LOSS OF
+ DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD
+ PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS),
+ EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF
+ SUCH DAMAGES.
+ .
+   17. Interpretation of Sections 15 and 16.
+ .
+   If the disclaimer of warranty and limitation of liability provided
+ above cannot be given local legal effect according to their terms,
+ reviewing courts shall apply local law that most closely approximates
+ an absolute waiver of all civil liability in connection with the
+ Program, unless a warranty or assumption of liability accompanies a
+ copy of the Program in return for a fee.
+ .
+                      END OF TERMS AND CONDITIONS
+ .
+             How to Apply These Terms to Your New Programs
+ .
+   If you develop a new program, and you want it to be of the greatest
+ possible use to the public, the best way to achieve this is to make it
+ free software which everyone can redistribute and change under these terms.
+ .
+   To do so, attach the following notices to the program.  It is safest
+ to attach them to the start of each source file to most effectively
+ state the exclusion of warranty; and each file should have at least
+ the "copyright" line and a pointer to where the full notice is found.
+ .
+     <one line to give the program's name and a brief idea of what it does.>
+     Copyright (C) <year>  <name of author>
+ .
+     This program is free software: you can redistribute it and/or modify
+     it under the terms of the GNU Affero General Public License as published by
+     the Free Software Foundation, either version 3 of the License, or
+     (at your option) any later version.
+ .
+     This program is distributed in the hope that it will be useful,
+     but WITHOUT ANY WARRANTY; without even the implied warranty of
+     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+     GNU Affero General Public License for more details.
+ .
+     You should have received a copy of the GNU Affero General Public License
+     along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ .
+ Also add information on how to contact you by electronic and paper mail.
+ .
+   If your software can interact with users remotely through a computer
+ network, you should also make sure that it provides a way for users to
+ get its source.  For example, if your program is a web application, its
+ interface could display a "Source" link that leads users to an archive
+ of the code.  There are many ways you could offer source, and different
+ solutions will be better for different programs; see section 13 for the
+ specific requirements.
+ .
+   You should also get your employer (if you work as a programmer) or school,
+ if any, to sign a "copyright disclaimer" for the program, if necessary.
+ For more information on this, and how to apply and follow the GNU AGPL, see
+ <http://www.gnu.org/licenses/>.
+
+License: BSL-1.0
+ Boost Software License - Version 1.0 - August 17th, 2003
+ .
+ Permission is hereby granted, free of charge, to any person or organization
+ obtaining a copy of the software and accompanying documentation covered by
+ this license (the "Software") to use, reproduce, display, distribute,
+ execute, and transmit the Software, and to prepare derivative works of the
+ Software, and to permit third-parties to whom the Software is furnished to
+ do so, all subject to the following:
+ .
+ The copyright notices in the Software and this entire statement, including
+ the above license grant, this restriction and the following disclaimer,
+ must be included in all copies of the Software, in whole or in part, and
+ all derivative works of the Software, unless such copies or derivative
+ works are solely in the form of machine-executable object code generated by
+ a source language processor.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT
+ SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE
+ FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
+ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ DEALINGS IN THE SOFTWARE.
+
+License: BSD-2-clause
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions
+ are met:
+ 1. Redistributions of source code must retain the above copyright
+    notice(s), this list of conditions and the following disclaimer as
+    the first lines of this file unmodified other than the possible
+    addition of one or more copyright notices.
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice(s), this list of conditions and the following disclaimer in
+    the documentation and/or other materials provided with the
+    distribution.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER(S) ``AS IS'' AND ANY
+ EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT HOLDER(S) BE
+ LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+License: BSD-3-clause
+ Copyright © belongs to the uploader
+ All rights reserved.
+ .
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions
+  are met:
+ 1.Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+ 3. Neither the name of the owner nor the names of its contributors may be
+    used to endorse or promote products derived from this software without
+    specific prior written permission.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
+ DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 License: CC-BY-SA-3.0
  Creative Commons Attribution-ShareAlike 3.0 Unported
@@ -511,165 +4734,101 @@ License: CC-BY-SA-3.0
  made available upon request from time to time. For the avoidance of doubt,
  this trademark restriction does not form part of the License.
 
-License: SG1
- Permission to use, copy, modify, and distribute this software for
- any purpose and without fee is hereby granted, provided that the above
- copyright notice appear in all copies and that both the copyright notice
- and this permission notice appear in supporting documentation, and that
- the name of Silicon Graphics, Inc. not be used in advertising
- or publicity pertaining to distribution of the software without specific,
- written prior permission.
- .
- THE MATERIAL EMBODIED ON THIS SOFTWARE IS PROVIDED TO YOU "AS-IS"
- AND WITHOUT WARRANTY OF ANY KIND, EXPRESS, IMPLIED OR OTHERWISE,
- INCLUDING WITHOUT LIMITATION, ANY WARRANTY OF MERCHANTABILITY OR
- FITNESS FOR A PARTICULAR PURPOSE.  IN NO EVENT SHALL SILICON
- GRAPHICS, INC.  BE LIABLE TO YOU OR ANYONE ELSE FOR ANY DIRECT,
- SPECIAL, INCIDENTAL, INDIRECT OR CONSEQUENTIAL DAMAGES OF ANY
- KIND, OR ANY DAMAGES WHATSOEVER, INCLUDING WITHOUT LIMITATION,
- LOSS OF PROFIT, LOSS OF USE, SAVINGS OR REVENUE, OR THE CLAIMS OF
- THIRD PARTIES, WHETHER OR NOT SILICON GRAPHICS, INC.  HAS BEEN
- ADVISED OF THE POSSIBILITY OF SUCH LOSS, HOWEVER CAUSED AND ON
- ANY THEORY OF LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE
- POSSESSION, USE OR PERFORMANCE OF THIS SOFTWARE.
- .
- US Government Users Restricted Rights
- Use, duplication, or disclosure by the Government is subject to
- restrictions set forth in FAR 52.227.19(c)(2) or subparagraph
- (c)(1)(ii) of the Rights in Technical Data and Computer Software
- clause at DFARS 252.227-7013 and/or in similar or successor
- clauses in the FAR or the DOD or NASA FAR Supplement.
- Unpublished-- rights reserved under the copyright laws of the
- United States.  Contractor/manufacturer is Silicon Graphics,
- Inc., 2011 N.  Shoreline Blvd., Mountain View, CA 94039-7311.
- .
- OpenGL(TM) is a trademark of Silicon Graphics, Inc.
+License: CC0-1.0
+ On Debian systems, the complete text of the Creative Common Zero
+ License can be found in the file /usr/share/common-licenses/CC0-1.0'.
 
-License: AFPL1
- This file is part of TTL.
+License: Expat
+ The MIT License
  .
- TTL is free software: you can redistribute it and/or modify
- it under the terms of the GNU Affero General Public License as
- published by the Free Software Foundation, either version 3 of the
- License, or (at your option) any later version.
+ Permission is hereby granted, free of charge, to any person
+ obtaining a copy of this software and associated
+ documentation files (the "Software"), to deal in the Software
+ without restriction, including without limitation the rights to
+ use, copy, modify, merge, publish, distribute, sublicense,
+ and/or sell copies of the Software, and to permit persons to
+ whom the Software is furnished to do so, subject to the
+ following conditions:
  .
- TTL is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU Affero General Public License for more details.
+ The above copyright notice and this permission notice shall
+ be included in all copies or substantial portions of the
+ Software.
  .
- You should have received a copy of the GNU Affero General Public
- License along with TTL. If not, see
- <http://www.gnu.org/licenses/>.
- .
- In accordance with Section 7(b) of the GNU Affero General Public
- License, a covered work must retain the producer line in every data
- file that is created or manipulated using TTL.
- .
- Other Usage
- You can be released from the requirements of the license by purchasing
- a commercial license. Buying such a license is mandatory as soon as you
- develop commercial activities involving the TTL library without
- disclosing the source code of your own applications.
- .
- This file may be used in accordance with the terms contained in a
- written agreement between you and SINTEF ICT.
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT
+ WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ MERCHANTABILITY, FITNESS FOR A PARTICULAR
+ PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+ SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ CONNECTION WITH THE SOFTWARE OR THE USE OR
+ OTHER DEALINGS IN THE SOFTWARE.
 
-License: BOOST1
- Boost Software License - Version 1.0 - August 17th, 2003
- .
- Permission is hereby granted, free of charge, to any person or organization
- obtaining a copy of the software and accompanying documentation covered by
- this license (the "Software") to use, reproduce, display, distribute,
- execute, and transmit the Software, and to prepare derivative works of the
- Software, and to permit third-parties to whom the Software is furnished to
- do so, all subject to the following:
- .
- The copyright notices in the Software and this entire statement, including
- the above license grant, this restriction and the following disclaimer,
- must be included in all copies of the Software, in whole or in part, and
- all derivative works of the Software, unless such copies or derivative
- works are solely in the form of machine-executable object code generated by
- a source language processor.
- .
- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT
- SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE
- FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
- ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- DEALINGS IN THE SOFTWARE.
+License: GPL-1
+ On Debian systems, the complete text of the GNU General Public
+ License can be found in the file /usr/share/common-licenses/GPL-1'.
 
-License: Poly2Tri
- Redistribution and use in source and binary forms, with or without
- modification, are permitted provided that the following conditions
- are met:
- .
- Redistributions of source code must retain the above copyright
- notice, this list of conditions and the following disclaimer.
- Redistributions in binary form must reproduce the above copyright
- notice, this list of conditions and the following disclaimer in the
- documentation and/or other materials provided with the
- distribution.  Neither the name of Poly2Tri nor the names of its
- contributors may be used to endorse or promote products derived
- from this software without specific prior written permission.
- .
- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+License: GPL-2
+ On Debian systems, the complete text of the GNU General Public
+ License can be found in the file /usr/share/common-licenses/GPL-2'.
 
-License: GLM1
- Permission is hereby granted, free of charge, to any person obtaining a copy
- of this software and associated documentation files (the "Software"), to deal
- in the Software without restriction, including without limitation the rights
- to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- copies of the Software, and to permit persons to whom the Software is
- furnished to do so, subject to the following conditions:
- .
- The above copyright notice and this permission notice shall be included in
- all copies or substantial portions of the Software.
- .
- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- THE SOFTWARE.
+License: GPL-2+
+ On Debian systems, the complete text of the GNU General Public
+ License can be found in the file /usr/share/common-licenses/GPL-2'.
 
-License: BSD1
- Redistribution and use in source and binary forms, with or without
- modification, are permitted provided that the following conditions
- are met:
+License: GPL-3+
+ On Debian systems, the complete text of version 3 of the GNU General
+ Public License can be found in '/usr/share/common-licenses/GPL-3'.
+
+License: WXWINDOWS
+ The wxWindows Library Licence
  .
- 1. Redistributions of source code must retain the above copyright
- notice, this list of conditions and the following disclaimer.
+ Copyright (c) 1998 Julian Smart, Robert Roebling [, ...]
  .
- 2. Redistributions in binary form must reproduce the above copyright
- notice, this list of conditions and the following disclaimer in the
- documentation and/or other materials provided with the distribution.
+ Everyone is permitted to copy and distribute verbatim copies of this licence
+ document, but changing it is not allowed.
  .
- 3. Neither the name of the copyright holder nor the names of its
- contributors may be used to endorse or promote products derived from
- this software without specific prior written permission.
+ WXWINDOWS LIBRARY LICENCE
+ TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
  .
- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
- WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- POSSIBILITY OF SUCH DAMAGE.
+ This library is free software; you can redistribute it and/or modify it under
+ the terms of the GNU Library General Public Licence as published by the Free
+ Software Foundation; either version 2 of the Licence, or (at your option) any
+ later version.
+ .
+ This library is distributed in the hope that it will be useful, but WITHOUT
+ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ FOR A PARTICULAR PURPOSE. See the GNU Library General Public Licence for more
+ details.
+ .
+ You should have received a copy of the GNU Library General Public Licence
+ along with this software, usually in a file named COPYING.LIB. If not, write
+ to the Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
+ MA 02110-1301, USA.
+ .
+ EXCEPTION NOTICE
+ .
+ 1. As a special exception, the copyright holders of this library give
+    permission for additional uses of the text contained in this release of
+    the library as licenced under the wxWindows Library Licence, applying
+    either version 3 of the Licence, or (at your option) any later version of
+    the Licence as published by the copyright holders of version 3 of the
+    Licence document.
+ .
+ 2. The exception is that you may use, copy, link, modify and distribute under
+    the user's own terms, binary object code versions of works based on the
+    Library.
+ .
+ 3. If you copy code from files distributed under the terms of the GNU General
+    Public Licence or the GNU Library General Public Licence into a copy of
+    this library, as this licence permits, the exception does not apply to the
+    code that you add in this way. To avoid misleading anyone as to the status
+    of such modified files, you must delete this exception notice from such
+    code and/or adjust the licensing conditions notice accordingly.
+ .
+ 4. If you write modifications of your own for this library, it is your choice
+    whether to permit this exception to apply to your modifications. If you do
+    not wish that, you must delete the exception notice from such code and/or
+    adjust the licensing conditions notice accordingly.

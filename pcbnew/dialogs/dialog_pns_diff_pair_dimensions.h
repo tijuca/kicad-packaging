@@ -2,6 +2,7 @@
  * KiRouter - a push-and-(sometimes-)shove PCB router
  *
  * Copyright (C) 2014-2015  CERN
+ * Copyright (C) 2016 KiCad Developers, see AUTHORS.txt for contributors.
  * Author: Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -25,28 +26,34 @@
 #ifndef __dialog_diff_pair_dimensions_settings__
 #define __dialog_diff_pair_dimensions_settings__
 
-#include <wx_unit_binder.h>
+#include <widgets/unit_binder.h>
 
 #include "dialog_pns_diff_pair_dimensions_base.h"
 
-class PNS_SIZES_SETTINGS;
+namespace PNS {
+
+class SIZES_SETTINGS;
+
+}
 
 class DIALOG_PNS_DIFF_PAIR_DIMENSIONS : public DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE
 {
 public:
-    DIALOG_PNS_DIFF_PAIR_DIMENSIONS( wxWindow* aParent, PNS_SIZES_SETTINGS& aSizes );
+    DIALOG_PNS_DIFF_PAIR_DIMENSIONS( wxWindow* aParent, PNS::SIZES_SETTINGS& aSizes );
+
+    bool TransferDataFromWindow() override;
+    bool TransferDataToWindow() override;
 
 private:
     void updateCheckbox();
 
-    virtual void OnOkClick( wxCommandEvent& aEvent );
-    virtual void OnViaTraceGapEqualCheck( wxCommandEvent& event );
+    virtual void OnViaTraceGapEqualCheck( wxCommandEvent& event ) override;
 
-    WX_UNIT_BINDER m_traceWidth;
-    WX_UNIT_BINDER m_traceGap;
-    WX_UNIT_BINDER m_viaGap;
+    UNIT_BINDER m_traceWidth;
+    UNIT_BINDER m_traceGap;
+    UNIT_BINDER m_viaGap;
 
-    PNS_SIZES_SETTINGS& m_sizes;
+    PNS::SIZES_SETTINGS& m_sizes;
 };
 
 #endif // __dialog_pns_settings__

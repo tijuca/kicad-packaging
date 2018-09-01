@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2014  Cirilo Bernardo
+ * Copyright (C) 2014-2017  Cirilo Bernardo
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,14 +24,17 @@
 
 #include <iostream>
 #include <iomanip>
-#include <fstream>
 #include <sstream>
 #include <cmath>
 #include <cerrno>
 #include <algorithm>
+#include <utility>
+#include <wx/string.h>
+#include <wx/filename.h>
 
-#include <idf_parser.h>
-#include <idf_helpers.h>
+#include "idf_parser.h"
+#include "idf_helpers.h"
+#include "streamwrapper.h"
 
 using namespace std;
 using namespace IDF3;
@@ -229,7 +232,7 @@ bool IDF3_COMP_OUTLINE_DATA::SetOutline( IDF3_COMP_OUTLINE* aOutline )
 }
 
 
-bool IDF3_COMP_OUTLINE_DATA::readPlaceData( std::ifstream &aBoardFile,
+bool IDF3_COMP_OUTLINE_DATA::readPlaceData( std::istream &aBoardFile,
                                             IDF3::FILE_STATE& aBoardState,
                                             IDF3_BOARD *aBoard,
                                             IDF3::IDF_VERSION aIdfVersion,
@@ -713,9 +716,9 @@ bool IDF3_COMP_OUTLINE_DATA::readPlaceData( std::ifstream &aBoardFile,
 }   // IDF3_COMP_OUTLINE_DATA::readPlaceData
 
 
-void IDF3_COMP_OUTLINE_DATA::writePlaceData( std::ofstream& aBoardFile,
+void IDF3_COMP_OUTLINE_DATA::writePlaceData( std::ostream& aBoardFile,
                                              double aXpos, double aYpos, double aAngle,
-                                             const std::string aRefDes,
+                                             const std::string& aRefDes,
                                              IDF3::IDF_PLACEMENT aPlacement,
                                              IDF3::IDF_LAYER aSide )
 {
@@ -986,7 +989,7 @@ const std::string& IDF3_COMPONENT::GetRefDes( void )
 
 IDF_DRILL_DATA* IDF3_COMPONENT::AddDrill( double aDia, double aXpos, double aYpos,
                                           IDF3::KEY_PLATING aPlating,
-                                          const std::string aHoleType,
+                                          const std::string& aHoleType,
                                           IDF3::KEY_OWNER aOwner )
 {
     IDF_DRILL_DATA* dp = new IDF_DRILL_DATA( aDia, aXpos, aYpos, aPlating,
@@ -1291,7 +1294,7 @@ bool IDF3_COMPONENT::SetPlacement( IDF3::IDF_PLACEMENT aPlacementValue )
     return true;
 }
 
-bool IDF3_COMPONENT::writeDrillData( std::ofstream& aBoardFile )
+bool IDF3_COMPONENT::writeDrillData( std::ostream& aBoardFile )
 {
     if( drills.empty() )
         return true;
@@ -1309,7 +1312,7 @@ bool IDF3_COMPONENT::writeDrillData( std::ofstream& aBoardFile )
 }
 
 
-bool IDF3_COMPONENT::writePlaceData( std::ofstream& aBoardFile )
+bool IDF3_COMPONENT::writePlaceData( std::ostream& aBoardFile )
 {
     if( components.empty() )
         return true;
@@ -1330,7 +1333,6 @@ bool IDF3_COMPONENT::writePlaceData( std::ofstream& aBoardFile )
 IDF3_BOARD::IDF3_BOARD( IDF3::CAD_TYPE aCadType )
 {
     idfVer         = IDF_V3;
-    state          = FILE_START;
     cadType        = aCadType;
     userPrec       = 5;
     userScale      = 1.0;
@@ -1421,7 +1423,7 @@ IDF3::CAD_TYPE IDF3_BOARD::GetCadType( void )
 
 void IDF3_BOARD::SetBoardName( std::string aBoardName )
 {
-    boardName = aBoardName;
+    boardName = std::move(aBoardName);
     return;
 }
 
@@ -1608,7 +1610,7 @@ double IDF3_BOARD::GetBoardThickness( void )
 
 
 // read the DRILLED HOLES section
-void IDF3_BOARD::readBrdDrills( std::ifstream& aBoardFile, IDF3::FILE_STATE& aBoardState )
+void IDF3_BOARD::readBrdDrills( std::istream& aBoardFile, IDF3::FILE_STATE& aBoardState )
 {
     IDF_DRILL_DATA drill;
 
@@ -1631,7 +1633,7 @@ void IDF3_BOARD::readBrdDrills( std::ifstream& aBoardFile, IDF3::FILE_STATE& aBo
 
 
 // read the NOTES section
-void IDF3_BOARD::readBrdNotes( std::ifstream& aBoardFile, IDF3::FILE_STATE& aBoardState )
+void IDF3_BOARD::readBrdNotes( std::istream& aBoardFile, IDF3::FILE_STATE& aBoardState )
 {
     IDF_NOTE note;
 
@@ -1647,7 +1649,7 @@ void IDF3_BOARD::readBrdNotes( std::ifstream& aBoardFile, IDF3::FILE_STATE& aBoa
 
 
 // read the component placement section
-void IDF3_BOARD::readBrdPlacement( std::ifstream& aBoardFile, IDF3::FILE_STATE& aBoardState, bool aNoSubstituteOutlines )
+void IDF3_BOARD::readBrdPlacement( std::istream& aBoardFile, IDF3::FILE_STATE& aBoardState, bool aNoSubstituteOutlines )
 {
     IDF3_COMP_OUTLINE_DATA oldata;
 
@@ -1658,7 +1660,7 @@ void IDF3_BOARD::readBrdPlacement( std::ifstream& aBoardFile, IDF3::FILE_STATE& 
 
 
 // read the board HEADER
-void IDF3_BOARD::readBrdHeader( std::ifstream& aBoardFile, IDF3::FILE_STATE& aBoardState )
+void IDF3_BOARD::readBrdHeader( std::istream& aBoardFile, IDF3::FILE_STATE& aBoardState )
 {
     std::string iline;      // the input line
     bool isComment;         // true if a line just read in is a comment line
@@ -1874,7 +1876,7 @@ void IDF3_BOARD::readBrdHeader( std::ifstream& aBoardFile, IDF3::FILE_STATE& aBo
 
 
 // read individual board sections; pay attention to IDFv3 section specifications
-void IDF3_BOARD::readBrdSection( std::ifstream& aBoardFile, IDF3::FILE_STATE& aBoardState,
+void IDF3_BOARD::readBrdSection( std::istream& aBoardFile, IDF3::FILE_STATE& aBoardState,
                                  bool aNoSubstituteOutlines )
 {
     std::list< std::string > comments;  // comments associated with a section
@@ -2298,15 +2300,13 @@ void IDF3_BOARD::readBrdSection( std::ifstream& aBoardFile, IDF3::FILE_STATE& aB
 // read the board file data
 void IDF3_BOARD::readBoardFile( const std::string& aFileName, bool aNoSubstituteOutlines )
 {
-    std::ifstream brd;
-
-    brd.exceptions ( std::ifstream::badbit );
+    OPEN_ISTREAM( brd, aFileName.c_str() );
 
     try
     {
-        brd.open( aFileName.c_str(), std::ios_base::in | std::ios_base::binary );
+        brd.exceptions ( std::ios_base::badbit );
 
-        if( !brd.is_open() )
+        if( brd.fail() )
         {
             ostringstream ostr;
             ostr << "\n* could not open file: '" << aFileName << "'";
@@ -2314,6 +2314,7 @@ void IDF3_BOARD::readBoardFile( const std::string& aFileName, bool aNoSubstitute
             throw( IDF_ERROR( __FILE__, __FUNCTION__, __LINE__, ostr.str() ) );
         }
 
+        brd.imbue( std::locale( "C" ) );
         std::string iline;      // the input line
         bool isComment;         // true if a line just read in is a comment line
         std::streampos pos;
@@ -2341,12 +2342,11 @@ void IDF3_BOARD::readBoardFile( const std::string& aFileName, bool aNoSubstitute
             // check if we have valid data
             if( brd.eof() && state >= IDF3::FILE_OUTLINE && state < IDF3::FILE_INVALID )
             {
-                brd.close();
+                CLOSE_STREAM( brd );
                 return;
             }
 
-            brd.close();
-
+            CLOSE_STREAM( brd );
             ostringstream ostr;
             ostr << "\n* empty IDF file: '" << aFileName << "'";
 
@@ -2381,23 +2381,20 @@ void IDF3_BOARD::readBoardFile( const std::string& aFileName, bool aNoSubstitute
             }
         }
     }
-    catch( const std::exception& e )
+    catch( const std::exception& )
     {
         brd.exceptions ( std::ios_base::goodbit );
-
-        if( brd.is_open() )
-            brd.close();
-
+        CLOSE_STREAM( brd );
         throw;
     }
 
-    brd.close();
+    CLOSE_STREAM( brd );
     return;
 } // readBoardFile()
 
 
 // read the library sections (outlines)
-void IDF3_BOARD::readLibSection( std::ifstream& aLibFile, IDF3::FILE_STATE& aLibState, IDF3_BOARD* aBoard )
+void IDF3_BOARD::readLibSection( std::istream& aLibFile, IDF3::FILE_STATE& aLibState, IDF3_BOARD* aBoard )
 {
     if( aBoard == NULL )
     {
@@ -2527,7 +2524,7 @@ void IDF3_BOARD::readLibSection( std::ifstream& aLibFile, IDF3::FILE_STATE& aLib
 
 
 // read the library HEADER
-void IDF3_BOARD::readLibHeader( std::ifstream& aLibFile, IDF3::FILE_STATE& aLibState )
+void IDF3_BOARD::readLibHeader( std::istream& aLibFile, IDF3::FILE_STATE& aLibState )
 {
     std::string iline;      // the input line
     bool isComment;         // true if a line just read in is a comment line
@@ -2685,31 +2682,35 @@ void IDF3_BOARD::readLibHeader( std::ifstream& aLibFile, IDF3::FILE_STATE& aLibS
 // read the library file data
 void IDF3_BOARD::readLibFile( const std::string& aFileName )
 {
-    std::ifstream lib;
-
-    lib.exceptions ( std::ifstream::badbit );
+    OPEN_ISTREAM( lib, aFileName.c_str() );
 
     try
     {
-        lib.open( aFileName.c_str(), std::ios_base::in | std::ios_base::binary );
+        lib.exceptions ( std::ios_base::badbit );
 
+        if( lib.fail() )
+        {
+            ostringstream ostr;
+            ostr << "\n* could not open file: '" << aFileName << "'";
+
+            throw( IDF_ERROR( __FILE__, __FUNCTION__, __LINE__, ostr.str() ) );
+        }
+
+        lib.imbue( std::locale( "C" ) );
         IDF3::FILE_STATE state = IDF3::FILE_START;
 
         readLibHeader( lib, state );
 
         while( lib.good() ) readLibSection( lib, state, this );
     }
-    catch( const std::exception& e )
+    catch( const std::exception& )
     {
         lib.exceptions ( std::ios_base::goodbit );
-
-        if( lib.is_open() )
-            lib.close();
-
+        CLOSE_STREAM( lib );
         throw;
     }
 
-    lib.close();
+    CLOSE_STREAM( lib );
     return;
 }
 
@@ -2720,22 +2721,44 @@ bool IDF3_BOARD::ReadFile( const wxString& aFullFileName, bool aNoSubstituteOutl
     // 2. Check if a file with extension 'emp' exists and read it
     // 3. Open the specified filename and read it
 
-    std::string fname = TO_UTF8( aFullFileName );
-
     wxFileName brdname( aFullFileName );
     wxFileName libname( aFullFileName );
+    wxString ext = brdname.GetExt();
+
+    if( !ext.Cmp( "EMN" ) )
+    {
+        libname.SetExt( wxT( "EMP" ) );
+    }
+    else if( !ext.Cmp( "emn" ) )
+    {
+        libname.SetExt( wxT( "emp" ) );
+    }
+    else
+    {
+        ostringstream ostr;
+        ostr << __FILE__ << ": " << __FUNCTION__ << ": " << __LINE__ << "\n";
+        ostr << "* [INFO] invalid file name: '" << aFullFileName.ToUTF8() << "'";
+
+        errormsg = ostr.str();
+    }
+
 
     brdname.SetExt( wxT( "emn" ) );
-    libname.SetExt( wxT( "emp" ) );
 
     std::string bfname = TO_UTF8( aFullFileName );
+
+    if( !wxFileExists( bfname ) )
+    {
+        brdname.SetExt( wxT( "EMN" ) );
+        libname.SetExt( wxT( "EMP" ) );
+    }
 
     try
     {
         if( !brdname.IsOk() )
         {
             ostringstream ostr;
-            ostr << "\n* invalid file name: '" << bfname << "'";
+            ostr << "\n* invalid file name: '" << aFullFileName.ToUTF8() << "'";
 
             throw( IDF_ERROR( __FILE__, __FUNCTION__, __LINE__, ostr.str() ) );
         }
@@ -2743,7 +2766,7 @@ bool IDF3_BOARD::ReadFile( const wxString& aFullFileName, bool aNoSubstituteOutl
         if( !brdname.FileExists() )
         {
             ostringstream ostr;
-            ostr << "\n* no such file: '" << bfname << "'";
+            ostr << "\n* no such file: '" << aFullFileName.ToUTF8() << "'";
 
             throw( IDF_ERROR( __FILE__, __FUNCTION__, __LINE__, ostr.str() ) );
         }
@@ -2798,13 +2821,21 @@ bool IDF3_BOARD::ReadFile( const wxString& aFullFileName, bool aNoSubstituteOutl
 // write the library file data
 bool IDF3_BOARD::writeLibFile( const std::string& aFileName )
 {
-    std::ofstream lib;
-    lib.exceptions( std::ofstream::failbit );
+    OPEN_OSTREAM( lib, aFileName.c_str() );
 
     try
     {
-        lib.open( aFileName.c_str(), std::ios_base::out );
+        lib.exceptions( std::ios_base::failbit );
 
+        if( lib.fail() )
+        {
+            ostringstream ostr;
+            ostr << "\n* could not open file: '" << aFileName << "'";
+
+            throw( IDF_ERROR( __FILE__, __FUNCTION__, __LINE__, ostr.str() ) );
+        }
+
+        lib.imbue( std::locale( "C" ) );
         wxDateTime tdate( time( NULL ) );
 
         if( idfSource.empty() )
@@ -2831,31 +2862,35 @@ bool IDF3_BOARD::writeLibFile( const std::string& aFileName )
         }
 
     }
-    catch( const std::exception& e )
+    catch( const std::exception& )
     {
         lib.exceptions( std::ios_base::goodbit );
-
-        if( lib.is_open() )
-            lib.close();
-
+        CLOSE_STREAM( lib );
         throw;
     }
 
-    lib.close();
-
+    CLOSE_STREAM( lib );
     return true;
 }
 
 // write the board file data
 void IDF3_BOARD::writeBoardFile( const std::string& aFileName )
 {
-    std::ofstream brd;
-    brd.exceptions( std::ofstream::failbit );
+    OPEN_OSTREAM( brd, aFileName.c_str() );
 
     try
     {
-        brd.open( aFileName.c_str(), std::ios_base::out );
+        brd.exceptions( std::ostream::failbit );
 
+        if( brd.fail() )
+        {
+            ostringstream ostr;
+            ostr << "\n* could not open file: '" << aFileName << "'";
+
+            throw( IDF_ERROR( __FILE__, __FUNCTION__, __LINE__, ostr.str() ) );
+        }
+
+        brd.imbue( std::locale( "C" ) );
         wxDateTime tdate( time( NULL ) );
 
         if( idfSource.empty() )
@@ -3098,18 +3133,14 @@ void IDF3_BOARD::writeBoardFile( const std::string& aFileName )
         }
 
     }
-    catch( const std::exception& e )
+    catch( const std::exception& )
     {
         brd.exceptions( std::ios_base::goodbit );
-
-        if( brd.is_open() )
-            brd.close();
-
+        CLOSE_STREAM( brd );
         throw;
     }
 
-    brd.close();
-
+    CLOSE_STREAM( brd );
     return;
 }
 
@@ -3124,8 +3155,6 @@ bool IDF3_BOARD::WriteFile( const wxString& aFullFileName, bool aUnitMM, bool aF
     // 1. Check that the file extension is 'emn'
     // 2. Write the *.emn file according to the IDFv3 spec
     // 3. Write the *.emp file according to the IDFv3 spec
-
-    std::string fname = TO_UTF8( aFullFileName );
 
     wxFileName brdname( aFullFileName );
     wxFileName libname( aFullFileName );
@@ -3377,7 +3406,7 @@ const std::list< IDF_OUTLINE* >*const IDF3_BOARD::GetBoardOutlines( void )
 
 IDF_DRILL_DATA* IDF3_BOARD::AddBoardDrill( double aDia, double aXpos, double aYpos,
                                    IDF3::KEY_PLATING aPlating,
-                                   const std::string aHoleType,
+                                   const std::string& aHoleType,
                                    IDF3::KEY_OWNER aOwner )
 {
     IDF_DRILL_DATA* drill = new IDF_DRILL_DATA( aDia, aXpos, aYpos, aPlating,
@@ -3571,7 +3600,7 @@ bool IDF3_BOARD::AddSlot( double aWidth, double aLength, double aOrientation, do
 
 IDF_DRILL_DATA* IDF3_BOARD::addCompDrill( double aDia, double aXpos, double aYpos,
                                   IDF3::KEY_PLATING aPlating,
-                                  const std::string aHoleType,
+                                  const std::string& aHoleType,
                                   IDF3::KEY_OWNER aOwner,
                                   const std::string& aRefDes )
 {
@@ -3695,7 +3724,7 @@ IDF_DRILL_DATA* IDF3_BOARD::addCompDrill( IDF_DRILL_DATA* aDrilledHole )
 }
 
 
-bool IDF3_BOARD::delCompDrill( double aDia, double aXpos, double aYpos, std::string aRefDes )
+bool IDF3_BOARD::delCompDrill( double aDia, double aXpos, double aYpos, const std::string& aRefDes )
 {
     errormsg.clear();
 
@@ -3803,7 +3832,7 @@ std::map< std::string, IDF3_COMPONENT* >*const IDF3_BOARD::GetComponents( void )
 }
 
 
-IDF3_COMPONENT* IDF3_BOARD::FindComponent( std::string aRefDes )
+IDF3_COMPONENT* IDF3_BOARD::FindComponent( const std::string& aRefDes )
 {
     std::map<std::string, IDF3_COMPONENT*>::iterator it = components.find( aRefDes );
 
@@ -3816,7 +3845,7 @@ IDF3_COMPONENT* IDF3_BOARD::FindComponent( std::string aRefDes )
 
 // returns a pointer to a component outline object or NULL
 // if the object doesn't exist
-IDF3_COMP_OUTLINE* IDF3_BOARD::GetComponentOutline( wxString aFullFileName )
+IDF3_COMP_OUTLINE* IDF3_BOARD::GetComponentOutline( const wxString& aFullFileName )
 {
     std::string fname = TO_UTF8( aFullFileName );
     wxFileName idflib( aFullFileName );
@@ -3869,14 +3898,22 @@ IDF3_COMP_OUTLINE* IDF3_BOARD::GetComponentOutline( wxString aFullFileName )
         return NULL;
     }
 
-    std::ifstream model;
-    model.exceptions ( std::ifstream::badbit );
+    OPEN_ISTREAM( model, fname.c_str() );
 
     try
     {
-        model.open( fname.c_str(), std::ios_base::in | std::ios_base::binary );
+        model.exceptions ( std::ios_base::badbit );
+
+        if( model.fail() )
+        {
+            ostringstream ostr;
+            ostr << "\n* could not open file: '" << fname << "'";
+
+            throw( IDF_ERROR( __FILE__, __FUNCTION__, __LINE__, ostr.str() ) );
+        }
 
 
+        model.imbue( std::locale( "C" ) );
         std::string iline;      // the input line
         bool isComment;         // true if a line just read in is a comment line
         std::streampos pos;
@@ -3919,18 +3956,13 @@ IDF3_COMP_OUTLINE* IDF3_BOARD::GetComponentOutline( wxString aFullFileName )
     catch( const std::exception& e )
     {
         delete cp;
-
         model.exceptions ( std::ios_base::goodbit );
-
-        if( model.is_open() )
-            model.close();
-
+        CLOSE_STREAM( model );
         errormsg = e.what();
-
         return NULL;
     }
 
-    model.close();
+    CLOSE_STREAM( model );
 
     // check the unique ID against the list from library components
     std::list< std::string >::iterator lsts = uidLibList.begin();
@@ -4023,7 +4055,7 @@ IDF3_COMP_OUTLINE* IDF3_BOARD::GetComponentOutline( wxString aFullFileName )
 
 // returns a pointer to the component outline object with the
 // unique ID aComponentID
-IDF3_COMP_OUTLINE* IDF3_BOARD::GetComponentOutline( std::string aComponentID )
+IDF3_COMP_OUTLINE* IDF3_BOARD::GetComponentOutline( const std::string& aComponentID )
 {
     std::map< std::string, IDF3_COMP_OUTLINE*>::iterator its = compOutlines.find( aComponentID );
 
@@ -4271,7 +4303,6 @@ void IDF3_BOARD::Clear( void )
     boardName.clear();
     olnBoard.setThickness( thickness );
 
-    state     = FILE_START;
     unit      = UNIT_MM;
     userScale = 1.0;
     userXoff  = 0.0;

@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2006 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 1992-2015 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,21 +30,13 @@
 #include <common.h>
 #include <gr_basic.h>
 #include <base_struct.h>
+#include <trace_helpers.h>
 #include <sch_item_struct.h>
-#include <class_sch_screen.h>
+#include <sch_screen.h>
 #include <class_drawpanel.h>
-#include <schframe.h>
+#include <sch_edit_frame.h>
 
 #include <general.h>
-
-
-const wxString traceFindItem( wxT( "KicadFindItem" ) );
-
-
-bool sort_schematic_items( const SCH_ITEM* aItem1, const SCH_ITEM* aItem2 )
-{
-    return *aItem1 < *aItem2;
-}
 
 
 /* Constructor and destructor for SCH_ITEM */

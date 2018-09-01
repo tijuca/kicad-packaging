@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Jun  5 2014)
+// C++ code generated with wxFormBuilder (version Apr 19 2018)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_DISPLAY_OPTIONS_BASE_H__
@@ -11,8 +11,6 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
-
 #include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/checkbox.h>
@@ -42,9 +40,9 @@ class DIALOG_FOOTPRINTS_DISPLAY_OPTIONS_BASE : public DIALOG_SHIM
 		wxCheckBox* m_TextDisplayOption;
 		wxCheckBox* m_ShowPadSketch;
 		wxCheckBox* m_ShowPadNum;
-		wxCheckBox* m_IsZoomNoCenter;
-		wxCheckBox* m_IsMiddleButtonPan;
-		wxCheckBox* m_IsMiddleButtonPanLimited;
+		wxCheckBox* m_enableZoomNoCenter;
+		wxCheckBox* m_enableMousewheelPan;
+		wxCheckBox* m_enableAutoPan;
 		wxStaticLine* m_staticline1;
 		wxStdDialogButtonSizer* m_sdbSizer1;
 		wxButton* m_sdbSizer1OK;
@@ -52,7 +50,6 @@ class DIALOG_FOOTPRINTS_DISPLAY_OPTIONS_BASE : public DIALOG_SHIM
 		wxButton* m_sdbSizer1Cancel;
 		
 		// Virtual event handlers, overide them in your derived class
-		virtual void OnMiddleBtnPanEnbl( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnApplyClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnOkClick( wxCommandEvent& event ) { event.Skip(); }
@@ -60,7 +57,7 @@ class DIALOG_FOOTPRINTS_DISPLAY_OPTIONS_BASE : public DIALOG_SHIM
 	
 	public:
 		
-		DIALOG_FOOTPRINTS_DISPLAY_OPTIONS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Display Options"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 425,206 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_FOOTPRINTS_DISPLAY_OPTIONS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Display Options"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_FOOTPRINTS_DISPLAY_OPTIONS_BASE();
 	
 };

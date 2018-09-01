@@ -1,11 +1,8 @@
-/**
- * @file pagelayout_editor/events_functions.cpp
- * @brief page layout editor command event functions.
- */
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2013 CERN
+ * Copyright (C) 2017 KiCad Developers, see AUTHORS.txt for contributors.
  * @author Jean-Pierre Charras, jp.charras at wanadoo.fr
  *
  * This program is free software; you can redistribute it and/or
@@ -26,6 +23,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+/**
+ * @file pagelayout_editor/events_functions.cpp
+ * @brief page layout editor command event functions.
+ */
+
 #include <fctsys.h>
 #include <wx/treectrl.h>
 #include <pgm_base.h>
@@ -39,7 +41,7 @@
 #include <dialog_helpers.h>
 #include <menus_helpers.h>
 #include <worksheet_shape_builder.h>
-#include <class_worksheet_dataitem.h>
+#include <worksheet_dataitem.h>
 #include <design_tree_frame.h>
 #include <properties_frame.h>
 #include <dialog_page_settings.h>
@@ -60,7 +62,6 @@ BEGIN_EVENT_TABLE( PL_EDITOR_FRAME, EDA_DRAW_FRAME )
     EVT_MENU( wxID_SAVE, PL_EDITOR_FRAME::Files_io )
     EVT_MENU( wxID_SAVEAS, PL_EDITOR_FRAME::Files_io )
     EVT_MENU( wxID_FILE, PL_EDITOR_FRAME::Files_io )
-    EVT_MENU( ID_LOAD_DEFAULT_PAGE_LAYOUT, PL_EDITOR_FRAME::Files_io )
     EVT_MENU( ID_APPEND_DESCR_FILE, PL_EDITOR_FRAME::Files_io )
 
     EVT_MENU( ID_GEN_PLOT, PL_EDITOR_FRAME::ToPlotter )
@@ -79,6 +80,7 @@ BEGIN_EVENT_TABLE( PL_EDITOR_FRAME, EDA_DRAW_FRAME )
     // Menu Help
     EVT_MENU( wxID_HELP, EDA_DRAW_FRAME::GetKicadHelp )
     EVT_MENU( wxID_INDEX, EDA_DRAW_FRAME::GetKicadHelp )
+    EVT_MENU( ID_HELP_GET_INVOLVED, EDA_DRAW_FRAME::GetKicadContribute )
     EVT_MENU( wxID_ABOUT, EDA_DRAW_FRAME::GetKicadAbout )
 
     EVT_TOOL( wxID_CUT, PL_EDITOR_FRAME::Process_Special_Functions )
@@ -89,15 +91,23 @@ BEGIN_EVENT_TABLE( PL_EDITOR_FRAME, EDA_DRAW_FRAME )
     EVT_TOOL( ID_SHEET_SET, PL_EDITOR_FRAME::Process_Special_Functions )
     EVT_TOOL( ID_SHOW_REAL_MODE, PL_EDITOR_FRAME::OnSelectTitleBlockDisplayMode )
     EVT_TOOL( ID_SHOW_PL_EDITOR_MODE, PL_EDITOR_FRAME::OnSelectTitleBlockDisplayMode )
+    EVT_TOOL( ID_NO_TOOL_SELECTED, PL_EDITOR_FRAME::Process_Special_Functions )
+    EVT_MENU( ID_MENU_ZOOM_SELECTION, PL_EDITOR_FRAME::Process_Special_Functions )
+    EVT_TOOL( ID_ZOOM_SELECTION, PL_EDITOR_FRAME::Process_Special_Functions )
     EVT_CHOICE( ID_SELECT_COORDINATE_ORIGIN, PL_EDITOR_FRAME::OnSelectCoordOriginCorner)
     EVT_CHOICE( ID_SELECT_PAGE_NUMBER, PL_EDITOR_FRAME::Process_Special_Functions)
 
-    // Vertical toolbar:
+    // the ID_NO_TOOL_SELECTED id TOOL does not existing currently, but the right click
+    // popup menu can generate this event.
     EVT_TOOL( ID_NO_TOOL_SELECTED, PL_EDITOR_FRAME::Process_Special_Functions )
+    EVT_TOOL( ID_POPUP_CANCEL_CURRENT_COMMAND, PL_EDITOR_FRAME::Process_Special_Functions )
 
     EVT_MENU_RANGE( ID_POPUP_START_RANGE, ID_POPUP_END_RANGE,
                     PL_EDITOR_FRAME::Process_Special_Functions )
 
+    EVT_UPDATE_UI( ID_NO_TOOL_SELECTED, PL_EDITOR_FRAME::OnUpdateSelectTool )
+
+    EVT_UPDATE_UI( ID_ZOOM_SELECTION, PL_EDITOR_FRAME::OnUpdateSelectTool )
     EVT_UPDATE_UI( ID_SHOW_REAL_MODE, PL_EDITOR_FRAME::OnUpdateTitleBlockDisplayNormalMode )
     EVT_UPDATE_UI( ID_SHOW_PL_EDITOR_MODE, PL_EDITOR_FRAME::OnUpdateTitleBlockDisplaySpecialMode )
 
@@ -119,7 +129,16 @@ void PL_EDITOR_FRAME::Process_Special_Functions( wxCommandEvent& event )
     switch( id )
     {
     case ID_NO_TOOL_SELECTED:
-        SetToolID( ID_NO_TOOL_SELECTED, m_canvas->GetDefaultCursor(), wxEmptyString );
+        SetNoToolSelected();
+        break;
+
+    case ID_MENU_ZOOM_SELECTION:
+    case ID_ZOOM_SELECTION:
+        // This tool is located on the main toolbar: switch it on or off on click
+        if( GetToolId() != ID_ZOOM_SELECTION )
+            SetToolID( ID_ZOOM_SELECTION, wxCURSOR_MAGNIFIER, _( "Zoom to selection" ) );
+        else
+            SetNoToolSelected();
         break;
 
     case ID_SELECT_PAGE_NUMBER:
@@ -139,6 +158,15 @@ void PL_EDITOR_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_CANCEL_CURRENT_COMMAND:
+        if( m_canvas->IsMouseCaptured() )
+        {
+            m_canvas->EndMouseCapture();
+            SetToolID( GetToolId(), m_canvas->GetCurrentCursor(), wxEmptyString );
+        }
+        else
+        {
+            SetNoToolSelected();
+        }
         break;
 
     case ID_POPUP_DESIGN_TREE_ITEM_DELETE:
@@ -586,4 +614,10 @@ void PL_EDITOR_FRAME::OnUpdateTitleBlockDisplayNormalMode( wxUpdateUIEvent& even
 void PL_EDITOR_FRAME::OnUpdateTitleBlockDisplaySpecialMode( wxUpdateUIEvent& event )
 {
     event.Check( WORKSHEET_DATAITEM::m_SpecialMode == true );
+}
+
+
+void PL_EDITOR_FRAME::OnUpdateSelectTool( wxUpdateUIEvent& aEvent )
+{
+    aEvent.Check( GetToolId() == aEvent.GetId() );
 }

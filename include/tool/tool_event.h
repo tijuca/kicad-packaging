@@ -27,11 +27,12 @@
 
 #include <cstdio>
 #include <deque>
+#include <iterator>
 
 #include <math/vector2d.h>
 #include <cassert>
 
-#include <boost/optional.hpp>
+#include <core/optional.h>
 
 class TOOL_ACTION;
 class TOOL_MANAGER;
@@ -94,13 +95,19 @@ enum TOOL_ACTIONS
     TA_CONTEXT_MENU = TA_CONTEXT_MENU_UPDATE | TA_CONTEXT_MENU_CHOICE | TA_CONTEXT_MENU_CLOSED,
 
     // This event is sent *before* undo/redo command is performed.
-    TA_UNDO_REDO            = 0x20000,
+    TA_UNDO_REDO_PRE        = 0x20000,
 
-    // Tool action (allows to control tools).
-    TA_ACTION               = 0x40000,
+    // This event is sent *after* undo/redo command is performed.
+    TA_UNDO_REDO_POST       = 0x40000,
+
+    // Tool action (allows one to control tools).
+    TA_ACTION               = 0x80000,
 
     // Tool activation event.
-    TA_ACTIVATE             = 0x80000,
+    TA_ACTIVATE             = 0x100000,
+
+    // Model has changed (partial update).
+    TA_MODEL_CHANGE         = 0x200000,
 
     TA_ANY = 0xffffffff
 };
@@ -295,6 +302,16 @@ public:
         return m_actions == TA_ACTIVATE;
     }
 
+    bool IsUndoRedo() const
+    {
+        return m_actions & ( TA_UNDO_REDO_PRE | TA_UNDO_REDO_POST );
+    }
+
+    bool IsMenu() const
+    {
+        return m_actions & TA_CONTEXT_MENU;
+    }
+
     ///> Returns information about key modifiers state (Ctrl, Alt, etc.)
     int Modifier( int aMask = MD_MODIFIER_MASK ) const
     {
@@ -375,12 +392,12 @@ public:
         m_param = (void*) aParam;
     }
 
-    boost::optional<int> GetCommandId() const
+    OPT<int> GetCommandId() const
     {
         return m_commandId;
     }
 
-    boost::optional<std::string> GetCommandStr() const
+    OPT<std::string> GetCommandStr() const
     {
         return m_commandStr;
     }
@@ -441,11 +458,11 @@ private:
     ///> Generic parameter used for passing non-standard data.
     void* m_param;
 
-    boost::optional<int> m_commandId;
-    boost::optional<std::string> m_commandStr;
+    OPT<int> m_commandId;
+    OPT<std::string> m_commandStr;
 };
 
-typedef boost::optional<TOOL_EVENT> OPT_TOOL_EVENT;
+typedef OPT<TOOL_EVENT> OPT_TOOL_EVENT;
 
 /**
  * Class TOOL_EVENT_LIST
@@ -478,13 +495,13 @@ public:
      */
     const std::string Format() const;
 
-    boost::optional<const TOOL_EVENT&> Matches( const TOOL_EVENT& aEvent ) const
+    OPT<const TOOL_EVENT&> Matches( const TOOL_EVENT& aEvent ) const
     {
         for( const_iterator i = m_events.begin(); i != m_events.end(); ++i )
             if( i->Matches( aEvent ) )
                 return *i;
 
-        return boost::optional<const TOOL_EVENT&>();
+        return OPT<const TOOL_EVENT&>();
     }
 
     /**

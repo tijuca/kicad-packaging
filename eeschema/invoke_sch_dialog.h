@@ -3,7 +3,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2013 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2013-2017 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -42,6 +42,7 @@
 
 #include <set>
 #include <vector>
+#include <list>
 
 class wxFrame;
 class wxDialog;
@@ -64,10 +65,6 @@ class SCH_EDIT_FRAME;
  */
 int InvokeDialogRescueEach( SCH_EDIT_FRAME* aCaller, RESCUER& aRescuer, bool aAskShowAgain );
 
-/// Create and show DIALOG_ANNOTATE and return whatever
-/// DIALOG_ANNOTATE::ShowModal() returns.
-int InvokeDialogAnnotate( SCH_EDIT_FRAME* aCaller, wxString message = "" );
-
 /// Create the modeless DIALOG_ERC and show it, return something to
 /// destroy or close it.  The dialog will have ID_DIALOG_ERC from id.h
 wxDialog* InvokeDialogERC( SCH_EDIT_FRAME* aCaller );
@@ -80,18 +77,25 @@ int InvokeDialogPrintUsingPrinter( SCH_EDIT_FRAME* aCaller );
 /// DIALOG_BOM::ShowModal() returns.
 int InvokeDialogCreateBOM( SCH_EDIT_FRAME* aCaller );
 
+/// Update symbol fields
+int InvokeDialogUpdateFields( SCH_EDIT_FRAME* aCaller,
+        const std::list<SCH_COMPONENT*> aComponents, bool aCreateUndoEntry );
+
 /**
  * Function InvokeDialogNetList
  * creates and shows NETLIST_DIALOG and returns whatever
  * NETLIST_DIALOG::ShowModal() returns.
  * @param int - NET_PLUGIN_CHANGE means user added or deleted a plugin,
  *              wxID_OK, or wxID_CANCEL.
-*/
+ */
 #define NET_PLUGIN_CHANGE   1
 int InvokeDialogNetList( SCH_EDIT_FRAME* aCaller );
 
-bool InvokeEeschemaConfig( wxWindow* aParent,
-        wxString* aCallersProjectSpecificLibPaths, wxArrayString* aCallersLibNames );
-
+/**
+ * Run a dialog to modify the LIB_ID of components for instance when a symbol has
+ * moved from a symbol library to another symbol library
+ * @return true if changes are made, false if no change
+ */
+bool InvokeDialogEditComponentsLibId( SCH_EDIT_FRAME* aCaller );
 
 #endif  // INVOKE_SCH_DIALOG_H_

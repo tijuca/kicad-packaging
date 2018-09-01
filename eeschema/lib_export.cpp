@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2008-2016 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 2004-2016 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2016 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2008 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -34,158 +34,158 @@
 #include <confirm.h>
 
 #include <general.h>
-#include <libeditframe.h>
+#include <lib_edit_frame.h>
 #include <class_library.h>
 #include <wildcards_and_files_ext.h>
+#include <eeschema_id.h>
+#include <lib_manager.h>
 
 #include <wx/filename.h>
 
 
-extern int ExportPartId;
-
-
 void LIB_EDIT_FRAME::OnImportPart( wxCommandEvent& event )
 {
+    wxString msg;
     m_lastDrawItem = NULL;
+    wxString libName = getTargetLib();
 
-    wxFileDialog dlg( this, _( "Import Component" ), m_mruPath,
-                      wxEmptyString, SchematicLibraryFileWildcard,
+    if( !m_libMgr->LibraryExists( libName ) )
+    {
+        libName = SelectLibraryFromList();
+
+        if( !m_libMgr->LibraryExists( libName ) )
+            return;
+    }
+
+    wxFileDialog dlg( this, _( "Import Symbol" ), m_mruPath,
+                      wxEmptyString, SchematicLibraryFileWildcard(),
                       wxFD_OPEN | wxFD_FILE_MUST_EXIST );
 
     if( dlg.ShowModal() == wxID_CANCEL )
         return;
 
-    wxFileName  fn = dlg.GetPath();
-
+    wxFileName fn = dlg.GetPath();
     m_mruPath = fn.GetPath();
 
-    std::auto_ptr<PART_LIB> lib;
+    wxArrayString symbols;
+    SCH_PLUGIN::SCH_PLUGIN_RELEASER pi( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_LEGACY ) );
 
+    // TODO dialog to select the part to be imported if there is more than one
     try
     {
-        std::auto_ptr<PART_LIB> new_lib( PART_LIB::LoadLibrary( fn.GetFullPath() ) );
-        lib = new_lib;
+        pi->EnumerateSymbolLib( symbols, fn.GetFullPath() );
     }
     catch( const IO_ERROR& ioe )
     {
-        wxString msg = wxString::Format( _(
-            "Unable to import library '%s'.  Error:\n"
-            "%s" ),
-            GetChars( fn.GetFullPath() )
-            );
-
-        DisplayError( this, msg );
+        msg.Printf( _( "Cannot import symbol library \"%s\"." ), fn.GetFullPath() );
+        DisplayErrorMessage( this, msg, ioe.What() );
         return;
     }
 
-    LIB_ALIAS* entry = lib->GetFirstEntry();
-
-    if( !entry )
+    if( symbols.empty() )
     {
-        wxString msg = wxString::Format( _(
-            "Part library file '%s' is empty." ),
-            GetChars( fn.GetFullPath() )
-            );
+        msg.Printf( _( "Symbol library file \"%s\" is empty." ), fn.GetFullPath() );
         DisplayError( this,  msg );
         return;
     }
 
-    if( LoadOneLibraryPartAux( entry, lib.get() ) )
+    wxString symbolName = symbols[0];
+    LIB_ALIAS* entry = pi->LoadSymbol( fn.GetFullPath(), symbolName );
+
+    if( m_libMgr->PartExists( symbols[0], libName ) )
     {
-        DisplayLibInfos();
-        GetScreen()->ClearUndoRedoList();
-        Zoom_Automatique( false );
+        msg.Printf( _( "Symbol \"%s\" already exists in library \"%s\"." ), symbolName, libName );
+        DisplayError( this,  msg );
+        return;
     }
+
+    m_libMgr->UpdatePart( entry->GetPart(), libName );
+    loadPart( symbolName, libName, 1 );
 }
 
 
 void LIB_EDIT_FRAME::OnExportPart( wxCommandEvent& event )
 {
-    wxString    msg, title;
-    bool        createLib = ( event.GetId() == ExportPartId ) ? false : true;
-
-    LIB_PART*   part = GetCurPart();
+    wxString msg, title;
+    LIB_PART* part = getTargetPart();
 
     if( !part )
     {
-        DisplayError( this, _( "There is no component selected to save." ) );
+        DisplayError( this, _( "There is no symbol selected to save." ) );
         return;
     }
 
-    wxFileName fn = part->GetName().Lower();
+    wxFileName fn;
 
+    fn.SetName( part->GetName().Lower() );
     fn.SetExt( SchematicLibraryFileExtension );
 
-    title = createLib ? _( "New Library" ) : _( "Export Component" );
-
-    wxFileDialog dlg( this, title, m_mruPath, fn.GetFullName(),
-                      SchematicLibraryFileWildcard, wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
+    wxFileDialog dlg( this, _( "Export Symbol" ), m_mruPath, fn.GetFullName(),
+                      SchematicLibraryFileWildcard(), wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
     if( dlg.ShowModal() == wxID_CANCEL )
         return;
 
     fn = dlg.GetPath();
+    fn.MakeAbsolute();
 
-    std::auto_ptr<PART_LIB> temp_lib( new PART_LIB( LIBRARY_TYPE_EESCHEMA, fn.GetFullPath() ) );
+    LIB_PART* old_part = NULL;
 
-    SaveOnePart( temp_lib.get() );
+    SCH_PLUGIN::SCH_PLUGIN_RELEASER pi( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_LEGACY ) );
 
-    bool result = false;
-
-    try
+    if( fn.FileExists() )
     {
-        FILE_OUTPUTFORMATTER    formatter( fn.GetFullPath() );
+        try
+        {
+            LIB_ALIAS* alias = pi->LoadSymbol( fn.GetFullPath(), part->GetName() );
 
-        result = temp_lib.get()->Save( formatter );
+            if( alias )
+                old_part = alias->GetPart();
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            msg.Printf( _( "Error occurred attempting to load symbol library file \"%s\"" ),
+                        fn.GetFullPath() );
+            DisplayErrorMessage( this, msg, ioe.What() );
+            return;
+        }
+
+        if( old_part )
+        {
+            msg.Printf( _( "Symbol \"%s\" already exists. Overwrite it?" ), part->GetName() );
+
+            if( !IsOK( this, msg ) )
+                return;
+        }
     }
-    catch( ... /* IO_ERROR ioe */ )
+
+    if( fn.Exists() && !fn.IsDirWritable() )
     {
-        fn.MakeAbsolute();
-        msg = wxT( "Failed to create component library file " ) + fn.GetFullPath();
+        msg.Printf( _( "Write permissions are required to save library \"%s\"." ), fn.GetFullPath() );
         DisplayError( this, msg );
         return;
     }
 
     try
     {
-        wxFileName              docFileName = fn;
+        if( !fn.FileExists() )
+            pi->CreateSymbolLib( fn.GetFullPath() );
 
-        docFileName.SetExt( DOC_EXT );
-
-        FILE_OUTPUTFORMATTER    formatter( docFileName.GetFullPath() );
-
-        result = temp_lib.get()->SaveDocs( formatter );
+        pi->SaveSymbol( fn.GetFullPath(), new LIB_PART( *part ) );
     }
-    catch( ... /* IO_ERROR ioe */ )
+    catch( const IO_ERROR& ioe )
     {
-        fn.MakeAbsolute();
-        msg = wxT( "Failed to create component library document file " ) + fn.GetFullPath();
-        DisplayError( this, msg );
+        msg = _( "Failed to create symbol library file " ) + fn.GetFullPath();
+        DisplayErrorMessage( this, msg, ioe.What() );
+        msg.Printf( _( "Error creating symbol library \"%s\"" ), fn.GetFullName() );
+        SetStatusText( msg );
         return;
     }
 
-    if( result )
-        m_mruPath = fn.GetPath();
+    m_mruPath = fn.GetPath();
+    m_lastDrawItem = NULL;
+    SetDrawItem( NULL );
 
-    if( result )
-    {
-        if( createLib )
-        {
-            msg.Printf( _( "'%s' - OK" ), GetChars( fn.GetFullPath() ) );
-            DisplayInfoMessage( this, _(
-                "This library will not be available until it is loaded by Eeschema.\n\n"
-                "Modify the Eeschema library configuration if you want to include it"
-                " as part of this project." ) );
-        }
-        else
-        {
-            msg.Printf( _( "'%s' - Export OK" ), GetChars( fn.GetFullPath() ) );
-        }
-    }
-    else    // Error
-    {
-        msg.Printf( _( "Error creating '%s'" ), GetChars( fn.GetFullName() ) );
-    }
-
+    msg.Printf( _( "Symbol \"%s\" saved in library \"%s\"" ), part->GetName(), fn.GetFullPath() );
     SetStatusText( msg );
 }

@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Mar  9 2015)
+// C++ code generated with wxFormBuilder (version Apr 19 2018)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_BOM_BASE_H__
@@ -11,8 +11,6 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
-
 #include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/stattext.h>
@@ -25,6 +23,7 @@ class DIALOG_SHIM;
 #include <wx/sizer.h>
 #include <wx/button.h>
 #include <wx/statline.h>
+#include <wx/checkbox.h>
 #include <wx/dialog.h>
 
 ///////////////////////////////////////////////////////////////////////////
@@ -47,6 +46,7 @@ class DIALOG_BOM_BASE : public DIALOG_SHIM
 		void _wxFB_OnRemovePlugin( wxCommandEvent& event ){ OnRemovePlugin( event ); }
 		void _wxFB_OnEditPlugin( wxCommandEvent& event ){ OnEditPlugin( event ); }
 		void _wxFB_OnCommandLineEdited( wxCommandEvent& event ){ OnCommandLineEdited( event ); }
+		void _wxFB_OnShowConsoleChanged( wxCommandEvent& event ){ OnShowConsoleChanged( event ); }
 		
 	
 	protected:
@@ -73,6 +73,7 @@ class DIALOG_BOM_BASE : public DIALOG_SHIM
 		wxButton* m_buttonEdit;
 		wxStaticText* m_staticTextCmd;
 		wxTextCtrl* m_textCtrlCommand;
+		wxCheckBox* m_checkBoxShowConsole;
 		wxStaticText* m_staticTextInfo;
 		wxTextCtrl* m_Messages;
 		
@@ -86,11 +87,12 @@ class DIALOG_BOM_BASE : public DIALOG_SHIM
 		virtual void OnRemovePlugin( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnEditPlugin( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnCommandLineEdited( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnShowConsoleChanged( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
 		
-		DIALOG_BOM_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Bill of Material"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 409,393 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_BOM_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Bill of Material"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_BOM_BASE();
 	
 };

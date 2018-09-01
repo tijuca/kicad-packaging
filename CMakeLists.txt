@@ -21,6 +21,17 @@
 #  51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #
 
+cmake_minimum_required( VERSION 2.8.12 FATAL_ERROR )
+# because of http://public.kitware.com/Bug/view.php?id=10395
+
+# See https://gitlab.kitware.com/cmake/cmake/issues/15943
+# Remove as soon as 3.1 is minimum required version
+if(POLICY CMP0025)
+  cmake_policy(SET CMP0025 NEW) # CMake 3.0
+endif()
+
+project( kicad )
+
 # Default to CMAKE_BUILD_TYPE = Release unless overridden on command line
 # http://www.cmake.org/pipermail/cmake/2008-September/023808.html
 if( DEFINED CMAKE_BUILD_TYPE )
@@ -29,10 +40,7 @@ else()
     set( CMAKE_BUILD_TYPE Release CACHE STRING "Set to either \"Release\" or \"Debug\"" )
 endif()
 
-project( kicad )
-
-cmake_minimum_required( VERSION 2.8.4 FATAL_ERROR )
-# because of http://public.kitware.com/Bug/view.php?id=10395
+include( GNUInstallDirs )
 
 # Path to local CMake modules.
 set( CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/CMakeModules )
@@ -40,23 +48,10 @@ set( CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/CMakeModules )
 #
 # KiCad build options should be added below.
 #
-# If you add a new build option, please add it's state to the CopyVersionInfoToClipboard()
-# function in common/basicframe.cpp so that build option settings can be included in bug
-# reports.
+# If you add a new build option, please add it's state to the
+# OnCopyVersionInfo() function in common/dialog_about/dialog_about.cpp
+# so that build option settings can be included in bug reports.
 #
-
-# The desire is to migrate designs *away from* case independence, and to create designs which use
-# literally (case specific) interpreted component names.  But for backwards compatibility,
-# you may turn OFF this option if you really must.  (Remember that with KiCad using text
-# data files, typically you would be better off simply doctoring those files into
-# a case literal state with a text editor and move forward into the brave new
-# world of case specificity.  Also, BOM generators may not work properly when you
-# have this option turned OFF, the xml export's referential integrity is broken
-# on library part name.  Hence the default is ON now, as of 29-Jan-2014.
-option( KICAD_KEEPCASE
-    "Use case sensitive string matching for component names (default ON)."
-    ON
-    )
 
 option( USE_WX_GRAPHICS_CONTEXT
     "Use wxGraphicsContext for rendering (default OFF).  Warning, this is experimental" )
@@ -66,35 +61,31 @@ option( USE_WX_OVERLAY
 
 option( KICAD_SCRIPTING
     "Build the Python scripting support inside KiCad binaries (default OFF)."
-    )
+    ON )
 
 option( KICAD_SCRIPTING_MODULES
-    "Build KiCad Python modules that can be used from scripting languages (default OFF)."
-    )
+    "Build native portion of the pcbnew Python module: _pcbnew.{pyd,so} for OS command line use of Python."
+    ON )
 
 option( KICAD_SCRIPTING_WXPYTHON
     "Build wxPython implementation for wx interface building in Python and py.shell (default OFF)."
+    ON )
+
+option( KICAD_SCRIPTING_ACTION_MENU
+    "Build a tools menu with registred python plugins: actions plugins (default OFF)."
     )
 
-option( KICAD_BUILD_STATIC
-    "Build dependencies as static libraries.  OSX only. (default OFF)."
-    )
+option( KICAD_USE_OCE
+    "Build tools and plugins related to OpenCascade Community Edition (default ON)"
+    ON )
 
-option( KICAD_BUILD_DYNAMIC
-    "Build dependencies as shared libraries.  Required for wxPython support.  OXS only. (default OFF)."
-    )
+option( KICAD_USE_OCC
+    "Build tools and plugins related to OpenCascade Technology (overrides KICAD_USE_OCE, default OFF)"
+    OFF )
 
-option( USE_OSX_DEPS_BUILDER
-    "Build dependencies from source instead of dependencies installed on system. OSX only. (default OFF)."
-    )
-
-# WARNING: KiCad developers strongly advise you to build Boost with supplied patches,
-# as it is known to work with KiCad.  Other versions may contain bugs that may result
-# in KiCad errors.
-option( KICAD_SKIP_BOOST
-    "Skip building downloaded Boost library components, use Boost from your system."
-    )
-mark_as_advanced( KICAD_SKIP_BOOST )    # Normal builders should build Boost.
+option( KICAD_INSTALL_DEMOS
+    "Install kicad demos and examples (default ON)"
+    ON )
 
 # when option KICAD_SCRIPTING OR KICAD_SCRIPTING_MODULES is enabled:
 # PYTHON_EXECUTABLE can be defined when invoking cmake
@@ -102,16 +93,54 @@ mark_as_advanced( KICAD_SKIP_BOOST )    # Normal builders should build Boost.
 # when not defined by user, the default is python.exe under Windows and python2 for others
 # python binary file should be is exec path.
 
+# KICAD_SCRIPTING_MODULES requires KICAD_SCRIPTING enable it here if KICAD_SCRIPTING_MODULES is ON
+if ( KICAD_SCRIPTING_MODULES AND NOT KICAD_SCRIPTING )
+    message(STATUS "Changing KICAD_SCRIPTING to ON as needed by KICAD_SCRIPTING_MODULES")
+    set ( KICAD_SCRIPTING ON )
+endif()
+
+# same with KICAD_SCRIPTING_ACTION_MENUS
+if ( KICAD_SCRIPTING_ACTION_MENU AND NOT KICAD_SCRIPTING )
+    message(STATUS "Changing KICAD_SCRIPTING to ON as needed by KICAD_SCRIPTING_ACTION_MENU")
+    set ( KICAD_SCRIPTING ON )
+endif()
+
 option( BUILD_GITHUB_PLUGIN "Build the GITHUB_PLUGIN for pcbnew." ON )
 
+option( KICAD_SPICE "Build Kicad with internal Spice simulator." ON )
+
+# Global setting: exports are explicit
+set( CMAKE_CXX_VISIBILITY_PRESET "hidden" )
+set( CMAKE_VISIBILITY_INLINES_HIDDEN ON )
 
 
-# All CMake downloads go here.  Suggested is up in the source tree, not in the build dir where they
-# would have to be downloaded over and over again.  The default is to choose a directory that is
-# hidden on linux (starts with a '.') because there is a way to exclude this directory when grepping
-# the source tree.
-set( DOWNLOAD_DIR ${PROJECT_SOURCE_DIR}/.downloads-by-cmake
-    CACHE PATH "Location of KiCad downloads, suggested is a dir common to all builds, i.e. global." )
+# Global setting: build everything position independent
+set( CMAKE_POSITION_INDEPENDENT_CODE ON )
+
+
+# Global setting: Use C++11
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+
+# CMP0063: CMake < 3.3 does not handle hidden visibility for static libraries,
+# and 3.3 is backwards compatible when the minimum version is smaller than 3.3.
+if( POLICY CMP0063 )
+    cmake_policy( GET CMP0063 VISIBILITY_POLICY )
+    if( VISIBILITY_POLICY STREQUAL NEW )
+        message( WARNING "Compatibility code for CMake < 3.3 can be removed, search for CMP0063" )
+    else()
+        cmake_policy( SET CMP0063 NEW )
+    endif()
+else()
+    if( CMAKE_CXX_COMPILE_OPTIONS_VISIBILITY AND NOT APPLE )
+        set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_COMPILE_OPTIONS_VISIBILITY}hidden" )
+    endif()
+    if( CMAKE_CXX_COMPILE_OPTIONS_VISIBILITY_INLINES_HIDDEN AND NOT APPLE )
+        set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_COMPILE_OPTIONS_VISIBILITY_INLINES_HIDDEN}" )
+    endif()
+endif()
+
 
 # Add option to add user directories for linker, if any
 LINK_DIRECTORIES( ${LINK_DIRECTORIES_PATH} )
@@ -141,6 +170,89 @@ include( PerformFeatureChecks )
 perform_feature_checks()
 
 
+# Workaround: CMake < 3.1 does not support CMAKE_CXX_STANDARD
+if( NOT CMAKE_MINIMUM_REQUIRED_VERSION VERSION_LESS 3.1 )
+    message( FATAL_ERROR "Remove compatibility code" )
+endif()
+
+if( CMAKE_VERSION VERSION_LESS 3.1 AND ( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" ) )
+    include(CheckCXXCompilerFlag)
+
+    CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
+
+    if(COMPILER_SUPPORTS_CXX11)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+    else()
+        message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
+    endif()
+endif()
+
+
+# Warn about missing override specifiers, if supported
+if( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
+    include(CheckCXXCompilerFlag)
+
+    CHECK_CXX_COMPILER_FLAG("-Wsuggest-override" COMPILER_SUPPORTS_WSUGGEST_OVERRIDE)
+
+    if(COMPILER_SUPPORTS_WSUGGEST_OVERRIDE)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wsuggest-override")
+    endif()
+endif()
+
+
+# Warn about shadowed variables (-Wshadow option), if supported
+# Unfortunately, the swig autogenerated files have a lot of shadowed variables
+# and -Wno-shadow does not exist.
+# Adding -Wshadow can be made only for .cpp files
+#and will be added later in CMakeLists.txt
+if( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
+    include(CheckCXXCompilerFlag)
+
+    CHECK_CXX_COMPILER_FLAG("-Wshadow" COMPILER_SUPPORTS_WSHADOW)
+
+    if( COMPILER_SUPPORTS_WSHADOW )
+        set(WSHADOW_FLAGS "-Wshadow")
+    endif()
+endif()
+
+
+#================================================
+# Provide access to CCACHE
+#================================================
+if (USE_CCACHE)
+  find_program(CCACHE_FOUND ccache)
+  if(CCACHE_FOUND)
+    get_property(RULE_LAUNCH_COMPILE GLOBAL PROPERTY RULE_LAUNCH_COMPILE)
+    set(RULE_LAUNCH_COMPILE "${RULE_LAUNCH_COMPILE} ${CCACHE_FOUND}")
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${RULE_LAUNCH_COMPILE})
+
+    get_property(RULE_LAUNCH_LINK GLOBAL PROPERTY RULE_LAUNCH_LINK)
+    set(RULE_LAUNCH_LINK "${RULE_LAUNCH_LINK} ${CCACHE_FOUND}")
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ${RULE_LAUNCH_LINK})
+
+    message(STATUS "Used ${CCACHE_FOUND} for compilation.")
+  else(CCACHE_FOUND)
+    message(STATUS "CCache was requested but not found.")
+  endif(CCACHE_FOUND)
+endif(USE_CCACHE)
+
+
+#================================================
+# Provide access to CCACHE
+#================================================
+if (USE_DISTCC)
+  find_program(DISTCC_FOUND distcc)
+  if(DISTCC_FOUND)
+    get_property(RULE_LAUNCH_COMPILE GLOBAL PROPERTY RULE_LAUNCH_COMPILE)
+    set(RULE_LAUNCH_COMPILE "${RULE_LAUNCH_COMPILE} ${DISTCC_FOUND}")
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${RULE_LAUNCH_COMPILE})
+    message(STATUS "Using ${DISTCC_FOUND} for distributed build.")
+  else(DISTCC_FOUND)
+    message(INFO "Distcc was requested but not found.")
+  endif(DISTCC_FOUND)
+endif(USE_DISTCC)
+
+
 #================================================
 # Set flags for GCC, or treat llvm as GCC
 #================================================
@@ -162,48 +274,8 @@ if( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
     set( CMAKE_C_FLAGS   "-Wall ${CMAKE_C_FLAGS}" )
     set( CMAKE_CXX_FLAGS "-Wall ${CMAKE_CXX_FLAGS}" )
 
-    # The optimization level is -O1 instead of the usual -O2 level because
-    # boost::polygon has a function (inflate polygon) broken by the -O2 level
-    # with GCC 4.7.0 to 4.7.2 (works fine with  with GCC 4.6 and 4.7.3).
-    # This lower optimization level does not have a significant change on the speed.
-    # See also:
-    #   https://bugs.launchpad.net/kicad/+bug/1056926
-    #   https://svn.boost.org/trac/boost/ticket/7983
-    if( GCC_VERSION VERSION_EQUAL 4.7.0 OR ( GCC_VERSION VERSION_GREATER 4.7.0 AND GCC_VERSION VERSION_LESS 4.7.3 ) )
-        set( CMAKE_C_FLAGS_RELEASE   "-O1" )
-        set( CMAKE_CXX_FLAGS_RELEASE "-O1" )
-    else()
-        set( CMAKE_C_FLAGS_RELEASE   "-O2" )
-        set( CMAKE_CXX_FLAGS_RELEASE "-O2" )
-    endif()
-
     set( CMAKE_C_FLAGS_DEBUG   "-g3 -ggdb3 -DDEBUG" )
     set( CMAKE_CXX_FLAGS_DEBUG "-g3 -ggdb3 -DDEBUG -Wno-deprecated-declarations" )
-
-    set( CMAKE_C_FLAGS_RELEASE   "${CMAKE_C_FLAGS_RELEASE} -DNDEBUG" )
-    set( CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DNDEBUG" )
-
-    if( GXX_HAS_VISIBILITY_FLAG AND NOT APPLE )
-        set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden" )
-    endif()
-
-    if( GXX_HAS_VISIBILITY_INLINES_FLAG AND NOT APPLE )
-        set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden" )
-    endif()
-
-    find_package( OpenMP QUIET )
-
-    if( OPENMP_FOUND )
-        set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}" )
-        set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}" )
-        add_definitions( -DUSE_OPENMP )
-
-        # MinGW does not include the OpenMP link library and FindOpenMP.cmake does not
-        # set it either.  Not sure this is the most elegant solution but it works.
-        if( MINGW )
-            set( OPENMP_LIBRARIES gomp )
-        endif()
-    endif()
 
     if( MINGW )
         set( CMAKE_EXE_LINKER_FLAGS_RELEASE "-s" )
@@ -241,15 +313,6 @@ if( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
         add_definitions(-D__USE_MINGW_ANSI_STDIO=1)
 
     else()
-        # We build DLL/DSOs from static libraries, so create position independent
-        # code for all cases, since we do not have DLL/DSO specific static
-        # libraries. Subdirectories via add_subdirectores() reference this
-        # variable, and it is either set or empty, empty for Windows.
-        set( PIC_FLAG -fPIC )
-
-        set( CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   ${PIC_FLAG}" )
-        set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${PIC_FLAG}" )
-
         if( NOT APPLE )
             # Thou shalt not link vaporware and tell us it's a valid DSO (apple ld doesn't support it)
             set( CMAKE_SHARED_LINKER_FLAGS "${TO_LINKER},--no-undefined" )
@@ -267,40 +330,16 @@ if( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
     endif()
 
     # quiet GCC while in boost
-    if( GCC_VERSION VERSION_GREATER 4.8 OR GCC_VERSION VERSION_EQUAL 4.8 )
+    if( GCC_VERSION VERSION_GREATER 4.8 OR GCC_VERSION VERSION_EQUAL 4.8 OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
         set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-local-typedefs" )
     endif()
     set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-strict-aliasing" )
 
     if( APPLE )
-
-        set( CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -D__ASSERTMACROS__" )
-        set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__ASSERTMACROS__" )
-
-        # Allows .dylib relocation in the future - needed by fixbundle
-        set( CMAKE_LD_FLAGS "${CMAKE_LD_FLAGS} -headerpad_max_install_names")
-
-        if( NOT CMAKE_CXX_COMPILER )
-            EXEC_PROGRAM( wx-config ARGS --cc  OUTPUT_VARIABLE CMAKE_C_COMPILER )
-        endif()
-
-        if( NOT CMAKE_CXX_COMPILER )
-            EXEC_PROGRAM( wx-config ARGS --cxx OUTPUT_VARIABLE CMAKE_CXX_COMPILER )
-        endif()
-
-        # There seems to be no consistent behavior when -mmacosx-min-version is
-        # not specified, so force user to set minimum OSX version to build for
-        if( NOT CMAKE_OSX_DEPLOYMENT_TARGET )
-            message( FATAL_ERROR "Please specify target OS X version using -DCMAKE_OSX_DEPLOYMENT_TARGET=10.x" )
-        endif()
-
+        set( CMAKE_LD_FLAGS "${CMAKE_LD_FLAGS} -headerpad_max_install_names") # needed by fixbundle
     endif()
 
 endif( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
-
-if( KICAD_KEEPCASE )
-    add_definitions( -DKICAD_KEEPCASE )
-endif()
 
 if( USE_WX_OVERLAY OR APPLE )
     add_definitions( -DUSE_WX_OVERLAY )
@@ -318,18 +357,31 @@ if( KICAD_SCRIPTING_WXPYTHON )
     add_definitions( -DKICAD_SCRIPTING_WXPYTHON )
 endif()
 
+if( KICAD_SCRIPTING_ACTION_MENU )
+    add_definitions( -DKICAD_SCRIPTING_ACTION_MENU )
+endif()
+
+if( KICAD_SPICE )
+    add_definitions( -DKICAD_SPICE )
+endif()
+
+if( KICAD_USE_OCE )
+    add_definitions( -DKICAD_USE_OCE )
+endif()
+
+if( KICAD_USE_OCC )
+    add_definitions( -DKICAD_USE_OCC )
+    remove_definitions( -DKICAD_USE_OCE )
+    unset( KICAD_USE_OCE )
+endif()
+
+if( KICAD_USE_CUSTOM_PADS )
+    add_definitions( -DKICAD_USE_CUSTOM_PADS )
+endif()
+
 if( USE_WX_GRAPHICS_CONTEXT OR APPLE )
     add_definitions( -DUSE_WX_GRAPHICS_CONTEXT )
 endif()
-
-
-# By default images in menu items are enabled on all platforms except OSX.
-if( NOT APPLE )
-    set( USE_IMAGES_IN_MENUS ON CACHE BOOL "Enable images in menus" )
-else()
-    set( USE_IMAGES_IN_MENUS OFF CACHE BOOL "Enable images in menus" )
-endif()
-
 
 
 # KIFACE_SUFFIX is the file extension used for top level program modules which
@@ -355,20 +407,33 @@ set( KIFACE_PREFIX  "_" )
 #================================================
 if( NOT APPLE )
     # Everything without leading / is relative to CMAKE_INSTALL_PREFIX.
-    set( KICAD_BIN ${CMAKE_INSTALL_PREFIX}/bin
+    set( KICAD_BIN bin
         CACHE PATH "Location of KiCad binaries." )
+
+    set( KICAD_DATA ${CMAKE_INSTALL_DATADIR}/kicad
+        CACHE PATH "Location of KiCad data files." )
 
     if( WIN32 )
         set( KICAD_PLUGINS ${KICAD_BIN}/scripting/plugins
             CACHE PATH "Location of KiCad plugins." )
+
+        set( KICAD_LIB ${KICAD_BIN}
+            CACHE PATH "Location of KiCad shared objects" )
+
+        set( KICAD_USER_PLUGIN ${KICAD_BIN}/plugins
+            CACHE PATH "Location of KiCad user-loaded plugins" )
     else()
-        set( KICAD_PLUGINS lib/kicad/plugins
+        set( KICAD_PLUGINS ${KICAD_DATA}/plugins
             CACHE PATH "Location of KiCad plugins." )
+
+        set( KICAD_LIB ${CMAKE_INSTALL_LIBDIR}
+            CACHE PATH "Location of KiCad shared objects" )
+
+        set( KICAD_USER_PLUGIN ${CMAKE_INSTALL_LIBDIR}/kicad/plugins
+            CACHE PATH "Location of KiCad user-loaded plugins" )
     endif()
 
-    set( KICAD_DATA share/kicad
-        CACHE PATH "Location of KiCad data files." )
-    set( KICAD_DOCS share/doc/kicad
+    set( KICAD_DOCS ${CMAKE_INSTALL_DATADIR}/doc/kicad
         CACHE PATH "Location of KiCad documentation files." )
     set( KICAD_DEMOS ${KICAD_DATA}/demos
         CACHE PATH "Location of KiCad demo files." )
@@ -391,16 +456,22 @@ else()
     set( OSX_BUNDLE_BUILD_BIN_DIR "${OSX_BUNDLE_BUILD_DIR}/${OSX_BUNDLE_BIN_DIR}" )
     set( OSX_BUNDLE_BUILD_LIB_DIR "${OSX_BUNDLE_BUILD_DIR}/${OSX_BUNDLE_LIB_DIR}" )
     set( OSX_BUNDLE_BUILD_KIFACE_DIR "${OSX_BUNDLE_BUILD_DIR}/${OSX_BUNDLE_KIFACE_DIR}" )
+    set( OSX_BUNDLE_BUILD_PLUGIN_DIR "${OSX_BUNDLE_BUILD_DIR}/${OSX_BUNDLE_KIFACE_DIR}" )
     set( OSX_BUNDLE_INSTALL_DIR "${KICAD_BIN}/${OSX_BUNDLE_MAIN}" )
     set( OSX_BUNDLE_INSTALL_BIN_DIR "${OSX_BUNDLE_INSTALL_DIR}/${OSX_BUNDLE_BIN_DIR}" )
     set( OSX_BUNDLE_INSTALL_LIB_DIR "${OSX_BUNDLE_INSTALL_DIR}/${OSX_BUNDLE_LIB_DIR}" )
     set( OSX_BUNDLE_INSTALL_KIFACE_DIR "${OSX_BUNDLE_INSTALL_DIR}/${OSX_BUNDLE_KIFACE_DIR}" )
+    set( OSX_BUNDLE_INSTALL_PLUGIN_DIR "${OSX_BUNDLE_INSTALL_DIR}/${OSX_BUNDLE_KIFACE_DIR}" )
 
     # everything provided with the application bundle goes into
     # kicad.app/Contents/SharedSupport => accessible via GetDataDir()
     # everything else to the .dmg image
     set( KICAD_DATA ${OSX_BUNDLE_INSTALL_DIR}/${OSX_BUNDLE_SUP_DIR}
         CACHE PATH "Location of KiCad data files." FORCE )
+    set( KICAD_LIB ${OSX_BUNDLE_INSTALL_DIR}/${OSX_BUNDLE_LIB_DIR}
+        CACHE PATH "Location of KiCad shared objects" FORCE )
+    set( KICAD_USER_PLUGIN ${OSX_BUNDLE_INSTALL_PLUGIN_DIR}
+        CACHE PATH "Location of KiCad user-loaded plugins" FORCE )
     set( KICAD_TEMPLATE ${KICAD_DATA}/template
         CACHE PATH "Location of KiCad template files." FORCE )
     set( KICAD_PLUGINS ${KICAD_DATA}/plugins
@@ -409,6 +480,9 @@ else()
         CACHE PATH "Location of KiCad documentation files." FORCE )
     set( KICAD_DEMOS demos
         CACHE PATH "Location of KiCad demo files." FORCE )
+
+    # RPATH setttings for building shared libraries
+    set( CMAKE_MACOSX_RPATH FALSE )
 
     # Override default paths for fixup_bundle
     set( OSX_BUNDLE_OVERRIDE_PATHS "
@@ -425,12 +499,19 @@ else()
 
             set( \${default_embedded_path_var} \"\${path}\" PARENT_SCOPE )
         endfunction(gp_item_default_embedded_path_override)
+
+        # If `BU_CHMOD_BUNDLE_ITEMS` is not set, `install_name_tool` will fail to re-write some
+        # loader paths due to lack of writable permissions if the build dependencies were installed
+        # by brew (or didn't have writable permissions)
+        set ( BU_CHMOD_BUNDLE_ITEMS ON )
         "
         )
 endif()
 
 mark_as_advanced( KICAD_BIN
     KICAD_PLUGINS
+    KICAD_USER_PLUGIN
+    KICAD_LIB
     KICAD_DATA
     KICAD_DOCS
     KICAD_DEMOS
@@ -445,9 +526,28 @@ include( ExternalProject )
 #================================================
 include( CheckFindPackageResult )
 
-##########################
-# Find wxWidgets library #
-##########################
+#
+# Find OpenMP support, optional
+#
+
+find_package( OpenMP )
+
+if( OPENMP_FOUND )
+    set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}" )
+    set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}" )
+    add_definitions( -DUSE_OPENMP )
+
+    # MinGW does not include the OpenMP link library and FindOpenMP.cmake does not
+    # set it either.  Not sure this is the most elegant solution but it works.
+    if( MINGW )
+        set( OPENMP_LIBRARIES gomp )
+    endif()
+endif()
+
+#
+# Find wxWidgets library, required
+#
+
 # Here you can define what libraries of wxWidgets you need for your
 # application. You can figure out what libraries you need here;
 # http://www.wxwidgets.org/manuals/2.8/wx_librarieslist.html
@@ -463,146 +563,56 @@ find_package( wxWidgets 3.0.0 COMPONENTS gl aui adv html core net base xml stc R
 # Include wxWidgets macros.
 include( ${wxWidgets_USE_FILE} )
 
-#######################
-# Find OpenGL library #
-#######################
-find_package( OpenGL QUIET )
-check_find_package_result( OPENGL_FOUND "OpenGL" )
+# Check the toolkit used to build wxWidgets
+execute_process( COMMAND sh -c "${wxWidgets_CONFIG_EXECUTABLE} --query-toolkit"
+    RESULT_VARIABLE wxWidgets_TOOLKIT_RESULT
+    OUTPUT_VARIABLE wxWidgets_TOOLKIT_FOUND
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
 
-# Dick 5-Feb-2014:
-# Marco: We cannot use both ExternalProject_Add() add and find_package()
-# in the same CMake tree and have them both reference the same package:
-# http://stackoverflow.com/questions/6351609/cmake-linking-to-library-downloaded-from-externalproject-add
-# https://www.mail-archive.com/cmake@cmake.org/msg47501.html
-
-# Handle target used to specify if a target needs wx-widgets or other libraries
-# Always defined, empty if no libraries are to be built
-add_custom_target( lib-dependencies )
-
-# Only download and build all dependencies from source on OSX if the user specifically requests
-# it.  Otherwise, respect the developers wishes to use the dependencies already installed on
-# their system
-if( APPLE AND USE_OSX_DEPS_BUILDER )
-
-    # This should be built in all cases, if swig exec is not available
-    # will be impossible also enable SCRIPTING being for PCBNEW required immediately
-
-    include( download_pcre )
-    include( download_swig )
-
-
-    #set(CMAKE_FIND_LIBRARY_SUFFIXES ".a;.so;.dylib;.dll")
-
-    if( KICAD_BUILD_STATIC AND KICAD_BUILD_DYNAMIC )
-        message(FATAL_ERROR "You can't build STATIC and DYNAMIC together")
-    endif()
-
-    if( KICAD_BUILD_STATIC )
-        message(STATUS "KICAD_BUILD_STATIC set")
-        if( KICAD_SCRIPTING OR KICAD_SCRIPTING_WXPYTHON OR KICAD_SCRIPTING_MODULES )
-            message(FATAL_ERROR "KICAD_SCRIPTING* is not supported with KICAD_BUILD_STATIC, please select KICAD_BUILD_DYNAMIC" )
-        endif()
-    endif()
-
-    if( KICAD_BUILD_DYNAMIC )
-        message(STATUS "KICAD_BUILD_DYNAMIC set")
-    endif()
-
-
-    if( KICAD_SCRIPTING OR KICAD_SCRIPTING_WXPYTHON OR KICAD_SCRIPTING_MODULES )
-
-        message(STATUS "Scripting ENABLED")
-        include( download_wxpython )
-
-        set( SWIG_EXECUTABLE  ${SWIG_ROOT}/bin/swig )
-        set( SWIG_INCLUDE     ${SWIG_ROOT}/include )
-        set( PYTHON_DEST ${LIBWXPYTHON_ROOT}/wxPython/lib/python2.6/site-packages )
-
-        if( NOT EXISTS ${SWIG_EXECUTABLE} )
-            set(KICAD_SCRIPTING CACHE OFF FORCE "Disabling KICAD_SCRIPTING")
-            message( STATUS  "KICAD_SCRIPTING Enabled but SWIG not found, please disable and before reenabling execute: make swig")
-            message( FATAL_ERROR "Missing SWIG!")
-        endif()
-        message(STATUS "SWIG_EXECUTABLE: ${SWIG_EXECUTABLE}")
-
-        set( PYTHON_DEST ${LIBWXPYTHON_ROOT}/wxPython/lib/python2.6/site-packages )
-
-        add_dependencies( lib-dependencies libwxpython )
-        add_dependencies( lib-dependencies swig )
-    else()
-        include( download_wxwidgets )
-        add_dependencies( lib-dependencies libwx )
-    endif()
-
-    include( download_libpng )
-    include( download_pkgconfig )
-    set( PKG_CONFIG_EXECUTABLE "${PKGCONFIG_ROOT}/bin/pkg-config" )
-    include( download_glew )
-    set( GLEW_GLEW_LIBRARY "${GLEW_ROOT}/lib/libGLEW.a" )
-    set( GLEW_INCLUDE_DIR  "${GLEW_ROOT}/include" )
-    include( download_pixman )
-    set( PIXMAN_LIBRARY     "${PIXMAN_ROOT}/lib/libpixman-1.a" )
-    include( download_cairo )
-    set( CAIRO_INCLUDE_DIR  "${CAIRO_ROOT}/include/cairo" )
-    set( CAIRO_LIBRARY      "${CAIRO_ROOT}/lib/libcairo.a" )
-
-    add_dependencies( lib-dependencies boost )
-    add_dependencies( lib-dependencies cairo )
-    add_dependencies( lib-dependencies libpng )
-    add_dependencies( lib-dependencies pixman )
-    add_dependencies( lib-dependencies pkgconfig )
-
-    if( KICAD_BUILD_DYNAMIC AND APPLE )
-        add_custom_target( osx_fix_bundles ALL DEPENDS
-            eeschema gerbview kicad pcbnew bitmap2component pcb_calculator pl_editor)
-        add_custom_command(TARGET osx_fix_bundles
-            POST_BUILD COMMAND ${PROJECT_SOURCE_DIR}/scripts/osx_fixbundle.sh ${PROJECT_SOURCE_DIR}
-            COMMENT "Migrating dylibs to bundles")
-    endif()
+if( wxWidgets_TOOLKIT_FOUND STREQUAL "gtk3" )
+    message( WARNING "\nwxWidgets library has been built against GTK3, it causes a lot of problems in KiCad" )
+    add_definitions( -DUSE_WX_GRAPHICS_CONTEXT )
+    add_definitions( -DWXGTK3 )
 endif()
 
-#####################
-# Find GLEW library #
-#####################
+#
+# Find OpenGL library, required
+#
+set( OpenGL_GL_PREFERENCE "GLVND" )     # CMake 3.11+ setting; see 'cmake --help-policy CMP0072'
+find_package( OpenGL REQUIRED )
+
+#
+# Find GLEW library, required
+#
 if( NOT GLEW_FOUND )
-    find_package( GLEW )
+    find_package( GLEW REQUIRED )
     check_find_package_result( GLEW_FOUND "GLEW" )
 endif()
 
-# Find CURL library
-find_package( CURL REQUIRED )
+#
+# Find GLM library, required
+#
+find_package( GLM 0.9.5.1 REQUIRED )
 
+add_definitions( -DGLM_FORCE_CTOR_INIT )
 
-######################
-# Find Cairo library #
-######################
-if( NOT CAIRO_FOUND )
-    find_package( Cairo 1.8.1 QUIET )
-    check_find_package_result( CAIRO_FOUND "Cairo" )
+#
+# Find CURL library, required for github plugin
+#
+if( BUILD_GITHUB_PLUGIN )
+    find_package( CURL REQUIRED )
 endif()
 
-# Download boost and possibly build parts of it
-#################################################
-if( KICAD_SKIP_BOOST )
-    find_package( Boost 1.54.0 REQUIRED COMPONENTS context date_time filesystem iostreams locale
-                                                   program_options regex system thread )
+#
+# Find Cairo library, required
+#
+find_package( Cairo 1.8.8 REQUIRED )
+find_package( Pixman 0.30 REQUIRED )
 
-    if( NOT Boost_FOUND )
-        message( FATAL_ERROR "Boost 1.54+ libraries are required." )
-    endif()
-
-    # Keeps CMake from complaining about undefined boost dependencies even though Boost was
-    # found.  Sigh!!!!!
-    add_custom_target( boost )
-
-    message( WARNING "
-WARNING: You decided to skip building boost library.
-KiCad developers strongly advise you to build the bundled boost library, as it is known to work with KiCad.
-Other versions may contain bugs that may result in KiCad errors." )
-else()
-    add_dependencies( lib-dependencies boost )
-    include( download_boost )
-endif()
+#
+# Find Boost headers, required.
+find_package( Boost 1.54.0 REQUIRED )
 
 # Include MinGW resource compiler.
 include( MinGWResourceCompiler )
@@ -611,6 +621,33 @@ include( MinGWResourceCompiler )
 if( MINGW AND USE_WX_GRAPHICS_CONTEXT )
     find_package( GdiPlus )
     check_find_package_result( GDI_PLUS_FOUND "GDI+" )
+endif()
+
+# Find ngspice library, required for integrated circuit simulator
+if( KICAD_SPICE )
+    find_package( ngspice REQUIRED )
+endif()
+
+# Find OpenCascade Community Edition, required for STEP plugin and tools
+if( KICAD_USE_OCE )
+    set( OCC_LIBRARIES TKBinXCAF TKPCAF TKSTEP TKXDESTEP TKIGES TKXDEIGES )
+
+    find_package( OCE 0.16 REQUIRED ${OCC_LIBRARIES} )
+
+elseif( KICAD_USE_OCC )
+    find_package(OpenCASCADE)
+    if( NOT OCC_FOUND )
+        MESSAGE( FATAL_ERROR "================================================================\n"
+                             " KICAD_USE_OCC=True but OpenCASCADE was no found!\n"
+                             "================================================================\n")
+    endif()
+    if( OCC_VERSION_STRING VERSION_LESS 6.8.0 )
+        MESSAGE( FATAL_ERROR "================================================================\n"
+                             "OpenCASCADE version ${OCC_VERSION_STRING} was found.\n"
+                             "  KiCad requires a minimum version of 6.8.0\n"
+                             "================================================================\n")
+    endif()
+    include_directories( SYSTEM ${OCC_INCLUDE_DIR} )
 endif()
 
 # Assist with header file searching optimization:
@@ -629,13 +666,17 @@ set( INC_BEFORE
 
 set( INC_AFTER
     ${Boost_INCLUDE_DIR}
-    #include <config.h>
     ${CMAKE_BINARY_DIR}
     )
 
 
 # Find Python and other scripting resources
 if( KICAD_SCRIPTING OR KICAD_SCRIPTING_MODULES )
+
+    # SWIG 3.0 or later require for C++11 support.
+    find_package( SWIG 3.0 REQUIRED )
+    include( ${SWIG_USE_FILE} )
+
     # force a python version < 3.0
     set( PythonInterp_FIND_VERSION 2.6 )
     set( PythonLibs_FIND_VERSION 2.6 )
@@ -711,6 +752,31 @@ if( KICAD_SCRIPTING OR KICAD_SCRIPTING_MODULES )
 
         set( WXPYTHON_VERSION ${_wxpy_version} CACHE STRING "wxPython version found." )
         message( STATUS "wxPython version ${_wxpy_version} found." )
+
+
+        # Compare wxPython and wxWidgets toolkits
+        set( _py_cmd "import wx; print(wx.version().split(' ')[1])" )
+
+        # Add user specified Python site package path.
+        if( PYTHON_SITE_PACKAGE_PATH )
+            set( _py_cmd
+                "import sys;sys.path.insert(0, \"${PYTHON_SITE_PACKAGE_PATH}\");${_py_cmd}" )
+        endif()
+
+        execute_process( COMMAND ${PYTHON_EXECUTABLE} -c "${_py_cmd}"
+            RESULT_VARIABLE WXPYTHON_TOOLKIT_RESULT
+            OUTPUT_VARIABLE WXPYTHON_TOOLKIT_FOUND
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+
+        # Check if wxWidgets toolkits match, it is a Linux-only issue
+        if( UNIX AND NOT APPLE AND NOT wxWidgets_TOOLKIT_FOUND STREQUAL WXPYTHON_TOOLKIT_FOUND )
+            message( FATAL_ERROR "\nwxWidgets and wxPython use different toolkits "
+                "(${wxWidgets_TOOLKIT_FOUND} vs ${WXPYTHON_TOOLKIT_FOUND}). "
+                "It will result in a broken build. Please either install wxPython built using "
+                "${wxWidgets_TOOLKIT_FOUND} or add '-DKICAD_SCRIPTING_WXPYTHON=OFF' to cmake "
+                "parameters to disable wxPython support." )
+        endif()
     endif()
 
     #message( STATUS "PYTHON_INCLUDE_DIRS:${PYTHON_INCLUDE_DIRS}" )
@@ -721,22 +787,7 @@ if( KICAD_SCRIPTING OR KICAD_SCRIPTING_MODULES )
     set( INC_AFTER ${INC_AFTER} ${PYTHON_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/scripting )
 
     #message( STATUS "/ INC_AFTER:${INC_AFTER}" )
-
 endif()
-
-if( EXISTS ${CMAKE_SOURCE_DIR}/include/config.h )
-    # This file may exist ( created by an alternate process to the svn test above),
-    # e.g. could be created by a checkout script that produces a source tar file.
-    # This directive means the about box will have the svn date & revision in it,
-    # but the hard coded release date ( program version) will be preserved.
-    add_definitions( -DHAVE_SVN_REVISION )
-endif()
-
-
-#================================================
-# Let CMake look in these directories for nested
-# 'CMakeLists.txt' files to process
-#================================================
 
 if( APPLE )
     # Remove app bundles in ${KICAD_BIN} before installing anything new.
@@ -756,71 +807,10 @@ if( APPLE )
         )
 endif()
 
-############################
-# Binaries ( CMake targets ) #
-############################
-
-add_subdirectory( bitmaps_png )
-add_subdirectory( common )
-add_subdirectory( 3d-viewer )
-add_subdirectory( cvpcb )
-add_subdirectory( eeschema )
-add_subdirectory( gerbview )
-add_subdirectory( lib_dxf )
-add_subdirectory( pcbnew )
-add_subdirectory( polygon )
-add_subdirectory( pagelayout_editor )
-add_subdirectory( potrace )
-add_subdirectory( bitmap2component )
-add_subdirectory( pcb_calculator )
-add_subdirectory( kicad )               # should follow pcbnew, eeschema
-add_subdirectory( tools )
-add_subdirectory( utils )
-add_subdirectory( qa )
-
-#add_subdirectory( new )
-
-
-# Make all libs and executables depend on ExternalProject_Add( boost ),
-# except perhaps bitmap lib.  This allows a multi-threaded build to succeed.
-add_dependencies( pcbnew boost )
-add_dependencies( eeschema boost )
-add_dependencies( cvpcb_kiface boost )
-add_dependencies( gal boost )
-add_dependencies( common boost )
-add_dependencies( pcbcommon boost )
-add_dependencies( 3d-viewer boost )
-add_dependencies( pcad2kicadpcb boost )
-add_dependencies( polygon boost )
-add_dependencies( pl_editor boost )
-add_dependencies( pnsrouter boost )
-
-
-if( KICAD_BUILD_STATIC OR KICAD_BUILD_DYNAMIC )
-    add_dependencies( pcbnew lib-dependencies )
-    add_dependencies( eeschema lib-dependencies )
-    add_dependencies( cvpcb_kiface lib-dependencies )
-    add_dependencies( common lib-dependencies )
-    add_dependencies( gal lib-dependencies )
-    add_dependencies( pcbcommon lib-dependencies )
-    add_dependencies( 3d-viewer lib-dependencies )
-    add_dependencies( pcad2kicadpcb lib-dependencies )
-    add_dependencies( pl_editor lib-dependencies )
-    add_dependencies( pnsrouter lib-dependencies )
-endif()
-
-if( KICAD_BUILD_DYNAMIC )
-endif()
-
-#############
-# Resources #
-#############
-add_subdirectory( demos )
-add_subdirectory( template )
-
 #================================================
 # Doxygen Output
 #================================================
+
 find_package( Doxygen )
 if( DOXYGEN_FOUND )
     add_custom_target( doxygen-docs
@@ -845,6 +835,18 @@ endif()
 configure_file( ${PROJECT_SOURCE_DIR}/CMakeModules/config.h.cmake
     ${CMAKE_BINARY_DIR}/config.h )
 
+###
+# Generate Map file
+###
+if( KICAD_MAKE_LINK_MAPS )
+    # Currently only works on linux/gcc
+    if( UNIX AND NOT APPLE )
+        set( MAKE_LINK_MAPS true )
+    else()
+        set( MAKE_LINK_MAPS false )
+    endif()
+endif()
+
 #================================================
 # "make uninstall" rules
 #================================================
@@ -861,17 +863,14 @@ add_custom_target( uninstall
 # Installation
 #================================================
 
-install( FILES INSTALL.txt
-    DESTINATION ${KICAD_DOCS}
-    COMPONENT resources )
-
 ###
 # Install scripts
 ###
-if( UNIX )
+if( UNIX AND NOT APPLE )
     install( DIRECTORY scripts
         DESTINATION ${KICAD_DOCS}
         COMPONENT resources
+        PATTERN "*.bat" EXCLUDE
         )
 endif()
 
@@ -882,38 +881,37 @@ if( UNIX AND NOT APPLE )
 
     # Set paths
     set( UNIX_MIME_DIR resources/linux/mime )
-    set( UNIX_MIMELNK_FILES ${UNIX_MIME_DIR}/mimelnk )
     set( UNIX_MIME_FILES ${UNIX_MIME_DIR}/mime )
     set( UNIX_ICON_FILES ${UNIX_MIME_DIR}/icons )
     set( UNIX_APPLICATIONS_FILES ${UNIX_MIME_DIR}/applications )
-
-    # Install Mimelnk directory
-    install( DIRECTORY ${UNIX_MIMELNK_FILES}
-        DESTINATION ${CMAKE_INSTALL_PREFIX}/share
-        COMPONENT resources
-        )
+    set( UNIX_APPDATA_FILES resources/linux/appdata )
 
     # Install Mime directory
     install( DIRECTORY ${UNIX_ICON_FILES}
-        DESTINATION ${CMAKE_INSTALL_PREFIX}/share
+        DESTINATION share
         COMPONENT resources
         )
 
     # Install Icons
     install( DIRECTORY ${UNIX_MIME_FILES}
-        DESTINATION ${CMAKE_INSTALL_PREFIX}/share
+        DESTINATION share
         COMPONENT resources
         )
 
     # Install Applications directory (.desktop files)
     install( DIRECTORY ${UNIX_APPLICATIONS_FILES}
-        DESTINATION ${CMAKE_INSTALL_PREFIX}/share
+        DESTINATION share
+        COMPONENT resources
+        )
+
+    # Install AppStream directory (app store entry)
+    install( DIRECTORY ${UNIX_APPDATA_FILES}
+        DESTINATION share
         COMPONENT resources
         )
 endif()
 
 #include( CTest )
-
 
 if( UNIX AND NOT APPLE )
 
@@ -930,3 +928,34 @@ if( UNIX AND NOT APPLE )
     include( CPack )
 
 endif()
+
+#================================================
+# Let CMake look in these directories for nested
+# 'CMakeLists.txt' files to process
+#================================================
+
+# Binaries ( CMake targets )
+add_subdirectory( bitmaps_png )
+add_subdirectory( common )
+add_subdirectory( 3d-viewer )
+add_subdirectory( cvpcb )
+add_subdirectory( eeschema )
+add_subdirectory( gerbview )
+add_subdirectory( lib_dxf )
+add_subdirectory( pcbnew )
+add_subdirectory( polygon )
+add_subdirectory( pagelayout_editor )
+add_subdirectory( potrace )
+add_subdirectory( bitmap2component )
+add_subdirectory( pcb_calculator )
+add_subdirectory( plugins )             # 3D plugins must be built before kicad
+add_subdirectory( kicad )               # should follow pcbnew, eeschema
+add_subdirectory( tools )
+add_subdirectory( utils )
+add_subdirectory( qa )
+
+# Resources
+if ( KICAD_INSTALL_DEMOS )
+add_subdirectory( demos )
+endif ( KICAD_INSTALL_DEMOS )
+add_subdirectory( template )

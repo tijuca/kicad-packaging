@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2013 CERN
- * Copyright (C) 2013 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2013-2016 KiCad Developers, see change_log.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -61,7 +61,7 @@ public:
         m_initial_help( INITIAL_HELP )
     {
         wxString title = wxString::Format(
-                _( "Options for Library '%s'" ), GetChars( aNickname ) );
+                _( "Options for Library \"%s\"" ), GetChars( aNickname ) );
 
         SetTitle( title );
 
@@ -73,7 +73,7 @@ public:
         // Fill the grid with existing aOptions
         string options = TO_UTF8( aOptions );
 
-        PROPERTIES* props = FP_LIB_TABLE::ParseOptions( options );
+        PROPERTIES* props = LIB_TABLE::ParseOptions( options );
 
         if( props )
         {
@@ -192,7 +192,7 @@ private:
             }
         }
 
-        return FP_LIB_TABLE::FormatOptions( &props );
+        return LIB_TABLE::FormatOptions( &props );
     }
 
     void saveColSizes()
@@ -253,7 +253,7 @@ private:
 
     //-----<event handlers>------------------------------------------------------
 
-    void onListBoxItemSelected( wxCommandEvent& event )
+    void onListBoxItemSelected( wxCommandEvent& event ) override
     {
         // change the help text based on the m_listbox selection:
         if( event.IsSelection() )
@@ -274,22 +274,22 @@ private:
         }
     }
 
-    void onListBoxItemDoubleClicked( wxCommandEvent& event )
+    void onListBoxItemDoubleClicked( wxCommandEvent& event ) override
     {
         appendOption();
     }
 
-    void onAppendOption( wxCommandEvent& event )
+    void onAppendOption( wxCommandEvent& event ) override
     {
         appendOption();
     }
 
-    void onAppendRow( wxMouseEvent& event )
+    void onAppendRow( wxMouseEvent& event ) override
     {
         appendRow();
     }
 
-    void onDeleteRow( wxMouseEvent& event )
+    void onDeleteRow( wxMouseEvent& event ) override
     {
         int rowCount = m_grid->GetNumberRows();
         int curRow   = getCursorRow();
@@ -303,7 +303,7 @@ private:
         }
     }
 
-    void onMoveUp( wxMouseEvent& event )
+    void onMoveUp( wxMouseEvent& event ) override
     {
         int curRow = getCursorRow();
         if( curRow >= 1 )
@@ -336,7 +336,7 @@ private:
         }
     }
 
-    void onMoveDown( wxMouseEvent& event )
+    void onMoveDown( wxMouseEvent& event ) override
     {
         int curRow = getCursorRow();
         if( curRow + 1 < m_grid->GetNumberRows() )
@@ -368,17 +368,17 @@ private:
         }
     }
 
-    void onCancelButtonClick( wxCommandEvent& event )
+    void onCancelButtonClick( wxCommandEvent& event ) override
     {
         abort();
     }
 
-    void onCancelCaptionButtonClick( wxCloseEvent& event )
+    void onCancelCaptionButtonClick( wxCloseEvent& event ) override
     {
         abort();
     }
 
-    void onOKButtonClick( wxCommandEvent& event )
+    void onOKButtonClick( wxCommandEvent& event ) override
     {
         saveColSizes();
 

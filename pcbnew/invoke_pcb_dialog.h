@@ -5,7 +5,7 @@
 /* This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2013 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2013-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -54,6 +54,7 @@ class MODULE;
 // Often this is not used in the prototypes, since wxFrame is good enough and would
 // represent maximum information hiding.
 class PCB_BASE_FRAME;
+class PCB_EDIT_FRAME;
 class FOOTPRINT_EDIT_FRAME;
 class FP_LIB_TABLE;
 class BOARD;
@@ -71,24 +72,8 @@ class PCB_PLOT_PARAMS;
  * @return int - bits 0 and 1 tell whether a change was made to the @a aGlobal
  *  and/or the @a aProject table, respectively.  If set, table was modified.
  */
-int InvokePcbLibTableEditor( wxTopLevelWindow* aCaller, FP_LIB_TABLE* aGlobal, FP_LIB_TABLE* aProject );
-
-/**
- * Function InvokeFootprintWizard
- * Runs the footprint library wizard for easy library addition.
- *
- * @param aCaller is the wxTopLevelWindow which is invoking the dialog.
- * @param aGlobal is the common footprint library table file being edited. If aGlobal is NULL, then
- *                  it will not be updated.
- * @param aProject is the project specific footprint library table file being edited. if aProject
- *                  is NULL, then it will not be updated.
- *
- * @return int 0 - no changes
- *             1 - changes in the global table
- *             2 - changes in the project table
- *             3 - changes in both tables
- */
-int InvokeFootprintWizard( wxTopLevelWindow* aParent, FP_LIB_TABLE* aGlobal, FP_LIB_TABLE* aProject );
+int InvokePcbLibTableEditor( wxTopLevelWindow* aCaller, FP_LIB_TABLE* aGlobal,
+                             FP_LIB_TABLE* aProject );
 
 /**
  * Function Invoke3DShapeLibsDownloaderWizard
@@ -97,7 +82,7 @@ int InvokeFootprintWizard( wxTopLevelWindow* aParent, FP_LIB_TABLE* aGlobal, FP_
  *
  * @param aCaller is the wxTopLevelWindow which is invoking the dialog.
  */
-void Invoke3DShapeLibsDownloaderWizard( wxTopLevelWindow* aParent );
+void Invoke3DShapeLibsDownloaderWizard( wxTopLevelWindow* aCaller );
 
 
 /**
@@ -135,11 +120,11 @@ bool InvokeDXFDialogModuleImport( PCB_BASE_FRAME* aCaller, MODULE* aModule );
 /**
  * Function InvokeLayerSetup
  * shows the layer setup dialog
- * @param aCaller is the wxTopLevelWindow which is invoking the dialog.
+ * @param aCaller is the PCB_EDIT_FRAME which is invoking the dialog.
  * @param aBoard is the currently edited board.
  * @return bool - true if user pressed OK (did not abort), else false.
  */
-bool InvokeLayerSetup( wxTopLevelWindow* aCaller, BOARD* aBoard );
+bool InvokeLayerSetup( PCB_EDIT_FRAME* aCaller, BOARD* aBoard );
 
 /**
  * Function InvokeSVGPrint

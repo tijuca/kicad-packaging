@@ -1,6 +1,7 @@
 #!/usr/bin/make -f
 #export DH_VERBOSE=1
 
+export DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/buildflags.mk
@@ -20,6 +21,8 @@ VERSION_EXTRA   = $(shell echo "$(DEB_VERSION)" | cut -d+ -f2-)
 DATE            = $(shell date +'%Y-%m-%d' -d@"$(SOURCE_DATE_EPOCH)")
 export REVDATE := $(shell TZ=UTC date -d@"$(SOURCE_DATE_EPOCH)" +%Y-%m-%d)
 
+PREPROCESS_FILES := $(wildcard debian/*.in)
+
 ASCIIDOCFILES := \
 	doc/src/cvpcb/cvpcb.adoc \
 	doc/src/doc_writing_style_policy/doc_writing_style_policy.adoc \
@@ -35,17 +38,16 @@ ASCIIDOCFILES := \
 	$(NULL)
 
 DEB_KICAD_CMAKE_OPTS := \
-	-DKICAD_SKIP_BOOST=ON \
-	-DCMAKE_INSTALL_PREFIX=/usr \
-	-DCMAKE_CXX_FLAGS="$(CXXFLAGS)" \
-	-DCMAKE_SHARED_LINKER_FLAGS_RELEASE="$(LDFLAGS)" \
 	-DBUILD_GITHUB_PLUGIN=ON \
-	-DKICAD_REPO_NAME=stable \
-	-DKICAD_VERSION_EXTRA="+$(VERSION_EXTRA)" \
-	-DDEFAULT_INSTALL_PATH=/usr \
+	-DCMAKE_CXX_FLAGS="$(CXXFLAGS)" \
+	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DCMAKE_SHARED_LINKER_FLAGS_RELEASE="$(LDFLAGS)" \
 	-DKICAD_SCRIPTING=ON \
+	-DKICAD_SCRIPTING_ACTION_MENU=ON \
 	-DKICAD_SCRIPTING_MODULES=ON \
-	-DKICAD_SCRIPTING_WXPYTHON=ON \
+	-DKICAD_SCRIPTING_WXPYTHON=OFF \
+	-DKICAD_SPICE=OFF \
+	-DKICAD_VERSION_EXTRA="+$(VERSION_EXTRA)" \
 	$(NULL)
 
 DEB_DOC_CMAKE_OPTS := \
@@ -57,26 +59,27 @@ DEB_I18N_CMAKE_OPTS := \
 	-DKICAD_I18N_UNIX_STRICT_PATH=ON \
 	$(NULL)
 
-DEB_LIBRARIES_CMAKE_OPTS := \
-	-DCMAKE_INSTALL_PREFIX=/usr \
-	-DCMAKE_CXX_FLAGS="$(CXXFLAGS)" \
-	-DCMAKE_SHARED_LINKER_FLAGS_RELEASE="$(LDFLAGS)" \
-	$(NULL)
+$(PREPROCESS_FILES:.in=): %: %.in
+	sed -e 's,/@DEB_HOST_MULTIARCH@,$(DEB_HOST_MULTIARCH:%=/%),g' $< > $@
 
 %:
-	dh $@ --with-python2 --parallel
+	dh $@ --with-python2
 
 override_dh_auto_configure:
 	sed -i 's/@REVDATE@/$(REVDATE)/' $(ASCIIDOCFILES)
 	mkdir -p $(DEB_BUILD_DIR)
-	# configuring KiCad application
+	#################################
+	# configuring KiCad application #
+	#################################
 	dh_auto_configure --sourcedirectory=$(CURDIR) --builddirectory=$(DEB_BUILD_DIR) -- $(DEB_KICAD_CMAKE_OPTS)
-	# configuring KiCad documentation
+	###################################
+	# configuring KiCad documentation #
+	###################################
 	dh_auto_configure --sourcedirectory=$(CURDIR)/doc --builddirectory=$(DEB_BUILD_DIR)/doc -- $(DEB_DOC_CMAKE_OPTS)
-	# configuring KiCad i18n files
+	################################
+	# configuring KiCad i18n files #
+	################################
 	dh_auto_configure --sourcedirectory=$(CURDIR)/i18n --builddirectory=$(DEB_BUILD_DIR)/i18n -- $(DEB_I18N_CMAKE_OPTS)
-	# configuring KiCad libraries
-	dh_auto_configure --sourcedirectory=$(CURDIR)/libraries/kicad-library --builddirectory=$(DEB_BUILD_DIR)/libraries -- $(DEB_LIBRARIES_CMAKE_OPTS)
 
 override_dh_auto_build:
 	# The other parts of KiCad like documentation, i18n files and the
@@ -85,17 +88,21 @@ override_dh_auto_build:
 	# here. Only build the KiCad application here.
 	dh_auto_build --sourcedirectory=$(CURDIR) --builddirectory=$(DEB_BUILD_DIR)
 
-override_dh_auto_install:
-	# installing KiCad application
+override_dh_auto_install: $(PREPROCESS_FILES:.in=)
+	################################
+	# installing KiCad application #
+	################################
 	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR) --builddirectory=$(DEB_BUILD_DIR)
-	# building and installing KiCad documentation
+	# Removing a potentially added RUNPATH from the Pcbnew Python library.
+	chrpath --delete $(CURDIR)/debian/tmp/usr/lib/python2.7/dist-packages/_pcbnew.so
+	###############################################
+	# building and installing KiCad documentation #
+	###############################################
 	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/doc --builddirectory=$(DEB_BUILD_DIR)/doc
-	# installing KiCad i18n files
+	###############################
+	# installing KiCad i18n files #
+	###############################
 	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/i18n --builddirectory=$(DEB_BUILD_DIR)/i18n
-	# fix permissions of libraries (if needed) before installing
-	chmod 644 $(CURDIR)/libraries/*/*.kicad_mod
-	# install KiCad libraries
-	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/libraries/kicad-library --builddirectory=$(DEB_BUILD_DIR)/libraries
 	# some tweaks before running the next dh sequencers
 	# fixing icon sizes
 	images=$$(find $(INSTDIR)/usr/share/icons/hicolor/48x48 -name "*.png"); \
@@ -108,8 +115,6 @@ override_dh_auto_install:
 	done
 	# The kicad XPM icon comes with a to high resolution, fixing before install.
 	convert -resize '32x32!' $(CURDIR)/bitmaps_png/icons/icon_kicad.xpm $(CURDIR)/bitmaps_png/icons/kicad.xpm
-	# remove the cvpcb desktop, it's history
-	rm $(INSTDIR)/usr/share/applications/cvpcb.desktop
 
 override_dh_install:
 	dh_install
@@ -117,8 +122,8 @@ override_dh_install:
 
 override_dh_fixperms-arch:
 	dh_fixperms
-	# fixing file permissions for *.py files in kicad-common
-	for i in `find $(CURDIR)/debian/kicad-common/usr -type f -name "*.py"`; do \
+	# fixing file permissions for *.py files in kicad
+	for i in `find $(CURDIR)/debian/kicad/usr -type f -name "*.py"`; do \
 		FOUND_PYTHON=$$(head -n1 $$i | grep python); \
 		if [ "$$FOUND_PYTHON" != "" ]; then \
 			chmod +x $$i; \
@@ -131,3 +136,10 @@ override_dh_strip-arch:
 	dh_strip
 	# strip unneeded symbols from the kicad specific libraries in /usr/lib/kicad/
 	strip --strip-unneeded --remove-section=.comment $(CURDIR)/debian/kicad/usr/lib/kicad/_*.kiface
+
+override_dh_shlibdeps:
+	dh_shlibdeps -a -l $(CURDIR)/debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH) \
+		-Xlibkicad_3dsg \
+		-Xlibs3d_plugin_idf \
+		-Xlibs3d_plugin_vrml \
+		-X_pcbnew.$(DEB_HOST_MULTIARCH)

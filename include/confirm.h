@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2007 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2013 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,9 +28,52 @@
  * @see   common.h
  */
 
-
 #ifndef __INCLUDE__CONFIRM_H__
-#define __INCLUDE__CONFIRM_H__ 1
+#define __INCLUDE__CONFIRM_H__
+
+#include <wx/richmsgdlg.h>
+#include <vector>
+
+class wxCheckBox;
+class wxStaticBitmap;
+
+/**
+ * Helper class to create more flexible dialogs, including 'do not show again' checkbox handling.
+ */
+class KIDIALOG : public wxRichMessageDialog
+{
+public:
+    ///> Dialog type. Selects appropriate icon and default dialog title
+    enum KD_TYPE { KD_NONE, KD_INFO, KD_QUESTION, KD_WARNING, KD_ERROR };
+
+    KIDIALOG( wxWindow* aParent, const wxString& aMessage, const wxString& aCaption, long aStyle = wxOK );
+    KIDIALOG( wxWindow* aParent, const wxString& aMessage, KD_TYPE aType, const wxString& aCaption = "" );
+
+    ///> Shows the 'do not show again' checkbox
+    void DoNotShowCheckbox()
+    {
+        ShowCheckBox( _( "Do not show again" ), false );
+    }
+
+    ///> Checks the 'do not show again' setting for the dialog
+    bool DoNotShowAgain() const;
+    void ForceShowAgain();
+
+    bool Show( bool aShow = true ) override;
+    int ShowModal() override;
+
+protected:
+    ///> Sets the dialog hash value
+    void setHash();
+
+    ///> Unique identifier of the dialog
+    unsigned long m_hash;
+
+    // Helper functions for wxRichMessageDialog constructor
+    static wxString getCaption( KD_TYPE aType, const wxString& aCaption );
+    static long getStyle( KD_TYPE aType );
+};
+
 
 /**
  * Function DisplayExitDialog
@@ -57,12 +100,25 @@ int DisplayExitDialog( wxWindow* aParent, const wxString& aMessage );
 void DisplayError( wxWindow* parent, const wxString& aMessage, int displaytime = 0 );
 
 /**
+ * Function DisplayErrorMessage
+ * displays an error message with \a aMessage
+ *
+ * @param aParent is the parent window
+ * @param aMessage is the message text to display
+ * @param aExtraInfo is extra data that can be optionally displayed in a collapsible pane
+ */
+void DisplayErrorMessage( wxWindow* aParent, const wxString& aMessage, const wxString& aExtraInfo = wxEmptyString );
+
+
+/**
  * Function DisplayInfoMessage
  * displays an informational message box with \a aMessage.
  *
- * @warning Setting \a displaytime does not work.  Do not use it.
+ * @param aParent is the parent window
+ * @param aMessage is the message text to display
+ * @param aExtraInfo is the extra data that can be optionally displayed in a collapsible pane
  */
-void DisplayInfoMessage( wxWindow* parent, const wxString& aMessage, int displaytime = 0 );
+void DisplayInfoMessage( wxWindow* parent, const wxString& aMessage, const wxString& aExtraInfo = wxEmptyString );
 
 /**
  * Function IsOK
@@ -98,13 +154,34 @@ int YesNoCancelDialog( wxWindow*       aParent,
                        const wxString& aCancelButtonText = wxEmptyString );
 
 
-/**
- * Function DisplayHtmlInforMessage
- * displays \a aMessage in HTML format.
- */
-void DisplayHtmlInfoMessage( wxWindow* parent, const wxString& title,
-                             const wxString& aMessage,
-                             const wxSize& size = wxDefaultSize );
 
+/**
+ * Displays a dialog with radioboxes asking the user to select an option.
+ *
+ * @param aParent is the parent window.
+ * @param aTitle is the dialog title.
+ * @param aMessage is a text label displayed in the first row of the dialog.
+ * @param aOptions is a vector of possible options.
+ * @return Index of the selected option or -1 when the dialog has been cancelled.
+ */
+int SelectSingleOption( wxWindow* aParent, const wxString& aTitle, const wxString& aMessage,
+        const wxArrayString& aOptions );
+
+/**
+ * Displays a dialog with checkboxes asking the user to select one or more options.
+ *
+ * @param aParent is the parent window.
+ * @param aTitle is the dialog title.
+ * @param aMessage is a text label displayed in the first row of the dialog.
+ * @param aOptions is a vector of possible options.
+ * @param aDefaultState is the default state for the checkboxes.
+ * @return Pair containing a boolean value equal to true when the selection has been confirmed and
+ *         an integer array containing indices of the selected options.
+ */
+std::pair<bool, wxArrayInt> SelectMultipleOptions( wxWindow* aParent, const wxString& aTitle,
+        const wxString& aMessage, const wxArrayString& aOptions, bool aDefaultState = false );
+
+std::pair<bool, wxArrayInt> SelectMultipleOptions( wxWindow* aParent, const wxString& aTitle,
+        const wxString& aMessage, const std::vector<std::string>& aOptions, bool aDefaultState = false );
 
 #endif /* __INCLUDE__CONFIRM_H__ */

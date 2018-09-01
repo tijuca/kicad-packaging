@@ -32,7 +32,7 @@
 #include <fctsys.h>
 #include <class_drawpanel.h>
 #include <gr_basic.h>
-#include <wxPcbStruct.h>
+#include <pcb_edit_frame.h>
 #include <msgpanel.h>
 
 #include <pcbnew.h>
@@ -74,7 +74,7 @@ void PCB_EDIT_FRAME::Attribut_Track( TRACK* track, wxDC* DC, bool Flag_On )
         return;
 
     m_canvas->CrossHairOff( DC );   // Erase cursor shape
-    Track = GetBoard()->MarkTrace( track, &nb_segm, NULL, NULL, true );
+    Track = GetBoard()->MarkTrace( GetBoard()->m_Track, track, &nb_segm, NULL, NULL, true );
     DrawTraces( m_canvas, DC, Track, nb_segm, GR_OR | GR_HIGHLIGHT );
 
     for( ; (Track != NULL) && (nb_segm > 0); nb_segm-- )
