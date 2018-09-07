@@ -77,7 +77,7 @@ Homepage: http://www.kicad-pcb.org
 Package: kicad
 Architecture: any-amd64 any-i386 arm64 armhf
 Depends:
- python-wxgtk3.0 (>= 3.0.2.0+dfsg-7~),
+ python-wxgtk3.0,
  ${misc:Depends},
  ${python:Depends},
  ${shlibs:Depends},
