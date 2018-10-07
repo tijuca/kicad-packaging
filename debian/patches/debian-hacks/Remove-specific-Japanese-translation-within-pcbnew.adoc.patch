@@ -7,20 +7,19 @@ Pcbnew PDF based documentation.
 We remove this specific source for now so we get at least successful
 packages for kicad-doc-*.
 ---
- doc/src/pcbnew/po/ja.po | 3 ---
- 1 file changed, 3 deletions(-)
+ doc/src/pcbnew/po/ja.po | 2 --
+ 1 file changed, 2 deletions(-)
 
 diff --git a/doc/src/pcbnew/po/ja.po b/doc/src/pcbnew/po/ja.po
-index 60cc711..17ff418 100644
+index 02fa5a7..cb43d58 100644
 --- a/doc/src/pcbnew/po/ja.po
 +++ b/doc/src/pcbnew/po/ja.po
-@@ -5744,9 +5744,6 @@ msgid ""
- "`Page Up`, `Page Down` and `Space bar`). The `Escape` key generally cancels "
- "an operation in progress."
+@@ -2835,8 +2835,6 @@ msgid ""
+ "Keyboard (Function keys `F1`, `F2`, `F3`, `F4`, `Shift`, `Delete`, `+`, `-`, `Page Up`, `Page "
+ "Down` and `Space bar`). The `Escape` key generally cancels an operation in progress."
  msgstr ""
--"キーボード（ファンクションキー `F1`, `F2`, `F3`, `F4`, `Shift`, `Delete`, `"
--"+`, `-`, `Page Up`, `Page Down` 及び `スペース バー`）。`エスケープ` キーは、"
--"一般的に進行中の操作を取り消します。"
+-"キーボード（ファンクションキー `F1`, `F2`, `F3`, `F4`, `Shift`, `Delete`, `+`, `-`, `Page Up`, "
+-"`Page Down` 及び `スペース バー`）。`エスケープ` キーは、一般的に進行中の操作を取り消します。"
  
  #. type: Plain text
  #: pcbnew_general_operations.adoc:27
