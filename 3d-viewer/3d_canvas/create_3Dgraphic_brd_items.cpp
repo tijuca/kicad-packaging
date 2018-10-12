@@ -40,7 +40,7 @@
 #include "../3d_rendering/3d_render_raytracing/accelerators/ccontainer2d.h"
 #include "../3d_rendering/3d_render_raytracing/shapes3D/ccylinder.h"
 #include "../3d_rendering/3d_render_raytracing/shapes3D/clayeritem.h"
-#include <openmp_mutex.h>
+
 #include <class_board.h>
 #include <class_module.h>
 #include <class_pad.h>
@@ -418,27 +418,24 @@ void CINFO3D_VISU::createNewPadWithClearance( const D_PAD* aPad,
                                                 *aPad ) );
 
         // Add the PAD contours
-        // !TODO: check the corners because it cannot add
-        // roundsegments that are in the same start and end position
-        aDstContainer->Add( new CROUNDSEGMENT2D( corners3DU[0],
-                                                 corners3DU[1],
-                                                 aClearanceValue.x * 2.0f * m_biuTo3Dunits,
-                                                 *aPad ) );
-
-        aDstContainer->Add( new CROUNDSEGMENT2D( corners3DU[1],
-                                                 corners3DU[2],
-                                                 aClearanceValue.x * 2.0f * m_biuTo3Dunits,
-                                                 *aPad ) );
-
-        aDstContainer->Add( new CROUNDSEGMENT2D( corners3DU[2],
-                                                 corners3DU[3],
-                                                 aClearanceValue.x * 2.0f * m_biuTo3Dunits,
-                                                 *aPad ) );
-
-        aDstContainer->Add( new CROUNDSEGMENT2D( corners3DU[3],
-                                                 corners3DU[0],
-                                                 aClearanceValue.x * 2.0f * m_biuTo3Dunits,
-                                                 *aPad ) );
+        // Round segments cannot have 0-length elements, so we approximate them
+        // as a small circle
+        for( int i = 1; i <= 4; i++ )
+        {
+            if( Is_segment_a_circle( corners3DU[i - 1], corners3DU[i & 3] ) )
+            {
+                aDstContainer->Add( new CFILLEDCIRCLE2D( corners3DU[i - 1],
+                                        aClearanceValue.x * m_biuTo3Dunits,
+                                        *aPad ) );
+            }
+            else
+            {
+                aDstContainer->Add( new CROUNDSEGMENT2D( corners3DU[i - 1],
+                                                         corners3DU[i & 3],
+                                                         aClearanceValue.x * 2.0f * m_biuTo3Dunits,
+                                                         *aPad ) );
+            }
+        }
     }
     break;
 
@@ -473,27 +470,24 @@ void CINFO3D_VISU::createNewPadWithClearance( const D_PAD* aPad,
                                                 *aPad ) );
 
         // Add the PAD contours
-        // !TODO: check the corners because it cannot add
-        // roundsegments that are in the same start and end position
-        aDstContainer->Add( new CROUNDSEGMENT2D( corners3DU[0],
-                            corners3DU[1],
-                            rounding_radius * 2.0f * m_biuTo3Dunits,
-                            *aPad ) );
-
-        aDstContainer->Add( new CROUNDSEGMENT2D( corners3DU[1],
-                                                 corners3DU[2],
-                                                 rounding_radius * 2.0f * m_biuTo3Dunits,
-                                                 *aPad ) );
-
-        aDstContainer->Add( new CROUNDSEGMENT2D( corners3DU[2],
-                                                 corners3DU[3],
-                                                 rounding_radius * 2.0f * m_biuTo3Dunits,
-                                                 *aPad ) );
-
-        aDstContainer->Add( new CROUNDSEGMENT2D( corners3DU[3],
-                                                 corners3DU[0],
-                                                 rounding_radius * 2.0f * m_biuTo3Dunits,
-                                                 *aPad ) );
+        // Round segments cannot have 0-length elements, so we approximate them
+        // as a small circle
+        for( int i = 1; i <= 4; i++ )
+        {
+            if( Is_segment_a_circle( corners3DU[i - 1], corners3DU[i & 3] ) )
+            {
+                aDstContainer->Add( new CFILLEDCIRCLE2D( corners3DU[i - 1],
+                                        rounding_radius * m_biuTo3Dunits,
+                                        *aPad ) );
+            }
+            else
+            {
+                aDstContainer->Add( new CROUNDSEGMENT2D( corners3DU[i - 1],
+                                        corners3DU[i & 3],
+                                        rounding_radius * 2.0f * m_biuTo3Dunits,
+                                        *aPad ) );
+            }
+        }
     }
     break;
 
@@ -505,10 +499,6 @@ void CINFO3D_VISU::createNewPadWithClearance( const D_PAD* aPad,
 
         if( aClearanceValue.x )
             polyList.Inflate( aClearanceValue.x, 32 );
-
-        // This convert the poly in outline and holes
-        polyList.Simplify( SHAPE_POLY_SET::PM_FAST );
-        polyList.Simplify( SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
 
         // Add the PAD polygon
         Convert_shape_line_polygon_to_triangles( polyList, *aDstContainer, m_biuTo3Dunits, *aPad );
@@ -829,11 +819,8 @@ void CINFO3D_VISU::AddShapeWithClearanceToContainer( const DRAWSEGMENT* aDrawSeg
 
         aDrawSegment->TransformShapeWithClearanceToPolygon( polyList, aClearanceValue,
                                                         segcountforcircle, correctionFactor );
-        // This convert the poly in outline and holes
-        // Note: This two sequencial calls are need in order to get
-        // the triangulation function to work properly.
+
         polyList.Simplify( SHAPE_POLY_SET::PM_FAST );
-        polyList.Simplify( SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
 
         if( polyList.IsEmpty() ) // Just for caution
             break;
@@ -860,23 +847,13 @@ void CINFO3D_VISU::AddSolidAreasShapesToContainer( const ZONE_CONTAINER* aZoneCo
                                                    PCB_LAYER_ID aLayerId )
 {
     // Copy the polys list because we have to simplify it
-    SHAPE_POLY_SET polyList = SHAPE_POLY_SET(aZoneContainer->GetFilledPolysList());
+    SHAPE_POLY_SET polyList = SHAPE_POLY_SET( aZoneContainer->GetFilledPolysList(), true );
 
     // This convert the poly in outline and holes
-
-    // Note: This two sequencial calls are need in order to get
-    // the triangulation function to work properly.
-    polyList.Simplify( SHAPE_POLY_SET::PM_FAST );
-    polyList.Simplify( SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
-
-    if( polyList.IsEmpty() )
-        return;
-
     Convert_shape_line_polygon_to_triangles( polyList,
                                              *aDstContainer,
                                              m_biuTo3Dunits,
                                              *aZoneContainer );
-
 
     // add filled areas outlines, which are drawn with thick lines segments
     // /////////////////////////////////////////////////////////////////////////

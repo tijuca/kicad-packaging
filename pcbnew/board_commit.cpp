@@ -30,6 +30,7 @@
 #include <view/view.h>
 #include <board_commit.h>
 #include <tools/pcb_tool.h>
+#include <tools/pcb_actions.h>
 #include <connectivity_data.h>
 
 #include <functional>
@@ -60,11 +61,12 @@ void BOARD_COMMIT::Push( const wxString& aMessage, bool aCreateUndoEntry, bool a
 {
     // Objects potentially interested in changes:
     PICKED_ITEMS_LIST undoList;
-    KIGFX::VIEW* view = m_toolMgr->GetView();
-    BOARD* board = (BOARD*) m_toolMgr->GetModel();
-    PCB_BASE_FRAME* frame = (PCB_BASE_FRAME*) m_toolMgr->GetEditFrame();
-    auto connectivity = board->GetConnectivity();
-    std::set<EDA_ITEM*> savedModules;
+    KIGFX::VIEW*      view = m_toolMgr->GetView();
+    BOARD*            board = (BOARD*) m_toolMgr->GetModel();
+    PCB_BASE_FRAME*   frame = (PCB_BASE_FRAME*) m_toolMgr->GetEditFrame();
+    auto              connectivity = board->GetConnectivity();
+    std::set<EDA_ITEM*>      savedModules;
+    std::vector<BOARD_ITEM*> itemsToDeselect;
 
     if( Empty() )
         return;
@@ -140,9 +142,7 @@ void BOARD_COMMIT::Push( const wxString& aMessage, bool aCreateUndoEntry, bool a
             case CHT_REMOVE:
             {
                 if( !m_editModules && aCreateUndoEntry )
-                {
                     undoList.PushItem( ITEM_PICKER( boardItem, UR_DELETED ) );
-                }
 
                 switch( boardItem->Type() )
                 {
@@ -207,8 +207,10 @@ void BOARD_COMMIT::Push( const wxString& aMessage, bool aCreateUndoEntry, bool a
                 case PCB_DIMENSION_T:           // a dimension (graphic item)
                 case PCB_TARGET_T:              // a target (graphic item)
                 case PCB_MARKER_T:              // a marker used to show something
-                case PCB_ZONE_T:                // SEG_ZONE items are now deprecated
+                case PCB_SEGZONE_T:                // SEG_ZONE items are now deprecated
                 case PCB_ZONE_AREA_T:
+                    itemsToDeselect.push_back( boardItem );
+
                     view->Remove( boardItem );
 
                     if( !( changeFlags & CHT_DONE ) )
@@ -269,6 +271,12 @@ void BOARD_COMMIT::Push( const wxString& aMessage, bool aCreateUndoEntry, bool a
                 break;
         }
     }
+
+    // Removing an item should trigger the unselect action
+    // but only after all items are removed otherwise we can get
+    // flickering depending on the system
+    if( itemsToDeselect.size() > 0 )
+        m_toolMgr->RunAction( PCB_ACTIONS::unselectItems, true, &itemsToDeselect );
 
     if( !m_editModules && aCreateUndoEntry )
         frame->SaveCopyInUndoList( undoList, UR_UNSPECIFIED );

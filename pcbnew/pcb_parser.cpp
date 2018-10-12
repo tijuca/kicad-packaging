@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 CERN
- * Copyright (C) 2012-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -1370,7 +1370,7 @@ void PCB_PARSER::parseNETCLASS()
 }
 
 
-DRAWSEGMENT* PCB_PARSER::parseDRAWSEGMENT()
+DRAWSEGMENT* PCB_PARSER::parseDRAWSEGMENT( bool aAllowCirclesZeroWidth )
 {
     wxCHECK_MSG( CurTok() == T_gr_arc || CurTok() == T_gr_circle || CurTok() == T_gr_curve ||
                  CurTok() == T_gr_line || CurTok() == T_gr_poly, NULL,
@@ -1530,6 +1530,14 @@ DRAWSEGMENT* PCB_PARSER::parseDRAWSEGMENT()
 
         NeedRIGHT();
     }
+
+    // Only filled polygons may have a zero-line width
+    // This is not permitted in KiCad but some external tools generate invalid
+    // files.
+    // However in custom pad shapes, zero-line width is allowed for filled circles
+    if( segment->GetShape() != S_POLYGON && segment->GetWidth() == 0 &&
+        !( segment->GetShape() == S_CIRCLE && aAllowCirclesZeroWidth ) )
+        segment->SetWidth( Millimeter2iu( DEFAULT_LINE_WIDTH ) );
 
     return segment.release();
 }
@@ -1796,7 +1804,7 @@ MODULE* PCB_PARSER::parseMODULE_unchecked( wxArrayString* aInitialComments )
 
     name = FromUTF8();
 
-    if( !name.IsEmpty() && fpid.Parse( FromUTF8() ) >= 0 )
+    if( !name.IsEmpty() && fpid.Parse( name, LIB_ID::ID_PCB, true ) >= 0 )
     {
         wxString error;
         error.Printf( _( "Invalid footprint ID in\nfile: \"%s\"\nline: %d\noffset: %d" ),
@@ -2282,6 +2290,12 @@ EDGE_MODULE* PCB_PARSER::parseEDGE_MODULE()
         NeedRIGHT();
     }
 
+    // Only filled polygons may have a zero-line width
+    // This is not permitted in KiCad but some external tools generate invalid
+    // files.
+    if( segment->GetShape() != S_POLYGON && segment->GetWidth() == 0 )
+        segment->SetWidth( Millimeter2iu( DEFAULT_LINE_WIDTH ) );
+
     return segment.release();
 }
 
@@ -2564,7 +2578,8 @@ D_PAD* PCB_PARSER::parseD_PAD( MODULE* aParent )
                     break;
 
                 case T_gr_circle:
-                    dummysegm = parseDRAWSEGMENT();
+                    dummysegm = parseDRAWSEGMENT( true );   // Circles with 0 thickness are allowed
+                                                            // ( filled circles )
                     pad->AddPrimitive( dummysegm->GetCenter(), dummysegm->GetRadius(),
                                         dummysegm->GetWidth() );
                     break;

@@ -441,7 +441,7 @@ void LEGACY_PLUGIN::loadAllSections( bool doAppend )
             ReplaceIllegalFileNameChars( &fpName );
 
             if( !fpName.empty() )
-                fpid = LIB_ID( UTF8( fpName ) );
+                fpid.Parse( fpName, LIB_ID::ID_PCB, true );
 
             module->SetFPID( fpid );
 
@@ -491,7 +491,7 @@ void LEGACY_PLUGIN::loadAllSections( bool doAppend )
 
         else if( TESTLINE( "$ZONE" ) )
         {
-            loadTrackList( PCB_ZONE_T );
+            loadTrackList( PCB_SEGZONE_T );
         }
 
         else if( TESTLINE( "$GENERAL" ) )
@@ -2260,7 +2260,7 @@ void LEGACY_PLUGIN::loadTrackList( int aStructType )
         BIU drill   = data ? biuParse( data ) : -1;     // SetDefault() if < 0
 
         // Read the 2nd line to determine the exact type, one of:
-        // PCB_TRACE_T, PCB_VIA_T, or PCB_ZONE_T.  The type field in 2nd line
+        // PCB_TRACE_T, PCB_VIA_T, or PCB_SEGZONE_T.  The type field in 2nd line
         // differentiates between PCB_TRACE_T and PCB_VIA_T.  With virtual
         // functions in use, it is critical to instantiate the PCB_VIA_T
         // exactly.
@@ -2313,7 +2313,7 @@ void LEGACY_PLUGIN::loadTrackList( int aStructType )
             newTrack = new VIA( m_board );
             break;
 
-        case PCB_ZONE_T:     // this is now deprecated, but exist in old boards
+        case PCB_SEGZONE_T:     // this is now deprecated, but exist in old boards
             newTrack = new SEGZONE( m_board );
             break;
         }
@@ -3314,7 +3314,7 @@ void LP_CACHE::LoadModules( LINE_READER* aReader )
             ReplaceIllegalFileNameChars( &footprintName );
 
             // set the footprint name first thing, so exceptions can use name.
-            module->SetFPID( LIB_ID( UTF8( footprintName ) ) );
+            module->SetFPID( LIB_ID( wxEmptyString, footprintName ) );
 
             m_owner->loadMODULE( module.get() );
 
@@ -3369,7 +3369,7 @@ void LP_CACHE::LoadModules( LINE_READER* aReader )
                     {
                         nameOK = true;
 
-                        m->SetFPID( LIB_ID( UTF8( newName ) ) );
+                        m->SetFPID( LIB_ID( wxEmptyString, newName ) );
                         std::pair<MODULE_ITER, bool> r = m_modules.insert( newName, m );
 
                         wxASSERT_MSG( r.second, wxT( "error doing cache insert using guaranteed unique name" ) );

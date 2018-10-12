@@ -56,8 +56,12 @@ int PCB_EDIT_FRAME::SelectHighLight( wxDC* DC )
 
     // optionally, modify the "guide" here as needed using its member functions
 
-    m_Collector->Collect( GetBoard(), GENERAL_COLLECTOR::PadsTracksOrZones,
+    m_Collector->Collect( GetBoard(), GENERAL_COLLECTOR::PadsOrTracks,
                           RefPos( true ), guide );
+
+    if( m_Collector->GetCount() == 0 )
+        m_Collector->Collect( GetBoard(), GENERAL_COLLECTOR::Zones,
+                              RefPos( true ), guide );
 
     BOARD_ITEM* item = (*m_Collector)[0];
 
@@ -72,7 +76,7 @@ int PCB_EDIT_FRAME::SelectHighLight( wxDC* DC )
 
         case PCB_TRACE_T:
         case PCB_VIA_T:
-        case PCB_ZONE_T:
+        case PCB_SEGZONE_T:
             // since these classes are all derived from TRACK, use a common
             // GetNet() function:
             netcode = ( (TRACK*) item )->GetNetCode();

@@ -258,10 +258,15 @@ void RESCUE_CACHE_CANDIDATE::FindRescues( RESCUER& aRescuer,
 
             // Test whether there is a conflict or if the symbol can only be found in the cache
             // and the symbol name does not have any illegal characters.
-            if( ( ( cache_match && lib_match
-                  && !cache_match->PinsConflictWith( *lib_match, true, true, true, true, false ) )
-                || (!cache_match && lib_match ) ) && !LIB_ID::HasIllegalChars( part_name, LIB_ID::ID_SCH ) )
-                continue;
+            if( LIB_ID::HasIllegalChars( part_name, LIB_ID::ID_SCH ) == -1 )
+            {
+                if( cache_match && lib_match &&
+                    !cache_match->PinsConflictWith( *lib_match, true, true, true, true, false ) )
+                    continue;
+
+                if( !cache_match && lib_match )
+                    continue;
+            }
 
             // Check if the symbol has already been rescued.
             wxString new_name = LIB_ID::FixIllegalChars( part_name, LIB_ID::ID_SCH );
@@ -333,7 +338,7 @@ RESCUE_SYMBOL_LIB_TABLE_CANDIDATE::RESCUE_SYMBOL_LIB_TABLE_CANDIDATE(
     LIB_PART* aLibCandidate ) : RESCUE_CANDIDATE()
 {
     m_requested_id = aRequestedId;
-    m_requested_name = aRequestedId.GetLibItemName();
+    m_requested_name = aRequestedId.Format();
     m_new_id = aNewId;
     m_lib_candidate = aLibCandidate;
     m_cache_candidate = aCacheCandidate;
@@ -379,12 +384,14 @@ void RESCUE_SYMBOL_LIB_TABLE_CANDIDATE::FindRescues(
                 continue;
 
             // Test whether there is a conflict or if the symbol can only be found in the cache.
-            if( ( ( cache_match && lib_match
-                    && !cache_match->PinsConflictWith( *lib_match, true, true, true, true, false ) )
-                  || (!cache_match && lib_match ) )
-                && !LIB_ID::HasIllegalChars( part_id.GetLibItemName(), LIB_ID::ID_SCH ) )
+            if( LIB_ID::HasIllegalChars( part_id.GetLibItemName(), LIB_ID::ID_SCH ) == -1 )
             {
-                continue;
+                if( cache_match && lib_match &&
+                    !cache_match->PinsConflictWith( *lib_match, true, true, true, true, false ) )
+                    continue;
+
+                if( !cache_match && lib_match )
+                    continue;
             }
 
             // Fix illegal LIB_ID name characters.

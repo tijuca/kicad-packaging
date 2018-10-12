@@ -1363,13 +1363,17 @@ SCH_TEXT* SCH_LEGACY_PLUGIN::loadText( FILE_LINE_READER& aReader )
 
     int thickness = 0;
 
-    // The following tokens do not exist in version 1 schematic files.
+    // The following tokens do not exist in version 1 schematic files,
+    // and not always in version 2 for HLabels and GLabels
     if( m_version > 1 )
     {
-        if( strCompare( "Italic", line, &line ) )
-            text->SetItalic( true );
-        else if( !strCompare( "~", line, &line ) )
-            SCH_PARSE_ERROR( _( "expected 'Italics' or '~'" ), aReader, line );
+        if( m_version > 2 || *line >= ' ' )
+        {
+            if( strCompare( "Italic", line, &line ) )
+                text->SetItalic( true );
+            else if( !strCompare( "~", line, &line ) )
+                SCH_PARSE_ERROR( _( "expected 'Italics' or '~'" ), aReader, line );
+        }
 
         // The thickness token does not exist in older versions of the schematic file format
         // so calling parseInt will be made only if the EOL is not reached.
@@ -1428,7 +1432,7 @@ SCH_COMPONENT* SCH_LEGACY_PLUGIN::loadComponent( FILE_LINE_READER& aReader )
             // parsing the symbol name with LIB_ID::Parse() would break symbol library links
             // that contained '/' and ':' characters.
             if( m_version > 3 )
-                libId.Parse( libName );
+                libId.Parse( libName, LIB_ID::ID_SCH, true );
             else
                 libId.SetLibItemName( libName, false );
 
@@ -2417,7 +2421,7 @@ void SCH_LEGACY_PLUGIN_CACHE::loadDocs()
             SCH_PARSE_ERROR( "$CMP command expected", reader, line );
 
         parseUnquotedString( aliasName, reader, line, &line );    // Alias name.
-        LIB_ID::FixIllegalChars( aliasName, LIB_ID::ID_ALIAS );
+        aliasName = LIB_ID::FixIllegalChars( aliasName, LIB_ID::ID_SCH );
         LIB_ALIAS_MAP::iterator it = m_aliases.find( aliasName );
 
         if( it == m_aliases.end() )

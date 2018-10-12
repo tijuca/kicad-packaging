@@ -88,8 +88,9 @@ public:
     virtual ~CAIRO_GAL();
 
     ///> @copydoc GAL::IsVisible()
-    bool IsVisible() const override {
-        return IsShownOnScreen();
+    bool IsVisible() const override
+    {
+        return IsShownOnScreen() && !GetClientRect().IsEmpty();
     }
 
     // ---------------
@@ -135,6 +136,9 @@ public:
     /// @copydoc GAL::DrawCurve()
     virtual void DrawCurve( const VECTOR2D& startPoint, const VECTOR2D& controlPointA,
                             const VECTOR2D& controlPointB, const VECTOR2D& endPoint ) override;
+
+    /// @copydoc GAL::DrawBitmap()
+    virtual void DrawBitmap( const BITMAP_BASE& aBitmap ) override;
 
     // --------------
     // Screen methods
