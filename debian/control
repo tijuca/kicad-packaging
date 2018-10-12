@@ -117,6 +117,7 @@ Description: Electronic schematic and PCB design software
 
 Package: kicad-common
 Architecture: all
+Multi-Arch: foreign
 Section: oldlibs
 Depends:
  kicad-libraries,
