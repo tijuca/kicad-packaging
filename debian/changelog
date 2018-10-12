@@ -1,3 +1,21 @@
+kicad (5.0.1+dfsg1-1) unstable; urgency=medium
+
+  [ Aurelien Jarno ]
+  * [281d1ac] d/kicad.install.in: add kicad2step (Closes: #909136)
+
+  [ Carsten Schoenert ]
+  * [62e6675] New upstream version 5.0.1+dfsg1
+    (Closes: #909282)
+  * [184212a] rebuild patch queue from patch-queue branch
+    + removed patches (fixed upstream):
+      fixes/Adjust-RTree-default-floating-point-to-use-double.patch
+  * [0204625] d/control: increase Standards-Version to 4.2.1
+    + No further changes needed.
+  * [572f318] d/control: mark kicad-common as Multi-Arch: foreign
+  * [80e5a1d] d/copyright: small adjustment due upstream change
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Fri, 12 Oct 2018 18:46:55 +0200
+
 kicad (5.0.0+dfsg1-2) unstable; urgency=medium
 
   * [93df210] d/copyright: add info about appdata.xml
