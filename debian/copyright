@@ -59,11 +59,6 @@ Copyright: 2015, 2016, Mario Luzeiro <mrluzeiro@ua.pt>
  1992-2016, KiCad Developers, see AUTHORS.txt for contributors.
 License: BSD-2-clause or GPL-2+
 
-Files: 3d-viewer/3d_rendering/3d_render_raytracing/shapes2D/edgeshrink.cpp
-Copyright: 2016, Mario Luzeiro <mrluzeiro@ua.pt>
- 1992-2016, KiCad Developers, see AUTHORS.txt for contributors.
-License: Expat or GPL-2+
-
 Files: 3d-viewer/3d_rendering/trackball.cpp
  3d-viewer/3d_rendering/trackball.h
 Copyright: 1993, 1994, Silicon Graphics, Inc.
@@ -3517,10 +3512,6 @@ Files: polygon/clipper.cpp
  polygon/clipper.hpp
 Copyright: 2010-2017, Angus Johnson
 License: BSL-1.0
-
-Files: polygon/poly2tri/*
-Copyright: 2009, 2010, Poly2Tri Contributors
-License: BSD-3-clause
 
 Files: potrace/*
 Copyright: 2001-2017, Peter Selinger.
