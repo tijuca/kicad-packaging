@@ -120,6 +120,7 @@ DIALOG_EXPORT_STEP::DIALOG_EXPORT_STEP( PCB_EDIT_FRAME* aParent, const wxString&
     m_boardPath = aBoardPath;
     m_config = Kiface().KifaceSettings();
     m_sdbSizerCancel->SetLabel( _( "Close" ) );
+    m_sdbSizerOK->SetLabel( _( "Export" ) );
     m_sdbSizer->Layout();
 
     // Build default output file name
@@ -298,7 +299,7 @@ void DIALOG_EXPORT_STEP::onExportButton( wxCommandEvent& aEvent )
             }
 
             LOCALE_IO dummy;
-            cmdK2S.Append( wxString::Format( " --user-origin %.6fx%.6f", xOrg, yOrg ) );
+            cmdK2S.Append( wxString::Format( " --user-origin=\"%.6f x %.6f\"", xOrg, yOrg ) );
         }
             break;
 
@@ -308,7 +309,7 @@ void DIALOG_EXPORT_STEP::onExportButton( wxCommandEvent& aEvent )
             xOrg = Iu2Millimeter( bbox.GetCenter().x );
             yOrg = Iu2Millimeter( bbox.GetCenter().y );
             LOCALE_IO dummy;
-            cmdK2S.Append( wxString::Format( " --user-origin %.6fx%.6f", xOrg, yOrg ) );
+            cmdK2S.Append( wxString::Format( " --user-origin=\"%.6f x %.6f\"", xOrg, yOrg ) );
         }
             break;
     }

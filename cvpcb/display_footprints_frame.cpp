@@ -87,6 +87,10 @@ DISPLAY_FOOTPRINTS_FRAME::DISPLAY_FOOTPRINTS_FRAME( KIWAY* aKiway, CVPCB_MAINFRA
     SetBoard( new BOARD() );
     SetScreen( new PCB_SCREEN( GetPageSizeIU() ) );
 
+    // Don't show the default board solder mask clearance.  Only the
+    // footprint or pad clearance setting should be shown if it is not 0.
+    GetBoard()->GetDesignSettings().m_SolderMaskMargin = 0;
+
     LoadSettings( config() );
 
     // Initialize grid id to a default value if not found in config or incorrect:
@@ -430,7 +434,7 @@ MODULE* DISPLAY_FOOTPRINTS_FRAME::Get_Module( const wxString& aFootprintName )
     {
         LIB_ID fpid;
 
-        if( fpid.Parse( aFootprintName ) >= 0 )
+        if( fpid.Parse( aFootprintName, LIB_ID::ID_PCB ) >= 0 )
         {
             DisplayInfoMessage( this, wxString::Format( _( "Footprint ID \"%s\" is not valid." ),
                                                         GetChars( aFootprintName ) ) );

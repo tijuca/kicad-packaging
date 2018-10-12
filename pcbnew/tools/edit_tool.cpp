@@ -317,19 +317,21 @@ bool EDIT_TOOL::Init()
     menu.AddItem( PCB_ACTIONS::createArray, SELECTION_CONDITIONS::NotEmpty );
 
 
+    menu.AddSeparator( SELECTION_CONDITIONS::NotEmpty );
     menu.AddItem( PCB_ACTIONS::copyToClipboard, SELECTION_CONDITIONS::NotEmpty );
     menu.AddItem( PCB_ACTIONS::cutToClipboard, SELECTION_CONDITIONS::NotEmpty );
     // Selection tool handles the context menu for some other tools, such as the Picker.
     // Don't add things like Paste when another tool is active.
     menu.AddItem( PCB_ACTIONS::pasteFromClipboard, noActiveToolCondition );
-    menu.AddSeparator( noActiveToolCondition );
 
     // Mirror only available in modedit
+    menu.AddSeparator( editingModuleCondition && SELECTION_CONDITIONS::NotEmpty );
     menu.AddItem( PCB_ACTIONS::mirror, editingModuleCondition && SELECTION_CONDITIONS::NotEmpty );
     menu.AddItem( PCB_ACTIONS::createPadFromShapes, editingModuleCondition && SELECTION_CONDITIONS::NotEmpty );
     menu.AddItem( PCB_ACTIONS::explodePadToShapes, editingModuleCondition && SELECTION_CONDITIONS::NotEmpty );
 
     // Footprint actions
+    menu.AddSeparator( singleModuleCondition );
     menu.AddItem( PCB_ACTIONS::editFootprintInFpEditor, singleModuleCondition );
     menu.AddItem( PCB_ACTIONS::updateFootprints, singleModuleCondition );
     menu.AddItem( PCB_ACTIONS::exchangeFootprints, singleModuleCondition );
@@ -463,16 +465,25 @@ int EDIT_TOOL::Main( const TOOL_EVENT& aEvent )
                     if( lockFlags == SELECTION_LOCKED )
                         break;
 
-                    // Save items, so changes can be undone
-                    for( auto item : selection )
+                    // When editing modules, all items have the same parent
+                    if( EditingModules() )
                     {
-                        // Don't double move footprint pads, fields, etc.
-                        if( item->GetParent() && item->GetParent()->IsSelected() )
-                            continue;
+                        m_commit->Modify( selection.Front() );
+                    }
+                    else
+                    {
+                        // Save items, so changes can be undone
+                        for( auto item : selection )
+                        {
+                            // Don't double move footprint pads, fields, etc.
+                            if( item->GetParent() && item->GetParent()->IsSelected() )
+                                continue;
 
-                        m_commit->Modify( item );
+                            m_commit->Modify( item );
+                        }
                     }
 
+                    editFrame->UndoRedoBlock( true );
                     m_cursor = controls->GetCursorPosition();
 
                     if ( selection.HasReferencePoint() )
@@ -584,6 +595,8 @@ int EDIT_TOOL::Main( const TOOL_EVENT& aEvent )
     controls->SetAutoPan( false );
 
     m_dragging = false;
+    editFrame->UndoRedoBlock( false );
+
     // Discard reference point when selection is "dropped" onto the board (ie: not dragging anymore)
     selection.ClearReferencePoint();
 
@@ -668,23 +681,21 @@ int EDIT_TOOL::Properties( const TOOL_EVENT& aEvent )
         // Display properties dialog
         BOARD_ITEM* item = static_cast<BOARD_ITEM*>( selection.Front() );
 
-        // Some of properties dialogs alter pointers, so we should deselect them
-        m_toolMgr->RunAction( PCB_ACTIONS::selectionClear, true );
-
-        // Store flags, so they can be restored later
-        STATUS_FLAGS flags = item->GetFlags();
-        item->ClearFlags();
-
         // Do not handle undo buffer, it is done by the properties dialogs @todo LEGACY
         // Display properties dialog provided by the legacy canvas frame
         editFrame->OnEditItemRequest( NULL, item );
 
+        // Notify other tools of the changes
         m_toolMgr->RunAction( PCB_ACTIONS::selectionModified, true );
-        item->SetFlags( flags );
     }
 
     if( selection.IsHover() )
+    {
         m_toolMgr->RunAction( PCB_ACTIONS::selectionClear, true );
+
+        // Notify other tools of the changes -- This updates the visual ratsnest
+        m_toolMgr->RunAction( PCB_ACTIONS::selectionModified, true );
+    }
 
     return 0;
 }
@@ -705,9 +716,15 @@ int EDIT_TOOL::Rotate( const TOOL_EVENT& aEvent )
     updateModificationPoint( selection );
     const int rotateAngle = TOOL_EVT_UTILS::GetEventRotationAngle( *editFrame, aEvent );
 
+    // When editing modules, all items have the same parent
+    if( EditingModules() )
+    {
+        m_commit->Modify( selection.Front() );
+    }
+
     for( auto item : selection )
     {
-        if( !item->IsNew() )
+        if( !item->IsNew() && !EditingModules() )
             m_commit->Modify( item );
 
         static_cast<BOARD_ITEM*>( item )->Rotate( selection.GetReferencePoint(), rotateAngle );
@@ -777,6 +794,12 @@ int EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
     auto refPoint = selection.GetReferencePoint();
     wxPoint mirrorPoint( refPoint.x, refPoint.y );
 
+    // When editing modules, all items have the same parent
+    if( EditingModules() )
+    {
+        m_commit->Modify( selection.Front() );
+    }
+
     for( auto item : selection )
     {
         // only modify items we can mirror
@@ -786,7 +809,7 @@ int EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
         case PCB_MODULE_TEXT_T:
         case PCB_PAD_T:
             // Only create undo entry for items on the board
-            if( !item->IsNew() )
+            if( !item->IsNew() && !EditingModules() )
                 m_commit->Modify( item );
 
             break;
@@ -850,9 +873,15 @@ int EDIT_TOOL::Flip( const TOOL_EVENT& aEvent )
     updateModificationPoint( selection );
     auto modPoint = selection.GetReferencePoint();
 
+    // When editing modules, all items have the same parent
+    if( EditingModules() )
+    {
+        m_commit->Modify( selection.Front() );
+    }
+
     for( auto item : selection )
     {
-        if( !item->IsNew() )
+        if( !item->IsNew() && !EditingModules() )
             m_commit->Modify( item );
 
         static_cast<BOARD_ITEM*>( item )->Flip( modPoint );
@@ -942,9 +971,15 @@ int EDIT_TOOL::MoveExact( const TOOL_EVENT& aEvent )
         // Make sure the rotation is from the right reference point
         rotPoint += finalMoveVector;
 
+        // When editing modules, all items have the same parent
+        if( EditingModules() )
+        {
+            m_commit->Modify( selection.Front() );
+        }
+
         for( auto item : selection )
         {
-            if( !item->IsNew() )
+            if( !item->IsNew() && !EditingModules() )
                 m_commit->Modify( item );
 
             static_cast<BOARD_ITEM*>( item )->Move( finalMoveVector );

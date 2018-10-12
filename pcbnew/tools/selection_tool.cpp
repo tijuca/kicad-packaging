@@ -191,6 +191,7 @@ SELECTION_TOOL::SELECTION_TOOL() :
         m_additive( false ),
         m_subtractive( false ),
         m_multiple( false ),
+        m_skip_heuristics( false ),
         m_locked( true ),
         m_menu( *this ),
         m_priv( std::make_unique<PRIV>() )
@@ -270,6 +271,10 @@ int SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
         // This will be ignored if the SHIFT modifier is pressed
         m_subtractive = !m_additive && evt->Modifier( MD_CTRL );
 
+        // Is the user requesting that the selection list include all possible
+        // items without removing less likely selection candidates
+        m_skip_heuristics = !!evt->Modifier( MD_ALT );
+
         // Single click? Select single object
         if( evt->IsClick( BUT_LEFT ) )
         {
@@ -279,13 +284,24 @@ int SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
             }
             else
             {
+                CLIENT_SELECTION_FILTER filter = nullptr;
+
                 // If no modifier keys are pressed, clear the selection
                 if( !m_additive )
                 {
+                    if( m_selection.Size() != 0 )
+                        filter = []( const VECTOR2I&, GENERAL_COLLECTOR& aCollector )
+                        {
+                            for( int i = aCollector.GetCount() - 1; i >= 0; i-- )
+                                if( aCollector[i]->Type() == PCB_ZONE_AREA_T )
+                                    aCollector.Remove( i );
+                        };
+
                     clearSelection();
                 }
 
-                selectPoint( evt->Position() );
+                selectPoint( evt->Position(), false, nullptr, filter );
+
             }
         }
 
@@ -355,6 +371,9 @@ int SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
         else if( evt->IsCancel() || evt->Action() == TA_UNDO_REDO_PRE )
         {
             clearSelection();
+
+            if( evt->IsCancel() && !m_editModules )
+                m_toolMgr->RunAction( PCB_ACTIONS::clearHighlight, true );
         }
 
         else if( evt->Action() == TA_CONTEXT_MENU_CLOSED )
@@ -506,12 +525,15 @@ bool SELECTION_TOOL::selectPoint( const VECTOR2I& aWhere, bool aOnDrag,
     }
 
     // Apply some ugly heuristics to avoid disambiguation menus whenever possible
-    guessSelectionCandidates( collector );
-
-    if( collector.GetCount() == 1 )
+    if( !m_skip_heuristics )
     {
-        toggleSelection( collector[0] );
-        return true;
+        guessSelectionCandidates( collector, aWhere );
+
+        if( collector.GetCount() == 1 )
+        {
+            toggleSelection( collector[0] );
+            return true;
+        }
     }
 
     // Still more than one item.  We're going to have to ask the user.
@@ -661,6 +683,8 @@ bool SELECTION_TOOL::selectMultiple()
             break;  // Stop waiting for events
         }
     }
+
+    getViewControls()->SetAutoPan( false );
 
     // Stop drawing the selection box
     view->Remove( &area );
@@ -961,11 +985,17 @@ void SELECTION_TOOL::selectAllItemsConnectedToTrack( TRACK& aSourceTrack )
 
 void SELECTION_TOOL::selectAllItemsConnectedToItem( BOARD_CONNECTED_ITEM& aSourceItem )
 {
-    constexpr KICAD_T types[] = { PCB_TRACE_T, PCB_VIA_T, EOT };
+    constexpr KICAD_T types[] = { PCB_TRACE_T, PCB_VIA_T, PCB_PAD_T, EOT };
     auto connectivity = board()->GetConnectivity();
 
     for( auto item : connectivity->GetConnectedItems( &aSourceItem, types ) )
-        select( item );
+    {
+        // We want to select items connected through pads but not pads
+        // otherwise, the common use case of "Select Copper"->Delete will
+        // remove footprints in addition to traces and vias
+        if( item->Type() != PCB_PAD_T )
+            select( item );
+    }
 }
 
 
@@ -1207,7 +1237,6 @@ void SELECTION_TOOL::findCallback( BOARD_ITEM* aItem )
 int SELECTION_TOOL::find( const TOOL_EVENT& aEvent )
 {
     DIALOG_FIND dlg( m_frame );
-    dlg.EnableWarp( false );
     dlg.SetCallback( std::bind( &SELECTION_TOOL::findCallback, this, _1 ) );
     dlg.ShowModal();
 
@@ -1393,7 +1422,7 @@ BOARD_ITEM* SELECTION_TOOL::disambiguationMenu( GENERAL_COLLECTOR* aCollector )
     KIGFX::VIEW_GROUP highlightGroup;
     CONTEXT_MENU menu;
 
-    highlightGroup.SetLayer( LAYER_GP_OVERLAY );
+    highlightGroup.SetLayer( LAYER_SELECT_OVERLAY );
     getView()->Add( &highlightGroup );
 
     int limit = std::min( 9, aCollector->GetCount() );
@@ -1609,14 +1638,6 @@ bool SELECTION_TOOL::selectable( const BOARD_ITEM* aItem ) const
         if( m_editModules )
             return false;
 
-        float viewArea = getView()->GetViewport().GetArea();
-        float modArea = aItem->GetBoundingBox().GetArea();
-
-        // Do not select modules that are larger the view area
-        // (most likely footprints representing shield connectors)
-        if( viewArea > 0.0 && modArea > viewArea )
-            return false;
-
         // Allow selection of footprints if at least one draw layer is on and
         // the appropriate LAYER_MOD is on
 
@@ -1669,16 +1690,17 @@ bool SELECTION_TOOL::selectable( const BOARD_ITEM* aItem ) const
         if( m_multiple && !m_editModules )
             return false;
 
-        // When editing modules, it's allowed to select them, even when
-        // locked, since you already have to explicitly activate the
-        // module editor to get to this stage
+        // In pcbnew, locked modules prevent individual pad selection
+        // in modedit, we don't enforce this as the module is assumed to
+        // be edited by design
         if( !m_editModules )
         {
             MODULE* mod = static_cast<const D_PAD*>( aItem )->GetParent();
             if( mod && mod->IsLocked() )
                 return false;
         }
-        else if( aItem->Type() == PCB_PAD_T )
+
+        if( aItem->Type() == PCB_PAD_T )
         {
             // In editor, pads are selectable if any draw layer is visible
 
@@ -1764,11 +1786,11 @@ void SELECTION_TOOL::select( BOARD_ITEM* aItem )
 
 void SELECTION_TOOL::unselect( BOARD_ITEM* aItem )
 {
-    if( !aItem->IsSelected() )
-        return;
-
     m_selection.Remove( aItem );
     unselectVisually( aItem );
+
+    if( m_frame && m_frame->GetCurItem() == aItem )
+        m_frame->SetCurItem( NULL );
 
     if( m_selection.Empty() )
     {
@@ -1934,7 +1956,8 @@ double calcRatio( double a, double b )
 // We currently check for pads and text mostly covering a footprint, but we don’t check for
 // smaller footprints mostly covering a larger footprint.
 //
-void SELECTION_TOOL::guessSelectionCandidates( GENERAL_COLLECTOR& aCollector ) const
+void SELECTION_TOOL::guessSelectionCandidates( GENERAL_COLLECTOR& aCollector,
+        const VECTOR2I& aWhere ) const
 {
     std::set<BOARD_ITEM*> rejected;
     std::set<BOARD_ITEM*> forced;
@@ -1984,6 +2007,33 @@ void SELECTION_TOOL::guessSelectionCandidates( GENERAL_COLLECTOR& aCollector ) c
             for( BOARD_ITEM* item : preferred )
                 aCollector.Append( item );
             return;
+        }
+    }
+
+    int numZones = aCollector.CountType( PCB_ZONE_AREA_T );
+
+    if( numZones > 0 && aCollector.GetCount() > numZones )
+    {
+        for( int i = aCollector.GetCount() - 1; i >= 0; i-- )
+        {
+            if( aCollector[i]->Type() == PCB_ZONE_AREA_T && !static_cast<ZONE_CONTAINER*>
+                    ( aCollector[i] )->HitTestForEdge( wxPoint( aWhere.x, aWhere.y ) ) )
+            {
+                aCollector.Remove( i );
+            }
+        }
+    }
+
+    int numDrawitems = aCollector.CountType( PCB_LINE_T ) +
+            aCollector.CountType( PCB_MODULE_EDGE_T );
+
+    if( numDrawitems > 0 && aCollector.GetCount() > numDrawitems )
+    {
+        for( int i = aCollector.GetCount() - 1; i >= 0; i-- )
+        {
+            auto ds = static_cast<DRAWSEGMENT*>( aCollector[i] );
+            if( ds->GetShape() == S_POLYGON )
+                aCollector.Remove( i );
         }
     }
 

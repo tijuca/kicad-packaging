@@ -119,7 +119,7 @@ PART_LIB* LIB_ALIAS::GetLib()
 
 void LIB_ALIAS::SetName( const wxString& aName )
 {
-    name = LIB_ID::FixIllegalChars( aName, LIB_ID::ID_ALIAS );
+    name = LIB_ID::FixIllegalChars( aName, LIB_ID::ID_SCH );
 }
 
 
@@ -287,8 +287,7 @@ void LIB_PART::SetName( const wxString& aName )
     else
         m_aliases[0]->SetName( aName );
 
-    // LIB_ALIAS validates the name, reuse it instead of validating the name again
-    wxString validatedName( m_aliases[0]->GetName() );
+    wxString validatedName = LIB_ID::FixIllegalChars( aName, LIB_ID::ID_SCH );
     m_libId.SetLibItemName( validatedName, false );
 
     LIB_FIELD& valueField = GetValueField();

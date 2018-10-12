@@ -48,6 +48,7 @@ const LAYER_NUM GAL_LAYER_ORDER[] =
 {
     LAYER_GP_OVERLAY,
     LAYER_DRC,
+    LAYER_SELECT_OVERLAY,
     LAYER_PADS_NETNAMES, LAYER_VIAS_NETNAMES,
     Dwgs_User, Cmts_User, Eco1_User, Eco2_User, Edge_Cuts,
 
@@ -139,13 +140,25 @@ PCB_DRAW_PANEL_GAL::~PCB_DRAW_PANEL_GAL()
 
 void PCB_DRAW_PANEL_GAL::DisplayBoard( BOARD* aBoard )
 {
+
     m_view->Clear();
 
-    // Load zones
-    for( auto zone : aBoard->Zones() )
+    auto zones = aBoard->Zones();
+    std::atomic<size_t> next( 0 );
+    std::atomic<size_t> count_done( 0 );
+    size_t parallelThreadCount = std::max<size_t>( std::thread::hardware_concurrency(), 2 );
+
+    for( size_t ii = 0; ii < parallelThreadCount; ++ii )
     {
-        zone->CacheTriangulation();
-        m_view->Add( zone );
+        std::thread t = std::thread( [ &count_done, &next, &zones ]( )
+        {
+            for( size_t i = next.fetch_add( 1 ); i < zones.size(); i = next.fetch_add( 1 ) )
+                zones[i]->CacheTriangulation();
+
+            count_done++;
+        } );
+
+        t.detach();
     }
 
     // Load drawings
@@ -169,6 +182,14 @@ void PCB_DRAW_PANEL_GAL::DisplayBoard( BOARD* aBoard )
     {
         m_view->Add( aBoard->GetMARKER( marker_idx ) );
     }
+
+    // Finalize the triangulation threads
+    while( count_done < parallelThreadCount )
+        std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
+
+    // Load zones
+    for( auto zone : aBoard->Zones() )
+        m_view->Add( zone );
 
     // Ratsnest
     m_ratsnest.reset( new KIGFX::RATSNEST_VIEWITEM( aBoard->GetConnectivity() ) );
@@ -212,8 +233,8 @@ void PCB_DRAW_PANEL_GAL::SetHighContrastLayer( PCB_LAYER_ID aLayer )
                 GetNetnameLayer( aLayer ),
                 LAYER_VIA_THROUGH, LAYER_VIAS_HOLES, LAYER_VIAS_NETNAMES,
                 LAYER_PADS_TH, LAYER_PADS_PLATEDHOLES, LAYER_PADS_NETNAMES,
-                LAYER_NON_PLATEDHOLES, LAYER_GP_OVERLAY, LAYER_RATSNEST,
-                LAYER_CURSOR
+                LAYER_NON_PLATEDHOLES, LAYER_SELECT_OVERLAY, LAYER_GP_OVERLAY,
+                LAYER_RATSNEST, LAYER_CURSOR
         };
 
         for( unsigned int i = 0; i < sizeof( layers ) / sizeof( LAYER_NUM ); ++i )
@@ -248,8 +269,8 @@ void PCB_DRAW_PANEL_GAL::SetTopLayer( PCB_LAYER_ID aLayer )
     const LAYER_NUM layers[] = {
             LAYER_VIA_THROUGH, LAYER_VIAS_HOLES, LAYER_VIAS_NETNAMES,
             LAYER_PADS_TH, LAYER_PADS_PLATEDHOLES, LAYER_PADS_NETNAMES,
-            LAYER_NON_PLATEDHOLES, LAYER_GP_OVERLAY, LAYER_RATSNEST,
-            LAYER_DRC
+            LAYER_NON_PLATEDHOLES, LAYER_SELECT_OVERLAY, LAYER_GP_OVERLAY,
+            LAYER_RATSNEST, LAYER_DRC
     };
 
     for( unsigned int i = 0; i < sizeof( layers ) / sizeof( LAYER_NUM ); ++i )
@@ -312,6 +333,7 @@ void PCB_DRAW_PANEL_GAL::SyncLayersVisibility( const BOARD* aBoard )
     m_view->SetLayerVisible( LAYER_PADS_PLATEDHOLES, true );
     m_view->SetLayerVisible( LAYER_VIAS_HOLES, true );
     m_view->SetLayerVisible( LAYER_GP_OVERLAY, true );
+    m_view->SetLayerVisible( LAYER_SELECT_OVERLAY, true );
 }
 
 
@@ -453,11 +475,14 @@ void PCB_DRAW_PANEL_GAL::setDefaultLayerDeps()
     m_view->SetRequired( LAYER_MOD_TEXT_BK, LAYER_MOD_BK );
     m_view->SetRequired( LAYER_PAD_BK_NETNAMES, LAYER_PAD_BK );
 
+    m_view->SetLayerTarget( LAYER_SELECT_OVERLAY , KIGFX::TARGET_OVERLAY );
+    m_view->SetLayerDisplayOnly( LAYER_SELECT_OVERLAY ) ;
     m_view->SetLayerTarget( LAYER_GP_OVERLAY , KIGFX::TARGET_OVERLAY );
     m_view->SetLayerDisplayOnly( LAYER_GP_OVERLAY ) ;
     m_view->SetLayerTarget( LAYER_RATSNEST, KIGFX::TARGET_OVERLAY );
     m_view->SetLayerDisplayOnly( LAYER_RATSNEST );
 
+    m_view->SetLayerTarget( LAYER_WORKSHEET, KIGFX::TARGET_NONCACHED );
     m_view->SetLayerDisplayOnly( LAYER_WORKSHEET ) ;
     m_view->SetLayerDisplayOnly( LAYER_GRID );
     m_view->SetLayerDisplayOnly( LAYER_DRC );
