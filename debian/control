@@ -39,6 +39,7 @@ Build-Depends:
  libglew-dev,
  libglm-dev,
  liblocale-gettext-perl,
+ libngspice0-dev,
  liboce-foundation-dev,
  liboce-ocaf-dev,
  libpython-stdlib,

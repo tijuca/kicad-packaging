@@ -1,3 +1,13 @@
+KiCad 5, Availability of Spice based circuit simulation in Eeschema
+-------------------------------------------------------------------
+
+Starting with version 5.0.1+dfsg1-2 KiCad is built with ngspice support. Thus
+you will find a new menu entry in Eeschema 'Tools -> Simulator' for circuit
+simulation of your schematic. Please have a look into the documentation how to
+use this feature.
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  So, 14 Oct 2018 11:25:00 +0800
+
 KiCad 5, Changes to the global Symbol and Footprint Table
 ---------------------------------------------------------
 
