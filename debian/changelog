@@ -1,3 +1,9 @@
+kicad (5.0.1+dfsg1-2) unstable; urgency=medium
+
+  * [736b230] circuit simulation: enable ngspice based schematic simulation
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sun, 14 Oct 2018 11:35:57 +0200
+
 kicad (5.0.1+dfsg1-1) unstable; urgency=medium
 
   [ Aurelien Jarno ]
