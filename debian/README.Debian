@@ -10,10 +10,10 @@ and for the footprints within
 
  $(HOME)/.config/kicad/fp-lib-table
 
-Both default settings have been changed in KiCad 5 due the chnaged names of the
+Both default settings have been changed in KiCad 5 due the changed names of the
 libraries, unfortunately the kicad application isn't doing any automatic
 migration. You need to make the adjustments by yourself within the editor for
-the 'Symbol Librarries' (in Eeschema within the menu 'Preferences - Manage
+the 'Symbol Libraries' (in Eeschema within the menu 'Preferences - Manage
 Symbol Libraries...') and the editor for the 'Footprint Libraries" (in
 Footprint Editor in the menu 'Preferences - Manage Footprint Libraries...')
 
@@ -89,7 +89,7 @@ workarounds to get KiCad working nevertheless.
      $ GDK_BACKEND=x11 pcbnew
 
 How to check if I'm running a x11 or a Wayland session?
-You can use this oneliner to detect your session you running on. Please adjust
+You can use this one liner to detect your session you running on. Please adjust
 'YOUR_USER_NAME' with your login name.
 
   $ loginctl show-session `loginctl|grep YOUR_USER_NAME|awk '{print $1}'` -p Type
