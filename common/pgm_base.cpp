@@ -237,7 +237,7 @@ static LANGUAGE_DESCR s_Languages[] =
     {
         wxLANGUAGE_CHINESE_SIMPLIFIED,
         ID_LANGUAGE_CHINESE_SIMPLIFIED,
-        lang_chinese_xpm,
+        lang_zh_xpm,
         _( "Chinese simplified" )
     },
 
@@ -831,7 +831,7 @@ bool PGM_BASE::SetLanguage( bool first_time )
     if( result != dtst )
         // string to double encode/decode does not work! Bug detected:
         // Disable floating point localization:
-        setlocale( LC_ALL, "C" );
+        setlocale( LC_NUMERIC, "C" );
 
     if( !m_locale->IsLoaded( dictionaryName ) )
         m_locale->AddCatalog( dictionaryName );

@@ -293,7 +293,7 @@ BOARD* EAGLE_PLUGIN::Load( const wxString& aFileName, BOARD* aAppendToMe,  const
 
     centerBoard();
 
-    deleter.release();
+    deleter.reset();
     return m_board;
 }
 
@@ -377,14 +377,20 @@ void EAGLE_PLUGIN::loadAllSections( wxXmlNode* aDoc )
 
 void EAGLE_PLUGIN::loadDesignRules( wxXmlNode* aDesignRules )
 {
-    m_xpath->push( "designrules" );
-    m_rules->parse( aDesignRules );
-    m_xpath->pop();     // "designrules"
+    if( aDesignRules )
+    {
+        m_xpath->push( "designrules" );
+        m_rules->parse( aDesignRules );
+        m_xpath->pop();     // "designrules"
+    }
 }
 
 
 void EAGLE_PLUGIN::loadLayerDefs( wxXmlNode* aLayers )
 {
+    if( !aLayers )
+        return;
+
     ELAYERS cu;  // copper layers
 
     // Get the first layer and iterate
@@ -456,6 +462,9 @@ void EAGLE_PLUGIN::loadLayerDefs( wxXmlNode* aLayers )
 
 void EAGLE_PLUGIN::loadPlain( wxXmlNode* aGraphics )
 {
+    if( !aGraphics )
+        return;
+
     m_xpath->push( "plain" );
 
     // Get the first graphic and iterate
@@ -671,43 +680,17 @@ void EAGLE_PLUGIN::loadPlain( wxXmlNode* aGraphics )
         else if( grName == "hole" )
         {
             m_xpath->push( "hole" );
-            EHOLE   e( gr );
 
             // Fabricate a MODULE with a single PAD_ATTRIB_HOLE_NOT_PLATED pad.
             // Use m_hole_count to gen up a unique name.
 
             MODULE* module = new MODULE( m_board );
             m_board->Add( module, ADD_APPEND );
-
-            char temp[40];
-            snprintf( temp, sizeof( temp ), "@HOLE%d", m_hole_count++ );
-            module->SetReference( FROM_UTF8( temp ) );
+            module->SetReference( wxString::Format( "@HOLE%d", m_hole_count++ ) );
             module->Reference().SetVisible( false );
 
-            wxPoint pos( kicad_x( e.x ), kicad_y( e.y ) );
+            packageHole( module, gr, true );
 
-            module->SetPosition( pos );
-
-            // Add a PAD_ATTRIB_HOLE_NOT_PLATED pad to this module.
-            D_PAD* pad = new D_PAD( module );
-            module->PadsList().PushBack( pad );
-
-            pad->SetShape( PAD_SHAPE_CIRCLE );
-            pad->SetAttribute( PAD_ATTRIB_HOLE_NOT_PLATED );
-
-            /* pad's position is already centered on module at relative (0, 0)
-            wxPoint padpos( kicad_x( e.x ), kicad_y( e.y ) );
-
-            pad->SetPos0( padpos );
-            pad->SetPosition( padpos + module->GetPosition() );
-            */
-
-            wxSize  sz( e.drill.ToPcbUnits(), e.drill.ToPcbUnits() );
-
-            pad->SetDrillSize( sz );
-            pad->SetSize( sz );
-
-            pad->SetLayerSet( LSET::AllCuMask() );
             m_xpath->pop();
         }
         else if( grName == "frame" )
@@ -785,11 +768,16 @@ void EAGLE_PLUGIN::loadPlain( wxXmlNode* aGraphics )
 
 void EAGLE_PLUGIN::loadLibrary( wxXmlNode* aLib, const wxString* aLibName )
 {
-    m_xpath->push( "packages" );
+    if( !aLib || !aLibName )
+        return;
 
     // library will have <xmlattr> node, skip that and get the single packages node
     wxXmlNode* packages = MapChildren( aLib )["packages"];
 
+    if( !packages )
+        return;
+
+    m_xpath->push( "packages" );
 
     // Create a MODULE for all the eagle packages, for use later via a copy constructor
     // to instantiate needed MODULES in our BOARD.  Save the MODULE templates in
@@ -802,15 +790,14 @@ void EAGLE_PLUGIN::loadLibrary( wxXmlNode* aLib, const wxString* aLibName )
     {
         m_xpath->push( "package", "name" );
 
-        const wxString& pack_ref = package->GetAttribute( "name" );
-        std::string pack_name( pack_ref );
-        ReplaceIllegalFileNameChars( &pack_name, '_' );
+        wxString pack_ref = package->GetAttribute( "name" );
+        ReplaceIllegalFileNameChars( pack_ref, '_' );
 
-        m_xpath->Value( pack_name.c_str() );
+        m_xpath->Value( pack_ref.ToUTF8() );
 
-        wxString key = aLibName ? makeKey( *aLibName, pack_name ) : wxString( pack_name );
+        wxString key = aLibName ? makeKey( *aLibName, pack_ref ) : pack_ref;
 
-        MODULE* m = makeModule( package, pack_name );
+        MODULE* m = makeModule( package, pack_ref );
 
         // add the templating MODULE to the MODULE template factory "m_templates"
         std::pair<MODULE_ITER, bool> r = m_templates.insert( {key, m} );
@@ -819,8 +806,8 @@ void EAGLE_PLUGIN::loadLibrary( wxXmlNode* aLib, const wxString* aLibName )
             // && !( m_props && m_props->Value( "ignore_duplicates" ) )
             )
         {
-            wxString lib = aLibName ? FROM_UTF8( aLibName->c_str() ) : m_lib_path;
-            wxString pkg = FROM_UTF8( pack_name.c_str() );
+            wxString lib = aLibName ? *aLibName : m_lib_path;
+            wxString pkg = pack_ref;
 
             wxString emsg = wxString::Format(
                 _( "<package> name: \"%s\" duplicated in eagle <library>: \"%s\"" ),
@@ -841,6 +828,9 @@ void EAGLE_PLUGIN::loadLibrary( wxXmlNode* aLib, const wxString* aLibName )
 
 void EAGLE_PLUGIN::loadLibraries( wxXmlNode* aLibs )
 {
+    if( !aLibs )
+        return;
+
     m_xpath->push( "libraries.library", "name" );
 
     // Get the first library and iterate
@@ -861,6 +851,9 @@ void EAGLE_PLUGIN::loadLibraries( wxXmlNode* aLibs )
 
 void EAGLE_PLUGIN::loadElements( wxXmlNode* aElements )
 {
+    if( !aElements )
+        return;
+
     m_xpath->push( "elements.element", "name" );
 
     EATTR   name;
@@ -1351,7 +1344,9 @@ MODULE* EAGLE_PLUGIN::makeModule( wxXmlNode* aPackage, const wxString& aPkgName 
 {
     std::unique_ptr<MODULE> m( new MODULE( m_board ) );
 
-    m->SetFPID( LIB_ID( UTF8( aPkgName ) ) );
+    LIB_ID fpID;
+    fpID.Parse( aPkgName, LIB_ID::ID_PCB, true );
+    m->SetFPID( fpID );
 
     // Get the first package item and iterate
     wxXmlNode* packageItem = aPackage->GetChildren();
@@ -1382,7 +1377,7 @@ MODULE* EAGLE_PLUGIN::makeModule( wxXmlNode* aPackage, const wxString& aPkgName 
             packageCircle( m.get(), packageItem );
 
         else if( itemName == "hole" )
-            packageHole( m.get(), packageItem );
+            packageHole( m.get(), packageItem, false );
 
         else if( itemName == "smd" )
             packageSMD( m.get(), packageItem );
@@ -1795,7 +1790,7 @@ void EAGLE_PLUGIN::packageCircle( MODULE* aModule, wxXmlNode* aTree ) const
 }
 
 
-void EAGLE_PLUGIN::packageHole( MODULE* aModule, wxXmlNode* aTree ) const
+void EAGLE_PLUGIN::packageHole( MODULE* aModule, wxXmlNode* aTree, bool aCenter ) const
 {
     EHOLE   e( aTree );
 
@@ -1813,15 +1808,24 @@ void EAGLE_PLUGIN::packageHole( MODULE* aModule, wxXmlNode* aTree ) const
 
     wxPoint padpos( kicad_x( e.x ), kicad_y( e.y ) );
 
-    pad->SetPos0( padpos );
-    pad->SetPosition( padpos + aModule->GetPosition() );
+    if( aCenter )
+    {
+        pad->SetPos0( wxPoint( 0, 0 ) );
+        aModule->SetPosition( padpos );
+        pad->SetPosition( padpos );
+    }
+    else
+    {
+        pad->SetPos0( padpos );
+        pad->SetPosition( padpos + aModule->GetPosition() );
+    }
 
     wxSize  sz( e.drill.ToPcbUnits(), e.drill.ToPcbUnits() );
 
     pad->SetDrillSize( sz );
     pad->SetSize( sz );
 
-    pad->SetLayerSet( LSET::AllCuMask() /* | SOLDERMASK_LAYER_BACK | SOLDERMASK_LAYER_FRONT */ );
+    pad->SetLayerSet( LSET::AllCuMask().set( B_Mask ).set( F_Mask ) );
 }
 
 
@@ -2182,7 +2186,9 @@ PCB_LAYER_ID EAGLE_PLUGIN::kicad_layer( int aEagleLayer ) const
         switch( aEagleLayer )
         {
         // Eagle says "Dimension" layer, but it's for board perimeter
+        case EAGLE_LAYER::MILLING:       kiLayer = Edge_Cuts;    break;
         case EAGLE_LAYER::DIMENSION:     kiLayer = Edge_Cuts;    break;
+
         case EAGLE_LAYER::TPLACE:        kiLayer = F_SilkS;      break;
         case EAGLE_LAYER::BPLACE:        kiLayer = B_SilkS;      break;
         case EAGLE_LAYER::TNAMES:        kiLayer = F_SilkS;      break;
@@ -2218,7 +2224,6 @@ PCB_LAYER_ID EAGLE_PLUGIN::kicad_layer( int aEagleLayer ) const
         case EAGLE_LAYER::BKEEPOUT:
         case EAGLE_LAYER::TTEST:
         case EAGLE_LAYER::BTEST:
-        case EAGLE_LAYER::MILLING:
         case EAGLE_LAYER::HOLES:
         default:
             // some layers do not map to KiCad

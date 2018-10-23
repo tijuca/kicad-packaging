@@ -60,10 +60,6 @@
 
 #include <widgets/progress_reporter.h>
 
-#ifdef USE_OPENMP
-#include <omp.h>
-#endif /* USE_OPENMP */
-
 #include <tools/tool_event_utils.h>
 
 #include <functional>
@@ -100,7 +96,6 @@ TOOL_ACTION PCB_ACTIONS::zoneDuplicate( "pcbnew.EditorControl.zoneDuplicate",
         _( "Duplicate Zone onto Layer..." ), _( "Duplicate zone outline onto a different layer" ),
         zone_duplicate_xpm );
 
-
 TOOL_ACTION PCB_ACTIONS::placeTarget( "pcbnew.EditorControl.placeTarget",
         AS_GLOBAL, 0,
         _( "Add Layer Alignment Target" ), _( "Add a layer alignment target" ), NULL, AF_ACTIVATE );
@@ -134,6 +129,10 @@ TOOL_ACTION PCB_ACTIONS::appendBoard( "pcbnew.EditorControl.appendBoard",
         "", "" );
 
 TOOL_ACTION PCB_ACTIONS::highlightNet( "pcbnew.EditorControl.highlightNet",
+        AS_GLOBAL, 0,
+        "", "" );
+
+TOOL_ACTION PCB_ACTIONS::clearHighlight( "pcbnew.EditorControl.clearHighlight",
         AS_GLOBAL, 0,
         "", "" );
 
@@ -216,6 +215,7 @@ public:
         SetIcon( locked_xpm );
         SetTitle( _( "Locking" ) );
 
+        AppendSeparator();
         Add( PCB_ACTIONS::lock );
         Add( PCB_ACTIONS::unlock );
         Add( PCB_ACTIONS::toggleLock );
@@ -304,6 +304,8 @@ bool PCB_EDITOR_CONTROL::Init()
         menu.AddItem( PCB_ACTIONS::findMove, inactiveStateCondition );
         menu.AddSeparator( inactiveStateCondition );
 
+        menu.AddItem( PCB_ACTIONS::zoneDeleteSegzone,
+                SELECTION_CONDITIONS::OnlyType( PCB_SEGZONE_T ) );
         toolMenu.AddSubMenu( zoneMenu );
         toolMenu.AddSubMenu( lockMenu );
 
@@ -949,8 +951,12 @@ static bool highlightNet( TOOL_MANAGER* aToolMgr, const VECTOR2D& aPosition,
         GENERAL_COLLECTOR collector;
 
         // Find a connected item for which we are going to highlight a net
-        collector.Collect( board, GENERAL_COLLECTOR::PadsTracksOrZones,
+        collector.Collect( board, GENERAL_COLLECTOR::PadsOrTracks,
                            wxPoint( aPosition.x, aPosition.y ), guide );
+
+        if( collector.GetCount() == 0 )
+            collector.Collect( board, GENERAL_COLLECTOR::Zones,
+                               wxPoint( aPosition.x, aPosition.y ), guide );
 
         for( int i = 0; i < collector.GetCount(); i++ )
         {
@@ -1020,6 +1026,21 @@ int PCB_EDITOR_CONTROL::HighlightNet( const TOOL_EVENT& aEvent )
         highlightNet( m_toolMgr, getViewControls()->GetMousePosition() );
     }
 
+    return 0;
+}
+
+
+int PCB_EDITOR_CONTROL::ClearHighlight( const TOOL_EVENT& aEvent )
+{
+    auto frame = static_cast<PCB_EDIT_FRAME*>( m_toolMgr->GetEditFrame() );
+    auto board = static_cast<BOARD*>( m_toolMgr->GetModel() );
+    KIGFX::RENDER_SETTINGS* render = m_toolMgr->GetView()->GetPainter()->GetSettings();
+
+    board->ResetHighLight();
+    render->SetHighlight( false );
+    m_toolMgr->GetView()->UpdateAllLayersColor();
+    frame->SetMsgPanel( board );
+    frame->SendCrossProbeNetName( "" );
     return 0;
 }
 
@@ -1203,6 +1224,7 @@ void PCB_EDITOR_CONTROL::setTransitions()
     Go( &PCB_EDITOR_CONTROL::CrossProbeSchToPcb,  PCB_ACTIONS::crossProbeSchToPcb.MakeEvent() );
     Go( &PCB_EDITOR_CONTROL::DrillOrigin,         PCB_ACTIONS::drillOrigin.MakeEvent() );
     Go( &PCB_EDITOR_CONTROL::HighlightNet,        PCB_ACTIONS::highlightNet.MakeEvent() );
+    Go( &PCB_EDITOR_CONTROL::ClearHighlight,      PCB_ACTIONS::clearHighlight.MakeEvent() );
     Go( &PCB_EDITOR_CONTROL::HighlightNetCursor,  PCB_ACTIONS::highlightNetCursor.MakeEvent() );
     Go( &PCB_EDITOR_CONTROL::HighlightNetCursor,  PCB_ACTIONS::highlightNetSelection.MakeEvent() );
     Go( &PCB_EDITOR_CONTROL::ShowLocalRatsnest,   PCB_ACTIONS::showLocalRatsnest.MakeEvent() );

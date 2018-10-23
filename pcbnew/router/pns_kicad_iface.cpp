@@ -186,13 +186,6 @@ int PNS_PCBNEW_RULE_RESOLVER::Clearance( const PNS::ITEM* aA, const PNS::ITEM* a
     int net_b = aB->Net();
     int cl_b = ( net_b >= 0 ? m_netClearanceCache[net_b].clearance : m_defaultClearance );
 
-    // Clearance in differential pairs can only happen when there is a specific net
-    if( net_a >= 0 && net_b >= 0 && m_netClearanceCache[net_a].coupledNet == net_b )
-    {
-        cl_a = m_netClearanceCache[net_a].dpClearance;
-        cl_b = m_netClearanceCache[net_b].dpClearance;
-    }
-
     // Pad clearance is 0 if the ITEM* is not a pad
     int pad_a = localPadClearance( aA );
     int pad_b = localPadClearance( aB );
@@ -373,7 +366,7 @@ public:
             return;
 
         m_items = new KIGFX::VIEW_GROUP( m_view );
-        m_items->SetLayer( LAYER_GP_OVERLAY ) ;
+        m_items->SetLayer( LAYER_SELECT_OVERLAY ) ;
         m_view->Add( m_items );
     }
 
@@ -816,7 +809,7 @@ bool PNS_KICAD_IFACE::syncZone( PNS::NODE* aWorld, ZONE_CONTAINER* aZone )
         {
             auto tri = poly.TriangulatedPolygon( outline );
 
-            for( int i = 0; i < tri->GetTriangleCount(); i++)
+            for( size_t i = 0; i < tri->GetTriangleCount(); i++ )
             {
                 VECTOR2I a, b, c;
                 tri->GetTriangle( i, a, b, c );
@@ -1122,7 +1115,7 @@ void PNS_KICAD_IFACE::SetView( KIGFX::VIEW* aView )
 
     m_view = aView;
     m_previewItems = new KIGFX::VIEW_GROUP( m_view );
-    m_previewItems->SetLayer( LAYER_GP_OVERLAY ) ;
+    m_previewItems->SetLayer( LAYER_SELECT_OVERLAY ) ;
     m_view->Add( m_previewItems );
 
     delete m_debugDecorator;

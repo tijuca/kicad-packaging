@@ -170,6 +170,10 @@ FOOTPRINT_VIEWER_FRAME::FOOTPRINT_VIEWER_FRAME( KIWAY* aKiway, wxWindow* aParent
     // The footprint or pad specific clearance will be shown
     GetBoard()->GetDesignSettings().GetDefault()->SetClearance(0);
 
+    // Don't show the default board solder mask clearance in the footprint viewer.  Only the
+    // footprint or pad clearance setting should be shown if it is not 0.
+    GetBoard()->GetDesignSettings().m_SolderMaskMargin = 0;
+
     // Ensure all layers and items are visible:
     GetBoard()->SetVisibleAlls();
     SetScreen( new PCB_SCREEN( GetPageSizeIU() ) );
@@ -287,6 +291,14 @@ FOOTPRINT_VIEWER_FRAME::FOOTPRINT_VIEWER_FRAME( KIWAY* aKiway, wxWindow* aParent
         wxSize tbsize = m_mainToolBar->GetSize();
         m_auimgr.LoadPerspective( m_perspective, false );
         m_auimgr.GetPane( m_mainToolBar ).BestSize( tbsize );
+
+        // LoadPerspective is overzealous: it stores everything.
+        // be sure these panes are not hidden,
+        // regardless what the perspective has stored
+        m_auimgr.GetPane( m_mainToolBar ).Show();
+        m_auimgr.GetPane( m_libList ).Show();
+        m_auimgr.GetPane( m_footprintList ).Show();
+        m_auimgr.GetPane( m_messagePanel ).Show();
     }
 
     // after changing something to the aui manager,
@@ -621,9 +633,11 @@ bool FOOTPRINT_VIEWER_FRAME::ShowModal( wxString* aFootprint, wxWindow* aResulta
 {
     if( aFootprint && !aFootprint->IsEmpty() )
     {
+        LIB_ID fpid;
+        // Loading the footprint will throw an IO Error on a missing footprint library
         try
         {
-            LIB_ID fpid( *aFootprint );
+            fpid.Parse( *aFootprint, LIB_ID::ID_PCB, true );
 
             if( fpid.IsValid() )
             {
@@ -633,11 +647,17 @@ bool FOOTPRINT_VIEWER_FRAME::ShowModal( wxString* aFootprint, wxWindow* aResulta
                 SelectAndViewFootprint( NEW_PART );
             }
         }
-        catch( ... )
+        catch( const IO_ERROR& ioe )
         {
-            // LIB_ID's constructor throws on some invalid footprint IDs.  It'd be nicer
-            // if it just set it to !IsValid(), but it is what it is.
+            wxString msg = wxString::Format(
+                        _( "Could not load footprint \"%s\" from library \"%s\".\n\nError %s." ),
+                        GetChars( fpid.GetLibItemName() ),
+                        GetChars( fpid.GetLibNickname() ),
+                        GetChars( ioe.What() ) );
+
+            DisplayError( this, msg );
         }
+        catch( ... ) {}
     }
 
     return KIWAY_PLAYER::ShowModal( aFootprint, aResultantFocusWindow );

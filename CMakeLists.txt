@@ -30,8 +30,6 @@ if(POLICY CMP0025)
   cmake_policy(SET CMP0025 NEW) # CMake 3.0
 endif()
 
-project( kicad )
-
 # Default to CMAKE_BUILD_TYPE = Release unless overridden on command line
 # http://www.cmake.org/pipermail/cmake/2008-September/023808.html
 if( DEFINED CMAKE_BUILD_TYPE )
@@ -40,10 +38,19 @@ else()
     set( CMAKE_BUILD_TYPE Release CACHE STRING "Set to either \"Release\" or \"Debug\"" )
 endif()
 
+project( kicad )
+
 include( GNUInstallDirs )
 
 # Path to local CMake modules.
 set( CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/CMakeModules )
+
+# On Windows, binaries created by link option -g3 are very large (more than 1Gb for pcbnew,
+# and more than 3Gb for the full kicad suite)
+# This option create binaries using link option -g1 that create much smaller files, but
+# there are less info in debug (but the file names and line numbers are available)
+option( BUILD_SMALL_DEBUG_FILES "In debug build: create smaller binaries." OFF )
+
 
 #
 # KiCad build options should be added below.
@@ -72,8 +79,8 @@ option( KICAD_SCRIPTING_WXPYTHON
     ON )
 
 option( KICAD_SCRIPTING_ACTION_MENU
-    "Build a tools menu with registred python plugins: actions plugins (default OFF)."
-    )
+    "Build a tools menu with registered python plugins: actions plugins (default ON)."
+    ON )
 
 option( KICAD_USE_OCE
     "Build tools and plugins related to OpenCascade Community Edition (default ON)"
@@ -274,8 +281,18 @@ if( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
     set( CMAKE_C_FLAGS   "-Wall ${CMAKE_C_FLAGS}" )
     set( CMAKE_CXX_FLAGS "-Wall ${CMAKE_CXX_FLAGS}" )
 
-    set( CMAKE_C_FLAGS_DEBUG   "-g3 -ggdb3 -DDEBUG" )
-    set( CMAKE_CXX_FLAGS_DEBUG "-g3 -ggdb3 -DDEBUG -Wno-deprecated-declarations" )
+    # Link flags in Debug: -g1 and -ggdb1 or -g1 and -ggdb3 can be used.
+    # Level 1 produces minimal information, enough for making basic backtraces.
+    # This includes descriptions of functions and external variables, and line number tables,
+    # but no information about local variables.
+    # Level 3 includes full information, but binaries are much larger.
+    if( BUILD_SMALL_DEBUG_FILES )
+        set( CMAKE_C_FLAGS_DEBUG   "-g1 -ggdb1 -DDEBUG" )
+        set( CMAKE_CXX_FLAGS_DEBUG "-g1 -ggdb1 -DDEBUG -Wno-deprecated-declarations" )
+    else()
+        set( CMAKE_C_FLAGS_DEBUG   "-g3 -ggdb3 -DDEBUG" )
+        set( CMAKE_CXX_FLAGS_DEBUG "-g3 -ggdb3 -DDEBUG -Wno-deprecated-declarations" )
+    endif()
 
     if( MINGW )
         set( CMAKE_EXE_LINKER_FLAGS_RELEASE "-s" )
@@ -527,24 +544,6 @@ include( ExternalProject )
 include( CheckFindPackageResult )
 
 #
-# Find OpenMP support, optional
-#
-
-find_package( OpenMP )
-
-if( OPENMP_FOUND )
-    set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}" )
-    set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}" )
-    add_definitions( -DUSE_OPENMP )
-
-    # MinGW does not include the OpenMP link library and FindOpenMP.cmake does not
-    # set it either.  Not sure this is the most elegant solution but it works.
-    if( MINGW )
-        set( OPENMP_LIBRARIES gomp )
-    endif()
-endif()
-
-#
 # Find wxWidgets library, required
 #
 
@@ -579,7 +578,7 @@ endif()
 #
 # Find OpenGL library, required
 #
-set( OpenGL_GL_PREFERENCE "GLVND" )     # CMake 3.11+ setting; see 'cmake --help-policy CMP0072'
+set( OpenGL_GL_PREFERENCE "LEGACY" )     # CMake 3.11+ setting; see 'cmake --help-policy CMP0072'
 find_package( OpenGL REQUIRED )
 
 #
@@ -912,6 +911,7 @@ if( UNIX AND NOT APPLE )
 endif()
 
 #include( CTest )
+enable_testing()
 
 if( UNIX AND NOT APPLE )
 

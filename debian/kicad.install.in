@@ -13,6 +13,7 @@ usr/bin/idf2vrml
 usr/bin/idfcyl
 usr/bin/idfrect
 usr/bin/kicad
+usr/bin/kicad2step
 usr/bin/pcb_calculator
 usr/bin/pcbnew
 usr/bin/pl_editor

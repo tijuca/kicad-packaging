@@ -39,6 +39,7 @@ Build-Depends:
  libglew-dev,
  libglm-dev,
  liblocale-gettext-perl,
+ libngspice0-dev,
  liboce-foundation-dev,
  liboce-ocaf-dev,
  libpython-stdlib,
@@ -72,7 +73,7 @@ Build-Depends:
  xmlto,
 Vcs-Git: https://salsa.debian.org/electronics-team/KiCad/kicad
 Vcs-Browser: https://salsa.debian.org/electronics-team/KiCad/kicad.git
-Standards-Version: 4.2.0
+Standards-Version: 4.2.1
 Homepage: http://www.kicad-pcb.org
 
 Package: kicad
@@ -118,6 +119,7 @@ Description: Electronic schematic and PCB design software
 
 Package: kicad-common
 Architecture: all
+Multi-Arch: foreign
 Section: oldlibs
 Depends:
  kicad-libraries,

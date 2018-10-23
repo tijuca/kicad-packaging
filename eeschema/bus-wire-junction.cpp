@@ -332,6 +332,27 @@ void SCH_EDIT_FRAME::EndSegment()
 
     // Correct and remove segments that need to be merged.
     SchematicCleanUp( true );
+
+    for( auto item = GetScreen()->GetDrawItems(); item; item = item->Next() )
+    {
+        if( item->Type() != SCH_COMPONENT_T )
+            continue;
+
+        std::vector< wxPoint > pts;
+        item->GetConnectionPoints( pts );
+
+        if( pts.size() > 2 )
+            continue;
+
+        // Do not trim wires that connect directly to an endpoint
+        pts.erase( std::remove_if( pts.begin(), pts.end(), [ &segment ]( const wxPoint& aPt )
+                { return segment->IsEndPoint( aPt ); } ), pts.end() );
+
+        for( auto i = pts.begin(); i != pts.end(); i++ )
+            for( auto j = i + 1; j != pts.end(); j++ )
+                    TrimWire( *i, *j, true );
+    }
+
     for( auto i : new_ends )
     {
         if( screen->IsJunctionNeeded( i, true ) )
@@ -486,10 +507,9 @@ bool SCH_EDIT_FRAME::TrimWire( const wxPoint& aStart, const wxPoint& aEnd, bool 
     {
         next_item = item->Next();
 
-        // Don't remove wires that are already deleted, are currently being
-        // dragged or are just created
+        // Don't remove wires that are already deleted or are currently being dragged
         if( item->GetFlags() &
-                ( STRUCT_DELETED | IS_DRAGGED | IS_NEW | IS_MOVED | SKIP_STRUCT ) )
+                ( STRUCT_DELETED | IS_DRAGGED | IS_MOVED | SKIP_STRUCT ) )
             continue;
 
         if( item->Type() != SCH_LINE_T || item->GetLayer() != LAYER_WIRE )
@@ -777,6 +797,7 @@ SCH_NO_CONNECT* SCH_EDIT_FRAME::AddNoConnect( const wxPoint& aPosition )
     SetRepeatItem( no_connect );
     GetScreen()->Append( no_connect );
     SchematicCleanUp();
+    GetScreen()->TestDanglingEnds();
     OnModify();
     m_canvas->Refresh();
     SaveCopyInUndoList( no_connect, UR_NEW );

@@ -58,64 +58,64 @@ class SHAPE_POLY_SET : public SHAPE
     public:
         ///> represents a single polygon outline with holes. The first entry is the outline,
         ///> the remaining (if any), are the holes
+        ///> N.B. SWIG only supports typedef, so avoid c++ 'using' keyword
         typedef std::vector<SHAPE_LINE_CHAIN> POLYGON;
-
-        class TRIANGULATION_CONTEXT;
 
         class TRIANGULATED_POLYGON
         {
         public:
             struct TRI
             {
-                TRI() : a(0), b(0), c(0)
+                TRI( int _a = 0, int _b = 0, int _c = 0 ) : a( _a ), b( _b ), c( _c )
                 {
                 }
 
                 int a, b, c;
             };
 
-            ~TRIANGULATED_POLYGON();
-
-            void Clear();
-
-            void AllocateVertices( int aSize );
-            void AllocateTriangles ( int aSize );
+            void Clear()
+            {
+                m_vertices.clear();
+                m_triangles.clear();
+            }
 
             void GetTriangle( int index, VECTOR2I& a, VECTOR2I& b, VECTOR2I& c ) const
             {
-                auto tri = &m_triangles[ index ];
-                a = m_vertices[ tri->a ];
-                b = m_vertices[ tri->b ];
-                c = m_vertices[ tri->c ];
+                auto tri = m_triangles[ index ];
+                a = m_vertices[ tri.a ];
+                b = m_vertices[ tri.b ];
+                c = m_vertices[ tri.c ];
             }
 
-            void SetTriangle( int aIndex, const TRI& aTri )
+            void AddTriangle( const TRI& aTri )
             {
-                m_triangles[aIndex] = aTri;
+                m_triangles.push_back( aTri );
             }
 
-            int AddVertex( const VECTOR2I& aP )
+            void AddTriangle( int a, int b, int c )
             {
-                m_vertices[ m_vertexCount ] = aP;
-                return (m_vertexCount++);
+                m_triangles.emplace_back( a, b, c );
             }
 
-            int GetTriangleCount() const
+            void AddVertex( const VECTOR2I& aP )
             {
-                return m_triangleCount;
+                m_vertices.push_back( aP );
             }
 
-            int GetVertexCount() const
+            size_t GetTriangleCount() const
             {
-                return m_vertexCount;
+                return m_triangles.size();
+            }
+
+            size_t GetVertexCount() const
+            {
+                return m_vertices.size();
             }
 
         private:
 
-            TRI* m_triangles = nullptr;
-            VECTOR2I* m_vertices = nullptr;
-            int m_vertexCount = 0;
-            int m_triangleCount = 0;
+            std::deque<TRI> m_triangles;
+            std::deque<VECTOR2I> m_vertices;
         };
 
         /**
@@ -424,8 +424,9 @@ class SHAPE_POLY_SET : public SHAPE
          * Copy constructor SHAPE_POLY_SET
          * Performs a deep copy of \p aOther into \p this.
          * @param aOther is the SHAPE_POLY_SET object that will be copied.
+         * @param aDeepCopy if true, make new copies of the triangulated unique_ptr vector
          */
-        SHAPE_POLY_SET( const SHAPE_POLY_SET& aOther );
+        SHAPE_POLY_SET( const SHAPE_POLY_SET& aOther, bool aDeepCopy = false );
 
         ~SHAPE_POLY_SET();
 
@@ -1120,9 +1121,6 @@ class SHAPE_POLY_SET : public SHAPE
 
         bool pointInPolygon( const VECTOR2I& aP, const SHAPE_LINE_CHAIN& aPath ) const;
 
-        const ClipperLib::Path convertToClipper( const SHAPE_LINE_CHAIN& aPath, bool aRequiredOrientation );
-        const SHAPE_LINE_CHAIN convertFromClipper( const ClipperLib::Path& aPath );
-
         /**
          * containsSingle function
          * Checks whether the point aP is inside the aSubpolyIndex-th polygon of the polyset. If
@@ -1184,7 +1182,6 @@ class SHAPE_POLY_SET : public SHAPE
         MD5_HASH GetHash() const;
 
     private:
-        void triangulateSingle( const POLYGON& aPoly, SHAPE_POLY_SET::TRIANGULATED_POLYGON& aResult );
 
         MD5_HASH checksum() const;
 
