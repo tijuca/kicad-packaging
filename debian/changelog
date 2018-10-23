@@ -1,3 +1,9 @@
+kicad (5.0.1+dfsg1-2~bpo9+1) stretch-backports; urgency=medium
+
+  * Rebuild for stretch-backports.
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Tue, 23 Oct 2018 18:08:04 +0200
+
 kicad (5.0.1+dfsg1-2) unstable; urgency=medium
 
   * [736b230] circuit simulation: enable ngspice based schematic simulation
