@@ -4,3 +4,4 @@ reproducibility/add-field-revdate-to-asciidoc-files-of-documentation.patch
 debian-hacks/Removing-hyphen-inside-KICAD_FULL_VERSION.patch
 debian-hacks/Remove-specific-Japanese-translation-within-pcbnew.adoc.patch
 fixes/Add-German-translations-entries-to-appdata.xml.patch
+fixes/Use-fixed-version-for-libngspice.so.0.patch
