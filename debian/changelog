@@ -1,3 +1,13 @@
+kicad (5.0.1+dfsg1-3) unstable; urgency=medium
+
+  * [7a56565] rebuild patch queue from patch-queue branch
+    + added patch:
+      fixes/Use-fixed-version-for-libngspice.so.0.patch
+  * [122f38b] d/control: adding dependency on libngspice0 library
+    (Closes: #911965)
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sat, 27 Oct 2018 09:19:43 +0200
+
 kicad (5.0.1+dfsg1-2~bpo9+1) stretch-backports; urgency=medium
 
   * Rebuild for stretch-backports.
