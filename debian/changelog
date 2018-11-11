@@ -1,3 +1,10 @@
+kicad (5.0.1+dfsg1-3~bpo9+1) stretch-backports; urgency=medium
+
+  * Rebuild for stretch-backports.
+  * [3e462fa] kicad: ensure python-wxgtk3.0 version <= 3.0.2.0+dfsg-4
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sun, 11 Nov 2018 18:54:25 +0100
+
 kicad (5.0.1+dfsg1-3) unstable; urgency=medium
 
   * [7a56565] rebuild patch queue from patch-queue branch
