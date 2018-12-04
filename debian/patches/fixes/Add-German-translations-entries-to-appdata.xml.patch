@@ -8,12 +8,12 @@ Some basic German translation for the AppData file.
  1 file changed, 11 insertions(+), 2 deletions(-)
 
 diff --git a/resources/linux/appdata/kicad.appdata.xml b/resources/linux/appdata/kicad.appdata.xml
-index 8f78863..48dea38 100644
+index 7176160..a40f2b5 100644
 --- a/resources/linux/appdata/kicad.appdata.xml
 +++ b/resources/linux/appdata/kicad.appdata.xml
 @@ -7,6 +7,7 @@
-   <project_license>GPL-2.0+</project_license>
-   <metadata_license>CC0-1.0</metadata_license>
+   <project_license>AGPL-3.0+</project_license>
+   <metadata_license>CC-BY-SA-4.0</metadata_license>
    <summary>EDA Suite</summary>
 +  <summary xml:lang="de">EDA Lösung</summary>
  
