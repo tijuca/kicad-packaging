@@ -54,10 +54,10 @@ the KiCad binaries.
      So currently KiCad is build to use still GTK+2 bindings.
 
  2.) The usage of the scripting features of wxpython isn't possible as the
-     wxpython package isn't available anymore for usage with GTK2+. This
+     wxpython package isn't available anymore for usage with GTK+2. This
      unfortunately is resulting in a turned off support of SCRIPTING_WXPYTHON
      and the Pcbnew application hasn't a Python scripting interface for now.
-     This should be usable again once a full GTK3+ support is built into KiCad.
+     This should be usable again once a full GTK+3 support is built into KiCad.
 
  -- Carsten Schoenert <c.schoenert@t-online.de>  Sat, 26 May 2018 12:00:00 +0200
 
