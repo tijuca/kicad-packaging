@@ -61,7 +61,6 @@ void CLIPBOARD_IO::SetBoard( BOARD* aBoard )
 
 void CLIPBOARD_IO::SaveSelection( const SELECTION& aSelected )
 {
-    LOCALE_IO   toggle;     // toggles on, then off, the C locale.
     VECTOR2I refPoint( 0, 0 );
 
     // dont even start if the selection is empty
@@ -148,6 +147,8 @@ void CLIPBOARD_IO::SaveSelection( const SELECTION& aSelected )
     {
         // we will fake being a .kicad_pcb to get the full parser kicking
         // This means we also need layers and nets
+        LOCALE_IO io;
+
         m_formatter.Print( 0, "(kicad_pcb (version %d) (host pcbnew %s)\n",
                 SEXPR_BOARD_FILE_VERSION, m_formatter.Quotew( GetBuildVersion() ).c_str() );
 
@@ -175,15 +176,30 @@ void CLIPBOARD_IO::SaveSelection( const SELECTION& aSelected )
 
                 Format( clone.get(), 1 );
             }
-
         }
         m_formatter.Print( 0, "\n)" );
     }
-    if( wxTheClipboard->Open() )
+
+    // These are placed at the end to minimize the open time of the clipboard
+    auto clipboard = wxTheClipboard;
+    wxClipboardLocker clipboardLock( clipboard );
+
+    if( !clipboardLock || !clipboard->IsOpened() )
+        return;
+
+    clipboard->SetData( new wxTextDataObject(
+                wxString( m_formatter.GetString().c_str(), wxConvUTF8 ) ) );
+
+    clipboard->Flush();
+
+    // This section exists to return the clipboard data, ensuring it has fully
+    // been processed by the system clipboard.  This appears to be needed for
+    // extremely large clipboard copies on asynchronous linux clipboard managers
+    // such as KDE's Klipper
     {
-        wxTheClipboard->SetData( new wxTextDataObject(
-                    wxString( m_formatter.GetString().c_str(), wxConvUTF8 ) ) );
-        wxTheClipboard->Close();
+        wxTextDataObject data;
+        clipboard->GetData( data );
+        ( void )data.GetText(); // Keep unused variable
     }
 }
 
@@ -193,16 +209,18 @@ BOARD_ITEM* CLIPBOARD_IO::Parse()
     BOARD_ITEM* item;
     wxString result;
 
-    if( wxTheClipboard->Open() )
-    {
-        if( wxTheClipboard->IsSupported( wxDF_TEXT ) )
-        {
-            wxTextDataObject data;
-            wxTheClipboard->GetData( data );
-            result = data.GetText();
-        }
+    auto clipboard = wxTheClipboard;
+    wxClipboardLocker clipboardLock( clipboard );
 
-        wxTheClipboard->Close();
+    if( !clipboardLock )
+        return nullptr;
+
+
+    if( clipboard->IsSupported( wxDF_TEXT ) )
+    {
+        wxTextDataObject data;
+        clipboard->GetData( data );
+        result = data.GetText();
     }
 
     try
@@ -221,8 +239,6 @@ BOARD_ITEM* CLIPBOARD_IO::Parse()
 void CLIPBOARD_IO::Save( const wxString& aFileName, BOARD* aBoard,
                 const PROPERTIES* aProperties )
 {
-    LOCALE_IO   toggle;     // toggles on, then off, the C locale.
-
     init( aProperties );
 
     m_board = aBoard;       // after init()
@@ -241,13 +257,25 @@ void CLIPBOARD_IO::Save( const wxString& aFileName, BOARD* aBoard,
 
     m_out->Print( 0, ")\n" );
 
-    if( wxTheClipboard->Open() )
-    {
-        wxTheClipboard->SetData( new wxTextDataObject(
-                    wxString( m_formatter.GetString().c_str(), wxConvUTF8 ) ) );
-        wxTheClipboard->Close();
-    }
+    auto clipboard = wxTheClipboard;
+    wxClipboardLocker clipboardLock( clipboard );
 
+    if( !clipboardLock )
+        return;
+
+    clipboard->SetData( new wxTextDataObject(
+                wxString( m_formatter.GetString().c_str(), wxConvUTF8 ) ) );
+    clipboard->Flush();
+
+    // This section exists to return the clipboard data, ensuring it has fully
+    // been processed by the system clipboard.  This appears to be needed for
+    // extremely large clipboard copies on asynchronous linux clipboard managers
+    // such as KDE's Klipper
+    {
+        wxTextDataObject data;
+        clipboard->GetData( data );
+        ( void )data.GetText(); // Keep unused variable
+    }
 }
 
 
@@ -256,17 +284,18 @@ BOARD* CLIPBOARD_IO::Load( const wxString& aFileName,
 {
     std::string result;
 
-    if( wxTheClipboard->Open() )
+    auto clipboard = wxTheClipboard;
+    wxClipboardLocker clipboardLock( clipboard );
+
+    if( !clipboardLock )
+        return nullptr;
+
+    if( clipboard->IsSupported( wxDF_TEXT ) )
     {
-        if( wxTheClipboard->IsSupported( wxDF_TEXT ) )
-        {
-            wxTextDataObject data;
-            wxTheClipboard->GetData( data );
+        wxTextDataObject data;
+        clipboard->GetData( data );
 
-            result = data.GetText().mb_str();
-        }
-
-        wxTheClipboard->Close();
+        result = data.GetText().mb_str();
     }
 
     STRING_LINE_READER    reader(result, wxT( "clipboard" ) );
