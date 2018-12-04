@@ -1089,24 +1089,22 @@ static bool showLocalRatsnest( TOOL_MANAGER* aToolMgr, BOARD* aBoard, const VECT
         for( auto mod : modules )
         {
             for( auto pad : mod->Pads() )
-            {
-                pad->SetLocalRatsnestVisible( false );
-            }
+                pad->SetLocalRatsnestVisible( aBoard->IsElementVisible( LAYER_RATSNEST ) );
         }
-
-        return true;
     }
-
-    for( auto item : selection )
+    else
     {
-        if( item->Type() == PCB_MODULE_T )
+        for( auto item : selection )
         {
-            for( auto pad : static_cast<MODULE *> (item)->Pads() )
+            if( auto mod = dyn_cast<MODULE*>(item) )
             {
-                pad->SetLocalRatsnestVisible( !pad->GetLocalRatsnestVisible() );
+                for( auto pad : mod->Pads() )
+                    pad->SetLocalRatsnestVisible( !pad->GetLocalRatsnestVisible() );
             }
         }
     }
+
+    aToolMgr->GetView()->MarkTargetDirty( KIGFX::TARGET_OVERLAY );
 
     return true;
 }
@@ -1123,6 +1121,12 @@ int PCB_EDITOR_CONTROL::ShowLocalRatsnest( const TOOL_EVENT& aEvent )
 
     m_frame->SetToolID( ID_PCB_SHOW_1_RATSNEST_BUTT, wxCURSOR_PENCIL, _( "Pick Components for Local Ratsnest" ) );
     picker->SetClickHandler( std::bind( showLocalRatsnest, m_toolMgr, board, _1 ) );
+    picker->SetFinalizeHandler( [ board ]( int aCondition ){
+        auto vis = board->IsElementVisible( LAYER_RATSNEST );
+        for( auto mod : board->Modules() )
+            for( auto pad : mod->Pads() )
+                pad->SetLocalRatsnestVisible( vis );
+        } );
     picker->SetSnapping( false );
     picker->Activate();
     Wait();
