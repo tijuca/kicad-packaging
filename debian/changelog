@@ -1,3 +1,19 @@
+kicad (5.0.2+dfsg1-1) unstable; urgency=medium
+
+  * [9272615] New upstream version 5.0.2+dfsg1
+    (Closes: #911559)
+  * [967dbe4] rebuild patch queue from patch-queue branch
+    + removed patch (included upstream):
+      fixes/Use-fixed-version-for-libngspice.so.0.patch
+    + updated patch:
+      fixes/Add-German-translations-entries-to-appdata.xml.patch
+  * [3876be2] kicad: remove package python-wxgtk3.0 from Depends
+    + Remove useless dependency on python-wxgtk3.0, KiCad is build without
+      wxPython Scripting support and thus we don't need this package
+      installed.
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sun, 16 Dec 2018 09:01:15 +0100
+
 kicad (5.0.1+dfsg1-3) unstable; urgency=medium
 
   * [7a56565] rebuild patch queue from patch-queue branch
