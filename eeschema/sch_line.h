@@ -156,7 +156,10 @@ public:
 
     void GetEndPoints( std::vector<DANGLING_END_ITEM>& aItemList ) override;
 
-    bool IsDanglingStateChanged( std::vector< DANGLING_END_ITEM >& aItemList ) override;
+    bool UpdateDanglingState( std::vector<DANGLING_END_ITEM>& aItemList ) override;
+
+    bool IsStartDangling() const { return m_startIsDangling; }
+    bool IsEndDangling() const { return m_endIsDangling; }
 
     bool IsDangling() const override { return m_startIsDangling || m_endIsDangling; }
 
@@ -168,7 +171,7 @@ public:
 
     bool CanConnect( const SCH_ITEM* aItem ) const override;
 
-    wxString GetSelectMenuText() const override;
+    wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
 
     BITMAP_DEF GetMenuImage() const override;
 

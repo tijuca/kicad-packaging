@@ -31,6 +31,8 @@
 
 #include <vector>
 #include <memory>
+#include <geometry/seg.h>
+#include <geometry/shape_poly_set.h>
 
 #define OK_DRC  0
 #define BAD_DRC 1
@@ -62,8 +64,8 @@
 #define DRCE_PAD_NEAR_PAD1                     19   ///< pad too close to pad
 #define DRCE_VIA_HOLE_BIGGER                   20   ///< via's hole is bigger than its diameter
 #define DRCE_MICRO_VIA_INCORRECT_LAYER_PAIR    21   ///< micro via's layer pair incorrect (layers must be adjacent)
-#define COPPERAREA_INSIDE_COPPERAREA           22   ///< copper area outlines intersect
-#define COPPERAREA_CLOSE_TO_COPPERAREA         23   ///< copper area outlines are too close
+#define DRCE_ZONES_INTERSECT                   22   ///< copper area outlines intersect
+#define DRCE_ZONES_TOO_CLOSE                   23   ///< copper area outlines are too close
 #define DRCE_SUSPICIOUS_NET_FOR_ZONE_OUTLINE   24   ///< copper area has a net but no pads in nets, which is suspicious
 #define DRCE_HOLE_NEAR_PAD                     25   ///< hole too close to pad
 #define DRCE_HOLE_NEAR_TRACK                   26   ///< hole too close to track
@@ -81,16 +83,20 @@
 #define DRCE_VIA_INSIDE_KEEPOUT                38   ///< Via in inside a keepout area
 #define DRCE_TRACK_INSIDE_KEEPOUT              39   ///< Track in inside a keepout area
 #define DRCE_PAD_INSIDE_KEEPOUT                40   ///< Pad in inside a keepout area
-#define DRCE_VIA_INSIDE_TEXT                   41   ///< Via in inside a text area
-#define DRCE_TRACK_INSIDE_TEXT                 42   ///< Track in inside a text area
-#define DRCE_PAD_INSIDE_TEXT                   43   ///< Pad in inside a text area
-#define DRCE_OVERLAPPING_FOOTPRINTS            44   ///< footprint courtyards overlap
-#define DRCE_MISSING_COURTYARD_IN_FOOTPRINT    45   ///< footprint has no courtyard defined
-#define DRCE_MALFORMED_COURTYARD_IN_FOOTPRINT  46   ///< footprint has a courtyard but malformed
+#define DRCE_TRACK_NEAR_COPPER                 41   ///< track & copper graphic collide or are too close
+#define DRCE_VIA_NEAR_COPPER                   42   ///< via and copper graphic collide or are too close
+#define DRCE_PAD_NEAR_COPPER                   43   ///< pad and copper graphic collide or are too close
+#define DRCE_TRACK_NEAR_ZONE                   44   ///< track & zone collide or are too close together
+#define DRCE_OVERLAPPING_FOOTPRINTS            45   ///< footprint courtyards overlap
+#define DRCE_MISSING_COURTYARD_IN_FOOTPRINT    46   ///< footprint has no courtyard defined
+#define DRCE_MALFORMED_COURTYARD_IN_FOOTPRINT  47   ///< footprint has a courtyard but malformed
                                                     ///< (not convertible to a closed polygon with holes)
-#define DRCE_MICRO_VIA_NOT_ALLOWED             47   ///< micro vias are not allowed
-#define DRCE_BURIED_VIA_NOT_ALLOWED            48   ///< buried vias are not allowed
-#define DRCE_DISABLED_LAYER_ITEM               49   ///< item on a disabled layer
+#define DRCE_MICRO_VIA_NOT_ALLOWED             48   ///< micro vias are not allowed
+#define DRCE_BURIED_VIA_NOT_ALLOWED            49   ///< buried vias are not allowed
+#define DRCE_DISABLED_LAYER_ITEM               50   ///< item on a disabled layer
+#define DRCE_DRILLED_HOLES_TOO_CLOSE           51   ///< overlapping drilled holes break drill bits
+#define DRCE_TRACK_NEAR_EDGE                   53   ///< track too close to board edge
+#define DRCE_INVALID_OUTLINE                   54   ///< invalid board outline
 
 
 class EDA_DRAW_PANEL;
@@ -104,6 +110,11 @@ class TRACK;
 class MARKER_PCB;
 class DRC_ITEM;
 class NETCLASS;
+class EDA_TEXT;
+class DRAWSEGMENT;
+class wxWindow;
+class wxString;
+class wxTextCtrl;
 
 
 /**
@@ -172,17 +183,12 @@ private:
     bool     m_doZonesTest;
     bool     m_doKeepoutTest;
     bool     m_doCreateRptFile;
-    bool     m_doFootprintOverlapping;
-    bool     m_doNoCourtyardDefined;
     bool     m_refillZones;
     bool     m_reportAllTrackErrors;
 
     wxString m_rptFilename;
 
     MARKER_PCB* m_currentMarker;
-
-    bool        m_abortDRC;
-    bool        m_drcInProgress;
 
     /**
      * in legacy canvas, when creating a track, the drc test must only display the
@@ -217,6 +223,7 @@ private:
 
     PCB_EDIT_FRAME*     m_pcbEditorFrame;   ///< The pcb frame editor which owns the board
     BOARD*              m_pcb;
+    SHAPE_POLY_SET      m_board_outlines;   ///< The board outline including cutouts
     DIALOG_DRC_CONTROL* m_drcDialog;
 
     DRC_LIST            m_unconnected;      ///< list of unconnected pads, as DRC_ITEMs
@@ -229,49 +236,39 @@ private:
 
 
     /**
-     * Creates a marker and fills it in with information but does not add it to the BOARD.
+     * Function newMarker
+     * Creates a marker on a track, via or pad.
      *
-     * Use this to report any kind of DRC problem or unconnected pad problem.
-     *
-     * @param aTrack The reference track.
-     * @param aItem  Another item on the BOARD, such as a VIA, SEGZONE,
-     *               or TRACK.
-     * @param aErrorCode A categorizing identifier for the particular type
-     *                   of error that is being reported.
-     * @param fillMe A MARKER_PCB* which is to be filled in, or NULL if one is to
-     *               first be allocated, then filled.
+     * @param aTrack/aPad The reference item.
+     * @param aConflitItem  Another item on the board which is in conflict with the
+     *                       reference item.
+     * @param aErrorCode An ID for the particular type of error that is being reported.
      */
-    MARKER_PCB* fillMarker( const TRACK* aTrack, BOARD_ITEM* aItem, int aErrorCode,
-                            MARKER_PCB* fillMe );
+    MARKER_PCB* newMarker( TRACK* aTrack, BOARD_ITEM* aConflitItem, const SEG& aConflictSeg,
+                           int aErrorCode );
 
-    MARKER_PCB* fillMarker( D_PAD* aPad, BOARD_ITEM* aItem, int aErrorCode, MARKER_PCB* fillMe );
+    MARKER_PCB* newMarker( TRACK* aTrack, ZONE_CONTAINER* aConflictZone, int aErrorCode );
 
-    MARKER_PCB* fillMarker( ZONE_CONTAINER* aArea, int aErrorCode, MARKER_PCB* fillMe );
-
-    MARKER_PCB* fillMarker( const wxPoint& aPos, int aErrorCode,
-                            const wxString& aMessage, MARKER_PCB* fillMe );
+    MARKER_PCB* newMarker( D_PAD* aPad, BOARD_ITEM* aConflictItem, int aErrorCode );
 
     /**
-     * Create a marker and fills it in with information but do not add it to the BOARD.
+     * Function newMarker
+     * Creates a marker at a given location.
      *
-     * Use this to report any kind of DRC problem, or unconnected pad problem.
-     *
-     * @param aArea The zone to test
-     * @param aPos position of error
-     * @param aErrorCode  Type of error
-     * @param fillMe A MARKER_PCB* which is to be filled in, or NULL if one is to
-     *               first be allocated, then filled.
+     * @param aItem The reference item.
+     * @param aPos Usually the position of the item, but could be more specific for a zone.
+     * @param aErrorCode An ID for the particular type of error that is being reported.
      */
-    MARKER_PCB* fillMarker( const ZONE_CONTAINER* aArea,
-                            const wxPoint&        aPos,
-                            int                   aErrorCode,
-                            MARKER_PCB*           fillMe );
+    MARKER_PCB* newMarker( const wxPoint& aPos, BOARD_ITEM* aItem, int aErrorCode );
+
+    MARKER_PCB* newMarker( const wxPoint& aPos, BOARD_ITEM* aItem, BOARD_ITEM* bItem,
+                           int aErrorCode );
 
     /**
-     * Fill a MARKER which will report on a generic problem with the board which is
+     * Create a MARKER which will report on a generic problem with the board which is
      * not geographically locatable.
      */
-    MARKER_PCB* fillMarker( int aErrorCode, const wxString& aMessage, MARKER_PCB* fillMe );
+    MARKER_PCB* newMarker( int aErrorCode, const wxString& aMessage );
 
     /**
      * Adds a DRC marker to the PCB through the COMMIT mechanism.
@@ -303,16 +300,28 @@ private:
 
     void testPad2Pad();
 
+    void testDrilledHoles();
+
     void testUnconnected();
 
     void testZones();
 
     void testKeepoutAreas();
 
-    void testTexts();
+    // aTextItem is type BOARD_ITEM* to accept either TEXTE_PCB or TEXTE_MODULE
+    void testCopperTextItem( BOARD_ITEM* aTextItem );
+
+    void testCopperDrawItem( DRAWSEGMENT* aDrawing );
+
+    void testCopperTextAndGraphics();
 
     ///> Tests for items placed on disabled layers (causing false connections).
     void testDisabledLayers();
+
+    /**
+     * Test that the board outline is contiguous and composed of valid elements
+     */
+    void testOutline();
 
     //-----<single "item" tests>-----------------------------------------
 
@@ -431,6 +440,7 @@ public:
     ~DRC();
 
     /**
+     * Function Drc
      * tests the current segment and returns the result and displays the error
      * in the status panel only if one exists.
      * No marker created or added to the board. Must be used only during track
@@ -442,6 +452,7 @@ public:
     int DrcOnCreatingTrack( TRACK* aRefSeg, TRACK* aList );
 
     /**
+     * Function Drc
      * tests the outline segment starting at CornerIndex and returns the result and displays
      * the error in the status panel only if one exists.
      *      Test Edge inside other areas
@@ -499,15 +510,12 @@ public:
      * @param aZonesTest Tells whether to test zones.
      * @param aRefillZones Refill zones before performing DRC.
      * @param aKeepoutTest Tells whether to test keepout areas.
-     * @param aCourtyardTest Tells whether to test footprint courtyard overlap.
-     * @param aCourtyardMissingTest Tells whether to test missing courtyard definition in footprint.
      * @param aReportAllTrackErrors Tells whether or not to stop checking track connections after the first error.
      * @param aReportName A string telling the disk file report name entered.
      * @param aSaveReport A boolean telling whether to generate disk file report.
      */
     void SetSettings( bool aPad2PadTest, bool aUnconnectedTest,
                       bool aZonesTest, bool aKeepoutTest, bool aRefillZones,
-                      bool aCourtyardTest, bool aCourtyardMissingTest,
                       bool aReportAllTrackErrors,
                       const wxString& aReportName, bool aSaveReport )
     {
@@ -517,8 +525,6 @@ public:
         m_doKeepoutTest         = aKeepoutTest;
         m_rptFilename           = aReportName;
         m_doCreateRptFile       = aSaveReport;
-        m_doFootprintOverlapping = aCourtyardTest;
-        m_doNoCourtyardDefined  = aCourtyardMissingTest;
         m_refillZones           = aRefillZones;
         m_drcInLegacyRoutingMode = false;
         m_reportAllTrackErrors  = aReportAllTrackErrors;

@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct 17 2016)
+// C++ code generated with wxFormBuilder (version Jul 11 2018)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_PNS_LENGTH_TUNING_SETTINGS_BASE_H__
@@ -11,7 +11,6 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
 class TEXT_CTRL_EVAL;
 
 #include "dialog_shim.h"
@@ -53,13 +52,13 @@ class DIALOG_PNS_LENGTH_TUNING_SETTINGS_BASE : public DIALOG_SHIM
 		TEXT_CTRL_EVAL* m_targetLengthText;
 		wxStaticText* m_targetLengthUnit;
 		wxStaticBitmap* m_legend;
-		wxStaticText* m_staticText9;
+		wxStaticText* m_minAmplLabel;
 		TEXT_CTRL_EVAL* m_minAmplText;
 		wxStaticText* m_minAmplUnit;
-		wxStaticText* m_staticText91;
+		wxStaticText* m_maxAmplLabel;
 		TEXT_CTRL_EVAL* m_maxAmplText;
 		wxStaticText* m_maxAmplUnit;
-		wxStaticText* m_staticText11;
+		wxStaticText* m_spacingLabel;
 		TEXT_CTRL_EVAL* m_spacingText;
 		wxStaticText* m_spacingUnit;
 		wxStaticText* m_staticText14;
@@ -73,7 +72,7 @@ class DIALOG_PNS_LENGTH_TUNING_SETTINGS_BASE : public DIALOG_SHIM
 	
 	public:
 		
-		DIALOG_PNS_LENGTH_TUNING_SETTINGS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Trace Length Tuning"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 324,547 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_PNS_LENGTH_TUNING_SETTINGS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Trace Length Tuning"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 324,397 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_PNS_LENGTH_TUNING_SETTINGS_BASE();
 	
 };

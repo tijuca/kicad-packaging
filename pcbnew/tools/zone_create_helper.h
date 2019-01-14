@@ -52,6 +52,9 @@ public:
         ///> Should create a keepout zone?
         bool m_keepout;
 
+        ///> Layer to begin drawing
+        PCB_LAYER_ID m_layer;
+
         ///> The zone mode to operate in
         DRAWING_TOOL::ZONE_MODE m_mode;
 
@@ -104,10 +107,10 @@ public:
      * Cut one zone out of another one (i.e. subtraction) and
      * update the zone.
      *
-     * @param aExistingZone the zone to removed area from
+     * @param aZone the zone to removed area from
      * @param aCutout the area to remove
      */
-    void performZoneCutout( ZONE_CONTAINER& aExistingZone, ZONE_CONTAINER& aCutout );
+    void performZoneCutout( ZONE_CONTAINER& aZone, ZONE_CONTAINER& aCutout );
 
     /**
      * Commit the current zone-in-progress to the BOARD. This might

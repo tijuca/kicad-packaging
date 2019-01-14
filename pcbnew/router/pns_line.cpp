@@ -55,7 +55,7 @@ LINE::~LINE()
 }
 
 
-const LINE& LINE::operator=( const LINE& aOther )
+LINE& LINE::operator=( const LINE& aOther )
 {
     m_line = aOther.m_line;
     m_width = aOther.m_width;
@@ -372,7 +372,8 @@ SHAPE_LINE_CHAIN dragCornerInternal( const SHAPE_LINE_CHAIN& aOrigin, const VECT
             if( paths[j].SegmentCount() < 1 )
                 continue;
 
-            assert( dirCount < sizeof( dirs ) / sizeof( dirs[0] ) );
+            assert( dirCount < int( sizeof( dirs ) / sizeof( dirs[0] ) ) );
+
             dirs[dirCount] = DIRECTION_45( paths[j].CSegment( 0 ) );
             ++dirCount;
         }

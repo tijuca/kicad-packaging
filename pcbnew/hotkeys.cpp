@@ -30,6 +30,7 @@
 #include <pcbnew.h>
 #include <pcb_edit_frame.h>
 #include <footprint_viewer_frame.h>
+#include <footprint_wizard_frame.h>
 #include <pcbnew_id.h>
 
 #include <hotkeys.h>
@@ -144,7 +145,7 @@ static EDA_HOTKEY HkCopyItem( _HKI( "Copy Item" ), HK_COPY_ITEM, 'C' );
 static EDA_HOTKEY HkDragFootprint( _HKI( "Drag Item" ), HK_DRAG_ITEM, 'G' );
 static EDA_HOTKEY HkGetAndMoveFootprint( _HKI( "Get and Move Footprint" ), HK_GET_AND_MOVE_FOOTPRINT, 'T' );
 static EDA_HOTKEY HkLock_Unlock_Footprint( _HKI( "Lock/Unlock Footprint" ), HK_LOCK_UNLOCK_FOOTPRINT, 'L' );
-static EDA_HOTKEY HkDelete( _HKI( "Delete Track or Footprint" ), HK_DELETE, WXK_DELETE );
+static EDA_HOTKEY HkDelete( _HKI( "Delete Full Track" ), HK_DELETE, WXK_DELETE );
 static EDA_HOTKEY HkResetLocalCoord( _HKI( "Reset Local Coordinates" ), HK_RESET_LOCAL_COORD, ' ' );
 static EDA_HOTKEY HkSwitchHighContrastMode( _HKI( "Toggle High Contrast Mode" ), HK_SWITCH_HIGHCONTRAST_MODE,'H');
 
@@ -157,7 +158,7 @@ static EDA_HOTKEY HkAddDimension( _HKI( "Add Dimension" ), HK_ADD_DIMENSION, 'H'
 static EDA_HOTKEY HkAddFilledZone( _HKI( "Add Filled Zone" ), HK_ADD_ZONE, 'Z' + GR_KB_SHIFTCTRL );
 static EDA_HOTKEY HkAddFreeVia( _HKI( "Add Vias" ), HK_ADD_FREE_VIA, 'V' + GR_KB_SHIFTCTRL );
 static EDA_HOTKEY HkAddKeepout( _HKI( "Add Keepout Area" ), HK_ADD_KEEPOUT, 'K' + GR_KB_SHIFTCTRL );
-static EDA_HOTKEY HkAddZoneCutout( _HKI( "Add a Zone Cutout" ), HK_ADD_CUTOUT, 'C' );
+static EDA_HOTKEY HkAddZoneCutout( _HKI( "Add a Zone Cutout" ), HK_ADD_CUTOUT, 'C' + GR_KB_SHIFT );
 static EDA_HOTKEY HkAddSimilarZone( _HKI( "Add a Similar Zone" ), HK_ADD_SIMILAR_ZONE, '.' + GR_KB_SHIFTCTRL );
 static EDA_HOTKEY HkAddDXF( _HKI( "Place DXF" ), HK_ADD_DXF, 'F' + GR_KB_SHIFTCTRL );
 static EDA_HOTKEY HkAddAnchor( _HKI( "Place the Footprint Anchor" ), HK_ADD_ANCHOR, 'N' + GR_KB_SHIFTCTRL );
@@ -227,7 +228,7 @@ static EDA_HOTKEY HkZoomSelection( _HKI( "Zoom to Selection" ), HK_ZOOM_SELECTIO
 
 static EDA_HOTKEY Hk3DViewer( _HKI( "3D Viewer" ), HK_3D_VIEWER, GR_KB_ALT + '3' );
 
-static EDA_HOTKEY HkHelp( _HKI( "Help (this window)" ), HK_HELP, GR_KB_CTRL + WXK_F1 );
+static EDA_HOTKEY HkHelp( _HKI( "List Hotkeys" ), HK_HELP, GR_KB_CTRL + WXK_F1 );
 
 static EDA_HOTKEY HkSwitchTrackWidthToNext( _HKI( "Switch Track Width To Next" ),
                                             HK_SWITCH_TRACK_WIDTH_TO_NEXT, 'W' );
@@ -267,9 +268,9 @@ static EDA_HOTKEY HkDecLayerAlpha( _HKI( "Decrement Layer Transparency (Modern T
 static EDA_HOTKEY HkIncHighContrast( _HKI( "Increment High Contrast" ), HK_HIGHCONTRAST_INC, '>' );
 static EDA_HOTKEY HkDecHighContrast( _HKI( "Decrement High Contrast" ), HK_HIGHCONTRAST_DEC, '<' );
 
-static EDA_HOTKEY HkSelectConnection( _HKI( "Select Trivial Connection" ), HK_SEL_TRIVIAL_CONNECTION, 'U' );
+static EDA_HOTKEY HkSelectConnection( _HKI( "Select Single Track" ), HK_SEL_TRIVIAL_CONNECTION, 'U' );
 
-static EDA_HOTKEY HkSelectCopper( _HKI( "Select Copper Connection" ), HK_SEL_COPPER_CONNECTION, 'I' );
+static EDA_HOTKEY HkSelectCopper( _HKI( "Select Connected Tracks" ), HK_SEL_COPPER_CONNECTION, 'I' );
 
 static EDA_HOTKEY HkRoutingOptions( _HKI( "Routing Options" ), HK_ROUTING_OPTIONS, ',' + GR_KB_CTRL );
 
@@ -309,6 +310,9 @@ static EDA_HOTKEY HkToggleCursor( _HKI( "Toggle Cursor Display (Modern Toolset o
                                   HK_TOGGLE_CURSOR, 'X' + GR_KB_SHIFTCTRL );
 static EDA_HOTKEY HkMeasureTool( _HKI( "Measure Distance (Modern Toolset only)" ),
                                  HK_MEASURE_TOOL, 'M' + GR_KB_SHIFTCTRL );
+
+static EDA_HOTKEY HkInsertCorner( _HKI( "Insert Corner (Modern Toolset only)" ),
+                                 HK_INSERT_CORNER, WXK_INSERT );
 
 // List of common hotkey descriptors
 EDA_HOTKEY* common_Hotkey_List[] =
@@ -383,6 +387,9 @@ EDA_HOTKEY* board_edit_Hotkey_List[] =
     // Zones
     &HkZoneFillOrRefill,
     &HkZoneRemoveFilled,
+
+    // Point editor (zones and segments)
+    &HkInsertCorner,
 
     // Highlight and display
     &HkSelectConnection,
@@ -593,7 +600,94 @@ bool FOOTPRINT_VIEWER_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aP
         break;
 
     case HK_SWITCH_UNITS:
-        cmd.SetId( (g_UserUnit == INCHES) ?
+        cmd.SetId( (GetUserUnits() == INCHES) ?
+                    ID_TB_OPTIONS_SELECT_UNIT_MM : ID_TB_OPTIONS_SELECT_UNIT_INCH );
+        GetEventHandler()->ProcessEvent( cmd );
+        break;
+
+    case HK_ZOOM_IN:
+        cmd.SetId( ID_KEY_ZOOM_IN );
+        GetEventHandler()->ProcessEvent( cmd );
+        break;
+
+    case HK_ZOOM_OUT:
+        cmd.SetId( ID_KEY_ZOOM_OUT );
+        GetEventHandler()->ProcessEvent( cmd );
+        break;
+
+    case HK_ZOOM_REDRAW:
+        cmd.SetId( ID_ZOOM_REDRAW );
+        GetEventHandler()->ProcessEvent( cmd );
+        break;
+
+    case HK_ZOOM_CENTER:
+        cmd.SetId( ID_POPUP_ZOOM_CENTER );
+        GetEventHandler()->ProcessEvent( cmd );
+        break;
+
+    case HK_ZOOM_AUTO:
+        cmd.SetId( ID_ZOOM_PAGE );
+        GetEventHandler()->ProcessEvent( cmd );
+        break;
+    }
+
+    return true;
+}
+
+
+
+EDA_HOTKEY* FOOTPRINT_WIZARD_FRAME::GetHotKeyDescription( int aCommand ) const
+{
+    EDA_HOTKEY* HK_Descr = GetDescriptorFromCommand( aCommand, common_Hotkey_List );
+
+    return HK_Descr;
+}
+
+
+bool FOOTPRINT_WIZARD_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
+                                       EDA_ITEM* aItem )
+{
+    if( aHotKey == 0 )
+        return false;
+
+    wxCommandEvent cmd( wxEVT_COMMAND_MENU_SELECTED );
+    cmd.SetEventObject( this );
+
+    /* Convert lower to upper case (the usual toupper function has problem with non ascii
+     * codes like function keys */
+    if( (aHotKey >= 'a') && (aHotKey <= 'z') )
+        aHotKey += 'A' - 'a';
+
+    EDA_HOTKEY* HK_Descr = GetDescriptorFromHotkey( aHotKey, common_Hotkey_List );
+
+    if( HK_Descr == NULL )
+        return false;
+
+    switch( HK_Descr->m_Idcommand )
+    {
+    default:
+    case HK_NOT_FOUND:
+        return false;
+
+    case HK_HELP:                   // Display Current hotkey list
+        DisplayHotkeyList( this, g_Module_Viewer_Hotkeys_Descr );
+        break;
+
+    case HK_RESET_LOCAL_COORD:      // set local (relative) coordinate origin
+        GetScreen()->m_O_Curseur = GetCrossHairPosition();
+        break;
+
+    case HK_LEFT_CLICK:
+        OnLeftClick( aDC, aPosition );
+        break;
+
+    case HK_LEFT_DCLICK:    // Simulate a double left click: generate 2 events
+        OnLeftClick( aDC, aPosition );
+        OnLeftDClick( aDC, aPosition );
+        break;
+
+    case HK_SWITCH_UNITS:
+        cmd.SetId( (GetUserUnits() == INCHES) ?
                     ID_TB_OPTIONS_SELECT_UNIT_MM : ID_TB_OPTIONS_SELECT_UNIT_INCH );
         GetEventHandler()->ProcessEvent( cmd );
         break;

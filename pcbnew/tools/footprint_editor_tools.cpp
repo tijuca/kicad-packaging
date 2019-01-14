@@ -107,6 +107,13 @@ int MODULE_EDITOR_TOOLS::PlacePad( const TOOL_EVENT& aEvent )
             pad->IncrementPadName( true, true );
             return std::unique_ptr<BOARD_ITEM>( pad );
         }
+
+        void PlaceItem( BOARD_ITEM *aItem, BOARD_COMMIT& aCommit ) override
+        {
+            auto pad = dynamic_cast<D_PAD*>( aItem );
+            m_frame->Export_Pad_Settings( pad );
+            aCommit.Add( aItem );
+        }
     };
 
     PAD_PLACER placer;
@@ -115,7 +122,7 @@ int MODULE_EDITOR_TOOLS::PlacePad( const TOOL_EVENT& aEvent )
 
     assert( board()->m_Modules );
 
-    doInteractiveItemPlacement( &placer,  _( "Place pad" ), IPO_REPEAT | IPO_SINGLE_CLICK | IPO_ROTATE | IPO_FLIP | IPO_PROPERTIES );
+    doInteractiveItemPlacement( &placer,  _( "Place pad" ), IPO_REPEAT | IPO_SINGLE_CLICK | IPO_ROTATE | IPO_FLIP );
 
     frame()->SetNoToolSelected();
 
@@ -257,10 +264,9 @@ int MODULE_EDITOR_TOOLS::EnumeratePads( const TOOL_EVENT& aEvent )
             break;
         }
 
-        else
+        else if( evt->IsClick( BUT_RIGHT ) )
         {
-            // Delegate BUT_RIGHT, etc. to SELECTION_TOOL
-            m_toolMgr->PassEvent();
+            m_menu.ShowContextMenu();
         }
 
         // Prepare the next loop by updating the old cursor mouse position
@@ -359,6 +365,13 @@ int MODULE_EDITOR_TOOLS::CreatePadFromShapes( const TOOL_EVENT& aEvent )
             case PCB_MODULE_EDGE_T:
             {
                 auto em = static_cast<EDGE_MODULE*> ( item );
+
+                // Currently, S_CURVE shape is not supported. so warn the user
+                if( em->GetShape() == S_CURVE )
+                {
+                    illegalItemsFound = true;
+                    break;
+                }
 
                 PAD_CS_PRIMITIVE shape( em->GetShape() );
                 shape.m_Start = em->GetStart();

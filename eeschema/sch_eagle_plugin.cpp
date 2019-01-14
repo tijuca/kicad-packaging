@@ -1145,6 +1145,22 @@ void SCH_EAGLE_PLUGIN::loadInstance( wxXmlNode* aInstanceNode )
     component->GetField( REFERENCE )->SetVisible( part->GetField( REFERENCE )->IsVisible() );
     component->GetField( VALUE )->SetVisible( part->GetField( VALUE )->IsVisible() );
 
+    for( auto a:epart->attribute )
+    {
+        auto field = component->AddField( *component->GetField( VALUE ) );
+        field->SetName( a.first );
+        field->SetText( a.second );
+        field->SetVisible( false );
+    }
+
+    for( auto a:epart->variant )
+    {
+        auto field = component->AddField( *component->GetField( VALUE ) );
+        field->SetName( "VARIANT_" + a.first );
+        field->SetText( a.second );
+        field->SetVisible( false );
+    }
+
     bool valueAttributeFound = false;
     bool nameAttributeFound  = false;
 
@@ -1157,21 +1173,28 @@ void SCH_EAGLE_PLUGIN::loadInstance( wxXmlNode* aInstanceNode )
         if( attributeNode->GetName() == "attribute" )
         {
             auto attr = EATTR( attributeNode );
+            SCH_FIELD* field = NULL;
 
-            SCH_FIELD* field;
-
-            if( attr.name.Lower() == "name" || attr.name.Lower() == "value" )
+            if( attr.name.Lower() == "name" )
             {
-                if( attr.name.Lower() == "name" )
-                {
-                    field = component->GetField( REFERENCE );
-                    nameAttributeFound = true;
-                }
-                else
-                {
-                    field = component->GetField( VALUE );
-                    valueAttributeFound = true;
-                }
+                field = component->GetField( REFERENCE );
+                nameAttributeFound = true;
+            }
+            else if( attr.name.Lower() == "value" )
+            {
+                field = component->GetField( VALUE );
+                valueAttributeFound = true;
+            }
+            else
+            {
+                field = component->FindField( attr.name );
+
+                if(field)
+                    field->SetVisible( false );
+            }
+
+            if( field )
+            {
 
                 field->SetPosition( wxPoint( attr.x->ToSchUnits(), -attr.y->ToSchUnits() ) );
                 int align = attr.align ? *attr.align : ETEXT::BOTTOM_LEFT;
@@ -1192,6 +1215,19 @@ void SCH_EAGLE_PLUGIN::loadInstance( wxXmlNode* aInstanceNode )
 
                 eagleToKicadAlignment( (EDA_TEXT*) field, align, reldegrees, mirror, spin,
                         absdegrees );
+            }
+        }
+        else if( attributeNode->GetName() == "variant" )
+        {
+            wxString variant, value;
+
+            if( attributeNode->GetAttribute( "name", &variant )
+                && attributeNode->GetAttribute( "value", &value ) )
+            {
+                auto field = component->AddField( *component->GetField( VALUE ) );
+                field->SetName( "VARIANT_" + variant );
+                field->SetText( value );
+                field->SetVisible( false );
             }
         }
 
@@ -1350,6 +1386,8 @@ bool SCH_EAGLE_PLUGIN::loadSymbol( wxXmlNode* aSymbolNode, std::unique_ptr<LIB_P
             std::unique_ptr<LIB_PIN> pin( loadPin( aPart, currentNode, &ePin, aGateNumber ) );
             pincount++;
 
+            pin->SetType( PIN_BIDI );
+
             if( ePin.direction )
             {
                 const std::map<wxString, ELECTRICAL_PINTYPE> pinDirectionsMap =
@@ -1360,8 +1398,6 @@ bool SCH_EAGLE_PLUGIN::loadSymbol( wxXmlNode* aSymbolNode, std::unique_ptr<LIB_P
                     { "oc",  PIN_OPENCOLLECTOR },   { "hiz", PIN_TRISTATE },
                     { "pwr", PIN_POWER_IN },
                 };
-
-                pin->SetType( PIN_UNSPECIFIED );
 
                 for( const auto& pinDir : pinDirectionsMap )
                 {

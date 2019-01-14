@@ -77,7 +77,8 @@ public:
         DIMENSION,
         KEEPOUT,
         ZONE,
-        GRAPHIC_POLYGON
+        GRAPHIC_POLYGON,
+        VIA
     };
 
     /**
@@ -167,10 +168,10 @@ public:
     int DrawSimilarZone( const TOOL_EVENT& aEvent );
 
     /**
-     * Function PlaceDXF()
-     * Places a drawing imported from a DXF file in module editor.
+     * Function PlaceImportedGraphics()
+     * Places a drawing imported from a DXF or SVG file in module editor.
      */
-    int PlaceDXF( const TOOL_EVENT& aEvent );
+    int PlaceImportedGraphics( const TOOL_EVENT& aEvent );
 
     /**
      * Function SetAnchor()
@@ -190,11 +191,6 @@ private:
         SIMILAR,         ///< Add a new zone with the same settings as an existing one
         GRAPHIC_POLYGON
     };
-
-    ///> Shows the context menu for the drawing tool
-    ///> This menu consists of normal UI functions (zoom, grid, etc)
-    ///> And any suitable global functions for the active drawing type.
-    void showContextMenu();
 
     ///> Starts drawing a selected shape (i.e. DRAWSEGMENT).
     ///> @param aShape is the type of created shape (@see STROKE_T).
@@ -250,15 +246,6 @@ private:
     void runPolygonEventLoop( POLYGON_GEOM_MANAGER& aPolyGeomMgr );
 
     /**
-     * Function make45DegLine()
-     * Forces a DRAWSEGMENT to be drawn at multiple of 45 degrees. The origin stays the same,
-     * the end of the aSegment is modified according to the current cursor position.
-     * @param aSegment is the segment that is currently drawn.
-     * @param aHelper is a helper line that shows the next possible segment.
-     */
-    void make45DegLine( DRAWSEGMENT* aSegment, DRAWSEGMENT* aHelper ) const;
-
-    /**
      * Function constrainDimension()
      * Forces the dimension lime to be drawn on multiple of 45 degrees
      * @param aDimension is the dimension element currently being drawn
@@ -266,7 +253,7 @@ private:
     void constrainDimension( DIMENSION* dimension );
 
     ///> Returns the appropriate width for a segment depending on the settings.
-    int getSegmentWidth( unsigned int aLayer ) const;
+    int getSegmentWidth( PCB_LAYER_ID aLayer ) const;
 
     ///> Selects a non-copper layer for drawing
     PCB_LAYER_ID getDrawingLayer() const;
@@ -279,9 +266,6 @@ private:
 
     /// Stores the current line width for multisegment drawing.
     unsigned int m_lineWidth;
-
-    /// Menu model displayed by the tool.
-    TOOL_MENU m_menu;
 
     // How does line width change after one -/+ key press.
     static const unsigned int WIDTH_STEP;

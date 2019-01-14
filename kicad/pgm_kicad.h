@@ -54,9 +54,9 @@ public:
 
     void MacOpenFile( const wxString& aFileName ) override;
 
-    wxFileHistory&  GetFileHistory()            { return m_bm.m_history; }
+    FILE_HISTORY&   GetFileHistory()            { return *m_bm.m_history; }
 
-    wxConfigBase*   PgmSettings()               { return m_bm.m_config; }
+    wxConfigBase*   PgmSettings()               { return m_bm.m_config.get(); }
 
     SEARCH_STACK&   SysSearch()                 { return m_bm.m_search; }
 

@@ -403,7 +403,7 @@ void DP_GATEWAYS::FilterByOrientation ( int aAngleMask, DIRECTION_45 aRefOrienta
     m_gateways.erase(
         std::remove_if( m_gateways.begin(), m_gateways.end(), [aAngleMask, aRefOrientation]( const DP_GATEWAY& dp) {
             DIRECTION_45 orient( dp.AnchorP() - dp.AnchorN() );
-            return !( orient.Angle( aRefOrientation ) & aAngleMask );
+            return ( orient.Angle( aRefOrientation ) & aAngleMask );
         } ), m_gateways.end()
     );
 }
@@ -771,7 +771,7 @@ DP_PRIMITIVE_PAIR DIFF_PAIR::EndingPrimitives()
 }
 
 
-bool commonParallelProjection( SEG n, SEG p, SEG &pClip, SEG& nClip )
+bool commonParallelProjection( SEG p, SEG n, SEG &pClip, SEG& nClip )
 {
     SEG n_proj_p( p.LineProject( n.A ), p.LineProject( n.B ) );
 

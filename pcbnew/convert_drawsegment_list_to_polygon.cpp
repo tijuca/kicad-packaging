@@ -33,6 +33,7 @@
 #include <macros.h>
 
 #include <class_drawsegment.h>
+#include <class_module.h>
 #include <base_units.h>
 #include <convert_basic_shapes_to_polygon.h>
 #include <geometry/geometry_utils.h>
@@ -177,9 +178,10 @@ static DRAWSEGMENT* findPoint( const wxPoint& aPoint, std::vector< DRAWSEGMENT* 
  * @param aPolygons will contain the complex polygon.
  * @param aTolerance is the max distance between points that is still accepted as connected (internal units)
  * @param aErrorText is a wxString to return error message.
+ * @param aErrorLocation is the optional position of the error in the outline
  */
 bool ConvertOutlineToPolygon( std::vector<DRAWSEGMENT*>& aSegList, SHAPE_POLY_SET& aPolygons,
-        wxString* aErrorText, unsigned int aTolerance )
+                              wxString* aErrorText, unsigned int aTolerance, wxPoint* aErrorLocation )
 {
     if( aSegList.size() == 0 )
         return true;
@@ -264,6 +266,45 @@ bool ConvertOutlineToPolygon( std::vector<DRAWSEGMENT*>& aSegList, SHAPE_POLY_SE
             }
             break;
 
+        case S_CURVE:
+            {
+                graphic->RebuildBezierToSegmentsPointsList( graphic->GetWidth() );
+
+                for( unsigned int jj = 0; jj < graphic->GetBezierPoints().size(); jj++ )
+                {
+                    wxPoint pt = graphic->GetBezierPoints()[jj];
+
+                    if( pt.x < xmin.x )
+                    {
+                        xmin  = pt;
+                        xmini = i;
+                    }
+                }
+            }
+            break;
+
+        case S_POLYGON:
+            {
+                const auto poly = graphic->GetPolyShape();
+                MODULE* module = aSegList[0]->GetParentModule();
+                double orientation = module ? module->GetOrientation() : 0.0;
+                VECTOR2I offset = module ? module->GetPosition() : VECTOR2I( 0, 0 );
+
+                for( auto iter = poly.CIterate(); iter; iter++ )
+                {
+                    auto pt = *iter;
+                    RotatePoint( pt, orientation );
+                    pt += offset;
+
+                    if( pt.x < xmin.x )
+                    {
+                        xmin.x = pt.x;
+                        xmin.y = pt.y;
+                        xmini = i;
+                    }
+                }
+            }
+            break;
         default:
             break;
         }
@@ -284,6 +325,22 @@ bool ConvertOutlineToPolygon( std::vector<DRAWSEGMENT*>& aSegList, SHAPE_POLY_SE
         int steps = GetArcToSegmentCount( graphic->GetRadius(), ARC_LOW_DEF, 360.0 );
         TransformCircleToPolygon( aPolygons, graphic->GetCenter(), graphic->GetRadius(), steps );
     }
+    else if( graphic->GetShape() == S_POLYGON )
+    {
+        MODULE* module = graphic->GetParentModule();     // NULL for items not in footprints
+        double orientation = module ? module->GetOrientation() : 0.0;
+        VECTOR2I offset = module ? module->GetPosition() : VECTOR2I( 0, 0 );
+
+        aPolygons.NewOutline();
+
+        for( auto it = graphic->GetPolyShape().CIterate( 0 ); it; it++ )
+        {
+            auto pt = *it;
+            RotatePoint( pt, orientation );
+            pt += offset;
+            aPolygons.Append( pt );
+        }
+    }
     else
     {
         // Polygon start point. Arbitrarily chosen end of the
@@ -295,7 +352,7 @@ bool ConvertOutlineToPolygon( std::vector<DRAWSEGMENT*>& aSegList, SHAPE_POLY_SE
         aPolygons.Append( prevPt );
 
         // Do not append the other end point yet of this 'graphic', this first
-        // 'graphic' might be an arc.
+        // 'graphic' might be an arc or a curve.
 
         for(;;)
         {
@@ -354,14 +411,52 @@ bool ConvertOutlineToPolygon( std::vector<DRAWSEGMENT*>& aSegList, SHAPE_POLY_SE
                 }
                 break;
 
+            case S_CURVE:
+                // We do not support Bezier curves in polygons, so approximate
+                // with a series of short lines and put those
+                // line segments into the !same! PATH.
+                {
+                    wxPoint  nextPt;
+                    bool reverse = false;
+
+                    // Use the end point furthest away from
+                    // prevPt as we assume the other end to be ON prevPt or
+                    // very close to it.
+
+                    if( close_st( prevPt, graphic->GetStart(), graphic->GetEnd() ) )
+                        nextPt = graphic->GetEnd();
+                    else
+                    {
+                        nextPt = graphic->GetStart();
+                        reverse = true;
+                    }
+
+                    if( reverse )
+                    {
+                        for( int jj = graphic->GetBezierPoints().size()-1; jj >= 0; jj-- )
+                            aPolygons.Append( graphic->GetBezierPoints()[jj] );
+                    }
+                    else
+                    {
+                        for( size_t jj = 0; jj < graphic->GetBezierPoints().size(); jj++ )
+                            aPolygons.Append( graphic->GetBezierPoints()[jj] );
+                    }
+
+                    prevPt = nextPt;
+                }
+                break;
+
             default:
                 if( aErrorText )
                 {
-                    msg.Printf( _( "Unsupported DRAWSEGMENT type %s" ),
-                                GetChars( BOARD_ITEM::ShowShape( graphic->GetShape() ) ) );
+                    msg.Printf( "Unsupported DRAWSEGMENT type %s.",
+                                BOARD_ITEM::ShowShape( graphic->GetShape() ) );
 
                     *aErrorText << msg << "\n";
                 }
+
+                if( aErrorLocation )
+                    *aErrorLocation = graphic->GetPosition();
 
                 return false;
             }
@@ -384,15 +479,15 @@ bool ConvertOutlineToPolygon( std::vector<DRAWSEGMENT*>& aSegList, SHAPE_POLY_SE
                 {
                     if( aErrorText )
                     {
-                        msg.Printf(
-                            _( "Unable to find the next boundary segment with an endpoint of (%s mm, %s mm). "
-                                "graphic outline must form a contiguous, closed polygon." ),
-                            GetChars( FROM_UTF8( BOARD_ITEM::FormatInternalUnits( prevPt.x ).c_str() ) ),
-                            GetChars( FROM_UTF8( BOARD_ITEM::FormatInternalUnits( prevPt.y ).c_str() ) )
-                            );
+                        msg.Printf( _( "Unable to find segment with an endpoint of (%s, %s)." ),
+                                    StringFromValue( MILLIMETRES, prevPt.x, true ),
+                                    StringFromValue( MILLIMETRES, prevPt.y, true ) );
 
                         *aErrorText << msg << "\n";
                     }
+
+                    if( aErrorLocation )
+                        *aErrorLocation = prevPt;
 
                     return false;
                 }
@@ -409,7 +504,24 @@ bool ConvertOutlineToPolygon( std::vector<DRAWSEGMENT*>& aSegList, SHAPE_POLY_SE
         graphic = (DRAWSEGMENT*) segList[0];
         segList.erase( segList.begin() );
 
-        if( graphic->GetShape() == S_CIRCLE )
+        // Both circles and polygons on the edge cuts layer are closed items that
+        // do not connect to other elements, so we process them independently
+        if( graphic->GetShape() == S_POLYGON )
+        {
+            MODULE* module = graphic->GetParentModule();     // NULL for items not in footprints
+            double orientation = module ? module->GetOrientation() : 0.0;
+            VECTOR2I offset = module ? module->GetPosition() : VECTOR2I( 0, 0 );
+
+            for( auto it = graphic->GetPolyShape().CIterate(); it; it++ )
+            {
+                auto val = *it;
+                RotatePoint( val, orientation );
+                val += offset;
+
+                aPolygons.Append( val, -1, hole );
+            }
+        }
+        else if( graphic->GetShape() == S_CIRCLE )
         {
             // make a circle by segments;
             wxPoint  center  = graphic->GetCenter();
@@ -501,14 +613,52 @@ bool ConvertOutlineToPolygon( std::vector<DRAWSEGMENT*>& aSegList, SHAPE_POLY_SE
                     }
                     break;
 
+                case S_CURVE:
+                    // We do not support Bezier curves in polygons, so approximate
+                    // with a series of short lines and put those
+                    // line segments into the !same! PATH.
+                    {
+                        wxPoint  nextPt;
+                        bool reverse = false;
+
+                        // Use the end point furthest away from
+                        // prevPt as we assume the other end to be ON prevPt or
+                        // very close to it.
+
+                        if( close_st( prevPt, graphic->GetStart(), graphic->GetEnd() ) )
+                            nextPt = graphic->GetEnd();
+                        else
+                        {
+                            nextPt = graphic->GetStart();
+                            reverse = true;
+                        }
+
+                        if( reverse )
+                        {
+                            for( int jj = graphic->GetBezierPoints().size()-1; jj >= 0; jj-- )
+                                aPolygons.Append( graphic->GetBezierPoints()[jj], -1, hole );
+                        }
+                        else
+                        {
+                            for( size_t jj = 0; jj < graphic->GetBezierPoints().size(); jj++ )
+                                aPolygons.Append( graphic->GetBezierPoints()[jj], -1, hole );
+                        }
+
+                        prevPt = nextPt;
+                    }
+                    break;
+
                 default:
                     if( aErrorText )
                     {
-                        msg.Printf( _( "Unsupported DRAWSEGMENT type %s" ),
-                                    GetChars( BOARD_ITEM::ShowShape( graphic->GetShape() ) ) );
+                        msg.Printf( "Unsupported DRAWSEGMENT type %s.",
+                                    BOARD_ITEM::ShowShape( graphic->GetShape() ) );
 
                         *aErrorText << msg << "\n";
                     }
+
+                    if( aErrorLocation )
+                        *aErrorLocation = graphic->GetPosition();
 
                     return false;
                 }
@@ -531,15 +681,15 @@ bool ConvertOutlineToPolygon( std::vector<DRAWSEGMENT*>& aSegList, SHAPE_POLY_SE
                     {
                         if( aErrorText )
                         {
-                            msg.Printf(
-                                _( "Unable to find the next graphic segment with an endpoint of (%s mm, %s mm).\n"
-                                   "Edit graphics, making them contiguous polygons each." ),
-                                GetChars( FROM_UTF8( BOARD_ITEM::FormatInternalUnits( prevPt.x ).c_str() ) ),
-                                GetChars( FROM_UTF8( BOARD_ITEM::FormatInternalUnits( prevPt.y ).c_str() ) )
-                            );
+                            msg.Printf( _( "Unable to find segment with an endpoint of (%s, %s)." ),
+                                        StringFromValue( MILLIMETRES, prevPt.x, true ),
+                                        StringFromValue( MILLIMETRES, prevPt.y, true ) );
 
                             *aErrorText << msg << "\n";
                         }
+
+                        if( aErrorLocation )
+                            *aErrorLocation = prevPt;
 
                         return false;
                     }
@@ -560,7 +710,7 @@ bool ConvertOutlineToPolygon( std::vector<DRAWSEGMENT*>& aSegList, SHAPE_POLY_SE
  * All contours should be closed, i.e. valid closed polygon vertices
  */
 bool BuildBoardPolygonOutlines( BOARD* aBoard, SHAPE_POLY_SET& aOutlines,
-        wxString* aErrorText, unsigned int aTolerance )
+        wxString* aErrorText, unsigned int aTolerance, wxPoint* aErrorLocation )
 {
     PCB_TYPE_COLLECTOR  items;
 
@@ -578,7 +728,7 @@ bool BuildBoardPolygonOutlines( BOARD* aBoard, SHAPE_POLY_SET& aOutlines,
             segList.push_back( static_cast< DRAWSEGMENT* >( items[ii] ) );
     }
 
-    bool success = ConvertOutlineToPolygon( segList, aOutlines, aErrorText, aTolerance );
+    bool success = ConvertOutlineToPolygon( segList, aOutlines, aErrorText, aTolerance, aErrorLocation );
 
     if( !success || !aOutlines.OutlineCount() )
     {

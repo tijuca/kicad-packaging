@@ -940,13 +940,13 @@ void LEGACY_PLUGIN::loadSETUP()
         else if( TESTLINE( "DrawSegmWidth" ) )
         {
             BIU tmp = biuParse( line + SZ( "DrawSegmWidth" ) );
-            bds.m_DrawSegmentWidth = tmp;
+            bds.m_LineThickness[ LAYER_CLASS_COPPER ] = tmp;
         }
 
         else if( TESTLINE( "EdgeSegmWidth" ) )
         {
             BIU tmp = biuParse( line + SZ( "EdgeSegmWidth" ) );
-            bds.m_EdgeSegmentWidth = tmp;
+            bds.m_LineThickness[ LAYER_CLASS_EDGES ] = tmp;
         }
 
         else if( TESTLINE( "ViaMinSize" ) )
@@ -1021,7 +1021,7 @@ void LEGACY_PLUGIN::loadSETUP()
         else if( TESTLINE( "TextPcbWidth" ) )
         {
             BIU tmp = biuParse( line + SZ( "TextPcbWidth" ) );
-            bds.m_PcbTextWidth = tmp;
+            bds.m_TextThickness[ LAYER_CLASS_COPPER ] = tmp;
         }
 
         else if( TESTLINE( "TextPcbSize" ) )
@@ -1029,19 +1029,21 @@ void LEGACY_PLUGIN::loadSETUP()
             BIU x = biuParse( line + SZ( "TextPcbSize" ), &data );
             BIU y = biuParse( data );
 
-            bds.m_PcbTextSize = wxSize( x, y );
+            bds.m_TextSize[ LAYER_CLASS_COPPER ] = wxSize( x, y );
         }
 
         else if( TESTLINE( "EdgeModWidth" ) )
         {
             BIU tmp = biuParse( line + SZ( "EdgeModWidth" ) );
-            bds.m_ModuleSegmentWidth = tmp;
+            bds.m_LineThickness[ LAYER_CLASS_SILK ] = tmp;
+            bds.m_LineThickness[ LAYER_CLASS_OTHERS ] = tmp;
         }
 
         else if( TESTLINE( "TextModWidth" ) )
         {
             BIU tmp = biuParse( line + SZ( "TextModWidth" ) );
-            bds.m_ModuleTextWidth = tmp;
+            bds.m_TextThickness[ LAYER_CLASS_SILK ] = tmp;
+            bds.m_TextThickness[ LAYER_CLASS_OTHERS ] = tmp;
         }
 
         else if( TESTLINE( "TextModSize" ) )
@@ -1049,7 +1051,8 @@ void LEGACY_PLUGIN::loadSETUP()
             BIU x = biuParse( line + SZ( "TextModSize" ), &data );
             BIU y = biuParse( data );
 
-            bds.m_ModuleTextSize = wxSize( x, y );
+            bds.m_TextSize[ LAYER_CLASS_SILK ] = wxSize( x, y );
+            bds.m_TextSize[ LAYER_CLASS_OTHERS ] = wxSize( x, y );
         }
 
         else if( TESTLINE( "PadSize" ) )
@@ -2614,7 +2617,7 @@ void LEGACY_PLUGIN::loadZONE_CONTAINER()
 
             zc->SetFillMode( fillmode ? ZFM_SEGMENTS : ZFM_POLYGONS );
 
-            // @todo ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF: don't really want pcbnew.h
+            // @todo ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF: don't really want pcbnew.h
             // in here, after all, its a PLUGIN and global data is evil.
             // put in accessor
             if( arcsegcount >= 32 )
@@ -3161,29 +3164,19 @@ struct LP_CACHE
 {
     LEGACY_PLUGIN*  m_owner;        // my owner, I need its LEGACY_PLUGIN::loadMODULE()
     wxString        m_lib_path;
-    wxDateTime      m_mod_time;
     MODULE_MAP      m_modules;      // map or tuple of footprint_name vs. MODULE*
     bool            m_writable;
+
+    bool            m_cache_dirty;      // Stored separately because it's expensive to check
+                                        // m_cache_timestamp against all the files.
+    long long       m_cache_timestamp;  // A hash of the timestamps for all the footprint
+                                        // files.
 
     LP_CACHE( LEGACY_PLUGIN* aOwner, const wxString& aLibraryPath );
 
     // Most all functions in this class throw IO_ERROR exceptions.  There are no
     // error codes nor user interface calls from here, nor in any PLUGIN.
     // Catch these exceptions higher up please.
-
-    /// save the entire legacy library to m_lib_path;
-    void Save();
-
-    void SaveHeader( FILE* aFile );
-
-    void SaveIndex( FILE* aFile );
-
-    void SaveModules( FILE* aFile );
-
-    void SaveEndOfFile( FILE* aFile )
-    {
-        fprintf( aFile, "$EndLIBRARY\n" );
-    }
 
     void Load();
 
@@ -3193,32 +3186,39 @@ struct LP_CACHE
 
     void LoadModules( LINE_READER* aReader );
 
-    wxDateTime  GetLibModificationTime();
+    bool IsModified();
+    static long long GetTimestamp( const wxString& aLibPath );
 };
 
 
 LP_CACHE::LP_CACHE( LEGACY_PLUGIN* aOwner, const wxString& aLibraryPath ) :
     m_owner( aOwner ),
     m_lib_path( aLibraryPath ),
-    m_writable( true )
+    m_writable( true ),
+    m_cache_dirty( true ),
+    m_cache_timestamp( 0 )
 {
 }
 
 
-wxDateTime LP_CACHE::GetLibModificationTime()
+bool LP_CACHE::IsModified()
 {
-    wxFileName  fn( m_lib_path );
+    m_cache_dirty = m_cache_dirty || GetTimestamp( m_lib_path ) != m_cache_timestamp;
 
-    // update the writable flag while we have a wxFileName, in a network this
-    // is possibly quite dynamic anyway.
-    m_writable = fn.IsFileWritable();
+    return m_cache_dirty;
+}
 
-    return fn.GetModificationTime();
+
+long long LP_CACHE::GetTimestamp( const wxString& aLibPath )
+{
+    return wxFileName( aLibPath ).GetModificationTime().GetValue().GetValue();
 }
 
 
 void LP_CACHE::Load()
 {
+    m_cache_dirty = false;
+
     FILE_LINE_READER    reader( m_lib_path );
 
     ReadAndVerifyHeader( &reader );
@@ -3228,7 +3228,7 @@ void LP_CACHE::Load()
     // Remember the file modification time of library file when the
     // cache snapshot was made, so that in a networked environment we will
     // reload the cache as needed.
-    m_mod_time = GetLibModificationTime();
+    m_cache_timestamp = GetTimestamp( m_lib_path );
 }
 
 
@@ -3385,19 +3385,13 @@ void LP_CACHE::LoadModules( LINE_READER* aReader )
 
 long long LEGACY_PLUGIN::GetLibraryTimestamp( const wxString& aLibraryPath ) const
 {
-    // If we have no cache, return a number which won't match any stored timestamps
-    if( !m_cache || m_cache->m_lib_path != aLibraryPath )
-        return wxDateTime::Now().GetValue().GetValue();
-
-    return m_cache->GetLibModificationTime().GetValue().GetValue();
+    return LP_CACHE::GetTimestamp( aLibraryPath );
 }
 
 
 void LEGACY_PLUGIN::cacheLib( const wxString& aLibraryPath )
 {
-    if( !m_cache || m_cache->m_lib_path != aLibraryPath ||
-        // somebody else on a network touched the library:
-        m_cache->m_mod_time != m_cache->GetLibModificationTime() )
+    if( !m_cache || m_cache->m_lib_path != aLibraryPath || m_cache->IsModified() )
     {
         // a spectacular episode in memory management:
         delete m_cache;

@@ -29,7 +29,7 @@
 #include <worksheet_viewitem.h>
 #include <ratsnest_viewitem.h>
 #include <ratsnest_data.h>
-#include <connectivity_data.h>
+#include <connectivity/connectivity_data.h>
 
 #include <colors_design_settings.h>
 #include <class_board.h>
@@ -42,6 +42,7 @@
 #include <gal/graphics_abstraction_layer.h>
 
 #include <functional>
+#include <thread>
 using namespace std::placeholders;
 
 const LAYER_NUM GAL_LAYER_ORDER[] =
@@ -105,7 +106,7 @@ const LAYER_NUM GAL_LAYER_ORDER[] =
 PCB_DRAW_PANEL_GAL::PCB_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWindowId,
                                         const wxPoint& aPosition, const wxSize& aSize,
                                         KIGFX::GAL_DISPLAY_OPTIONS& aOptions, GAL_TYPE aGalType ) :
-EDA_DRAW_PANEL_GAL( aParentWindow, aWindowId, aPosition, aSize, aOptions, aGalType )
+        EDA_DRAW_PANEL_GAL( aParentWindow, aWindowId, aPosition, aSize, aOptions, aGalType )
 {
     m_view = new KIGFX::PCB_VIEW( true );
     m_view->SetGAL( m_gal );
@@ -160,6 +161,9 @@ void PCB_DRAW_PANEL_GAL::DisplayBoard( BOARD* aBoard )
 
         t.detach();
     }
+
+    if( m_worksheet )
+        m_worksheet->SetFileName( TO_UTF8( aBoard->GetFileName() ) );
 
     // Load drawings
     for( auto drawing : const_cast<BOARD*>(aBoard)->Drawings() )
@@ -338,7 +342,7 @@ void PCB_DRAW_PANEL_GAL::SyncLayersVisibility( const BOARD* aBoard )
 }
 
 
-void PCB_DRAW_PANEL_GAL::GetMsgPanelInfo( std::vector<MSG_PANEL_ITEM>& aList )
+void PCB_DRAW_PANEL_GAL::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector<MSG_PANEL_ITEM>& aList )
 {
     BOARD* board = static_cast<PCB_BASE_FRAME*>( m_parent )->GetBoard();
     wxString txt;
@@ -365,7 +369,7 @@ void PCB_DRAW_PANEL_GAL::GetMsgPanelInfo( std::vector<MSG_PANEL_ITEM>& aList )
     txt.Printf( wxT( "%d" ), board->GetNodesCount() );
     aList.push_back( MSG_PANEL_ITEM( _( "Nodes" ), txt, DARKCYAN ) );
 
-    txt.Printf( wxT( "%d" ), board->GetNetCount() );
+    txt.Printf( wxT( "%d" ), board->GetNetCount() - 1 /* don't include "No Net" in count */ );
     aList.push_back( MSG_PANEL_ITEM( _( "Nets" ), txt, RED ) );
 
     txt.Printf( wxT( "%d" ), board->GetConnectivity()->GetUnconnectedCount() );
@@ -387,15 +391,18 @@ void PCB_DRAW_PANEL_GAL::OnShow()
         // Fallback to software renderer
         DisplayError( frame, e.what() );
         bool use_gal = SwitchBackend( GAL_TYPE_CAIRO );
-        frame->UseGalCanvas( use_gal );
+
+        if( frame )
+            frame->UseGalCanvas( use_gal );
     }
 
     if( frame )
     {
         SetTopLayer( frame->GetActiveLayer() );
         PCB_DISPLAY_OPTIONS* displ_opts = (PCB_DISPLAY_OPTIONS*) frame->GetDisplayOptions();
-        static_cast<KIGFX::PCB_RENDER_SETTINGS*>(
-            m_view->GetPainter()->GetSettings() )->LoadDisplayOptions( displ_opts );
+        KIGFX::PAINTER* painter = m_view->GetPainter();
+        auto settings = static_cast<KIGFX::PCB_RENDER_SETTINGS*>( painter->GetSettings() );
+        settings->LoadDisplayOptions( displ_opts, frame->ShowPageLimits() );
     }
 }
 
@@ -416,6 +423,7 @@ bool PCB_DRAW_PANEL_GAL::SwitchBackend( GAL_TYPE aGalType )
 {
     bool rv = EDA_DRAW_PANEL_GAL::SwitchBackend( aGalType );
     setDefaultLayerDeps();
+    m_gal->SetWorldUnitLength( 1e-9 /* 1 nm */ / 0.0254 /* 1 inch in meters */ );
     return rv;
 }
 

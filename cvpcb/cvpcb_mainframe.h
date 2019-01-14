@@ -146,6 +146,10 @@ public:
 
     void             DisplayModule( wxCommandEvent& event );
 
+    void             OnComponentRightClick( wxMouseEvent& event );
+
+    void             OnFootprintRightClick( wxMouseEvent& event );
+
     /**
      * Called by the automatic association button
      * Read *.equ files to try to find corresponding footprint
@@ -201,7 +205,7 @@ public:
      * via the kiway.
      * Optionally saves the schematic to disk as well.
      */
-    void SaveFootprintAssociation( bool doSaveSchematic );
+    bool SaveFootprintAssociation( bool doSaveSchematic );
 
     /**
      * Function ReadNetListAndFpFiles
@@ -284,8 +288,10 @@ public:
      * Send a remote command to Eeschema via a socket,
      * Commands are
      * $PART: "reference"   put cursor on component anchor
+     * @param aClearHighligntOnly = true if the message to send is only "clear highlight"
+     * (used when exiting Cvpcb)
      */
-    void SendMessageToEESCHEMA();
+    void SendMessageToEESCHEMA( bool aClearHighligntOnly = false );
 
     COMPONENT* GetSelectedComponent();
 

@@ -132,9 +132,10 @@ bool OGLTEST_APP::OnInit()
         printf( "INFO: Found OpenGL version %ld.%ld\n", major, minor );
     }
 
-    canvas->BeginDrawing();
-    printf( "INFO: Successfully called OPENGL_GAL::BeginDrawing\n" );
-    canvas->EndDrawing();
+    {
+        KIGFX::GAL_DRAWING_CONTEXT ctx( canvas );
+        printf( "INFO: Successfully called OPENGL_GAL::beginDrawing\n" );
+    }
 
     bool supported = wxGLCanvas::IsDisplaySupported( &glAttributes[0] );
 

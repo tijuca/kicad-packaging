@@ -19,16 +19,10 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "draw_frame.h"
 #include "pns_tune_status_popup.h"
 #include "pns_router.h"
 #include "pns_meander_placer.h"
-
-PNS_TUNE_STATUS_POPUP::PNS_TUNE_STATUS_POPUP( EDA_DRAW_FRAME* aParent ) :
-    STATUS_TEXT_POPUP( aParent )
-{
-    m_panel->SetBackgroundColour( wxColour( 64, 64, 64 ) );
-}
-
 
 void PNS_TUNE_STATUS_POPUP::UpdateStatus( PNS::ROUTER* aRouter )
 {
@@ -37,7 +31,7 @@ void PNS_TUNE_STATUS_POPUP::UpdateStatus( PNS::ROUTER* aRouter )
     if( !placer )
         return;
 
-    SetText( placer->TuningInfo() );
+    SetText( placer->TuningInfo( m_frame->GetUserUnits() ) );
 
     switch( placer->TuningStatus() )
     {

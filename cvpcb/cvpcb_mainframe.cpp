@@ -30,7 +30,6 @@
 #include <fctsys.h>
 #include <build_version.h>
 #include <kiway_express.h>
-#include <pgm_base.h>
 #include <kiface_i.h>
 #include <kiface_ids.h>
 #include <macros.h>
@@ -41,13 +40,16 @@
 #include <netlist_reader.h>
 #include <bitmaps.h>
 #include <widgets/progress_reporter.h>
-
-#include <cvpcb_mainframe.h>
+#include <3d_cache/3d_cache.h>
+#include <dialog_configure_paths.h>
 #include <cvpcb.h>
 #include <listboxes.h>
+#include <wx/statline.h>
 #include <invoke_pcb_dialog.h>
 #include <display_footprints_frame.h>
 #include <cvpcb_id.h>
+
+#include <cvpcb_mainframe.h>
 
 wxSize const FRAME_MIN_SIZE_DU( 350, 250 );
 wxSize const FRAME_DEFAULT_SIZE_DU( 450, 300 );
@@ -146,43 +148,42 @@ CVPCB_MAINFRAME::CVPCB_MAINFRAME( KIWAY* aKiway, wxWindow* aParent ) :
 
     m_auimgr.SetManagedWindow( this );
 
-    EDA_PANEINFO horiz;
-    horiz.HorizontalToolbarPane();
+    m_auimgr.AddPane( m_mainToolBar, EDA_PANE().HToolbar().Name( "MainToolbar" ).Top().Layer(6) );
 
-    EDA_PANEINFO info;
-    info.InfoToolbarPane();
+    m_auimgr.AddPane( m_libListBox, EDA_PANE().Palette().Name( "Libraries" ).Left().Layer(1)
+                      .Caption( _( "Footprint Libraries" ) )
+                      .BestSize( (int) ( m_FrameSize.x * 0.20 ), m_FrameSize.y ) );
 
-    if( m_mainToolBar )
-        m_auimgr.AddPane( m_mainToolBar,
-                          wxAuiPaneInfo( horiz ).Name( wxT( "m_mainToolBar" ) ).Top() );
+    m_auimgr.AddPane( m_compListBox, EDA_PANE().Palette().Name( "Components" ).Center().Layer(0)
+                      .Caption( _( "Symbol : Footprint Assignments" ) ) );
 
-    if( m_compListBox )
-        m_auimgr.AddPane( m_compListBox,
-                          wxAuiPaneInfo( horiz ).Name( wxT( "m_compListBox" ) ).CentrePane() );
-
-    if( m_libListBox)
-        m_auimgr.AddPane( m_libListBox,
-                          wxAuiPaneInfo( info ).Name( wxT( "m_libListBox" ) ).
-                          Left().BestSize( (int) ( m_FrameSize.x * 0.20 ), m_FrameSize.y ) );
-
-    if( m_footprintListBox )
-        m_auimgr.AddPane( m_footprintListBox,
-                          wxAuiPaneInfo( info ).Name( wxT( "m_footprintListBox" ) ).
-                          Right().BestSize( (int) ( m_FrameSize.x * 0.30 ), m_FrameSize.y ) );
+    m_auimgr.AddPane( m_footprintListBox, EDA_PANE().Palette().Name( "Footprints" ).Right().Layer(1)
+                      .Caption( _( "Filtered Footprints" ) )
+                      .BestSize( (int) ( m_FrameSize.x * 0.30 ), m_FrameSize.y ) );
 
     // Build the bottom panel, to display 2 status texts and the buttons:
     auto bottomPanel = new wxPanel( this );
     auto panelSizer = new wxBoxSizer( wxVERTICAL );
-    wxFont statusFont = wxSystemSettings::GetFont( wxSYS_DEFAULT_GUI_FONT );
-    statusFont.SetSymbolicSize( wxFONTSIZE_SMALL );
+
+    wxFlexGridSizer* fgSizerStatus = new wxFlexGridSizer( 2, 1, 0, 0 );
+    fgSizerStatus->SetFlexibleDirection( wxBOTH );
+    fgSizerStatus->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
 
     m_statusLine1 = new wxStaticText( bottomPanel, wxID_ANY, wxEmptyString );
-    m_statusLine1->SetFont( statusFont );
-    panelSizer->Add( m_statusLine1, 0, wxTOP, 4 );
+    fgSizerStatus->Add( m_statusLine1, 0, 0, 5 );
 
     m_statusLine2 = new wxStaticText( bottomPanel, wxID_ANY, wxEmptyString );
+    fgSizerStatus->Add( m_statusLine2, 0, wxBOTTOM, 3 );
+
+    panelSizer->Add( fgSizerStatus, 1, wxEXPAND|wxLEFT, 2 );
+
+    wxStaticLine* staticline1 = new wxStaticLine( bottomPanel );
+    panelSizer->Add( staticline1, 0, wxEXPAND, 5 );
+
+    wxFont statusFont = wxSystemSettings::GetFont( wxSYS_DEFAULT_GUI_FONT );
+    statusFont.SetSymbolicSize( wxFONTSIZE_SMALL );
+    m_statusLine1->SetFont( statusFont );
     m_statusLine2->SetFont( statusFont );
-    panelSizer->Add( m_statusLine2, 0, 0, 4 );
 
     // Add buttons:
     auto buttonsSizer = new wxBoxSizer( wxHORIZONTAL );
@@ -190,7 +191,7 @@ CVPCB_MAINFRAME::CVPCB_MAINFRAME( KIWAY* aKiway, wxWindow* aParent ) :
 
     m_saveAndContinue = new wxButton( bottomPanel, wxID_SAVE,
                                       _( "Apply, Save Schematic && Continue" ) );
-    buttonsSizer->Add( m_saveAndContinue, 0, wxALIGN_BOTTOM | wxBOTTOM | wxRIGHT, 10 );
+    buttonsSizer->Add( m_saveAndContinue, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 20 );
 
     auto sdbSizerOK = new wxButton( bottomPanel, wxID_OK );
     sdbSizer->AddButton( sdbSizerOK );
@@ -199,20 +200,22 @@ CVPCB_MAINFRAME::CVPCB_MAINFRAME( KIWAY* aKiway, wxWindow* aParent ) :
     sdbSizer->Realize();
 
     buttonsSizer->Add( sdbSizer, 0, 0, 5 );
-    panelSizer->Add( buttonsSizer, 0, wxALIGN_RIGHT, 5 );
+    panelSizer->Add( buttonsSizer, 0, wxALIGN_RIGHT|wxALL, 5 );
 
     bottomPanel->SetSizer( panelSizer );
     bottomPanel->Fit();
 
     sdbSizerOK->SetDefault();
 
-    m_auimgr.AddPane( bottomPanel, wxAuiPaneInfo( horiz ).Name( wxT( "buttons" ) ).Bottom() );
+    m_auimgr.AddPane( bottomPanel, EDA_PANE().HToolbar().Name( "Buttons" ).Bottom().Layer(6) );
 
     m_auimgr.Update();
     m_initialized = true;
 
     // Connect Events
     m_saveAndContinue->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( CVPCB_MAINFRAME::OnSaveAndContinue ), NULL, this );
+    m_footprintListBox->Connect( wxEVT_RIGHT_DOWN, wxMouseEventHandler( CVPCB_MAINFRAME::OnFootprintRightClick ), NULL, this );
+    m_compListBox->Connect( wxEVT_RIGHT_DOWN, wxMouseEventHandler( CVPCB_MAINFRAME::OnComponentRightClick ), NULL, this );
 }
 
 
@@ -220,6 +223,7 @@ CVPCB_MAINFRAME::~CVPCB_MAINFRAME()
 {
     // Disconnect Events
     m_saveAndContinue->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( CVPCB_MAINFRAME::OnSaveAndContinue ), NULL, this );
+    m_footprintListBox->Disconnect( wxEVT_RIGHT_DOWN, wxMouseEventHandler( CVPCB_MAINFRAME::OnFootprintRightClick ), NULL, this );
 
     m_auimgr.UnInit();
 }
@@ -256,21 +260,11 @@ void CVPCB_MAINFRAME::OnCloseWindow( wxCloseEvent& Event )
 {
     if( m_modified )
     {
-        wxString msg = _( "Component to Footprint links modified.\nSave before exit?" );
-        int ii = DisplayExitDialog( this, msg );
-
-        switch( ii )
+        if( !HandleUnsavedChanges( this, _( "Symbol to Footprint links have been modified.\nSave before exit?" ),
+                                   [&]()->bool { return SaveFootprintAssociation( false ); } ) )
         {
-        case wxID_CANCEL:
             Event.Veto();
             return;
-
-        case wxID_NO:
-            break;
-
-        case wxID_YES:
-            SaveFootprintAssociation( false );
-            break;
         }
     }
 
@@ -280,6 +274,10 @@ void CVPCB_MAINFRAME::OnCloseWindow( wxCloseEvent& Event )
 
     m_modified = false;
 
+    // clear highlight symbol in schematic:
+    SendMessageToEESCHEMA( true );
+
+    // Delete window
     Destroy();
 }
 
@@ -438,63 +436,12 @@ bool CVPCB_MAINFRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, i
 
 void CVPCB_MAINFRAME::OnEditFootprintLibraryTable( wxCommandEvent& aEvent )
 {
-    FP_LIB_TABLE* globalTable;
-    bool          tableChanged = false;
-    KIFACE*       kiface = Kiway().KiFACE( KIWAY::FACE_PCB );
+    KIFACE* kiface = Kiway().KiFACE( KIWAY::FACE_PCB );
+    kiface->CreateWindow( this, DIALOG_PCB_LIBRARY_TABLE, &Kiway() );
 
-    if( kiface )
-        globalTable = (FP_LIB_TABLE*) kiface->IfaceOrAddress( KIFACE_GLOBAL_FOOTPRINT_TABLE );
-    else
-        globalTable = &GFootprintTable; // Shouldn't happen now that Cvpcb is integrated
-
-    int r = InvokePcbLibTableEditor( this, globalTable, Prj().PcbFootprintLibs( Kiway() ) );
-
-    if( r & 1 )
-    {
-        wxString fileName = FP_LIB_TABLE::GetGlobalTableFileName();
-
-        try
-        {
-            globalTable->Save( fileName );
-            tableChanged = true;
-        }
-        catch( const IO_ERROR& ioe )
-        {
-            wxString msg = wxString::Format(
-                    _( "Error occurred saving the global footprint library table:\n\"%s\"\n%s" ),
-                    GetChars( fileName ),
-                    GetChars( ioe.What() )
-                    );
-            wxMessageBox( msg, _( "File Save Error" ), wxOK | wxICON_ERROR );
-        }
-    }
-
-    if( r & 2 )
-    {
-        wxString fileName = Prj().FootprintLibTblName();
-
-        try
-        {
-            Prj().PcbFootprintLibs( Kiway() )->Save( fileName );
-            tableChanged = true;
-        }
-        catch( const IO_ERROR& ioe )
-        {
-            wxString msg = wxString::Format(
-                    _( "Error occurred saving the project footprint library table:\n\"%s\"\n%s" ),
-                    GetChars( fileName ),
-                    GetChars( ioe.What() )
-                    );
-            wxMessageBox( msg, _( "File Save Error" ), wxOK | wxICON_ERROR );
-        }
-    }
-
-    if( tableChanged )
-    {
-        wxBusyCursor dummy;
-        BuildLIBRARY_LISTBOX();
-        m_FootprintsList->ReadFootprintFiles( Prj().PcbFootprintLibs( Kiway() ) );
-    }
+    wxBusyCursor dummy;
+    BuildLIBRARY_LISTBOX();
+    m_FootprintsList->ReadFootprintFiles( Prj().PcbFootprintLibs( Kiway() ) );
 }
 
 
@@ -502,6 +449,26 @@ void CVPCB_MAINFRAME::DisplayModule( wxCommandEvent& event )
 {
     CreateScreenCmp();
     GetFootprintViewerFrame()->RedrawScreen( wxPoint( 0, 0 ), false );
+}
+
+
+void CVPCB_MAINFRAME::OnComponentRightClick( wxMouseEvent& event )
+{
+    wxMenu menu;
+
+    menu.Append( ID_CVPCB_CREATE_SCREENCMP, _( "View Footprint" ), _( "Show the assigned footprint in the footprint viewer" ) );
+
+    PopupMenu( &menu );
+}
+
+
+void CVPCB_MAINFRAME::OnFootprintRightClick( wxMouseEvent& event )
+{
+    wxMenu menu;
+
+    menu.Append( ID_CVPCB_CREATE_SCREENCMP, _( "View Footprint" ), _( "Show the current footprint in the footprint viewer" ) );
+
+    PopupMenu( &menu );
 }
 
 
@@ -516,6 +483,11 @@ void CVPCB_MAINFRAME::OnSelectComponent( wxListEvent& event )
 
     m_footprintListBox->SetFootprints( *m_FootprintsList, libraryName, component,
                                        m_currentSearchPattern, m_filteringOptions);
+
+    if( component && component->GetFPID().IsValid() )
+        m_footprintListBox->SetSelectedFootprint( component->GetFPID() );
+    else
+        m_footprintListBox->SetSelection( m_footprintListBox->GetSelection(), false );
 
     refreshAfterComponentSearch (component);
 }
@@ -543,7 +515,7 @@ void CVPCB_MAINFRAME::refreshAfterComponentSearch( COMPONENT* component )
     {
         wxString module = FROM_UTF8( component->GetFPID().Format().c_str() );
 
-        bool found = false;
+        m_footprintListBox->SetSelection( m_footprintListBox->GetSelection(), false );
 
         for( int ii = 0; ii < m_footprintListBox->GetCount(); ii++ )
         {
@@ -556,23 +528,12 @@ void CVPCB_MAINFRAME::refreshAfterComponentSearch( COMPONENT* component )
             if( module.Cmp( footprintName ) == 0 )
             {
                 m_footprintListBox->SetSelection( ii, true );
-                found = true;
                 break;
             }
         }
 
-        if( !found )
-        {
-            int ii = m_footprintListBox->GetSelection();
-
-            if ( ii >= 0 )
-                m_footprintListBox->SetSelection( ii, false );
-
-            if( GetFootprintViewerFrame() )
-            {
-                CreateScreenCmp();
-            }
-        }
+        if( GetFootprintViewerFrame() )
+            CreateScreenCmp();
     }
 
     SendMessageToEESCHEMA();
@@ -727,7 +688,7 @@ void CVPCB_MAINFRAME::DisplayStatus()
     if( module )    // can be NULL if no netlist loaded
     {
         msg = wxString::Format( _( "Description: %s;  Key words: %s" ),
-                                module->GetDoc(),
+                                module->GetDescription(),
                                 module->GetKeywords() );
     }
 
@@ -760,22 +721,35 @@ bool CVPCB_MAINFRAME::LoadFootprintFiles()
 }
 
 
-void CVPCB_MAINFRAME::SendMessageToEESCHEMA()
+void CVPCB_MAINFRAME::SendMessageToEESCHEMA( bool aClearHighligntOnly )
 {
     if( m_netlist.IsEmpty() )
         return;
 
+    // clear highlight of previously selected components (if any):
+    // Selecting a non existing symbol clears any previously highlighted symbols
+    std::string packet = "$CLEAR: \"HIGHLIGHTED\"";
+
+    if( Kiface().IsSingle() )
+        SendCommand( MSG_TO_SCH, packet.c_str() );
+    else
+        Kiway().ExpressMail( FRAME_SCH, MAIL_CROSS_PROBE, packet, this );
+
+    if( aClearHighligntOnly )
+        return;
+
     int selection = m_compListBox->GetSelection();
 
-    if ( selection < 0 )
-        selection = 0;
+    if ( selection < 0 )    // Nothing selected
+        return;
 
     if( m_netlist.GetComponent( selection ) == NULL )
         return;
 
+    // Now highlight the selected component:
     COMPONENT* component = m_netlist.GetComponent( selection );
 
-    std::string packet = StrPrintf( "$PART: \"%s\"", TO_UTF8( component->GetReference() ) );
+    packet = StrPrintf( "$PART: \"%s\"", TO_UTF8( component->GetReference() ) );
 
     if( Kiface().IsSingle() )
         SendCommand( MSG_TO_SCH, packet.c_str() );
@@ -823,7 +797,7 @@ void CVPCB_MAINFRAME::CreateScreenCmp()
 
     if( !fpframe )
     {
-        fpframe = new DISPLAY_FOOTPRINTS_FRAME( &Kiway(), this );
+        fpframe = (DISPLAY_FOOTPRINTS_FRAME*) Kiway().Player( FRAME_CVPCB_DISPLAY, true, this );
         fpframe->Show( true );
     }
     else
@@ -974,7 +948,8 @@ void CVPCB_MAINFRAME::SetStatusText( const wxString& aText, int aNumber )
 
 void CVPCB_MAINFRAME::OnConfigurePaths( wxCommandEvent& aEvent )
 {
-    Pgm().ConfigurePaths( this );
+    DIALOG_CONFIGURE_PATHS dlg( this, Prj().Get3DCacheManager()->GetResolver() );
+    dlg.ShowModal();
 }
 
 
@@ -990,7 +965,7 @@ void CVPCB_MAINFRAME::KiwayMailIn( KIWAY_EXPRESS& mail )
 {
     const std::string& payload = mail.GetPayload();
 
-    DBG(printf( "%s: %s\n", __func__, payload.c_str() );)
+    //DBG(printf( "%s: %s\n", __func__, payload.c_str() );)
 
     switch( mail.Command() )
     {

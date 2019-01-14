@@ -108,29 +108,29 @@ void GERBER_LAYER_WIDGET::ReFillRender()
     // is changed before appending to the LAYER_WIDGET.  This is an automatic variable
     // not a static variable, change the color & state after copying from code to renderRows
     // on the stack.
-    LAYER_WIDGET::ROW renderRows[3] = {
+    LAYER_WIDGET::ROW renderRows[6] = {
 
 #define RR  LAYER_WIDGET::ROW   // Render Row abreviation to reduce source width
 
-             // text            id                      color       tooltip                 checked
-        RR( _( "Grid" ),        LAYER_GERBVIEW_GRID,    WHITE,      _( "Show the (x,y) grid dots" ) ),
-        RR( _( "DCodes" ),      LAYER_DCODES,           WHITE,      _( "Show DCodes identification" ) ),
-        RR( _( "Neg. Obj." ),   LAYER_NEGATIVE_OBJECTS, DARKGRAY,
-                                    _( "Show negative objects in this color" ) ),
+             // text                 id                      color     tooltip                 checked
+        RR( _( "DCodes" ),           LAYER_DCODES,           WHITE,    _( "Show DCodes identification" ) ),
+        RR( _( "Negative Objects" ), LAYER_NEGATIVE_OBJECTS, DARKGRAY, _( "Show negative objects in this color" ) ),
+        RR(),
+        RR( _( "Grid" ),             LAYER_GERBVIEW_GRID,    WHITE,    _( "Show the (x,y) grid dots" ) ),
+        RR( _( "Worksheet" ),        LAYER_WORKSHEET,        DARKRED,  _( "Show worksheet") ),
+        RR( _( "Background" ),       LAYER_PCB_BACKGROUND,   BLACK,    _( "PCB Background" ), true, false )
     };
 
-    for( unsigned row=0;  row<DIM(renderRows);  ++row )
+    for( unsigned row=0;  row<arrayDim(renderRows);  ++row )
     {
         if( renderRows[row].color != COLOR4D::UNSPECIFIED )       // does this row show a color?
-        {
-            renderRows[row].color = myframe->GetVisibleElementColor(
-                                    ( GERBVIEW_LAYER_ID )renderRows[row].id );
-        }
-        renderRows[row].state = myframe->IsElementVisible(
-                                ( GERBVIEW_LAYER_ID )renderRows[row].id );
+            renderRows[row].color = myframe->GetVisibleElementColor( renderRows[row].id );
+
+        if( renderRows[row].id )    // if not the separator
+            renderRows[row].state = myframe->IsElementVisible( renderRows[row].id );
     }
 
-    AppendRenderRows( renderRows, DIM(renderRows) );
+    AppendRenderRows( renderRows, arrayDim(renderRows) );
 }
 
 
@@ -257,6 +257,7 @@ void GERBER_LAYER_WIDGET::ReFill()
                         wxEmptyString, visible, true ) );
     }
 
+    UpdateLayouts();
     Thaw();
 }
 
@@ -324,7 +325,7 @@ void GERBER_LAYER_WIDGET::OnLayerVisible( int aLayer, bool isVisible, bool isFin
 
 void GERBER_LAYER_WIDGET::OnRenderColorChange( int aId, COLOR4D aColor )
 {
-    myframe->SetVisibleElementColor( (GERBVIEW_LAYER_ID) aId, aColor );
+    myframe->SetVisibleElementColor( aId, aColor );
 
     auto galCanvas = myframe->GetGalCanvas();
 
@@ -347,7 +348,7 @@ void GERBER_LAYER_WIDGET::OnRenderColorChange( int aId, COLOR4D aColor )
 
 void GERBER_LAYER_WIDGET::OnRenderEnable( int aId, bool isEnabled )
 {
-    myframe->SetElementVisibility( (GERBVIEW_LAYER_ID) aId, isEnabled );
+    myframe->SetElementVisibility( aId, isEnabled );
 
     auto galCanvas = myframe->GetGalCanvas();
 

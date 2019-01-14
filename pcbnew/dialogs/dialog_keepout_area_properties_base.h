@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 20 2018)
+// C++ code generated with wxFormBuilder (version Aug  2 2018)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -28,8 +28,6 @@
 
 ///////////////////////////////////////////////////////////////////////////
 
-#define ID_M_ORIENTEDGESOPT 1000
-#define ID_M_OUTLINEAPPEARANCECTRL 1001
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Class DIALOG_KEEPOUT_AREA_PROPERTIES_BASE
@@ -44,8 +42,7 @@ class DIALOG_KEEPOUT_AREA_PROPERTIES_BASE : public DIALOG_SHIM
 		wxCheckBox* m_cbTracksCtrl;
 		wxCheckBox* m_cbViasCtrl;
 		wxCheckBox* m_cbCopperPourCtrl;
-		wxStaticText* m_staticTextSlope;
-		wxChoice* m_OrientEdgesOpt;
+		wxCheckBox* m_cbConstrainCtrl;
 		wxStaticText* m_staticTextStyle;
 		wxChoice* m_OutlineAppearanceCtrl;
 		wxStaticLine* m_staticline1;
@@ -60,7 +57,7 @@ class DIALOG_KEEPOUT_AREA_PROPERTIES_BASE : public DIALOG_SHIM
 	
 	public:
 		
-		DIALOG_KEEPOUT_AREA_PROPERTIES_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Keepout Area Properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER|wxFULL_REPAINT_ON_RESIZE|wxSUNKEN_BORDER ); 
+		DIALOG_KEEPOUT_AREA_PROPERTIES_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Keepout Area Properties"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER|wxFULL_REPAINT_ON_RESIZE|wxBORDER_SUNKEN ); 
 		~DIALOG_KEEPOUT_AREA_PROPERTIES_BASE();
 	
 };

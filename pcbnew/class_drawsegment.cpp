@@ -1,10 +1,10 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -56,8 +56,7 @@ DRAWSEGMENT::DRAWSEGMENT( BOARD_ITEM* aParent, KICAD_T idtype ) :
     m_Angle = 0;
     m_Flags = 0;
     m_Shape = S_SEGMENT;
-    // Gives a decent pen size to draw shape:
-    m_Width = m_Shape == S_POLYGON ? 0 : Millimeter2iu( 0.15 );
+    m_Width = Millimeter2iu( DEFAULT_LINE_WIDTH );
 }
 
 
@@ -91,6 +90,18 @@ void DRAWSEGMENT::Move( const wxPoint& aMoveVector )
             (*iter) += VECTOR2I( aMoveVector );
         }
         break;
+
+    case S_CURVE:
+        m_BezierC1 += aMoveVector;
+        m_BezierC2 += aMoveVector;
+
+        for( unsigned int ii = 0; ii < m_BezierPoints.size(); ii++ )
+        {
+            m_BezierPoints[ii] += aMoveVector;
+        }
+
+        break;
+
     default:
         break;
     }
@@ -119,6 +130,8 @@ void DRAWSEGMENT::Rotate( const wxPoint& aRotCentre, double aAngle )
     case S_CURVE:
         RotatePoint( &m_Start, aRotCentre, aAngle);
         RotatePoint( &m_End, aRotCentre, aAngle);
+        RotatePoint( &m_BezierC1, aRotCentre, aAngle);
+        RotatePoint( &m_BezierC2, aRotCentre, aAngle);
 
         for( unsigned int ii = 0; ii < m_BezierPoints.size(); ii++ )
         {
@@ -145,20 +158,50 @@ void DRAWSEGMENT::Flip( const wxPoint& aCentre )
     case S_ARC:
         m_Angle = -m_Angle;
         break;
+
     case S_POLYGON:
         for( auto iter = m_Poly.Iterate(); iter; iter++ )
         {
             iter->y  = aCentre.y - (iter->y - aCentre.y);
         }
         break;
+
+    case S_CURVE:
+        {
+            m_BezierC1.y  = aCentre.y - (m_BezierC1.y - aCentre.y);
+            m_BezierC2.y  = aCentre.y - (m_BezierC2.y - aCentre.y);
+
+            // Rebuild the poly points shape
+            std::vector<wxPoint> ctrlPoints = { m_Start, m_BezierC1, m_BezierC2, m_End };
+            BEZIER_POLY converter( ctrlPoints );
+            converter.GetPoly( m_BezierPoints, m_Width );
+        }
+        break;
+
     default:
         break;
     }
 
     // DRAWSEGMENT items are not allowed on copper layers, so
-    // copper layers count is not taken in accoun in Flip transform
+    // copper layers count is not taken in account in Flip transform
     SetLayer( FlipLayer( GetLayer() ) );
 }
+
+
+void DRAWSEGMENT::RebuildBezierToSegmentsPointsList( int aMinSegLen )
+{
+    // Has meaning only for S_CURVE DRAW_SEGMENT shape
+    if( m_Shape != S_CURVE )
+    {
+        m_BezierPoints.clear();
+        return;
+    }
+    // Rebuild the m_BezierPoints vertex list that approximate the Bezier curve
+    std::vector<wxPoint> ctrlPoints = { m_Start, m_BezierC1, m_BezierC2, m_End };
+    BEZIER_POLY converter( ctrlPoints );
+    converter.GetPoly( m_BezierPoints, aMinSegLen );
+}
+
 
 const wxPoint DRAWSEGMENT::GetCenter() const
 {
@@ -340,29 +383,24 @@ void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
 
     case S_CURVE:
         {
-            std::vector<wxPoint> ctrlPoints = { m_Start, m_BezierC1, m_BezierC2, m_End };
-            BEZIER_POLY converter( ctrlPoints );
-            converter.GetPoly( m_BezierPoints );
-        }
+            RebuildBezierToSegmentsPointsList( m_Width );
 
-        for( unsigned int i=1; i < m_BezierPoints.size(); i++ )
-        {
-            if( filled )
+            wxPoint& startp = m_BezierPoints[0];
+
+            for( unsigned int i = 1; i < m_BezierPoints.size(); i++ )
             {
-                GRFillCSegm( panel->GetClipBox(), DC,
-                             m_BezierPoints[i].x, m_BezierPoints[i].y,
-                             m_BezierPoints[i-1].x, m_BezierPoints[i-1].y,
-                             m_Width, color );
-            }
-            else
-            {
-                GRCSegm( panel->GetClipBox(), DC,
-                         m_BezierPoints[i].x, m_BezierPoints[i].y,
-                         m_BezierPoints[i-1].x, m_BezierPoints[i-1].y,
-                         m_Width, color );
+                wxPoint& endp = m_BezierPoints[i];
+
+                if( filled )
+                    GRFilledSegment( panel->GetClipBox(), DC,
+                                     startp+aOffset, endp+aOffset, m_Width, color );
+                else
+                    GRCSegm( panel->GetClipBox(), DC,
+                             startp+aOffset, endp+aOffset, m_Width, color );
+
+                startp = m_BezierPoints[i];
             }
         }
-
         break;
 
     case S_POLYGON:
@@ -374,9 +412,8 @@ void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
             for( int jj = 0; jj < outline.OutlineCount(); ++jj )
             {
                 SHAPE_LINE_CHAIN& poly = outline.Outline( jj );
-
                 GRClosedPoly( panel->GetClipBox(), DC, poly.PointCount(),
-                        (wxPoint*)&poly.Point( 0 ), FILLED, GetWidth(),
+                        (wxPoint*)&poly.Point( 0 ), IsPolygonFilled(), GetWidth(),
                         color, color );
             }
         }
@@ -396,7 +433,7 @@ void DRAWSEGMENT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, GR_DRAWMODE draw_mode,
     }
 }
 
-void DRAWSEGMENT::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
+void DRAWSEGMENT::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList )
 {
     wxString msg;
 
@@ -411,7 +448,7 @@ void DRAWSEGMENT::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
     case S_CIRCLE:
         aList.push_back( MSG_PANEL_ITEM( shape, _( "Circle" ), RED ) );
 
-        msg = ::CoordinateToString( GetLineLength( m_Start, m_End ) );
+        msg = MessageTextFromValue( aUnits, GetLineLength( m_Start, m_End ) );
         aList.push_back( MSG_PANEL_ITEM( _( "Radius" ), msg, RED ) );
         break;
 
@@ -420,7 +457,7 @@ void DRAWSEGMENT::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
         msg.Printf( wxT( "%.1f" ), m_Angle / 10.0 );
         aList.push_back( MSG_PANEL_ITEM( _( "Angle" ), msg, RED ) );
 
-        msg = ::CoordinateToString( GetLineLength( m_Start, m_End ) );
+        msg = MessageTextFromValue( aUnits, GetLineLength( m_Start, m_End ) );
         aList.push_back( MSG_PANEL_ITEM( _( "Radius" ), msg, RED ) );
         break;
 
@@ -432,7 +469,7 @@ void DRAWSEGMENT::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
     {
         aList.push_back( MSG_PANEL_ITEM( shape, _( "Segment" ), RED ) );
 
-        msg = ::CoordinateToString( GetLineLength( m_Start, m_End ) );
+        msg = MessageTextFromValue( aUnits, GetLineLength( m_Start, m_End ) );
         aList.push_back( MSG_PANEL_ITEM( _( "Length" ), msg, DARKGREEN ) );
 
         // angle counter-clockwise from 3'o-clock
@@ -443,15 +480,17 @@ void DRAWSEGMENT::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
     }
     }
 
-    wxString start;
-    start << GetStart();
-
-    wxString end;
-    end << GetEnd();
+    wxString start = wxString::Format( "@(%s, %s)",
+                                       MessageTextFromValue( aUnits, GetStart().x ),
+                                       MessageTextFromValue( aUnits, GetStart().y ) );
+    wxString end   = wxString::Format( "@(%s, %s)",
+                                       MessageTextFromValue( aUnits, GetEnd().x ),
+                                       MessageTextFromValue( aUnits, GetEnd().y ) );
 
     aList.push_back( MSG_PANEL_ITEM( start, end, DARKGREEN ) );
     aList.push_back( MSG_PANEL_ITEM( _( "Layer" ), GetLayerName(), DARKBROWN ) );
-    msg = ::CoordinateToString( m_Width );
+
+    msg = MessageTextFromValue( aUnits, m_Width, true );
     aList.push_back( MSG_PANEL_ITEM( _( "Width" ), msg, DARKCYAN ) );
 }
 
@@ -516,6 +555,15 @@ const EDA_RECT DRAWSEGMENT::GetBoundingBox() const
         bbox.SetEnd( p_end );
         break;
 	}
+
+    case S_CURVE:
+        // Rebuild the poly points shape
+        ((DRAWSEGMENT*)this)->RebuildBezierToSegmentsPointsList( m_Width );
+
+        for( unsigned ii = 0; ii < m_BezierPoints.size(); ++ii )
+            bbox.Merge( m_BezierPoints[ii] );
+        break;
+
     default:
         break;
     }
@@ -576,6 +624,8 @@ bool DRAWSEGMENT::HitTest( const wxPoint& aPosition ) const
         break;
 
     case S_CURVE:
+        ((DRAWSEGMENT*)this)->RebuildBezierToSegmentsPointsList( m_Width );
+
         for( unsigned int i= 1; i < m_BezierPoints.size(); i++)
         {
             if( TestSegmentHit( aPosition, m_BezierPoints[i-1], m_BezierPoints[i-1], m_Width / 2 ) )
@@ -588,13 +638,17 @@ bool DRAWSEGMENT::HitTest( const wxPoint& aPosition ) const
             return true;
         break;
 
-    case S_POLYGON:     // not yet handled
+    case S_POLYGON:
         {
-            #define MAX_DIST_IN_MM 0.25
-            int distmax = std::max( m_Width, Millimeter2iu( MAX_DIST_IN_MM ) );
-
-            if( m_Poly.Collide( VECTOR2I( aPosition ), distmax ) )
-                return true;
+            if( !IsPolygonFilled() )
+            {
+                SHAPE_POLY_SET::VERTEX_INDEX i;
+                auto poly = m_Poly;  //todo: Fix CollideEdge to be const
+                return poly.CollideEdge(VECTOR2I( aPosition ), i,
+                        std::max( m_Width / 2, Millimeter2iu( 0.25 ) ) );
+            }
+            else
+                return m_Poly.Collide( VECTOR2I( aPosition ), m_Width / 2 );
         }
         break;
 
@@ -704,6 +758,35 @@ bool DRAWSEGMENT::HitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy
         break;
 
     case S_CURVE:     // not yet handled
+        if( aContained )
+        {
+            return arect.Contains( bb );
+        }
+        else
+        {
+            // Fast test: if aRect is outside the polygon bounding box,
+            // rectangles cannot intersect
+            if( !arect.Intersects( bb ) )
+                return false;
+
+            // Account for the width of the line
+            arect.Inflate( GetWidth() / 2 );
+            unsigned count = m_BezierPoints.size();
+
+            for( unsigned ii = 1; ii < count; ii++ )
+            {
+                wxPoint vertex = m_BezierPoints[ii-1];
+                wxPoint vertexNext = m_BezierPoints[ii];
+
+                // Test if the point is within aRect
+                if( arect.Contains( ( wxPoint ) vertex ) )
+                    return true;
+
+                // Test if this edge intersects aRect
+                if( arect.Intersects( vertex, vertexNext ) )
+                    return true;
+            }
+        }
         break;
 
 
@@ -716,16 +799,12 @@ bool DRAWSEGMENT::HitTest( const EDA_RECT& aRect, bool aContained, int aAccuracy
 }
 
 
-wxString DRAWSEGMENT::GetSelectMenuText() const
+wxString DRAWSEGMENT::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
-    wxString text;
-    wxString temp = ::LengthDoubleToString( GetLength() );
-
-    text.Printf( _( "Pcb Graphic: %s, length %s on %s" ),
-                 GetChars( ShowShape( m_Shape ) ),
-                 GetChars( temp ), GetChars( GetLayerName() ) );
-
-    return text;
+    return wxString::Format( _( "Pcb Graphic %s, length %s on %s" ),
+                             ShowShape( m_Shape ),
+                             MessageTextFromValue( aUnits, GetLength() ),
+                             GetLayerName() );
 }
 
 

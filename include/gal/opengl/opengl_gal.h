@@ -86,6 +86,8 @@ public:
 
     virtual ~OPENGL_GAL();
 
+    virtual bool IsOpenGlEngine() override { return true; }
+
     /// @copydoc GAL::IsInitialized()
     virtual bool IsInitialized() const override
     {
@@ -102,18 +104,6 @@ public:
     // ---------------
     // Drawing methods
     // ---------------
-
-    /// @copydoc GAL::BeginDrawing()
-    virtual void BeginDrawing() override;
-
-    /// @copydoc GAL::EndDrawing()
-    virtual void EndDrawing() override;
-
-    /// @copydoc GAL::BeginUpdate()
-    virtual void BeginUpdate() override;
-
-    /// @copydoc GAL::EndUpdate()
-    virtual void EndUpdate() override;
 
     /// @copydoc GAL::DrawLine()
     virtual void DrawLine( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint ) override;
@@ -145,6 +135,7 @@ public:
     virtual void DrawPolygon( const std::deque<VECTOR2D>& aPointList ) override;
     virtual void DrawPolygon( const VECTOR2D aPointList[], int aListSize ) override;
     virtual void DrawPolygon( const SHAPE_POLY_SET& aPolySet ) override;
+    virtual void DrawPolygon( const SHAPE_LINE_CHAIN& aPolySet ) override;
 
     /// @copydoc GAL::DrawCurve()
     virtual void DrawCurve( const VECTOR2D& startPoint, const VECTOR2D& controlPointA,
@@ -276,6 +267,8 @@ public:
         paintListener = aPaintListener;
     }
 
+    virtual void EnableDepthTest( bool aEnabled = false ) override;
+
     ///< Parameters passed to the GLU tesselator
     typedef struct
     {
@@ -326,8 +319,27 @@ private:
     bool                    isInitialized;              ///< Basic initialization flag, has to be done
                                                         ///< when the window is visible
     bool                    isGrouping;                 ///< Was a group started?
+    bool                    isContextLocked;            ///< Used for assertion checking
+    int                     lockClientCookie;
+    GLint                   ufm_worldPixelSize;
 
     std::unique_ptr<GL_BITMAP_CACHE>         bitmapCache;
+
+    void lockContext( int aClientCookie ) override;
+
+    void unlockContext( int aClientCookie ) override;
+
+    /// @copydoc GAL::BeginUpdate()
+    virtual void beginUpdate() override;
+
+    /// @copydoc GAL::EndUpdate()
+    virtual void endUpdate() override;
+
+    /// @copydoc GAL::BeginDrawing()
+    virtual void beginDrawing() override;
+
+    /// @copydoc GAL::EndDrawing()
+    virtual void endDrawing() override;
 
     ///< Update handler for OpenGL settings
     bool updatedGalDisplayOptions( const GAL_DISPLAY_OPTIONS& aOptions ) override;
@@ -462,6 +474,8 @@ private:
         // Bigger arcs need smaller alpha increment to make them look smooth
         return std::min( 1e6 / aRadius, 2.0 * M_PI / CIRCLE_POINTS );
     }
+
+    double getWorldPixelSize() const;
 
     /**
      * @brief Basic OpenGL initialization.

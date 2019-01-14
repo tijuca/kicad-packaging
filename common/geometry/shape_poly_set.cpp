@@ -33,10 +33,12 @@
 #include <list>
 #include <algorithm>
 #include <unordered_set>
+#include <memory>
 
-#include <common.h>
 #include <md5_hash.h>
 #include <map>
+
+#include <make_unique.h>
 
 #include <geometry/geometry_utils.h>
 #include <geometry/shape.h>
@@ -1707,13 +1709,13 @@ SHAPE_POLY_SET::POLYGON SHAPE_POLY_SET::chamferFilletPolygon( CORNER_MODE aMode,
                 if( 0.5 * lenb < distance )
                     distance = 0.5 * lenb;
 
-                int nx1 = KiROUND( distance * xa / lena );
-                int ny1 = KiROUND( distance * ya / lena );
+                int nx1 = round_nearest( distance * xa / lena );
+                int ny1 = round_nearest( distance * ya / lena );
 
                 newContour.Append( x1 + nx1, y1 + ny1 );
 
-                int nx2 = KiROUND( distance * xb / lenb );
-                int ny2 = KiROUND( distance * yb / lenb );
+                int nx2 = round_nearest( distance * xb / lenb );
+                int ny2 = round_nearest( distance * yb / lenb );
 
                 newContour.Append( x1 + nx2, y1 + ny2 );
             }
@@ -1773,11 +1775,11 @@ SHAPE_POLY_SET::POLYGON SHAPE_POLY_SET::chamferFilletPolygon( CORNER_MODE aMode,
                 double  nx  = xc + xs;
                 double  ny  = yc + ys;
 
-                newContour.Append( KiROUND( nx ), KiROUND( ny ) );
+                newContour.Append( round_nearest( nx ), round_nearest( ny ) );
 
                 // Store the previous added corner to make a sanity check
-                int prevX   = KiROUND( nx );
-                int prevY   = KiROUND( ny );
+                int prevX   = round_nearest( nx );
+                int prevY   = round_nearest( ny );
 
                 for( int j = 0; j < segments; j++ )
                 {
@@ -1785,11 +1787,11 @@ SHAPE_POLY_SET::POLYGON SHAPE_POLY_SET::chamferFilletPolygon( CORNER_MODE aMode,
                     ny = yc - sin( startAngle + ( j + 1 ) * deltaAngle ) * radius;
 
                     // Sanity check: the rounding can produce repeated corners; do not add them.
-                    if( KiROUND( nx ) != prevX || KiROUND( ny ) != prevY )
+                    if( round_nearest( nx ) != prevX || round_nearest( ny ) != prevY )
                     {
-                        newContour.Append( KiROUND( nx ), KiROUND( ny ) );
-                        prevX   = KiROUND( nx );
-                        prevY   = KiROUND( ny );
+                        newContour.Append( round_nearest( nx ), round_nearest( ny ) );
+                        prevX   = round_nearest( nx );
+                        prevY   = round_nearest( ny );
                     }
                 }
             }
@@ -1867,17 +1869,33 @@ void SHAPE_POLY_SET::CacheTriangulation()
         tmpSet.Fracture( PM_FAST );
 
     m_triangulatedPolys.clear();
+    m_triangulationValid = true;
 
     for( int i = 0; i < tmpSet.OutlineCount(); i++ )
     {
         m_triangulatedPolys.push_back( std::make_unique<TRIANGULATED_POLYGON>() );
         PolygonTriangulation tess( *m_triangulatedPolys.back() );
 
-        tess.TesselatePolygon( tmpSet.Polygon( i ).front() );
+        // If the tesselation fails, we re-fracture the polygon, which will
+        // first simplify the system before fracturing and removing the holes
+        if( !tess.TesselatePolygon( tmpSet.Polygon( i ).front() ) )
+        {
+            tmpSet.Fracture( PM_FAST );
+
+            // After fracturing, we may have zero or one polygon
+            // Check for zero polygons before tesselating and break regardless
+            if( !tmpSet.OutlineCount() ||  !tess.TesselatePolygon( tmpSet.Polygon( i ).front() ) )
+            {
+                m_triangulatedPolys.pop_back();
+                m_triangulationValid = false;
+            }
+
+            break;
+        }
     }
 
-    m_triangulationValid = true;
-    m_hash = checksum();
+    if( m_triangulationValid )
+        m_hash = checksum();
 }
 
 

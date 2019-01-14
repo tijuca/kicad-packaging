@@ -27,8 +27,10 @@
 
 #include <tool/tool_interactive.h>
 #include <class_board_item.h>
+#include <pcb_base_frame.h>
 
-typedef std::vector<std::pair<BOARD_ITEM*, EDA_RECT>> ALIGNMENT_RECTS;
+using ALIGNMENT_RECT = std::pair<BOARD_ITEM*, EDA_RECT>;
+using ALIGNMENT_RECTS = std::vector<ALIGNMENT_RECT>;
 
 class SELECTION_TOOL;
 
@@ -100,6 +102,17 @@ public:
 private:
 
     /**
+     * Function GetSelections()
+     * Populates two vectors with the sorted selection and sorted locked items
+     * Returns the size of aItems()
+     */
+    template< typename T >
+    size_t GetSelections( ALIGNMENT_RECTS& aItems, ALIGNMENT_RECTS& aLocked, T aCompare );
+
+    template< typename T >
+    int selectTarget( ALIGNMENT_RECTS& aItems, ALIGNMENT_RECTS& aLocked, T aGetValue );
+
+    /**
      * Sets X coordinate of the selected items to the value of the left-most selected item X coordinate.
      *
      * NOTE: Uses the bounding box of items, which do not get mirrored even when
@@ -119,10 +132,7 @@ private:
 
     CONTEXT_MENU* m_placementMenu;
 
-    /**
-     * Remove pads from a multi-unit select that also includes the pads' parents
-     */
-    void filterPadsWithModules( SELECTION &selection );
+    PCB_BASE_FRAME* m_frame;
 
     /**
      * Check a selection to ensure locks are valid for alignment.

@@ -35,7 +35,6 @@ WX_HTML_REPORT_PANEL::WX_HTML_REPORT_PANEL( wxWindow*      parent,
     WX_HTML_REPORT_PANEL_BASE( parent, id, pos, size, style ),
     m_reporter( this ),
     m_severities( -1 ),
-    m_showAll( true ),
     m_lazyUpdate( false )
 {
     syncCheckboxes();
@@ -131,12 +130,12 @@ void WX_HTML_REPORT_PANEL::scrollToBottom()
 }
 
 
-const static wxSize BADGE_SIZE_DU( 9, 9 );
-const static int BADGE_FONT_SIZE = 9;
+#define BADGE_SIZE       20
+#define BADGE_FONT_SIZE  10
 
 static wxBitmap makeBadge( REPORTER::SEVERITY aStyle, int aCount, wxWindow* aWindow )
 {
-    wxSize      size( aWindow->ConvertDialogToPixels( BADGE_SIZE_DU ) );
+    wxSize      size( BADGE_SIZE, BADGE_SIZE );
     wxBitmap    bitmap( size );
     wxBrush     brush;
     wxMemoryDC  badgeDC;
@@ -155,6 +154,9 @@ static wxBitmap makeBadge( REPORTER::SEVERITY aStyle, int aCount, wxWindow* aWin
     badgeDC.SetBackground( brush );
     badgeDC.Clear();
 
+    if( aCount == 0 )
+        return bitmap;
+
     switch( aStyle )
     {
     case REPORTER::RPT_ERROR:
@@ -162,8 +164,8 @@ static wxBitmap makeBadge( REPORTER::SEVERITY aStyle, int aCount, wxWindow* aWin
         textColour = *wxWHITE;
         break;
     case REPORTER::RPT_WARNING:
-        badgeColour = *wxYELLOW;
-        textColour = *wxBLACK;
+        badgeColour = wxColour( 235, 120, 80 );    // Orange
+        textColour = *wxWHITE;
         break;
     case REPORTER::RPT_ACTION:
         badgeColour = *wxGREEN;
@@ -182,13 +184,14 @@ static wxBitmap makeBadge( REPORTER::SEVERITY aStyle, int aCount, wxWindow* aWin
     badgeDC.SetPen( wxPen( badgeColour, 0 ) );
     badgeDC.DrawCircle( size.x / 2 - 1, size.y / 2, ( std::max( size.x, size.y ) / 2 ) - 1 );
 
-    wxFont   font( BADGE_FONT_SIZE, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD );
-    wxString text = wxString::Format( wxT( "%d" ), aCount );
-    wxSize   textExtent = badgeDC.GetTextExtent( text );
-
+    wxFont font( fontSize, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD );
     badgeDC.SetFont( font );
+
+    wxString text = wxString::Format( wxT( "%d" ), aCount );
+    wxSize textExtent = badgeDC.GetTextExtent( text );
+
     badgeDC.SetTextForeground( textColour );
-    badgeDC.DrawText( text, size.x / 2 - textExtent.x / 2, size.y / 2 - textExtent.y / 2 + 2 );
+    badgeDC.DrawText( text, size.x / 2 - textExtent.x / 2 - 1, size.y / 2 - textExtent.y / 2 );
 
     return bitmap;
 }
@@ -197,24 +200,10 @@ static wxBitmap makeBadge( REPORTER::SEVERITY aStyle, int aCount, wxWindow* aWin
 void WX_HTML_REPORT_PANEL::updateBadges()
 {
     int count = Count( REPORTER::RPT_ERROR );
-
-    if( count > 0 )
-    {
-        m_errorsBadge->SetBitmap( makeBadge( REPORTER::RPT_ERROR, count, m_errorsBadge ) );
-        m_errorsBadge->Show( true );
-    }
-    else
-        m_errorsBadge->Show( false );
+    m_errorsBadge->SetBitmap( makeBadge( REPORTER::RPT_ERROR, count, m_errorsBadge ) );
 
     count = Count( REPORTER::RPT_WARNING );
-
-    if( count > 0 )
-    {
-        m_warningsBadge->SetBitmap( makeBadge( REPORTER::RPT_WARNING, count, m_warningsBadge ) );
-        m_warningsBadge->Show( true );
-    }
-    else
-        m_warningsBadge->Show( false );
+    m_warningsBadge->SetBitmap( makeBadge( REPORTER::RPT_WARNING, count, m_warningsBadge ) );
 }
 
 
@@ -246,7 +235,7 @@ wxString WX_HTML_REPORT_PANEL::generateHtml( const REPORT_LINE& aLine )
 {
     wxString retv;
 
-    if( !m_showAll && ! ( m_severities & aLine.severity ) )
+    if( !( m_severities & aLine.severity ) )
         return retv;
 
     switch( aLine.severity )
@@ -317,9 +306,9 @@ void WX_HTML_REPORT_PANEL::onMenuEvent( wxMenuEvent& event )
 void WX_HTML_REPORT_PANEL::onCheckBoxShowAll( wxCommandEvent& event )
 {
     if( event.IsChecked() )
-        m_showAll = true;
+        m_severities = REPORTER::RPT_ALL;
     else
-        m_showAll = false;
+        m_severities = 0;
 
     syncCheckboxes();
     Flush( true );
@@ -328,7 +317,7 @@ void WX_HTML_REPORT_PANEL::onCheckBoxShowAll( wxCommandEvent& event )
 
 void WX_HTML_REPORT_PANEL::syncCheckboxes()
 {
-    m_checkBoxShowAll->SetValue( m_showAll );
+    m_checkBoxShowAll->SetValue( m_severities == REPORTER::RPT_ALL );
     m_checkBoxShowWarnings->SetValue( m_severities & REPORTER::RPT_WARNING );
     m_checkBoxShowErrors->SetValue( m_severities & REPORTER::RPT_ERROR );
     m_checkBoxShowInfos->SetValue( m_severities & REPORTER::RPT_INFO );
@@ -343,6 +332,7 @@ void WX_HTML_REPORT_PANEL::onCheckBoxShowWarnings( wxCommandEvent& event )
     else
         m_severities &= ~REPORTER::RPT_WARNING;
 
+    syncCheckboxes();
     Flush( true );
 }
 
@@ -354,6 +344,7 @@ void WX_HTML_REPORT_PANEL::onCheckBoxShowErrors( wxCommandEvent& event )
     else
         m_severities &= ~REPORTER::RPT_ERROR;
 
+    syncCheckboxes();
     Flush( true );
 }
 
@@ -365,6 +356,7 @@ void WX_HTML_REPORT_PANEL::onCheckBoxShowInfos( wxCommandEvent& event )
     else
         m_severities &= ~REPORTER::RPT_INFO;
 
+    syncCheckboxes();
     Flush( true );
 }
 
@@ -376,6 +368,7 @@ void WX_HTML_REPORT_PANEL::onCheckBoxShowActions( wxCommandEvent& event )
     else
         m_severities &= ~REPORTER::RPT_ACTION;
 
+    syncCheckboxes();
     Flush( true );
 }
 
@@ -433,12 +426,9 @@ void WX_HTML_REPORT_PANEL::SetLabel( const wxString& aLabel )
 void WX_HTML_REPORT_PANEL::SetVisibleSeverities( int aSeverities )
 {
     if( aSeverities < 0 )
-        m_showAll = true;
+        m_severities = REPORTER::RPT_ALL;
     else
-    {
-        m_showAll = false;
         m_severities = aSeverities;
-    }
 
     syncCheckboxes();
 }
@@ -446,5 +436,5 @@ void WX_HTML_REPORT_PANEL::SetVisibleSeverities( int aSeverities )
 
 int WX_HTML_REPORT_PANEL::GetVisibleSeverities()
 {
-    return m_showAll ? m_severities | 0x80000000 : m_severities & ~0x80000000;
+    return m_severities;
 }

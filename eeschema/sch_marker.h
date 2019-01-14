@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2004-2017 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,7 +22,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-/*
+/**
  * @file sch_marker.h
  * @brief SCH_MARKER class definition.
  */
@@ -32,10 +32,6 @@
 
 #include <sch_item_struct.h>
 #include <marker_base.h>
-
-
-/* Names for corresponding types of markers: */
-extern const wxChar* NameMarqueurType[];
 
 
 class SCH_MARKER : public SCH_ITEM, public MARKER_BASE
@@ -51,6 +47,8 @@ public:
     {
         return wxT( "SCH_MARKER" );
     }
+
+    void ViewGetLayers( int aLayers[], int& aCount ) const override;
 
     void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
                GR_DRAWMODE aDraw_mode, COLOR4D aColor = COLOR4D::UNSPECIFIED ) override;
@@ -90,11 +88,14 @@ public:
      */
     bool Matches( wxFindReplaceData& aSearchData, void* aAuxData, wxPoint* aFindLocation ) override;
 
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
+    void GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList ) override;
 
     bool IsSelectStateChanged( const wxRect& aRect ) override;
 
-    wxString GetSelectMenuText() const override { return wxString( _( "ERC Marker" ) ); }
+    wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override
+    {
+        return wxString( _( "ERC Marker" ) );
+    }
 
     BITMAP_DEF GetMenuImage() const override;
 

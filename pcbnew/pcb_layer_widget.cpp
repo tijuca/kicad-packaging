@@ -113,7 +113,6 @@ PCB_LAYER_WIDGET::PCB_LAYER_WIDGET( PCB_BASE_FRAME* aParent, wxWindow* aFocusOwn
 {
     m_alwaysShowActiveCopperLayer = false;
     m_fp_editor_mode = aFpEditorMode;
-    ReFillRender();
 
     // Update default tabs labels
     SetLayersManagerTabsText();
@@ -146,7 +145,7 @@ COLOR4D PCB_LAYER_WIDGET::getBackgroundLayerColor()
 
 bool PCB_LAYER_WIDGET::isAllowedInFpMode( int aId )
 {
-    for( unsigned ii = 0; ii < DIM( s_allowed_in_FpEditor ); ii++ )
+    for( unsigned ii = 0; ii < arrayDim( s_allowed_in_FpEditor ); ii++ )
         if( s_allowed_in_FpEditor[ii] == aId )
             return true;
 
@@ -157,9 +156,7 @@ bool PCB_LAYER_WIDGET::isAllowedInFpMode( int aId )
 bool PCB_LAYER_WIDGET::isLayerAllowedInFpMode( PCB_LAYER_ID aLayer )
 {
     static LSET allowed = LSET::AllTechMask();
-    // Currently not in use because putting a graphic item on a copper layer
-    // is not currently supported by DRC.
-    // allowed.set( F_Cu ).set( B_Cu );
+    allowed.set( F_Cu ).set( B_Cu );
     return allowed.test( aLayer );
 }
 
@@ -397,7 +394,7 @@ void PCB_LAYER_WIDGET::ReFillRender()
     // Because s_render_rows is created static, we must explicitly call
     // wxGetTranslation for texts which are internationalized (tool tips
     // and item names)
-    for( unsigned row=0;  row<DIM(s_render_rows);  ++row )
+    for( unsigned row=0;  row<arrayDim(s_render_rows);  ++row )
     {
         LAYER_WIDGET::ROW renderRow = s_render_rows[row];
 
@@ -426,6 +423,8 @@ void PCB_LAYER_WIDGET::ReFillRender()
 
         AppendRenderRow( renderRow );
     }
+
+    UpdateLayouts();
 }
 
 
@@ -518,13 +517,14 @@ void PCB_LAYER_WIDGET::ReFill()
             brd->GetLayerName( layer ), layer, myframe->Settings().Colors().GetLayerColor( layer ),
             dsc, true ) );
 
-        if( m_fp_editor_mode && !isLayerAllowedInFpMode( layer ) )
+        if( m_fp_editor_mode && LSET::ForbiddenFootprintLayers().test( layer ) )
         {
             getLayerComp( GetLayerRowCount()-1, COLUMN_COLOR_LYRNAME )->Enable( false );
-            getLayerComp( GetLayerRowCount()-1,
-                          COLUMN_COLORBM )->SetToolTip( wxEmptyString );
+            getLayerComp( GetLayerRowCount()-1, COLUMN_COLORBM )->SetToolTip( wxEmptyString );
         }
     }
+
+    UpdateLayouts();
 
 
     // technical layers are shown in this order:
@@ -554,7 +554,7 @@ void PCB_LAYER_WIDGET::ReFill()
         { B_Fab,            _( "Footprint assembly on board's back" ) }
     };
 
-    for( unsigned i=0;  i<DIM( non_cu_seq );  ++i )
+    for( unsigned i=0;  i<arrayDim( non_cu_seq );  ++i )
     {
         PCB_LAYER_ID layer = non_cu_seq[i].layerId;
 
@@ -565,11 +565,10 @@ void PCB_LAYER_WIDGET::ReFill()
             brd->GetLayerName( layer ), layer,  myframe->Settings().Colors().GetLayerColor( layer ),
             wxGetTranslation( non_cu_seq[i].tooltip ), true ) );
 
-        if( m_fp_editor_mode && !isLayerAllowedInFpMode( layer ) )
+        if( m_fp_editor_mode && LSET::ForbiddenFootprintLayers().test( layer ) )
         {
             getLayerComp( GetLayerRowCount()-1, COLUMN_COLOR_LYRNAME )->Enable( false );
-            getLayerComp( GetLayerRowCount()-1,
-                          COLUMN_COLORBM )->SetToolTip( wxEmptyString );
+            getLayerComp( GetLayerRowCount()-1, COLUMN_COLORBM )->SetToolTip( wxEmptyString );
         }
     }
 }
@@ -601,6 +600,9 @@ void PCB_LAYER_WIDGET::OnLayerColorChange( int aLayer, COLOR4D aColor )
     myframe->ReCreateHToolbar();
 
     myframe->GetCanvas()->Refresh();
+
+    if( aLayer == LAYER_PCB_BACKGROUND )
+        myframe->SetDrawBgColor( aColor );
 }
 
 
@@ -610,7 +612,7 @@ bool PCB_LAYER_WIDGET::OnLayerSelect( int aLayer )
     // false from this function.
     PCB_LAYER_ID layer = ToLAYER_ID( aLayer );
 
-    if( m_fp_editor_mode && !isLayerAllowedInFpMode( layer ) )
+    if( m_fp_editor_mode && LSET::ForbiddenFootprintLayers().test( layer ) )
         return false;
 
     myframe->SetActiveLayer( layer );

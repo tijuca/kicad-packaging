@@ -72,8 +72,9 @@ include_directories(
 # A corresponding ${basename}.svg file must exist in 'sources' dir below here.
 
 
-# small icons (16x16) needed in listboxes
+# small icons (16x16) needed in listboxes and dialog buttons
 set( BMAPS_SMALL
+    folder
     pinorient_right
     pinorient_left
     pinorient_up
@@ -99,8 +100,15 @@ set( BMAPS_SMALL
     pintype_openemit
     pintype_noconnect
     refresh
+    small_down
+    small_edit
+    small_library
+    small_plus
+    small_up
+    trash
     tree_nosel
     tree_sel
+    www
     )
 
 
@@ -178,9 +186,7 @@ set( BMAPS_MID
     component_select_unit
     component_select_alternate_shape
     config
-    copycomponent
     copy
-    copy_library
     copy_pad_settings
     copper_layers_setup
     cursor_shape
@@ -209,6 +215,7 @@ set( BMAPS_MID
     delete_track
     delete
     directory
+    directory_browser
     display_options
     distribute_horizontal
     distribute_vertical
@@ -221,7 +228,6 @@ set( BMAPS_MID
     drc
     duplicate
     edges_sketch
-    edit_component
     edit_comp_footprint
     edit_comp_ref
     edit_comp_value
@@ -289,7 +295,6 @@ set( BMAPS_MID
     import3d
     image
     import_brd_file
-    import_cmp_from_lib
     import_document
     import_footprint_names
     import_hierarchical_label
@@ -412,6 +417,7 @@ set( BMAPS_MID
     options_all_tracks
     options_all_vias
     options_arc
+    options_board
     options_circle
     options_generic
     options_module
@@ -501,8 +507,6 @@ set( BMAPS_MID
     save_as
     save_gerber
     save_library
-    save_part
-    save_part_in_mem
     save_project
     save_setup
     save
@@ -559,6 +563,7 @@ set( BMAPS_MID
     up
     update_fields
     update_module_board
+    update_pcb_from_sch
     use_3D_copper_thickness
     via
     via_buried

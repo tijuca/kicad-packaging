@@ -86,7 +86,7 @@ void KICAD_MANAGER_FRAME::OnUnarchiveFiles( wxCommandEvent& event )
     zipfilesys.ChangePathTo( zipfiledlg.GetPath() + wxT( "#zip:" ), true );
 
     wxFSFile* zipfile = NULL;
-    wxString  localfilename = zipfilesys.FindFirst( wxT( "*.*" ) );
+    wxString  localfilename = zipfilesys.FindFirst( wxFileSelectorDefaultWildcardStr );
 
     while( !localfilename.IsEmpty() )
     {
@@ -188,7 +188,7 @@ void KICAD_MANAGER_FRAME::OnArchiveFiles( wxCommandEvent& event )
 
 	wxArrayString files;
 
-    for( unsigned ii = 0; ii < DIM( extentionList ); ii++ )
+    for( unsigned ii = 0; ii < arrayDim( extentionList ); ii++ )
         wxDir::GetAllFiles( currdirname, &files, extentionList[ii] );
 
     files.Sort();

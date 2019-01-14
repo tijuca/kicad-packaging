@@ -38,6 +38,7 @@
 #include <bitmaps.h>
 #include <pgm_base.h>
 #include <eda_base_frame.h>
+#include <draw_frame.h>
 
 
 struct SCALED_BITMAP_ID {
@@ -102,7 +103,8 @@ int KiIconScale( wxWindow* aWindow )
 
 static int get_scale_factor( EDA_BASE_FRAME* aWindow )
 {
-    const int requested_scale = aWindow->GetIconScale();
+    int requested_scale;
+    Pgm().CommonSettings()->Read( ICON_SCALE_KEY, &requested_scale, 0 );
 
     if( requested_scale > 0 )
         return requested_scale;
@@ -143,6 +145,25 @@ wxBitmap KiScaledBitmap( BITMAP_DEF aBitmap, EDA_BASE_FRAME* aWindow )
 }
 
 
+wxBitmap KiScaledBitmap( const wxBitmap& aBitmap, EDA_BASE_FRAME* aWindow )
+{
+    const int scale = get_scale_factor( aWindow );
+
+    if( scale == 4)
+    {
+        return wxBitmap( aBitmap );
+    }
+    else
+    {
+        wxImage image = aBitmap.ConvertToImage();
+        image.Rescale( scale * image.GetWidth() / 4, scale * image.GetHeight() / 4,
+            wxIMAGE_QUALITY_BILINEAR );
+
+        return wxBitmap( image );
+    }
+}
+
+
 void KiScaledSeparator( wxAuiToolBar* aToolbar, EDA_BASE_FRAME* aWindow )
 {
     const int scale = get_scale_factor( aWindow );
@@ -171,6 +192,34 @@ wxBitmap* KiBitmapNew( BITMAP_DEF aBitmap )
 }
 
 
+bool SaveCanvasImageToFile( EDA_DRAW_FRAME* aFrame, const wxString& aFileName,
+                            wxBitmapType aBitmapType )
+{
+    wxCHECK( aFrame != nullptr, false );
+
+    bool       retv = true;
+
+    // Make a screen copy of the canvas:
+    wxSize image_size = aFrame->GetGalCanvas()->GetClientSize();
+
+    wxClientDC dc( aFrame->GetGalCanvas() );
+    wxBitmap   bitmap( image_size.x, image_size.y );
+    wxMemoryDC memdc;
+
+    memdc.SelectObject( bitmap );
+    memdc.Blit( 0, 0, image_size.x, image_size.y, &dc, 0, 0 );
+    memdc.SelectObject( wxNullBitmap );
+
+    wxImage image = bitmap.ConvertToImage();
+
+    if( !image.SaveFile( aFileName, aBitmapType ) )
+        retv = false;
+
+    image.Destroy();
+    return retv;
+}
+
+
 wxMenuItem* AddMenuItem( wxMenu* aMenu, int aId, const wxString& aText,
                          const wxBitmap& aImage, wxItemKind aType = wxITEM_NORMAL )
 {
@@ -179,7 +228,8 @@ wxMenuItem* AddMenuItem( wxMenu* aMenu, int aId, const wxString& aText,
     item = new wxMenuItem( aMenu, aId, aText, wxEmptyString, aType );
 
     // Retrieve the global applicaton show icon option:
-    bool useImagesInMenus = Pgm().GetUseIconsInMenus();
+    bool useImagesInMenus;
+    Pgm().CommonSettings()->Read( USE_ICONS_IN_MENUS_KEY, &useImagesInMenus );
 
     if( useImagesInMenus )
     {
@@ -214,7 +264,8 @@ wxMenuItem* AddMenuItem( wxMenu* aMenu, int aId, const wxString& aText,
     item = new wxMenuItem( aMenu, aId, aText, aHelpText, aType );
 
     // Retrieve the global applicaton show icon option:
-    bool useImagesInMenus = Pgm().GetUseIconsInMenus();
+    bool useImagesInMenus;
+    Pgm().CommonSettings()->Read( USE_ICONS_IN_MENUS_KEY, &useImagesInMenus );
 
     if( useImagesInMenus )
     {
@@ -249,7 +300,8 @@ wxMenuItem* AddMenuItem( wxMenu* aMenu, wxMenu* aSubMenu, int aId,
     item->SetSubMenu( aSubMenu );
 
     // Retrieve the global applicaton show icon option:
-    bool useImagesInMenus = Pgm().GetUseIconsInMenus();
+    bool useImagesInMenus;
+    Pgm().CommonSettings()->Read( USE_ICONS_IN_MENUS_KEY, &useImagesInMenus );
 
     if( useImagesInMenus )
         item->SetBitmap( aImage );
@@ -270,7 +322,8 @@ wxMenuItem* AddMenuItem( wxMenu* aMenu, wxMenu* aSubMenu, int aId,
     item->SetSubMenu( aSubMenu );
 
     // Retrieve the global applicaton show icon option:
-    bool useImagesInMenus = Pgm().GetUseIconsInMenus();
+    bool useImagesInMenus;
+    Pgm().CommonSettings()->Read( USE_ICONS_IN_MENUS_KEY, &useImagesInMenus );
 
     if( useImagesInMenus )
         item->SetBitmap( aImage );

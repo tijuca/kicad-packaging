@@ -71,7 +71,7 @@ struct TOOL_MANAGER::TOOL_STATE
 
     ~TOOL_STATE()
     {
-        assert( stateStack.empty() );
+        wxASSERT( stateStack.empty() );
     }
 
     /// The tool itself
@@ -109,7 +109,7 @@ struct TOOL_MANAGER::TOOL_STATE
     /// VIEW_CONTROLS settings to preserve settings when the tools are switched
     KIGFX::VC_SETTINGS vcSettings;
 
-    void operator=( const TOOL_STATE& aState )
+    TOOL_STATE& operator=( const TOOL_STATE& aState )
     {
         theTool = aState.theTool;
         idle = aState.idle;
@@ -123,6 +123,7 @@ struct TOOL_MANAGER::TOOL_STATE
         transitions = aState.transitions;
         vcSettings = aState.vcSettings;
         // do not copy stateStack
+        return *this;
     }
 
     bool operator==( const TOOL_MANAGER::TOOL_STATE& aRhs ) const
@@ -509,7 +510,7 @@ OPT<TOOL_EVENT> TOOL_MANAGER::ScheduleWait( TOOL_BASE* aTool, const TOOL_EVENT_L
 {
     TOOL_STATE* st = m_toolState[aTool];
 
-    assert( !st->pendingWait ); // everything collapses on two KiYield() in a row
+    wxASSERT( !st->pendingWait ); // everything collapses on two KiYield() in a row
 
     // indicate to the manager that we are going to sleep and we shall be
     // woken up when an event matching aConditions arrive

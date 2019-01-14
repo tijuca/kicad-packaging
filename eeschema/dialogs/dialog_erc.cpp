@@ -29,7 +29,7 @@
  */
 
 #include <fctsys.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <kicad_string.h>
 #include <gestfich.h>
 #include <pgm_base.h>
@@ -41,7 +41,7 @@
 #include <bitmaps.h>
 #include <reporter.h>
 #include <wildcards_and_files_ext.h>
-
+#include <sch_view.h>
 #include <netlist.h>
 #include <netlist_object.h>
 #include <sch_marker.h>
@@ -79,7 +79,21 @@ DIALOG_ERC::DIALOG_ERC( SCH_EDIT_FRAME* parent ) :
 {
     m_parent = parent;
     m_lastMarkerFound = NULL;
+
+    wxFont infoFont = wxSystemSettings::GetFont( wxSYS_DEFAULT_GUI_FONT );
+    infoFont.SetSymbolicSize( wxFONTSIZE_SMALL );
+    m_textMarkers->SetFont( infoFont );
+    m_titleMessages->SetFont( infoFont );
+
     Init();
+
+    // We use a sdbSizer to get platform-dependent ordering of the action buttons, but
+    // that requires us to correct the button labels here.
+    m_sdbSizer1OK->SetLabel( _( "Run" ) );
+    m_sdbSizer1Cancel->SetLabel( _( "Close" ) );
+    m_sdbSizer1->Layout();
+
+    m_sdbSizer1OK->SetDefault();
 
     // Now all widgets have the size fixed, call FinishDialogSettings
     FinishDialogSettings();
@@ -114,9 +128,6 @@ void DIALOG_ERC::Init()
 
     // Init Panel Matrix
     ReBuildMatrixPanel();
-
-    // Set the run ERC button as the default button.
-    m_buttonERC->SetDefault();
 }
 
 
@@ -155,9 +166,7 @@ void DIALOG_ERC::OnEraseDrcMarkersClick( wxCommandEvent& event )
 }
 
 
-
-/* event handler for Close button
-*/
+// This is a modeless dialog so we have to handle these ourselves.
 void DIALOG_ERC::OnButtonCloseClick( wxCommandEvent& event )
 {
     Close();
@@ -186,6 +195,14 @@ void DIALOG_ERC::OnErcCmpClick( wxCommandEvent& event )
 
     WX_TEXT_CTRL_REPORTER reporter( m_MessagesList );
     TestErc( reporter );
+}
+
+
+void DIALOG_ERC::RedrawDrawPanel()
+{
+    WINDOW_THAWER thawer( m_parent );
+
+    m_parent->GetCanvas()->Refresh();
 }
 
 
@@ -244,8 +261,9 @@ void DIALOG_ERC::OnLeftClickMarkersList( wxHtmlLinkEvent& event )
     }
 
     m_lastMarkerFound = marker;
+    m_parent->FocusOnLocation( marker->m_Pos, false, true );
     m_parent->SetCrossHairPosition( marker->m_Pos );
-    m_parent->RedrawScreen( marker->m_Pos, false);
+    RedrawDrawPanel();
 }
 
 
@@ -256,8 +274,9 @@ void DIALOG_ERC::OnLeftDblClickMarkersList( wxMouseEvent& event )
     // (NULL if not found)
     if( m_lastMarkerFound )
     {
+        m_parent->FocusOnLocation( m_lastMarkerFound->m_Pos, false, true );
         m_parent->SetCrossHairPosition( m_lastMarkerFound->m_Pos );
-        m_parent->RedrawScreen( m_lastMarkerFound->m_Pos, true );
+        RedrawDrawPanel();
         // prevent a mouse left button release event in
         // coming from the ERC dialog double click
         // ( the button is released after closing this dialog and will generate
@@ -409,7 +428,7 @@ void DIALOG_ERC::DisplayERC_MarkersList()
         }
     }
 
-    m_MarkersList->DisplayList();
+    m_MarkersList->DisplayList( GetUserUnits() );
 }
 
 
@@ -620,7 +639,15 @@ void DIALOG_ERC::TestErc( REPORTER& aReporter )
     // Display diags:
     DisplayERC_MarkersList();
 
-    // Display new markers:
+    // Display new markers from the current screen:
+    KIGFX::VIEW* view = m_parent->GetCanvas()->GetView();
+
+    for( auto item = m_parent->GetScreen()->GetDrawItems(); item; item = item->Next() )
+    {
+        if( item->Type() == SCH_MARKER_T )
+            view->Add( item );
+    }
+
     m_parent->GetCanvas()->Refresh();
 
     // Display message
@@ -637,7 +664,7 @@ void DIALOG_ERC::TestErc( REPORTER& aReporter )
         if( dlg.ShowModal() == wxID_CANCEL )
             return;
 
-        if( WriteDiagnosticERC( dlg.GetPath() ) )
+        if( WriteDiagnosticERC( GetUserUnits(), dlg.GetPath() ) )
             ExecuteFile( this, Pgm().GetEditorName(), QuoteFullPath( fn ) );
     }
 }

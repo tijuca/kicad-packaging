@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
- * Copyright (C) 2013 CERN
+ * Copyright (C) 2013-2018 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
  * This program is free software; you can redistribute it and/or
@@ -97,6 +97,16 @@ void WORKSHEET_VIEWITEM::ViewDraw( int aLayer, VIEW* aView ) const
     COLOR4D color = settings->GetColor( this, aLayer );
     drawList.BuildWorkSheetGraphicList( *m_pageInfo, *m_titleBlock, color, color );
 
+    // Draw the title block normally even if the view is flipped
+    bool flipped = gal->IsFlippedX();
+
+    if( flipped )
+    {
+        gal->Save();
+        gal->Translate( VECTOR2D( m_pageInfo->GetWidthMils() * m_mils2IUscalefactor, 0 ) );
+        gal->Scale( VECTOR2D( -1.0, 1.0 ) );
+    }
+
     // Draw all the components that make the page layout
     WS_DRAW_ITEM_BASE* item = drawList.GetFirst();
     while( item )
@@ -128,7 +138,11 @@ void WORKSHEET_VIEWITEM::ViewDraw( int aLayer, VIEW* aView ) const
     }
 
     // Draw gray line that outlines the sheet size
-    drawBorder( gal );
+    if( settings->GetShowPageLimits() )
+        drawBorder( gal );
+
+    if( flipped )
+        gal->Restore();
 }
 
 
@@ -222,8 +236,8 @@ void WORKSHEET_VIEWITEM::draw( const WS_DRAW_ITEM_BITMAP* aItem, GAL* aGal ) con
 void WORKSHEET_VIEWITEM::drawBorder( GAL* aGal ) const
 {
     VECTOR2D origin = VECTOR2D( 0.0, 0.0 );
-    VECTOR2D end = VECTOR2D( m_pageInfo->GetWidthMils() * 25400,
-                             m_pageInfo->GetHeightMils() * 25400 );
+    VECTOR2D end = VECTOR2D( m_pageInfo->GetWidthMils() * m_mils2IUscalefactor,
+                             m_pageInfo->GetHeightMils() * m_mils2IUscalefactor );
 
     aGal->SetIsStroke( true );
     // Use a gray color for the border color

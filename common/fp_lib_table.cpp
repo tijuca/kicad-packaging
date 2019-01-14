@@ -323,18 +323,28 @@ static void setLibNickname( MODULE* aModule,
 }
 
 
-MODULE* FP_LIB_TABLE::LoadEnumeratedFootprint( const wxString& aNickname,
-                                               const wxString& aFootprintName )
+const MODULE* FP_LIB_TABLE::GetEnumeratedFootprint( const wxString& aNickname,
+                                                    const wxString& aFootprintName )
 {
     const FP_LIB_TABLE_ROW* row = FindRow( aNickname );
     wxASSERT( (PLUGIN*) row->plugin );
 
-    MODULE* ret = row->plugin->LoadEnumeratedFootprint( row->GetFullURI( true ), aFootprintName,
-                                                        row->GetProperties() );
+    return row->plugin->GetEnumeratedFootprint( row->GetFullURI( true ), aFootprintName,
+                                                row->GetProperties() );
+}
 
-    setLibNickname( ret, row->GetNickName(), aFootprintName );
 
-    return ret;
+bool FP_LIB_TABLE::FootprintExists( const wxString& aNickname, const wxString& aFootprintName )
+{
+    try
+    {
+        std::unique_ptr<MODULE> m( FootprintLoad( aNickname, aFootprintName ) );
+        return m.get() != nullptr;
+    }
+    catch( ... )
+    {
+        return false;
+    }
 }
 
 

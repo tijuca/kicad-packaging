@@ -6,9 +6,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
+ * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -34,42 +34,41 @@
 #include <trigo.h>
 #include <msgpanel.h>
 #include <bitmaps.h>
+#include <base_units.h>
 
 #include <pcbnew.h>
 #include <class_marker_pcb.h>
 #include <layers_id_colors_and_visibility.h>
 
 
-/// Adjust the actual size of markers, when using default shape
-#define SCALING_FACTOR      Mils2iu( 3 )
-
+/// Factor to convert the maker unit shape to internal units:
+#define SCALING_FACTOR  Millimeter2iu( 0.1 )
 
 MARKER_PCB::MARKER_PCB( BOARD_ITEM* aParent ) :
     BOARD_ITEM( aParent, PCB_MARKER_T ),
-    MARKER_BASE(), m_item( NULL )
+    MARKER_BASE( SCALING_FACTOR ), m_item( nullptr )
 {
     m_Color = WHITE;
-    m_ScalingFactor = SCALING_FACTOR;
+}
+
+
+MARKER_PCB::MARKER_PCB( EDA_UNITS_T aUnits, int aErrorCode, const wxPoint& aMarkerPos,
+                        BOARD_ITEM* aItem, const wxPoint& aPos,
+                        BOARD_ITEM* bItem, const wxPoint& bPos ) :
+    BOARD_ITEM( nullptr, PCB_MARKER_T ),  // parent set during BOARD::Add()
+    MARKER_BASE( aUnits, aErrorCode, aMarkerPos, aItem, aPos, bItem, bPos, SCALING_FACTOR ), m_item( nullptr )
+{
+    m_Color = WHITE;
 }
 
 
 MARKER_PCB::MARKER_PCB( int aErrorCode, const wxPoint& aMarkerPos,
                         const wxString& aText, const wxPoint& aPos,
                         const wxString& bText, const wxPoint& bPos ) :
-    BOARD_ITEM( NULL, PCB_MARKER_T ),  // parent set during BOARD::Add()
-    MARKER_BASE( aErrorCode, aMarkerPos, aText, aPos, bText, bPos ), m_item( NULL )
+    BOARD_ITEM( nullptr, PCB_MARKER_T ),  // parent set during BOARD::Add()
+    MARKER_BASE( aErrorCode, aMarkerPos, aText, aPos, bText, bPos, SCALING_FACTOR ), m_item( nullptr )
 {
     m_Color = WHITE;
-    m_ScalingFactor = SCALING_FACTOR;
-}
-
-MARKER_PCB::MARKER_PCB( int aErrorCode, const wxPoint& aMarkerPos,
-                        const wxString& aText, const wxPoint& aPos ) :
-    BOARD_ITEM( NULL, PCB_MARKER_T ),  // parent set during BOARD::Add()
-    MARKER_BASE( aErrorCode, aMarkerPos, aText,  aPos ), m_item( NULL )
-{
-    m_Color = WHITE;
-    m_ScalingFactor = SCALING_FACTOR;
 }
 
 
@@ -90,29 +89,22 @@ bool MARKER_PCB::IsOnLayer( PCB_LAYER_ID aLayer ) const
     return IsCopperLayer( aLayer );
 }
 
-void MARKER_PCB::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
+void MARKER_PCB::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList )
 {
-    const DRC_ITEM& rpt = m_drc;
+    wxString errorTxt, txtA, txtB;
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Type" ), _( "Marker" ), DARKCYAN ) );
+    aList.emplace_back( MSG_PANEL_ITEM( _( "Type" ), _( "Marker" ), DARKCYAN ) );
 
-    wxString errorTxt;
+    errorTxt.Printf( _( "ErrType (%d)- %s:" ), m_drc.GetErrorCode(), m_drc.GetErrorText() );
 
-    errorTxt.Printf( _( "ErrType (%d)- %s:" ),
-            rpt.GetErrorCode(),
-            GetChars( rpt.GetErrorText() ) );
+    aList.emplace_back( MSG_PANEL_ITEM( errorTxt, wxEmptyString, RED ) );
 
-    aList.push_back( MSG_PANEL_ITEM( errorTxt, wxEmptyString, RED ) );
+    txtA.Printf( wxT( "%s: %s" ), DRC_ITEM::ShowCoord( aUnits, m_drc.GetPointA() ), m_drc.GetTextA() );
 
-    wxString txtA;
-    txtA << DRC_ITEM::ShowCoord( rpt.GetPointA() ) << wxT( ": " ) << rpt.GetTextA();
+    if( m_drc.HasSecondItem() )
+        txtB.Printf( wxT( "%s: %s" ), DRC_ITEM::ShowCoord( aUnits, m_drc.GetPointB() ), m_drc.GetTextB() );
 
-    wxString txtB;
-
-    if ( rpt.HasSecondItem() )
-        txtB << DRC_ITEM::ShowCoord( rpt.GetPointB() ) << wxT( ": " ) << rpt.GetTextB();
-
-    aList.push_back( MSG_PANEL_ITEM( txtA, txtB, DARKBROWN ) );
+    aList.emplace_back( MSG_PANEL_ITEM( txtA, txtB, DARKBROWN ) );
 }
 
 
@@ -128,12 +120,11 @@ void MARKER_PCB::Flip(const wxPoint& aCentre )
 }
 
 
-wxString MARKER_PCB::GetSelectMenuText() const
+wxString MARKER_PCB::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
-    wxString text;
-    text.Printf( _( "Marker @(%d,%d)" ), GetPos().x, GetPos().y );
-
-    return text;
+    return wxString::Format( _( "Marker @(%s, %s)" ),
+                             MessageTextFromValue( aUnits, m_Pos.x ),
+                             MessageTextFromValue( aUnits, m_Pos.y ) );
 }
 
 
@@ -151,5 +142,19 @@ void MARKER_PCB::ViewGetLayers( int aLayers[], int& aCount ) const
 
 const EDA_RECT MARKER_PCB::GetBoundingBox() const
 {
-    return EDA_RECT( m_Pos, wxSize( 1300000, 1300000 ) );
+    EDA_RECT bbox = m_ShapeBoundingBox;
+
+    wxPoint pos = m_Pos;
+    pos.x += int( bbox.GetOrigin().x * MarkerScale() );
+    pos.y += int( bbox.GetOrigin().y * MarkerScale() );
+
+    return EDA_RECT( pos, wxSize( int( bbox.GetWidth() * MarkerScale() ),
+                                  int( bbox.GetHeight() * MarkerScale() ) ) );
+}
+
+
+const BOX2I MARKER_PCB::ViewBBox() const
+{
+    EDA_RECT bbox = GetBoundingBox();
+    return BOX2I( bbox.GetOrigin(), VECTOR2I( bbox.GetWidth(), bbox.GetHeight() ) );
 }

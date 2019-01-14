@@ -40,7 +40,6 @@
 
 #include <pcbnew.h>
 
-#include <connectivity_data.h>
 #include <ratsnest_data.h>
 
 /**
@@ -66,10 +65,14 @@ void PCB_BASE_FRAME::Compile_Ratsnest( wxDC* aDC, bool aDisplayStatus )
 
     if( aDisplayStatus )
     {
-        msg.Printf( wxT( " %d" ), m_Pcb->GetConnectivity()->GetPadCount() );
-        AppendMsgPanel( wxT( "Pads" ), msg, RED );
-        msg.Printf( wxT( " %d" ), m_Pcb->GetConnectivity()->GetNetCount() );
-        AppendMsgPanel( wxT( "Nets" ), msg, CYAN );
+        std::shared_ptr<CONNECTIVITY_DATA> conn = m_Pcb->GetConnectivity();
+
+        msg.Printf( wxT( " %d" ), conn->GetPadCount() );
+        AppendMsgPanel( _( "Pads" ), msg, RED );
+
+        msg.Printf( wxT( " %d" ), conn->GetNetCount() - 1 /* Don't include "No Net" in count */ );
+        AppendMsgPanel( _( "Nets" ), msg, CYAN );
+
         SetMsgPanel( m_Pcb );
     }
 }
@@ -94,12 +97,14 @@ void PCB_BASE_FRAME::DrawGeneralRatsnest( wxDC* aDC, int aNetcode )
 
     auto connectivity = m_Pcb->GetConnectivity();
 
-    if( !connectivity->TryLock() )
+    std::unique_lock<std::mutex> lock( connectivity->GetLock(), std::try_to_lock );
+
+    if( !lock )
         return;
 
     COLOR4D color = Settings().Colors().GetItemColor( LAYER_RATSNEST );
 
-    for( int i = 1; i < connectivity->GetNetCount(); ++i )
+    for( int i = 1 /* skip "No Net" at [0] */; i < connectivity->GetNetCount(); ++i )
     {
         RN_NET* net = connectivity->GetRatsnestForNet( i );
 
@@ -128,8 +133,6 @@ void PCB_BASE_FRAME::DrawGeneralRatsnest( wxDC* aDC, int aNetcode )
             }
         }
     }
-
-    connectivity->Unlock();
 }
 
 

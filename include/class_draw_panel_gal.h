@@ -37,6 +37,7 @@
 #include <math/vector2d.h>
 #include <msgpanel.h>
 #include <memory>
+#include <common.h>
 
 class BOARD;
 class EDA_DRAW_FRAME;
@@ -57,10 +58,11 @@ class EDA_DRAW_PANEL_GAL : public wxScrolledCanvas
 {
 public:
     enum GAL_TYPE {
-        GAL_TYPE_NONE,      ///< Not used
-        GAL_TYPE_OPENGL,    ///< OpenGL implementation
-        GAL_TYPE_CAIRO,     ///< Cairo implementation
-        GAL_TYPE_LAST       ///< Sentinel, do not use as a parameter
+        GAL_TYPE_UNKNOWN = -1,  ///< not specified: a GAL engine must be set by the client
+        GAL_TYPE_NONE = 0,      ///< GAL not used (the legacy wxDC engine is used)
+        GAL_TYPE_OPENGL,        ///< OpenGL implementation
+        GAL_TYPE_CAIRO,         ///< Cairo implementation
+        GAL_TYPE_LAST           ///< Sentinel, do not use as a parameter
     };
 
     EDA_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWindowId, const wxPoint& aPosition,
@@ -117,7 +119,7 @@ public:
     }
 
     /// @copydoc wxWindow::Refresh()
-    void Refresh( bool aEraseBackground = true, const wxRect* aRect = NULL ) override;
+    virtual void Refresh( bool aEraseBackground = true, const wxRect* aRect = NULL ) override;
 
     /**
      * Function ForceRefresh()
@@ -159,9 +161,9 @@ public:
      */
     virtual void SetTopLayer( int aLayer );
 
-    virtual void GetMsgPanelInfo( std::vector<MSG_PANEL_ITEM>& aList )
+    virtual void GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector<MSG_PANEL_ITEM>& aList )
     {
-        assert( false );
+        wxASSERT( false );
     }
 
     /**
@@ -203,21 +205,18 @@ public:
         return m_stealsFocus;
     }
 
+    virtual void SetDefaultCursor();
     /**
      * Function SetCurrentCursor
      * Set the current cursor shape for this panel
      */
-    void SetCurrentCursor( int aCursor )
-    {
-        m_currentCursor = aCursor;
-        SetCursor( (wxStockCursor) m_currentCursor );
-    }
+    virtual void SetCurrentCursor( int aCursor );
 
     /**
      * Function GetDefaultCursor
      * @return the default cursor shape
      */
-    int GetDefaultCursor() const { return m_defaultCursor; }
+    virtual int GetDefaultCursor() const  { return m_defaultCursor; }
 
     /**
      * Function GetCurrentCursor
@@ -242,7 +241,7 @@ public:
     void OnEvent( wxEvent& aEvent );
 
 protected:
-    void onPaint( wxPaintEvent& WXUNUSED( aEvent ) );
+    virtual void onPaint( wxPaintEvent& WXUNUSED( aEvent ) );
     void onSize( wxSizeEvent& aEvent );
     void onEnter( wxEvent& aEvent );
     void onLostFocus( wxFocusEvent& aEvent );

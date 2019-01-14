@@ -37,12 +37,13 @@
 #include <wx/wx.h>
 #include <wx/confbase.h>
 #include <wx/fileconf.h>
+#include <wx/dir.h>
 
-#include <base_struct.h>    // For timestamp_t definition
 #include <richio.h>
 #include <gal/color4d.h>
 
 #include <atomic>
+#include <memory>
 
 // C++11 "polyfill" for the C++14 std::make_unique function
 #include "make_unique.h"
@@ -50,6 +51,20 @@
 class wxAboutDialogInfo;
 class SEARCH_STACK;
 class REPORTER;
+
+
+/**
+ * timestamp_t is our type to represent unique IDs for all kinds of elements;
+ * historically simply the timestamp when they were created.
+ *
+ * Long term, this type might be renamed to something like unique_id_t
+ * (and then rename all the methods from {Get,Set}TimeStamp()
+ * to {Get,Set}Id()) ?
+ *
+ * The type should be at least 32 bit and simple to map via swig; swig does
+ * have issues with types such as 'int32_t', so we choose 'long'.
+ */
+typedef long timestamp_t;
 
 
 // Flag for special keys
@@ -150,8 +165,6 @@ enum EDA_UNITS_T {
 };
 
 
-extern EDA_UNITS_T  g_UserUnit;     ///< display units
-
 /// Draw color for moving objects.
 extern KIGFX::COLOR4D  g_GhostColor;
 
@@ -171,8 +184,6 @@ public:
     ~LOCALE_IO();
 
 private:
-    void setUserLocale( const char* aUserLocale );
-
     // allow for nesting of LOCALE_IO instantiations
     static std::atomic<unsigned int> m_c_count;
 
@@ -202,6 +213,11 @@ wxSize GetTextSize( const wxString& aSingleLine, wxWindow* aWindow );
  * @return bool - true if the \a aCtrl had its size changed, else false.
  */
 bool EnsureTextCtrlWidth( wxTextCtrl* aCtrl, const wxString* aString = NULL );
+
+/**
+ * Select the number (or "?") in a reference for ease of editing.
+ */
+void SelectReferenceNumber( wxTextEntry* aTextEntry );
 
 /**
  * Run a command in a child process.
@@ -295,7 +311,7 @@ const wxString PrePendPath( const wxString& aEnvVar, const wxString& aPriorityPa
  * @return A pointer to a new wxConfigBase derived object is returned.  The caller is in charge
  *  of deleting it.
  */
-wxConfigBase* GetNewConfig( const wxString& aProgName );
+std::unique_ptr<wxConfigBase> GetNewConfig( const wxString& aProgName );
 
 /**
  * Return the user configuration path used to store KiCad's configuration files.
@@ -368,6 +384,39 @@ namespace std
         bool operator()( const wxPoint& aA, const wxPoint& aB ) const;
     };
 }
+
+
+/**
+ * A wrapper around a wxFileName which is much more performant with a subset of the API.
+ */
+class WX_FILENAME
+{
+public:
+    WX_FILENAME( const wxString& aPath, const wxString& aFilename );
+
+    void SetFullName( const wxString& aFileNameAndExtension );
+
+    wxString GetName() const;
+    wxString GetFullName() const;
+    wxString GetPath() const;
+    wxString GetFullPath() const;
+
+    // Avoid multiple calls to stat() on POSIX kernels.
+    long long GetTimestamp();
+
+private:
+    // Write cached values to the wrapped wxFileName.  MUST be called before using m_fn.
+    void resolve();
+
+    wxFileName m_fn;
+    wxString   m_path;
+    wxString   m_fullName;
+};
+
+
+long long TimestampDir( const wxString& aDirPath, const wxString& aFilespec );
+
+
 
 
 #endif  // INCLUDE__COMMON_H_

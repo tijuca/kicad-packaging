@@ -37,10 +37,12 @@
 #include <gestfich.h>
 #include <eda_base_frame.h>
 #include <macros.h>
-#include <dialog_hotkeys_editor.h>
 #include <menus_helpers.h>
 #include <draw_frame.h>
+
 #include <tool/tool_manager.h>
+
+#include "dialogs/dialog_hotkey_list.h"
 
 #include <wx/apptrait.h>
 #include <wx/stdpaths.h>
@@ -442,52 +444,10 @@ int KeyCodeFromKeyName( const wxString& keyname )
  * Displays the current hotkey list
  * aList = a EDA_HOTKEY_CONFIG list(Null terminated)
  */
-#include <html_messagebox.h>
-
 void DisplayHotkeyList( EDA_BASE_FRAME* aFrame, struct EDA_HOTKEY_CONFIG* aDescList )
 {
-    wxString     keyname;
-    wxString     keymessage;
-    EDA_HOTKEY** list;
-
-    wxString     msg = wxT( "<html><body bgcolor=\"#E2E2E2\">" );
-
-    msg += wxT( "<H3>" );
-    msg += _( "Hotkeys List" );
-    msg += wxT( "</H3> <table cellpadding=\"0\">" );
-
-    for( ; aDescList->m_HK_InfoList != nullptr; aDescList++ )
-    {
-        list = aDescList->m_HK_InfoList;
-
-        for( ; *list != nullptr; list++ )
-        {
-            EDA_HOTKEY* hk_decr = *list;
-
-            if( !hk_decr->m_InfoMsg.Contains( wxT( "Macros" ) ) )
-            {
-                keyname = KeyNameFromKeyCode( hk_decr->m_KeyCode );
-                keymessage = wxGetTranslation( hk_decr->m_InfoMsg );
-
-                // Some chars are modified, using html encoding, to be
-                // displayed by DisplayHtmlInfoMessage()
-                keyname.Replace( wxT( "<" ), wxT( "&lt;" ) );
-                keyname.Replace( wxT( ">" ), wxT( "&gt;" ) );
-                msg    += wxT( "<tr><td>" ) + keymessage + wxT( "</td>" );
-                msg    += wxT( "<td><b>&nbsp;&nbsp;" ) + keyname + wxT( "</b></td></tr>" );
-            }
-        }
-    }
-
-    msg += wxT( "</table></html></body>" );
-
-    // Create a non modal dialog, which shows the list of hotkeys until dismissed
-    // but does not block the parent window
-    HTML_MESSAGE_BOX *dlg = new HTML_MESSAGE_BOX( aFrame, _( "Hotkeys List" ) );
-    dlg->SetDialogSizeInDU( 300, 250 );
-
-    dlg->AddHTML_Text( msg );
-    dlg->Show( true );
+    DIALOG_LIST_HOTKEYS dlg( aFrame, aDescList );
+    dlg.ShowModal();
 }
 
 
@@ -624,7 +584,7 @@ int ReadHotkeyConfigFile( const wxString& aFilename, struct EDA_HOTKEY_CONFIG* a
     // read data
     std::vector<char> buffer( size );
     cfgfile.Read( buffer.data(), size );
-    wxString data( buffer.data(), wxConvUTF8 );
+    wxString data( buffer.data(), wxConvUTF8, size );
 
     // Is this the wxConfig format? If so, remove "Keys=" and parse the newlines.
     if( data.StartsWith( wxT("Keys="), &data ) )
@@ -805,39 +765,3 @@ void EDA_BASE_FRAME::ExportHotkeyConfigToFile( EDA_HOTKEY_CONFIG* aDescList,
     SetMruPath( wxFileName( filename ).GetPath() );
 }
 
-
-/* add hotkey config options submenu to aMenu
- */
-void AddHotkeyConfigMenu( wxMenu* aMenu )
-{
-    if( aMenu == nullptr )
-        return;
-
-    wxMenu* HotkeySubmenu = new wxMenu();
-
-    // Call hotkeys editor
-    AddMenuItem( HotkeySubmenu, ID_PREFERENCES_HOTKEY_SHOW_EDITOR,
-                 _( "&Edit Hotkeys..." ),
-                 _( "Edit hotkeys list" ),
-                 KiBitmap( config_xpm ) );
-
-    HotkeySubmenu->AppendSeparator();
-
-    // create hotkey file to export current hotkeys config
-    AddMenuItem( HotkeySubmenu, ID_PREFERENCES_HOTKEY_EXPORT_CONFIG,
-                 _( "E&xport Hotkeys..." ),
-                 _( "Export current hotkeys into configuration file" ),
-                 KiBitmap( hotkeys_export_xpm ) );
-
-    // Reload hotkey file
-    AddMenuItem( HotkeySubmenu, ID_PREFERENCES_HOTKEY_IMPORT_CONFIG,
-                 _( "&Import Hotkeys..." ),
-                 _( "Load existing hotkey configuration file" ),
-                 KiBitmap( hotkeys_import_xpm ) );
-
-    // Append HotkeySubmenu to menu
-    AddMenuItem( aMenu, HotkeySubmenu,
-                 wxID_ANY, _( "&Hotkeys Options" ),
-                 _( "Edit hotkeys configuration and preferences" ),
-                 KiBitmap( hotkeys_xpm ) );
-}

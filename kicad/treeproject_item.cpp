@@ -33,7 +33,7 @@
 
 #include <gestfich.h>
 #include <executable_names.h>
-
+#include <kiway.h>
 #include "treeprojectfiles.h"
 #include "pgm_kicad.h"
 #include "tree_project_frame.h"
@@ -164,18 +164,21 @@ bool TREEPROJECT_ITEM::Delete( bool check )
 }
 
 
-void TREEPROJECT_ITEM::Activate( TREE_PROJECT_FRAME* prjframe )
+void TREEPROJECT_ITEM::Activate( TREE_PROJECT_FRAME* aTreePrjFrame )
 {
     wxString        sep = wxFileName().GetPathSeparator();
     wxString        fullFileName = GetFileName();
     wxTreeItemId    id = GetId();
 
-    KICAD_MANAGER_FRAME* frame = prjframe->m_Parent;
-    wxASSERT( frame );
+    KICAD_MANAGER_FRAME* frame = aTreePrjFrame->m_Parent;
+    KIWAY&               kiway = frame->Kiway();
 
     switch( GetType() )
     {
     case TREE_PROJECT:
+        // Select a new project if this is not the current project:
+        if( id != aTreePrjFrame->m_TreeProject->GetRootItem() )
+            frame->LoadProject( fullFileName );
         break;
 
     case TREE_DIRECTORY:
@@ -232,10 +235,9 @@ void TREEPROJECT_ITEM::Activate( TREE_PROJECT_FRAME* prjframe )
         break;
 
     case TREE_NET:
-        // Nothing to do ( can be read only by Pcbnew, or by a text editor)
-        break;
-
+    case TREE_DRILL:
     case TREE_TXT:
+    case TREE_REPORT:
         {
             wxString editorname = Pgm().GetEditorName();
 
@@ -246,6 +248,22 @@ void TREEPROJECT_ITEM::Activate( TREE_PROJECT_FRAME* prjframe )
 
     case TREE_PAGE_LAYOUT_DESCR:
         frame->Execute( m_parent, PL_EDITOR_EXE, fullFileName );
+        break;
+
+    case TREE_FOOTPRINT_FILE:
+        {
+            wxCommandEvent dummy;
+            frame->OnRunPcbFpEditor( dummy );
+            kiway.ExpressMail( FRAME_PCB_MODULE_EDITOR, MAIL_FP_EDIT, fullFileName.ToStdString() );
+        }
+        break;
+
+    case TREE_SCHEMATIC_LIBFILE:
+        {
+            wxCommandEvent dummy;
+            frame->OnRunSchLibEditor( dummy );
+            kiway.ExpressMail( FRAME_SCH_LIB_EDITOR, MAIL_LIB_EDIT, fullFileName.ToStdString() );
+        }
         break;
 
     default:

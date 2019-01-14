@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-06-28 07:08+0700\n"
+"POT-Creation-Date: 2019-01-03 18:10+0100\n"
 "PO-Revision-Date: 2018-06-28 07:34+0700\n"
 "Last-Translator: Triyan W. Nugroho <triyan.wn@gmail.com>\n"
 "Language-Team: KiCad Indonesia\n"
@@ -4348,11 +4348,17 @@ msgstr ""
 
 #. type: Plain text
 #: eeschema_design_verification_with_erc.adoc:19
+#, fuzzy
+#| msgid ""
+#| "In fact all detected errors must be checked and then corrected before "
+#| "proceeding as normal. The quality of the ERC is directly related to the "
+#| "care taken in declaring electrical pin properties during symbol library "
+#| "creation. ERC output is reported as \"errors\" or \"warnings\"."
 msgid ""
 "In fact all detected errors must be checked and then corrected before "
 "proceeding as normal. The quality of the ERC is directly related to the care "
 "taken in declaring electrical pin properties during symbol library creation. "
-"ERC output is reported as \"errors\" or \"warnings\"."
+"ERC output is reported as ``errors'' or ``warnings''."
 msgstr ""
 "Semua kesalahan yang terdeteksi harus diperiksa dan kemudian dikoreksi. "
 "Kualitas dari ERC berhubungan secara langsung dengan perhatian kita pada "
@@ -5478,8 +5484,12 @@ msgstr ""
 
 #. type: Plain text
 #: eeschema_generic_commands.adoc:47
+#, fuzzy
+#| msgid ""
+#| "Holding \"Shift\", \"Ctrl\", or \"Shift + Ctrl\" during selection "
+#| "respectively performs copying, dragging and deletion:"
 msgid ""
-"Holding \"Shift\", \"Ctrl\", or \"Shift + Ctrl\" during selection "
+"Holding ``Shift'', ``Ctrl'', or ``Shift + Ctrl'' during selection "
 "respectively performs copying, dragging and deletion:"
 msgstr ""
 "Menahan tombol *Shift*, *Ctrl*, atau *Shift + Ctrl* pada saat melakukan "
@@ -7229,11 +7239,6 @@ msgstr "Nomor lembar kerja ini terkait dengan label."
 
 #. type: Plain text
 #: eeschema_hierarchical_schematics.adoc:233
-#| msgid ""
-#| "Thus, if you place the label \"TOTO\" in sheet n 3, in fact the true "
-#| "label is \"TOTO_3\". If you also place a label \"TOTO\" in sheet n 1 "
-#| "(root sheet) you place in fact a label called \"TOTO_1\", different from "
-#| "\"TOTO_3\". This is always true, even if there is only one sheet."
 msgid ""
 "Thus, if you place the label \"TOTO\" in sheet n° 3, in fact the true label "
 "is \"TOTO_3\". If you also place a label \"TOTO\" in sheet n° 1 (root sheet) "
@@ -7241,8 +7246,8 @@ msgid ""
 "is always true, even if there is only one sheet."
 msgstr ""
 "Maka, jika Anda meletakkan label \"TOTO\" pada lembar kerja n° 3, sebenarnya "
-"nama label ini adalah \"TOTO_3\". Jika Anda juga meletakkan sebuah label \""
-"TOTO\" pada lembar kerja n° 1 (lembar kerja utama), Anda sebenarnya "
+"nama label ini adalah \"TOTO_3\". Jika Anda juga meletakkan sebuah label "
+"\"TOTO\" pada lembar kerja n° 1 (lembar kerja utama), Anda sebenarnya "
 "meletakkan label \"TOTO_1\", berbeda dari \"TOTO_3\". Hal ini berlaku "
 "meskipun hanya ada satu lembar kerja saja."
 
@@ -9566,9 +9571,6 @@ msgstr "Lingkaran, didefinisikan oleh titik tengah dan radius."
 
 #. type: Plain text
 #: eeschema_library_editor.adoc:474
-#| msgid ""
-#| "Arcs defined by the starting and ending point of the arc and its center. "
-#| "An arc goes from 0 to 180."
 msgid ""
 "Arcs defined by the starting and ending point of the arc and its center. An "
 "arc goes from 0° to 180°."
@@ -10686,7 +10688,7 @@ msgid "Symbol Library Tables"
 msgstr "Tabel Pustaka Simbol"
 
 #. type: Target for macro image
-#: eeschema_main_top_menu.adoc:55 eeschema_symbol_library_table.adoc:17
+#: eeschema_main_top_menu.adoc:55 eeschema_symbol_library_table.adoc:20
 #, no-wrap
 msgid "images/en/options_symbol_lib.png"
 msgstr "images/en/options_symbol_lib.png"
@@ -11818,12 +11820,6 @@ msgstr "_Power Port_"
 
 #. type: Plain text
 #: eeschema_schematic_creation_and_editing.adoc:99
-#| msgid ""
-#| "A power port symbol is a symbol (the symbols are grouped in the power "
-#| "library), so they can be placed using the symbol chooser.  However, as "
-#| "power placements are frequent, the image:images/icons/add_power.png[Add "
-#| "Power icon] tool is available. This tool is similar, except that the "
-#| "search is done directly in the ``power'' library."
 msgid ""
 "A power port symbol is a symbol (the symbols are grouped in the “power” "
 "library), so they can be placed using the symbol chooser.  However, as power "
@@ -11834,10 +11830,9 @@ msgstr ""
 "Simbol _power port_ adalah sebuah simbol (simbol-simbol tersebut "
 "dikelompokkan di dalam pustaka \"'power'\"), sehingga kita bisa "
 "meletakkannya menggunakan kotak dialog pencarian simbol. Namun, karena "
-"peletakan 'power' sering dilakukan, disediakan alat  "
-"image:images/icons/add_power.png[Add Power icon]. Alat ini mirip dengan alat "
-"peletakan simbol lain, namun pencarian dilakukan secara langsung di dalam "
-"pustaka \"'power'\"."
+"peletakan 'power' sering dilakukan, disediakan alat  image:images/icons/"
+"add_power.png[Add Power icon]. Alat ini mirip dengan alat peletakan simbol "
+"lain, namun pencarian dilakukan secara langsung di dalam pustaka \"'power'\"."
 
 #. type: Title ====
 #: eeschema_schematic_creation_and_editing.adoc:101
@@ -11964,11 +11959,6 @@ msgstr ""
 
 #. type: Plain text
 #: eeschema_schematic_creation_and_editing.adoc:148
-#| msgid ""
-#| "The option Reset to Library Defaults sets the symbol to the original "
-#| "orientation, and resets the options, size and position of each field.  "
-#| "However, texts fields are not modified because this could break the "
-#| "schematic."
 msgid ""
 "The option “Reset to Library Defaults” sets the symbol to the original "
 "orientation, and resets the options, size and position of each field.  "
@@ -12106,10 +12096,6 @@ msgstr "*Catatan 1:*\n"
 
 #. type: Plain text
 #: eeschema_schematic_creation_and_editing.adoc:188
-#| msgid ""
-#| "The point of contact of a label is the lower left corner of the first "
-#| "letter of the label. This point is displayed with a small square when not "
-#| "connected."
 msgid ""
 "The point of “contact” of a label is the lower left corner of the first "
 "letter of the label. This point is displayed with a small square when not "
@@ -12490,9 +12476,6 @@ msgstr ""
 
 #. type: Plain text
 #: eeschema_schematic_creation_and_editing.adoc:323
-#| msgid ""
-#| "It is not recommended to use labels for power connection. These only have "
-#| "a local connection scope, and would not connect the invisible power pins."
 msgid ""
 "It is not recommended to use labels for power connection. These only have a "
 "“local” connection scope, and would not connect the invisible power pins."
@@ -12546,8 +12529,9 @@ msgstr "Semua simbol tersebut berada di pustaka simbol \"'power'\"."
 
 #. type: Title ====
 #: eeschema_schematic_creation_and_editing.adoc:339
-#, no-wrap
-msgid "\"No Connect\" flag"
+#, fuzzy, no-wrap
+#| msgid "\"No Connect\" flag"
+msgid "``No Connect'' flag"
 msgstr "Bendera \"Tak-Hubung\""
 
 #. type: Plain text
@@ -12865,7 +12849,6 @@ msgstr ""
 #. type: delimited block |
 #: eeschema_simulator.adoc:48
 #, no-wrap
-#| msgid "|=== |Disable symbol for simulation |When checked the component is excluded from simulation.  |Alternate node sequence |Allows one to override symbol pin to model node mapping.  To define a different mapping, specify pin numbers in order expected by the model."
 msgid ""
 "|Disable symbol for simulation\n"
 "|When checked the component is excluded from simulation.\n"
@@ -12877,13 +12860,11 @@ msgstr ""
 "|Jika dicentang, komponen akan dikecualikan dari simulasi.\n"
 "|Alternate node sequence\n"
 "|Kita bisa mengesampingkan pin simbol untuk pemetaan _node_ model.\n"
-"Untuk menetapkan pemetaan yang berbeda, tentukan nomor pin dalam urutan yang "
-"diinginkan oleh model.\n"
+"Untuk menetapkan pemetaan yang berbeda, tentukan nomor pin dalam urutan yang diinginkan oleh model.\n"
 
 #. type: delimited block |
 #: eeschema_simulator.adoc:59
 #, no-wrap
-#| msgid "`* connections:` + `* 1: non-inverting input` + `* 2: inverting input` + `* 3: positive power supply` + `* 4: negative power supply` + `* 5: output` + `.subckt tl071 1 2 3 4 5`"
 msgid ""
 "'Example:' +\n"
 "____\n"
@@ -12910,25 +12891,19 @@ msgstr ""
 #. type: delimited block |
 #: eeschema_simulator.adoc:61
 #, no-wrap
-#| msgid "Generic operational amplifier symbol"
 msgid "image::images/opamp_symbol.png[alt=\"Generic operational amplifier symbol\"]\n"
-msgstr ""
-"image::images/opamp_symbol.png[alt=\"Generic operational amplifier symbol\"]"
-"\n"
+msgstr "image::images/opamp_symbol.png[alt=\"Generic operational amplifier symbol\"]\n"
 
 #. type: delimited block |
 #: eeschema_simulator.adoc:65
 #, no-wrap
-#| msgid "To match the symbol pins to the Spice model nodes shown above, one needs to use an alternate node sequence option with value: \"1{nbsp}3{nbsp}5{nbsp}2{nbsp}4\".  It is a list of pin numbers corresponding to the Spice model nodes order.  |==="
 msgid ""
 "To match the symbol pins to the Spice model nodes shown above, one needs to use\n"
 "an alternate node sequence option with value: \"1{nbsp}3{nbsp}5{nbsp}2{nbsp}4\".\n"
 "It is a list of pin numbers corresponding to the Spice model nodes order.\n"
 msgstr ""
-"Untuk mencocokkan pin-pin simbol ke _node_ model Spice di atas, kita perlu "
-"menggunakan \n"
-"opsi sekuens _node_ alternatif dengan nilai: \"1{nbsp}3{nbsp}5{nbsp}2{nbsp}"
-"4\". \n"
+"Untuk mencocokkan pin-pin simbol ke _node_ model Spice di atas, kita perlu menggunakan \n"
+"opsi sekuens _node_ alternatif dengan nilai: \"1{nbsp}3{nbsp}5{nbsp}2{nbsp}4\". \n"
 "Ini adalah daftar nomor pin sesuai dengan urutan model _node_ Spice.\n"
 
 #. type: Title ====
@@ -12983,7 +12958,6 @@ msgstr "images/sim_model_passive.png"
 #. type: delimited block |
 #: eeschema_simulator.adoc:92
 #, no-wrap
-#| msgid "|=== |Type |Selects the device type (resistor, capacitor or inductor).  |Value |Defines the device property (resistance, capacitance or inductance). The value may use common Spice unit prefixes (as listed below the text input field) and should use point as the decimal separator. Note that Spice does not correctly interpret prefixes intertwined in the value (e.g. 1k5).  |==="
 msgid ""
 "|Type\n"
 "|Selects the device type (resistor, capacitor or inductor).\n"
@@ -12996,12 +12970,9 @@ msgstr ""
 "|Type\n"
 "|Memilih tipe divais (resistor, kapasitor, atau induktor).  \n"
 "|Value \n"
-"|Menentukan properti divais (resistansi, kapasitansi, atau induktansi). "
-"Nilainya \n"
-"bisa menggunakan prefiks satuan Spice (seperti ditampilkan di bawah kotak "
-"masukan teks) dan \n"
-"harus menggunakan titik sebagai pemisah desimal. Ingat bahwa Spice tidak "
-"bisa menginterpretasikan secara tepat \n"
+"|Menentukan properti divais (resistansi, kapasitansi, atau induktansi). Nilainya \n"
+"bisa menggunakan prefiks satuan Spice (seperti ditampilkan di bawah kotak masukan teks) dan \n"
+"harus menggunakan titik sebagai pemisah desimal. Ingat bahwa Spice tidak bisa menginterpretasikan secara tepat \n"
 "prefiks yang disilangkan dengan nilai (misalnya 1k5).\n"
 
 #. type: Title ====
@@ -13092,7 +13063,6 @@ msgstr "Opsi _Source type_ diaplikasikan untuk semua tipe simulasi."
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: eeschema_simulator.adoc:126
 #, no-wrap
-#| msgid "Source model editro tab"
 msgid "Source model editor tab"
 msgstr "Source model editor tab"
 
@@ -13212,7 +13182,6 @@ msgstr "Menu _File_"
 #. type: delimited block |
 #: eeschema_simulator.adoc:170
 #, no-wrap
-#| msgid "|=== |New Plot | Create a new tab in the plot panel.  |Open Workbook | Open a list of plotted signals.  |Save Workbook | Save a list of plotted signals.  |Save as image | Export the active plot to a .png file.  |Save as .csv file | Export the active plot raw data points to a .csv file.  |Exit Simulation | Close the dialog.  |==="
 msgid ""
 "|New Plot | Create a new tab in the plot panel.\n"
 "|Open Workbook | Open a list of plotted signals.\n"
@@ -13225,14 +13194,12 @@ msgstr ""
 "|Open Workbook | Membuka daftar sinyal yang di-plot.\n"
 "|Save Workbook | Menyimpan daftar sinyal yang di-plot.  \n"
 "|Save as image | Mengekspor _plot_ yang aktif ke berkas `.png`.  \n"
-"|Save as .csv file | Mengekspor data mentah titik-titik _plot_ ke berkas "
-"`.csv`.  \n"
+"|Save as .csv file | Mengekspor data mentah titik-titik _plot_ ke berkas `.csv`.  \n"
 "|Exit Simulation | Menutup kotak dialog.\n"
 
 #. type: delimited block |
 #: eeschema_simulator.adoc:183
 #, no-wrap
-#| msgid "|=== |Run Simulation | Perform a simulation using the current settings.  |Add signals... | Open a dialog to select signals to be plotted.  |Probe from schematics | Start the schematics <<sim-probe-tool,Probe>> tool.  |Tune component value | Start the <<sim-tuner-tool,Tuner>> tool.  |Show SPICE Netlist... | Open a dialog showing the generated netlist for the simulated circuit.  |Settings... | Open the <<sim-settings,simulation settings dialog>>.  |==="
 msgid ""
 "|Run Simulation | Perform a simulation using the current settings.\n"
 "|Add signals... | Open a dialog to select signals to be plotted.\n"
@@ -13243,13 +13210,10 @@ msgid ""
 "|Settings... | Open the <<sim-settings,simulation settings dialog>>.\n"
 msgstr ""
 "|Run Simulation | Menjalankan simulasi menggunakan pengaturan saat ini. \n"
-"|Add signals... | Membuka kotak dialog untuk memilih sinyal yang akan "
-"diplot. \n"
-"|Probe from schematics | Menjalankan alat <<sim-probe-tool,Probe>> "
-"skematik.  \n"
+"|Add signals... | Membuka kotak dialog untuk memilih sinyal yang akan diplot. \n"
+"|Probe from schematics | Menjalankan alat <<sim-probe-tool,Probe>> skematik.  \n"
 "|Tune component value | Menjalankan alat <<sim-tuner-tool,Tuner>>.  \n"
-"|Show SPICE Netlist... | Membuka kotak dialog yang menampilkan Netlist yang "
-"\n"
+"|Show SPICE Netlist... | Membuka kotak dialog yang menampilkan Netlist yang \n"
 "telah dibuat untuk sirkuit yang disimulasikan.  \n"
 "|Settings... | Membuka <<sim-settings,kotak dialog pengaturan simulasi>>.\n"
 
@@ -13262,7 +13226,6 @@ msgstr "Menu _View_"
 #. type: delimited block |
 #: eeschema_simulator.adoc:194
 #, no-wrap
-#| msgid "|=== |Zoom In | Zoom in the active plot.  |Zoom Out | Zoom out the active plot.  |Fit on Screen | Adjust the zoom setting to display all plots.  |Show grid | Toggle grid visibility.  |Show legend | Toggle plot legend visibility.  |==="
 msgid ""
 "|Zoom In | Zoom in the active plot.\n"
 "|Zoom Out | Zoom out the active plot.\n"
@@ -13305,7 +13268,6 @@ msgstr ""
 #. type: delimited block |
 #: eeschema_simulator.adoc:208
 #, no-wrap
-#| msgid "|=== |Run/Stop Simulation | Start or stop the simulation.  |Add Signals | Open a dialog to select signals to be plotted.  |Probe | Start the schematics <<sim-probe-tool,Probe>> tool.  |Tune | Start the <<sim-tuner-tool,Tuner>> tool.  |Settings | Open the <<sim-settings,simulation settings dialog>>.  |==="
 msgid ""
 "|Run/Stop Simulation | Start or stop the simulation.\n"
 "|Add Signals | Open a dialog to select signals to be plotted.\n"
@@ -13314,8 +13276,7 @@ msgid ""
 "|Settings | Open the <<sim-settings,simulation settings dialog>>.\n"
 msgstr ""
 "|Run/Stop Simulation | Jalankan atau hentikan simulasi.  \n"
-"|Add Signals | Membuka kotak dialog untuk memilih sinyal yang akan di-plot.  "
-"\n"
+"|Add Signals | Membuka kotak dialog untuk memilih sinyal yang akan di-plot.  \n"
 "|Probe | Menjalankan alat <<sim-probe-tool,Probe>> skematik.  \n"
 "|Tune | Menjalankan alat <<sim-tuner-tool,Tuner>>.  \n"
 "|Settings | Membuka <<sim-settings,kotak dialog pengaturan simulasi>>.\n"
@@ -13633,7 +13594,6 @@ msgstr "Ada dua opsi yang umum untuk semua tipe simulasi:"
 #. type: delimited block |
 #: eeschema_simulator.adoc:317
 #, no-wrap
-#| msgid "|=== |Adjust passive symbol values | Replace passive symbol values to convert common component values notation to Spice notation.  |Add full path for .include library directives | Prepend Spice model library file names with full path. Normally full path is required by ngspice to access a library file.  |==="
 msgid ""
 "|Adjust passive symbol values | Replace passive symbol values to convert common\n"
 "component values notation to Spice notation.\n"
@@ -13641,13 +13601,10 @@ msgid ""
 "file names with full path. Normally full path is required by ngspice to access\n"
 "a library file.\n"
 msgstr ""
-"|Adjust passive symbol values | Mengganti nilai simbol pasif untuk "
-"mengkonversi notasi \n"
+"|Adjust passive symbol values | Mengganti nilai simbol pasif untuk mengkonversi notasi \n"
 "nilai komponen umum ke notasi Spice.  \n"
-"|Add full path for .include library directives | Menambahkan nama berkas "
-"pustaka \n"
-"model Spice dengan _path_ lengkap. Normalnya, ngspice memerlukan _path_ "
-"lengkap \n"
+"|Add full path for .include library directives | Menambahkan nama berkas pustaka \n"
+"model Spice dengan _path_ lengkap. Normalnya, ngspice memerlukan _path_ lengkap \n"
 "untuk mengakses sebuah berkas pustaka.\n"
 
 #. type: Title ==
@@ -13659,12 +13616,11 @@ msgstr "Manajemen Pustaka Simbol"
 #. type: Plain text
 #: eeschema_symbol_library_table.adoc:6
 msgid ""
-"Symbol libraries need to be made available in order to create schematics.  "
-"The manner in which this is accomplished varies according to the version of "
-"KiCad being used."
+"Symbol libraries hold collections of symbols used when creating schematics. "
+"Each symbol in a schematic is uniquely identified by a full name that is "
+"composed of a library nickname and a symbol name. An example is `Audio:"
+"AD1853`."
 msgstr ""
-"Pustaka simbol harus tersedia untuk membuat skematik. Langkah-langkah yang "
-"diperlukan berbeda-beda, tergantung dari versi KiCad yang digunakan."
 
 #. type: Title ===
 #: eeschema_symbol_library_table.adoc:7
@@ -13675,16 +13631,20 @@ msgstr "Tabel Pustaka Simbol (_Symbol Library Table_)"
 #. type: Plain text
 #: eeschema_symbol_library_table.adoc:12
 msgid ""
-"As of November 2017, Eeschema uses a new library management tool based on "
-"*_symbol library tables_* which is identical in design to the footprint "
-"library table used in CvPcb and Pcbnew."
+"The symbol library table holds a list of all library files KiCad knows "
+"about.  The symbol library table is constructed from the global symbol "
+"library table file and the project specific symbol library table file."
 msgstr ""
-"Sejak November 2017, Eeschema menggunakan peralatan manajemen pustaka "
-"berdasarkan *_tabel pustaka simbol_* yang desainnya identik dengan tabel "
-"pustaka _footprint_ yang digunakan di CvPcb dan Pcbnew. "
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:16
+#: eeschema_symbol_library_table.adoc:15
+msgid ""
+"When a symbol is loaded, Eeschema uses the library nickname, `Audio` in our "
+"example, to lookup the library location in the symbol library table."
+msgstr ""
+
+#. type: Plain text
+#: eeschema_symbol_library_table.adoc:19
 msgid ""
 "The image below shows the symbol library table editing dialog which can be "
 "opened by invoking the ``Manage Symbol Library Tables'' entry in the "
@@ -13695,37 +13655,19 @@ msgstr ""
 "'Preferences'."
 
 #. type: Named 'alt' AttributeList argument for macro 'image'
-#: eeschema_symbol_library_table.adoc:17
+#: eeschema_symbol_library_table.adoc:20
 #, no-wrap
 msgid "sym lib table dlg"
 msgstr "sym lib table dlg"
 
-#. type: Plain text
-#: eeschema_symbol_library_table.adoc:25
-msgid ""
-"The symbol library table is used to map a symbol library of any supported "
-"library type to a library nickname. *This nickname is used to look up "
-"symbols* instead of the previous method which depended on library search "
-"path ordering. This allows Eeschema to access symbols with the same name in "
-"different libraries by ensuring that the correct symbol is loaded from the "
-"appropriate library."
-msgstr ""
-"Tabel pustaka simbol digunakan untuk memetakan pustaka simbol dengan tipe "
-"pustaka apapun yang didukung ke sebuah nama panggilan. *Nama panggilan ini "
-"digunakan untuk mencari simbol*, berbeda dengan cara sebelumnya yang "
-"bergantung pada urutan _path_ pencarian pustaka. Dengan demikian, Eeschema "
-"bisa mengakses simbol-simbol dengan nama yang sama yang berada di dalam "
-"pustaka yang berbeda dengan memastikan bahwa simbol yang benar telah dimuat "
-"dari pustaka yang sesuai. "
-
 #. type: Title ====
-#: eeschema_symbol_library_table.adoc:26
+#: eeschema_symbol_library_table.adoc:22
 #, no-wrap
 msgid "Global Symbol Library Table"
 msgstr "Tabel Pustaka Simbol Global"
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:32
+#: eeschema_symbol_library_table.adoc:28
 msgid ""
 "The global symbol library table contains the list of libraries that are "
 "always available regardless of the currently loaded project file. The table "
@@ -13738,13 +13680,13 @@ msgstr ""
 "ini berbeda-beda, tergantung pada sistem operasi yang digunakan."
 
 #. type: Title ====
-#: eeschema_symbol_library_table.adoc:33
+#: eeschema_symbol_library_table.adoc:29
 #, no-wrap
 msgid "Project Specific Symbol Library Table"
 msgstr "Tabel Pustaka Simbol Proyek"
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:42
+#: eeschema_symbol_library_table.adoc:38
 msgid ""
 "The project specific symbol library table contains the list of libraries "
 "that are available specifically for the currently loaded project file. The "
@@ -13762,13 +13704,13 @@ msgstr ""
 "disimpan kemudian bersama dengan berkas proyek."
 
 #. type: Title ====
-#: eeschema_symbol_library_table.adoc:43
+#: eeschema_symbol_library_table.adoc:39
 #, no-wrap
 msgid "Initial Configuration"
 msgstr "Konfigurasi Awal"
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:55
+#: eeschema_symbol_library_table.adoc:51
 msgid ""
 "The first time Eeschema is run and the global symbol table file *sym-lib-"
 "table* is not found in the user's home folder, Eeschema will attempt to copy "
@@ -13793,7 +13735,7 @@ msgstr ""
 "manual atau melakukan konfigurasi tabel kosong tersebut secara langsung."
 
 #. type: delimited block =
-#: eeschema_symbol_library_table.adoc:65
+#: eeschema_symbol_library_table.adoc:61
 msgid ""
 "The default symbol library table includes all of the symbol libraries that "
 "are installed as part of KiCad.  This may or may not be desirable depending "
@@ -13813,13 +13755,13 @@ msgstr ""
 "diperlukan."
 
 #. type: Title ====
-#: eeschema_symbol_library_table.adoc:67
+#: eeschema_symbol_library_table.adoc:63
 #, no-wrap
 msgid "Adding Table Entries"
 msgstr "Menambahkan Entri Tabel"
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:72
+#: eeschema_symbol_library_table.adoc:68
 msgid ""
 "In order to use a symbol library, it must first be added to either the "
 "global table or the project specific table. The project specific table is "
@@ -13830,13 +13772,13 @@ msgstr ""
 "digunakan jika Anda sedang membuka sebuah berkas proyek."
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:74
+#: eeschema_symbol_library_table.adoc:70
 #, no-wrap
 msgid "*Each library entry must have a unique nickname.*\n"
 msgstr "*Setiap entri pustaka harus memiliki nama panggilan yang unik.*\n"
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:80
+#: eeschema_symbol_library_table.adoc:76
 msgid ""
 "This does not have to be related in any way to the actual library file name "
 "or path. The colon ':' and '/' characters cannot be used anywhere in the "
@@ -13852,7 +13794,7 @@ msgstr ""
 "_environment variable_ dari sistem Anda (lihat bagian di bawah)."
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:84
+#: eeschema_symbol_library_table.adoc:80
 msgid ""
 "The appropriate plug in type must be selected in order for the library to be "
 "properly read. KiCad currently supports only legacy symbol library files "
@@ -13863,7 +13805,7 @@ msgstr ""
 "_legacy_."
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:88
+#: eeschema_symbol_library_table.adoc:84
 msgid ""
 "There is also a description field to add a description of the library entry. "
 "The option field is not used at this time so adding options will have no "
@@ -13874,7 +13816,7 @@ msgstr ""
 "saat memuat pustaka."
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:92
+#: eeschema_symbol_library_table.adoc:88
 msgid ""
 "Please note that you cannot have duplicate library nicknames in the same "
 "table. However, you can have duplicate library nicknames in both the global "
@@ -13889,14 +13831,14 @@ msgstr ""
 "akan dituliskan ke dalam folder berkas proyek yang saat ini dibuka."
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:94
+#: eeschema_symbol_library_table.adoc:90
 msgid ""
 "The project specific table entry will take precedence over the global table "
 "entry when duplicate nicknames occur."
 msgstr " "
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:97
+#: eeschema_symbol_library_table.adoc:93
 msgid ""
 "When entries are defined in the project specific table, a sym-lib-table file "
 "containing the entries will be written into the folder of the currently open "
@@ -13904,13 +13846,13 @@ msgid ""
 msgstr " "
 
 #. type: Title ====
-#: eeschema_symbol_library_table.adoc:98
+#: eeschema_symbol_library_table.adoc:94
 #, no-wrap
 msgid "Environment Variable Substitution"
 msgstr "Substitusi _Environment Variable_"
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:105
+#: eeschema_symbol_library_table.adoc:101
 msgid ""
 "One of the most powerful features of the symbol library table is environment "
 "variable substitution. This allows for definition of custom paths to where "
@@ -13925,14 +13867,14 @@ msgstr ""
 "menggunakan sintaks +$\\{ENV_VAR_NAME\\}+ pada _path_ pustaka."
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:107
+#: eeschema_symbol_library_table.adoc:103
 msgid "By default, at run time KiCad defines **two environment variables**:"
 msgstr ""
 "Secara _default_, pada saat dijalankan KiCad mendefinisikan **dua "
 "_environment variable_**:"
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:110
+#: eeschema_symbol_library_table.adoc:106
 msgid ""
 "the *+KIPRJMOD+* environment variable that always points to the currently "
 "open project directory.  *+KIPRJMOD+* cannot be modified."
@@ -13941,7 +13883,7 @@ msgstr ""
 "yang sedang dibuka. *+KIPRJMOD+* tidak dapat dimodifikasi."
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:113
+#: eeschema_symbol_library_table.adoc:109
 msgid ""
 "the *+KICAD_SYMBOL_DIR+* environment variable. This points to the path where "
 "the default symbol libraries that were installed with KiCad."
@@ -13950,7 +13892,7 @@ msgstr ""
 "pustaka simbol _default_ terinstal dengan KiCad. "
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:117
+#: eeschema_symbol_library_table.adoc:113
 msgid ""
 "You can override +KICAD_SYMBOL_DIR+ by defining it yourself in preferences/ "
 "Configure Path which allows you to substitute your own libraries in place of "
@@ -13961,7 +13903,7 @@ msgstr ""
 "sendiri untuk menggantikan pustaka simbol _default_ KiCad."
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:121
+#: eeschema_symbol_library_table.adoc:117
 #, no-wrap
 msgid ""
 "*+KIPRJMOD+* allows you to store libraries in the project path without\n"
@@ -13970,13 +13912,13 @@ msgid ""
 msgstr "Dengan _environment variable_ *+KIPRJMOD+*, Anda bisa menyimpan pustaka pada _path_ proyek tanpa harus mendefinisikan _path_ absolut (yang tidak selalu diketahui) menuju pustaka di dalam tabel pustaka simbol proyek.\n"
 
 #. type: Title ====
-#: eeschema_symbol_library_table.adoc:122
+#: eeschema_symbol_library_table.adoc:118
 #, no-wrap
 msgid "Usage Patterns"
 msgstr "Pola Pemakaian"
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:129
+#: eeschema_symbol_library_table.adoc:125
 msgid ""
 "Symbol libraries can be defined either globally or specifically to the "
 "currently loaded project. Symbol libraries defined in the user's global "
@@ -13991,7 +13933,7 @@ msgstr ""
 "proyek akan aktif hanya untuk berkas proyek yang sedang dibuka."
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:133
+#: eeschema_symbol_library_table.adoc:129
 msgid ""
 "There are advantages and disadvantages to each method. Defining all "
 "libraries in the global table means they will always be available when "
@@ -14004,7 +13946,7 @@ msgstr ""
 "bertambah."
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:139
+#: eeschema_symbol_library_table.adoc:135
 msgid ""
 "Defining all symbol libraries on a project specific basis means that you "
 "only have the libraries required for the project which decreases symbol "
@@ -14018,7 +13960,7 @@ msgstr ""
 "setiap pustaka simbol yang dibutuhkan untuk setiap proyek."
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:143
+#: eeschema_symbol_library_table.adoc:139
 msgid ""
 "One usage pattern would be to define commonly used libraries globally and "
 "the libraries only required for the project in the project specific library "
@@ -14031,13 +13973,13 @@ msgstr ""
 "manapun."
 
 #. type: Title ====
-#: eeschema_symbol_library_table.adoc:144
+#: eeschema_symbol_library_table.adoc:140
 #, no-wrap
 msgid "Legacy Project Remapping"
 msgstr "Pemetaan Ulang Proyek 'Legacy'"
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:150
+#: eeschema_symbol_library_table.adoc:146
 msgid ""
 "When loading a schematic created prior to the symbol library table "
 "implementation, Eeschema will attempt to remap the symbol library links in "
@@ -14050,7 +13992,7 @@ msgstr ""
 "dari proses ini bergantung pada beberapa faktor:"
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:153
+#: eeschema_symbol_library_table.adoc:149
 msgid ""
 "the original libraries used in the schematic are still available and "
 "unchanged from when the symbol was added to the schematic."
@@ -14059,7 +14001,7 @@ msgstr ""
 "dari saat simbol ditambahkan ke dalam skematik."
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:156
+#: eeschema_symbol_library_table.adoc:152
 msgid ""
 "all rescue operations were performed when detected to create a rescue "
 "library or keep the existing rescue library up to date."
@@ -14069,13 +14011,13 @@ msgstr ""
 "tetap dalam kondisi terkini."
 
 #. type: Plain text
-#: eeschema_symbol_library_table.adoc:159
+#: eeschema_symbol_library_table.adoc:155
 msgid ""
 "the integrity of the project symbol cache library has not been corrupted."
 msgstr "integritas pustaka tembolok simbol proyek tidak dalam kondisi rusak."
 
 #. type: delimited block =
-#: eeschema_symbol_library_table.adoc:166
+#: eeschema_symbol_library_table.adoc:162
 msgid ""
 "The remapping will make a back up of all the files that are changed during "
 "remapping in the rescue-backup folder in the project folder.  Always make a "
@@ -14088,7 +14030,7 @@ msgstr ""
 "sebagaimana mestinya."
 
 #. type: delimited block =
-#: eeschema_symbol_library_table.adoc:175
+#: eeschema_symbol_library_table.adoc:171
 msgid ""
 "The rescue operation is performed even if it has been disabled to ensure the "
 "correct symbols are available for remapping.  Do not cancel this operation "
@@ -14102,7 +14044,7 @@ msgstr ""
 "rusak harus diperbaiki secara manual."
 
 #. type: delimited block =
-#: eeschema_symbol_library_table.adoc:184
+#: eeschema_symbol_library_table.adoc:180
 msgid ""
 "If the original libraries have been removed and the rescue was not "
 "performed, the cache library can be used as a recovery library as a last "
@@ -14315,6 +14257,39 @@ msgstr ""
 "|Menutup peramban dan meletakkan simbol yang terpilih ke Eeschema.\n"
 "Ikon ini tersedia hanya jika peramban dibuka melalui Eeschema (klik-ganda\n"
 "pada simbol di pemilih komponen).\n"
+
+#~ msgid ""
+#~ "Symbol libraries need to be made available in order to create "
+#~ "schematics.  The manner in which this is accomplished varies according to "
+#~ "the version of KiCad being used."
+#~ msgstr ""
+#~ "Pustaka simbol harus tersedia untuk membuat skematik. Langkah-langkah "
+#~ "yang diperlukan berbeda-beda, tergantung dari versi KiCad yang digunakan."
+
+#~ msgid ""
+#~ "As of November 2017, Eeschema uses a new library management tool based on "
+#~ "*_symbol library tables_* which is identical in design to the footprint "
+#~ "library table used in CvPcb and Pcbnew."
+#~ msgstr ""
+#~ "Sejak November 2017, Eeschema menggunakan peralatan manajemen pustaka "
+#~ "berdasarkan *_tabel pustaka simbol_* yang desainnya identik dengan tabel "
+#~ "pustaka _footprint_ yang digunakan di CvPcb dan Pcbnew. "
+
+#~ msgid ""
+#~ "The symbol library table is used to map a symbol library of any supported "
+#~ "library type to a library nickname. *This nickname is used to look up "
+#~ "symbols* instead of the previous method which depended on library search "
+#~ "path ordering. This allows Eeschema to access symbols with the same name "
+#~ "in different libraries by ensuring that the correct symbol is loaded from "
+#~ "the appropriate library."
+#~ msgstr ""
+#~ "Tabel pustaka simbol digunakan untuk memetakan pustaka simbol dengan tipe "
+#~ "pustaka apapun yang didukung ke sebuah nama panggilan. *Nama panggilan "
+#~ "ini digunakan untuk mencari simbol*, berbeda dengan cara sebelumnya yang "
+#~ "bergantung pada urutan _path_ pencarian pustaka. Dengan demikian, "
+#~ "Eeschema bisa mengakses simbol-simbol dengan nama yang sama yang berada "
+#~ "di dalam pustaka yang berbeda dengan memastikan bahwa simbol yang benar "
+#~ "telah dimuat dari pustaka yang sesuai. "
 
 #~ msgid "'Example:' +"
 #~ msgstr "'Contoh:' +"

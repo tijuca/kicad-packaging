@@ -188,7 +188,8 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
                 /* We need to do the selection now because the menu text
                  * depends on it */
                 ZONE_CONTAINER *zone = static_cast<ZONE_CONTAINER*>( item );
-                zone->SetSelectedCorner( RefPos( true ) );
+                int  accuracy = KiROUND( 5 * guide.OnePixelInIU() );
+                zone->SetSelectedCorner( RefPos( true ), accuracy );
             }
             break;
 
@@ -236,7 +237,7 @@ BOARD_ITEM* PCB_BASE_FRAME::PcbGeneralLocateAndDisplay( int aHotKeyCode )
             wxString    text;
             item = (*m_Collector)[i];
 
-            text = item->GetSelectMenuText();
+            text = item->GetSelectMenuText( m_UserUnits );
 
             BITMAP_DEF xpm = item->GetMenuImage();
 

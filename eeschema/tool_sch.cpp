@@ -28,11 +28,12 @@
  */
 
 #include <fctsys.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <sch_edit_frame.h>
 #include <kiface_i.h>
 #include <bitmaps.h>
-
+#include <sch_view.h>
+#include <sch_painter.h>
 #include <general.h>
 #include <hotkeys.h>
 #include <eeschema_id.h>
@@ -197,11 +198,11 @@ void SCH_EDIT_FRAME::ReCreateVToolbar()
 
     // Set up toolbar
     m_drawToolBar->AddTool( ID_NO_TOOL_SELECTED, wxEmptyString, KiScaledBitmap( cursor_xpm, this ),
-                            wxEmptyString, wxITEM_CHECK );
+                            HELP_SELECT, wxITEM_CHECK );
 
     m_drawToolBar->AddTool( ID_HIGHLIGHT, wxEmptyString,
                             KiScaledBitmap( net_highlight_schematic_xpm, this ),
-                            _( "Highlight net" ), wxITEM_CHECK );
+                            HELP_HIGHLIGHT, wxITEM_CHECK );
 
     m_drawToolBar->AddTool( ID_SCH_PLACE_COMPONENT, wxEmptyString,
                             KiScaledBitmap( add_component_xpm, this ), HELP_PLACE_COMPONENTS,
@@ -295,16 +296,9 @@ void SCH_EDIT_FRAME::ReCreateOptToolbar()
                                KiScaledBitmap( unit_mm_xpm, this ),
                                _( "Set unit to mm" ), wxITEM_CHECK );
 
-#ifndef __APPLE__
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_CURSOR, wxEmptyString,
                                KiScaledBitmap( cursor_shape_xpm, this ),
                                _( "Change cursor shape" ), wxITEM_CHECK );
-#else
-    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_CURSOR, wxEmptyString,
-                               KiScaledBitmap( cursor_shape_xpm, this ),
-                               _( "Change cursor shape (not supported in Legacy Toolset)" ),
-                               wxITEM_CHECK  );
-#endif
 
     //KiScaledSeparator( m_optionsToolBar, this );
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_HIDDEN_PINS, wxEmptyString,
@@ -328,10 +322,15 @@ void SCH_EDIT_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
     switch( id )
     {
     case ID_TB_OPTIONS_HIDDEN_PINS:
+    {
         m_showAllPins = !m_showAllPins;
 
-        if( m_canvas )
-            m_canvas->Refresh();
+        auto painter = static_cast<KIGFX::SCH_PAINTER*>( GetCanvas()->GetView()->GetPainter() );
+        painter->GetSettings()->m_ShowHiddenPins = m_showAllPins;
+
+        GetCanvas()->GetView()->UpdateAllItems( KIGFX::REPAINT );
+        GetCanvas()->Refresh();
+    }
         break;
 
     case ID_TB_OPTIONS_BUS_WIRES_ORIENT:

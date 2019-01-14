@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 19 2018)
+// C++ code generated with wxFormBuilder (version Dec 30 2017)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -37,8 +37,7 @@ class ERC_HTML_LISTFRAME;
 ///////////////////////////////////////////////////////////////////////////
 
 #define ID_ERASE_DRC_MARKERS 1000
-#define ID_ERC_CMP 1001
-#define ID_RESET_MATRIX 1002
+#define ID_RESET_MATRIX 1001
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Class DIALOG_ERC_BASE
@@ -63,8 +62,9 @@ class DIALOG_ERC_BASE : public DIALOG_SHIM
 		wxStaticText* m_textMarkers;
 		ERC_HTML_LISTFRAME* m_MarkersList;
 		wxButton* m_buttondelmarkers;
-		wxButton* m_buttonERC;
-		wxButton* m_buttonClose;
+		wxStdDialogButtonSizer* m_sdbSizer1;
+		wxButton* m_sdbSizer1OK;
+		wxButton* m_sdbSizer1Cancel;
 		wxPanel* m_PanelERCOptions;
 		wxCheckBox* m_cbTestSimilarLabels;
 		wxCheckBox* m_cbTestUniqueGlbLabels;
@@ -76,14 +76,14 @@ class DIALOG_ERC_BASE : public DIALOG_SHIM
 		virtual void OnLeftClickMarkersList( wxHtmlLinkEvent& event ) { event.Skip(); }
 		virtual void OnLeftDblClickMarkersList( wxMouseEvent& event ) { event.Skip(); }
 		virtual void OnEraseDrcMarkersClick( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnErcCmpClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnButtonCloseClick( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnErcCmpClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnResetMatrixClick( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
 		
-		DIALOG_ERC_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Electrical Rules Checker"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_ERC_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Electrical Rules Checker"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 483,420 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_ERC_BASE();
 	
 };

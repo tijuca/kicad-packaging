@@ -61,7 +61,7 @@ class LIB_FIELD : public LIB_ITEM, public EDA_TEXT
     int      m_id;           ///< @see enum NumFieldType
     wxString m_name;         ///< Name (not the field text value itself, that is .m_Text)
 
-    wxString m_savedText;    ///< Temporary storage for the string when edition.
+    wxString m_savedText;    ///< Temporary storage for the string when editing.
     bool     m_rotate;       ///< Flag to indicate a rotation occurred while editing.
     bool     m_updateText;   ///< Flag to indicate text change occurred while editing.
 
@@ -81,13 +81,15 @@ class LIB_FIELD : public LIB_ITEM, public EDA_TEXT
      *
      * @param aPosition - The position to edit the circle in drawing coordinates.
      */
-    void calcEdit( const wxPoint& aPosition ) override;
+    void CalcEdit( const wxPoint& aPosition ) override;
 
     friend class SCH_LEGACY_PLUGIN_CACHE;   // Required to access m_name.
 
 public:
 
     LIB_FIELD( int idfield = 2 );
+
+    LIB_FIELD( int aID, wxString& aName );
 
     LIB_FIELD( LIB_PART * aParent, int idfield = 2 );
 
@@ -158,6 +160,8 @@ public:
         return m_Text.IsEmpty();
     }
 
+    void ViewGetLayers( int aLayers[], int& aCount ) const override;
+
     /**
      * @return true is this field is visible, false if flagged invisible
      */
@@ -165,7 +169,7 @@ public:
 
     const EDA_RECT GetBoundingBox() const override;
 
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
+    void GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList ) override;
 
     bool HitTest( const wxPoint& aPosition ) const override;
 
@@ -231,7 +235,7 @@ public:
 
     void SetWidth( int aWidth ) override { SetThickness( aWidth ); }
 
-    wxString GetSelectMenuText() const override;
+    wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
 
     BITMAP_DEF GetMenuImage() const override;
 

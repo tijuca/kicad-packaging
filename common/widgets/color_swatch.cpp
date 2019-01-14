@@ -23,7 +23,7 @@
 
 #include <widgets/color_swatch.h>
 
-#include "color4Dpickerdlg.h"
+#include "dialog_color_picker.h"
 #include <memory>
 
 wxDEFINE_EVENT(COLOR_SWATCH_CHANGED, wxCommandEvent);
@@ -70,7 +70,8 @@ wxBitmap COLOR_SWATCH::MakeBitmap( COLOR4D aColor, COLOR4D aBackground, wxSize a
 static std::unique_ptr<wxStaticBitmap> makeColorSwatch( wxWindow* aParent, COLOR4D aColor,
                                                         COLOR4D aBackground, int aID )
 {
-    wxSize size = aParent->ConvertDialogToPixels( SWATCH_SIZE_DU );
+    static wxSize size = aParent->ConvertDialogToPixels( SWATCH_SIZE_DU );
+
     wxBitmap bitmap = COLOR_SWATCH::MakeBitmap( aColor, aBackground, size );
     auto ret = std::make_unique<wxStaticBitmap>( aParent, aID, bitmap );
 
@@ -160,7 +161,7 @@ void COLOR_SWATCH::GetNewSwatchColor()
 
     if( m_arbitraryColors )
     {
-        COLOR4D_PICKER_DLG dialog( this, m_color, true );
+        DIALOG_COLOR_PICKER dialog( ::wxGetTopLevelParent( this ), m_color, true );
 
         if( dialog.ShowModal() == wxID_OK )
             newColor = dialog.GetColor();

@@ -50,7 +50,7 @@ PCB_TARGET::PCB_TARGET( BOARD_ITEM* aParent ) :
 {
     m_Shape = 0;
     m_Size  = Millimeter2iu( 5 );       // Gives a decent size
-    m_Width = Millimeter2iu( 0.15 );    // Gives a decent width
+    m_Width = Millimeter2iu( DEFAULT_COPPER_LINE_WIDTH );
     m_Layer = Edge_Cuts;                   // a target is on all layers
 }
 
@@ -183,17 +183,10 @@ const EDA_RECT PCB_TARGET::GetBoundingBox() const
 }
 
 
-wxString PCB_TARGET::GetSelectMenuText() const
+wxString PCB_TARGET::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
-    wxString text;
-    wxString msg;
-
-    msg = ::CoordinateToString( m_Size );
-
     // Targets are on *every* layer by definition
-    text.Printf( _( "Target size %s" ), GetChars( msg ) );
-
-    return text;
+    return wxString::Format( _( "Target size %s" ), MessageTextFromValue( aUnits, m_Size ) );
 }
 
 

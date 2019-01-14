@@ -27,12 +27,12 @@
 
 #include <fctsys.h>
 #include <draw_frame.h>
-#include <class_drawpanel.h>
-
+#include <sch_draw_panel.h>
+#include <sch_view.h>
 #include <general.h>
 
 #include "widget_eeschema_color_config.h"
-#include <../common/widgets/color4Dpickerdlg.h>
+#include <dialogs/dialog_color_picker.h>
 
 // Width and height of every (color-displaying / bitmap) button in dialog units
 const wxSize BUTT_SIZE( 10, 6 );
@@ -67,7 +67,7 @@ static COLORBUTTON generalColorButtons[] = {
 };
 
 static COLORBUTTON componentColorButtons[] = {
-    { _( "Body" ),              LAYER_DEVICE },
+    { _( "Body outline" ),      LAYER_DEVICE },
     { _( "Body background" ),   LAYER_DEVICE_BACKGROUND },
     { _( "Pin" ),               LAYER_PIN },
     { _( "Pin number" ),        LAYER_PINNUM },
@@ -90,8 +90,12 @@ static COLORBUTTON sheetColorButtons[] = {
 static COLORBUTTON miscColorButtons[] = {
     { _( "ERC warning" ),       LAYER_ERC_WARN },
     { _( "ERC error" ),         LAYER_ERC_ERR },
-    { _( "Grid" ),              LAYER_SCHEMATIC_GRID },
     { _( "Brightened" ),        LAYER_BRIGHTENED },
+    { _( "Hidden items" ),      LAYER_HIDDEN },
+    { _( "Worksheet" ),         LAYER_WORKSHEET },
+    { _( "Cursor" ),            LAYER_SCHEMATIC_CURSOR },
+    { _( "Grid" ),              LAYER_SCHEMATIC_GRID },
+    { _( "Background" ),        LAYER_SCHEMATIC_BACKGROUND },
     { wxT( "" ), -1 }                           // Sentinel marking end of list.
 };
 
@@ -106,7 +110,7 @@ static BUTTONINDEX buttonGroups[] = {
 
 static COLORBUTTON bgColorButton = { "", LAYER_SCHEMATIC_BACKGROUND };
 
-static COLOR4D currentColors[ SCH_LAYER_ID_COUNT ];
+static COLOR4D currentColors[ LAYER_ID_COUNT ];
 
 
 WIDGET_EESCHEMA_COLOR_CONFIG::WIDGET_EESCHEMA_COLOR_CONFIG( wxWindow* aParent, EDA_DRAW_FRAME* aDrawFrame ) :
@@ -135,7 +139,7 @@ void WIDGET_EESCHEMA_COLOR_CONFIG::CreateControls()
         COLORBUTTON* buttons = groups->m_Buttons;
 
         columnBoxSizer = new wxBoxSizer( wxVERTICAL );
-        m_mainBoxSizer->Add( columnBoxSizer, 1, wxALIGN_TOP | wxLEFT | wxTOP, 5 );
+        m_mainBoxSizer->Add( columnBoxSizer, 1, wxALIGN_TOP | wxLEFT, 5 );
         wxBoxSizer* rowBoxSizer = new wxBoxSizer( wxHORIZONTAL );
         columnBoxSizer->Add( rowBoxSizer, 0, wxGROW | wxLEFT | wxRIGHT | wxBOTTOM, 5 );
 
@@ -155,7 +159,7 @@ void WIDGET_EESCHEMA_COLOR_CONFIG::CreateControls()
             columnBoxSizer->Add( rowBoxSizer, 0, wxGROW | wxALL, 0 );
 
             COLOR4D color = GetLayerColor( SCH_LAYER_ID( buttons->m_Layer ) );
-            currentColors[ SCH_LAYER_INDEX( buttons->m_Layer ) ] = color;
+            currentColors[ buttons->m_Layer ] = color;
 
             wxMemoryDC iconDC;
             wxBitmap   bitmap( m_butt_size_pix );
@@ -185,42 +189,7 @@ void WIDGET_EESCHEMA_COLOR_CONFIG::CreateControls()
         groups++;
     }
 
-    COLOR4D bgColor = GetDrawFrame()->GetDrawBgColor();
-    wxMemoryDC iconDC;
-    wxBitmap   bitmap( m_butt_size_pix );
-
-    iconDC.SelectObject( bitmap );
-    iconDC.SetPen( *wxBLACK_PEN );
-
-    wxBrush brush;
-    brush.SetColour( bgColor.ToColour() );
-    brush.SetStyle( wxBRUSHSTYLE_SOLID );
-    iconDC.SetBrush( brush );
-    iconDC.DrawRectangle( 0, 0, m_butt_size_pix.x, m_butt_size_pix.y );
-
-    buttonId++;
-    wxBitmapButton* selBgColorBtn = new wxBitmapButton(
-                            this, buttonId, bitmap, wxDefaultPosition,
-                            m_butt_size_pix + m_butt_border_pix + wxSize( 1, 1 ) );
-    selBgColorBtn->SetClientData( (void*) &bgColorButton );
-
-    Connect( 1800, buttonId, wxEVT_COMMAND_BUTTON_CLICKED,
-             wxCommandEventHandler( WIDGET_EESCHEMA_COLOR_CONFIG::SetColor ) );
-
-    wxStaticText* bgColorLabel = new wxStaticText( this, wxID_ANY, _( "Background Color" ) );
-    wxFont font( bgColorLabel->GetFont() );
-    font.SetWeight( wxFONTWEIGHT_BOLD );
-    bgColorLabel->SetFont( font );
-
-    if( columnBoxSizer )
-    {
-        // Add a spacer to improve appearance.
-        columnBoxSizer->AddSpacer( 5 );
-        columnBoxSizer->Add( bgColorLabel, 1, wxALL, 5 );
-        columnBoxSizer->Add( selBgColorBtn, 1, wxRIGHT | wxBOTTOM, 5 );
-    }
-
-    currentColors[ SCH_LAYER_INDEX( LAYER_SCHEMATIC_BACKGROUND ) ] = bgColor;
+    Connect( 1800, buttonId, wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( WIDGET_EESCHEMA_COLOR_CONFIG::SetColor ) );
 
     // Dialog now needs to be resized, but the associated command is found elsewhere.
 }
@@ -235,9 +204,9 @@ void WIDGET_EESCHEMA_COLOR_CONFIG::SetColor( wxCommandEvent& event )
     COLORBUTTON* colorButton = (COLORBUTTON*) button->GetClientData();
 
     wxCHECK_RET( colorButton != NULL, wxT( "Client data not set for color button." ) );
-    COLOR4D oldColor = currentColors[ SCH_LAYER_INDEX( colorButton->m_Layer ) ];
+    COLOR4D oldColor = currentColors[ colorButton->m_Layer ];
     COLOR4D newColor = COLOR4D::UNSPECIFIED;
-    COLOR4D_PICKER_DLG dialog( this, oldColor, false );
+    DIALOG_COLOR_PICKER dialog( this, oldColor, false );
 
     if( dialog.ShowModal() == wxID_OK )
     {
@@ -247,7 +216,7 @@ void WIDGET_EESCHEMA_COLOR_CONFIG::SetColor( wxCommandEvent& event )
     if( newColor == COLOR4D::UNSPECIFIED || oldColor == newColor )
         return;
 
-    currentColors[ SCH_LAYER_INDEX( colorButton->m_Layer ) ] = newColor;
+    currentColors[ colorButton->m_Layer ] = newColor;
 
     wxMemoryDC iconDC;
 
@@ -270,55 +239,54 @@ void WIDGET_EESCHEMA_COLOR_CONFIG::SetColor( wxCommandEvent& event )
 
 bool WIDGET_EESCHEMA_COLOR_CONFIG::TransferDataFromControl()
 {
-    bool warning = false;
-
     // Check for color conflicts with background color to give user a chance to bail
     // out before making changes.
 
-    COLOR4D bgcolor = currentColors[ SCH_LAYER_INDEX( LAYER_SCHEMATIC_BACKGROUND ) ];
+    COLOR4D bgcolor = currentColors[ LAYER_SCHEMATIC_BACKGROUND ];
 
-    for( SCH_LAYER_ID clyr = LAYER_WIRE; clyr < SCH_LAYER_ID_END; ++clyr )
+    for( SCH_LAYER_ID clyr = SCH_LAYER_ID_START; clyr < SCH_LAYER_ID_END; ++clyr )
     {
-        if( bgcolor == currentColors[ SCH_LAYER_INDEX( clyr ) ] && clyr != LAYER_SCHEMATIC_BACKGROUND )
+        if( bgcolor == currentColors[ clyr ] && clyr != LAYER_SCHEMATIC_BACKGROUND )
         {
-            warning = true;
+            wxString msg = _( "Some items have the same color as the background\n"
+                              "and they will not be seen on the screen.  Are you\n"
+                              "sure you want to use these colors?" );
+
+            if( wxMessageBox( msg,  _( "Warning" ), wxYES_NO | wxICON_QUESTION, this ) == wxNO )
+                return false;
+
             break;
         }
     }
 
-    // Prompt the user if an item has the same color as the background
-    // because this item cannot be seen:
-    if( warning )
-    {
-        if( wxMessageBox( _( "Some items have the same color as the background\n"
-                             "and they will not be seen on the screen.  Are you\n"
-                             "sure you want to use these colors?" ),
-                          _( "Warning" ),
-                          wxYES_NO | wxICON_QUESTION, this ) == wxNO )
-            return false;
-    }
+    for( SCH_LAYER_ID clyr = SCH_LAYER_ID_START; clyr < SCH_LAYER_ID_END; ++clyr )
+        SetLayerColor( currentColors[ clyr ], clyr );
 
-    // Update color of background
-    GetDrawFrame()->SetDrawBgColor( bgcolor );
-    currentColors[ SCH_LAYER_INDEX( LAYER_SCHEMATIC_BACKGROUND ) ] = bgcolor;
-
-
-    for( SCH_LAYER_ID clyr = LAYER_WIRE; clyr < SCH_LAYER_ID_END; ++clyr )
-    {
-        SetLayerColor( currentColors[ SCH_LAYER_INDEX( clyr ) ], clyr );
-    }
-
-    GetDrawFrame()->SetGridColor( GetLayerColor( LAYER_SCHEMATIC_GRID ) );
-    GetDrawFrame()->GetCanvas()->Refresh();
+    SetLayerColor( currentColors[ LAYER_WORKSHEET ], (SCH_LAYER_ID) LAYER_WORKSHEET );
 
     return true;
 }
 
 
-void WIDGET_EESCHEMA_COLOR_CONFIG::InstallOnPanel( wxPanel* aPanel )
+PANEL_EESCHEMA_COLOR_CONFIG::PANEL_EESCHEMA_COLOR_CONFIG( EDA_DRAW_FRAME* aFrame,
+                                                          wxWindow* aParent ) :
+    wxPanel( aParent )
 {
-    wxBoxSizer* sizer = new wxBoxSizer( wxVERTICAL );
+    auto sizer = new wxBoxSizer( wxVERTICAL );
+    SetSizer( sizer );
 
-    sizer->Add( this, 1, wxALL | wxEXPAND, 0 );
-    aPanel->SetSizer( sizer );
+    m_colorConfig = new WIDGET_EESCHEMA_COLOR_CONFIG( this, aFrame );
+    sizer->Add( m_colorConfig, 1, wxEXPAND | wxLEFT | wxRIGHT, 5 );
+}
+
+
+bool PANEL_EESCHEMA_COLOR_CONFIG::TransferDataToWindow()
+{
+    return true;
+}
+
+
+bool PANEL_EESCHEMA_COLOR_CONFIG::TransferDataFromWindow()
+{
+    return m_colorConfig->TransferDataFromControl();
 }

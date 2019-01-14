@@ -128,6 +128,7 @@ enum KICAD_T
     SCH_FIELD_LOCATE_REFERENCE_T,
     SCH_FIELD_LOCATE_VALUE_T,
     SCH_FIELD_LOCATE_FOOTPRINT_T,
+    SCH_FIELD_LOCATE_DATASHEET_T,
 
     // General
     SCH_SCREEN_T,
@@ -168,6 +169,15 @@ enum KICAD_T
      * for Pl_Editor, in undo/redo commands
      */
     TYPE_PL_EDITOR_LAYOUT,
+
+    /*
+     * FOR PROJECT::_ELEMs
+     */
+    SYMBOL_LIB_TABLE_T,
+    FP_LIB_TABLE_T,
+    PART_LIBS_T,
+    SEARCH_STACK_T,
+    CACHE_WRAPPER_T,
 
     // End value
     MAX_STRUCT_TYPE_ID

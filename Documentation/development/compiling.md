@@ -113,11 +113,15 @@ The [Curl Multi-Protocol File Transfer Library][libcurl] is used to provide secu
 file transfer access for the [GitHub][] plug in.  This library needs to be installed unless
 the GitHub plug build option is disabled.
 
-## OpenCascade Community Edition (OCE) ## {#oce}
+## OpenCascade Library ## {#oce}
 
-The [OpenCascade Community Edition][liboce] is used to provide support for loading and saving
+The [OpenCascade Community Edition (OCE)][liboce] is used to provide support for loading and saving
 3D model file formats such as STEP.  This library needs to be installed unless the OCE build
 option is disabled.
+
+[Open CASCSADE Technology (OCC)][libocc] should also work as an alternative to OCE. Selection of
+library Cascade library can be specified at build time.  See the [STEP/IGES support](#oce_opt)
+section.
 
 ## Ngspice Library ## {#ngspice}
 
@@ -152,10 +156,20 @@ This options is enabled by default.
 The KICAD_SCRIPTING_MODULES option is used to enable building and installing the Python modules
 supplied by KiCad.  This option is enabled by default.
 
+## Python 3 Scripting Support ## {#python3}
+
+The KICAD_SCRIPTING_PYTHON3 option is used to enable building of the Python 3 interface instead
+of Python 2.  This option is disabled by default.
+
 ## wxPython Scripting Support ## {#wxpython_opt}
 
 The KICAD_SCRIPTING_WXPYTHON option is used to enable building the wxPython interface into
 Pcbnew including the wxPython console.  This option is enabled by default.
+
+## wxPython Phoenix Scripting Support ## {#wxpython_phoenix}
+
+The KICAD_SCRIPTING_WXPYTHON_PHOENIX option is used to enable building the wxPython interface with
+the new Phoenix binding instead of the legacy one.  This option is disabled by default.
 
 ## GitHub Plugin ## {#github_opt}
 
@@ -172,8 +186,11 @@ library.  This option is enabled by default.
 
 The KICAD_USE_OCE is used for the 3D viewer plugin to support STEP and IGES 3D models. Build tools
 and plugins related to OpenCascade Community Edition (OCE) are enabled with this option. When
-enabled it requires [OCE][] to be available, and the location of the installed OCE library to be
+enabled it requires [liboce][] to be available, and the location of the installed OCE library to be
 passed via the OCE_DIR flag.  This option is enabled by default.
+
+Alternatively KICAD_USE_OCC can be used instead of OCE. Both options are not supposed to be enabled
+at the same time.
 
 ## Demos and Examples ## {#demo_install_opt}
 
@@ -212,7 +229,7 @@ can down load the source archive from the [KiCad Launchpad][] developers page.  
 other archive program to extract the source on your system.  If you are using tar, use the
 following command:
 
-    tar -xzf kicad_src_archive.tar.gz
+    tar -xaf kicad_src_archive.tar.xz
 
 If you are contributing directly to the KiCad project on Launchpad, you can create a local
 copy on your machine by using the following command:
@@ -221,7 +238,7 @@ copy on your machine by using the following command:
 
 Here is a list of source links:
 
-Stable release archive: https://launchpad.net/kicad/4.0/4.0.7/+download/kicad-4.0.7.tar.xz
+Stable release archive: https://launchpad.net/kicad/5.0/5.0.2/+download/kicad-5.0.2.tar.xz
 
 Development branch: https://code.launchpad.net/~kicad-product-committers/kicad/+git/product-git/+ref/master
 
@@ -336,11 +353,16 @@ compilation errors about missing files, it is probably because your path is too 
 
 # Building KiCad on macOS # {#build_osx}
 
-Building on macOS is challenging at best.  It typically requires building dependency libraries
-that require patching in order to work correctly.  For more information on the complexities of
-building and packaging KiCad on macOS, see the [macOS bundle build scripts][].
+As of V5, building and packaging for macOS can be done using [kicad-mac-builder][],
+which downloads, patches, builds, and packages for macOS.  It is used to create the official
+releases and nightlies, and it reduces the complexity of setting up a build environment to a command
+or two.  Usage of kicad-mac-builder is detailed at on its website.
 
-In the following set of commands, replace the macOS version number (i.e. 10.9) with the desired
+If you wish to build without kicad-mac-builder, please use the following and its source code
+as reference. Building on macOS requires building dependency libraries that require patching
+in order to work correctly.
+
+In the following set of commands, replace the macOS version number (i.e. 10.11) with the desired
 minimum version.  It may be easiest to build for the same version you are running.
 
 KiCad currently won't work with a stock version of wxWidgets that can be downloaded or
@@ -368,7 +390,7 @@ To perform a wxWidgets build, execute the following commands:
         --with-zlib=builtin \
         --with-expat=builtin \
         --without-liblzma \
-        --with-macosx-version-min=10.9 \
+        --with-macosx-version-min=10.11 \
         --enable-universal-binary=i386,x86_64 \
         CC=clang \
         CXX=clang++
@@ -384,7 +406,7 @@ Now, build a basic KiCad without Python scripting using the following commands:
     cd build/release
     cmake -DCMAKE_C_COMPILER=clang \
           -DCMAKE_CXX_COMPILER=clang++ \
-          -DCMAKE_OSX_DEPLOYMENT_TARGET=10.9 \
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=10.11 \
           -DwxWidgets_CONFIG_EXECUTABLE=<your wxWidgets build folder>/wx-bin/bin/wx-config \
           -DKICAD_SCRIPTING=OFF \
           -DKICAD_SCRIPTING_MODULES=OFF \
@@ -440,7 +462,7 @@ you will have to apply the Boost patches in the KiCad source [patches folder][].
 [GIT]: https://git-scm.com/
 [GitHub]: https://github.com/KiCad/kicad-source-mirror
 [ngspice]: http://ngspice.sourceforge.net/
-[Doxygen]: http://www.stack.nl/~dimitri/doxygen/
+[Doxygen]: http://www.doxygen.nl
 [mailing list]: https://launchpad.net/~kicad-developers
 [SWIG]: http://www.swig.org/
 [wxWidgets]: http://wxwidgets.org/
@@ -455,7 +477,7 @@ you will have to apply the Boost patches in the KiCad source [patches folder][].
 [MSYS2 32-bit Installer]: http://repo.msys2.org/distrib/i686/msys2-i686-20161025.exe
 [MSYS2 64-bit Installer]: http://repo.msys2.org/distrib/x86_64/msys2-x86_64-20161025.exe
 [PKGBUILD]: https://github.com/Alexpux/MINGW-packages/blob/master/mingw-w64-kicad-git/PKGBUILD
-[macOS bundle build scripts]:http://bazaar.launchpad.net/~adamwolf/+junk/kicad-mac-packaging/files
+[kicad-mac-builder]:https://github.com/KiCad/kicad-mac-builder
 [KiCad fork of wxWidgets]:https://github.com/KiCad/wxWidgets
 [MinGW]: http://mingw.org/
 [build Boost]: http://www.boost.org/doc/libs/1_59_0/more/getting_started/index.html
@@ -463,6 +485,6 @@ you will have to apply the Boost patches in the KiCad source [patches folder][].
 [libcurl]: http://curl.haxx.se/libcurl/
 [GLM]: http://glm.g-truc.net/
 [git]: https://git-scm.com/
-[OCE]: https://github.com/tpaviot/oce
 [liboce]: https://github.com/tpaviot/oce
+[libocc]: https://www.opencascade.com/content/overview
 [libngspice]: https://sourceforge.net/projects/ngspice/

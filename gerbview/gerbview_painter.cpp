@@ -33,7 +33,7 @@ using namespace KIGFX;
 
 GERBVIEW_RENDER_SETTINGS::GERBVIEW_RENDER_SETTINGS()
 {
-    m_backgroundColor = COLOR4D( 0.0, 0.0, 0.0, 1.0 );
+    m_backgroundColor = COLOR4D::BLACK;
 
     m_spotFill          = true;
     m_lineFill          = true;
@@ -88,6 +88,8 @@ void GERBVIEW_RENDER_SETTINGS::LoadDisplayOptions( const GBR_DISPLAY_OPTIONS* aO
     m_showCodes         = aOptions->m_DisplayDCodes;
     m_diffMode          = aOptions->m_DiffMode;
     m_hiContrastEnabled = aOptions->m_HighContrastMode;
+    m_showPageLimits    = aOptions->m_DisplayPageLimits;
+    m_backgroundColor   = aOptions->m_BgDrawColor;
 
     update();
 }
@@ -95,40 +97,38 @@ void GERBVIEW_RENDER_SETTINGS::LoadDisplayOptions( const GBR_DISPLAY_OPTIONS* aO
 
 const COLOR4D& GERBVIEW_RENDER_SETTINGS::GetColor( const VIEW_ITEM* aItem, int aLayer ) const
 {
-    const GERBER_DRAW_ITEM* item = static_cast<const GERBER_DRAW_ITEM*>( aItem );
+    const EDA_ITEM* item = static_cast<const EDA_ITEM*>( aItem );
     static const COLOR4D transparent = COLOR4D( 0, 0, 0, 0 );
+    const GERBER_DRAW_ITEM* gbrItem = nullptr;
+
+    if( item && item->Type() == GERBER_DRAW_ITEM_T )
+        gbrItem = static_cast<const GERBER_DRAW_ITEM*>( item );
 
     // All DCODE layers stored under a single color setting
     if( IsDCodeLayer( aLayer ) )
         return m_layerColors[ LAYER_DCODES ];
 
-    if( aLayer == LAYER_WORKSHEET )
-        return m_layerColors[ LAYER_WORKSHEET ];
+    if( item && item->IsSelected() )
+        return m_layerColorsSel[aLayer];
 
-    if( item )
+    if( gbrItem && gbrItem->GetLayerPolarity() )
     {
-        if( item->IsSelected() )
-            return m_layerColorsSel[aLayer];
-
-        if( item->GetLayerPolarity() )
-        {
-            if( m_showNegativeItems )
-                return m_layerColors[LAYER_NEGATIVE_OBJECTS];
-            else
-                return transparent;
-        }
+        if( m_showNegativeItems )
+            return m_layerColors[LAYER_NEGATIVE_OBJECTS];
+        else
+            return transparent;
     }
 
-    if( !m_netHighlightString.IsEmpty() && item &&
-        m_netHighlightString == item->GetNetAttributes().m_Netname )
+    if( !m_netHighlightString.IsEmpty() && gbrItem &&
+        m_netHighlightString == gbrItem->GetNetAttributes().m_Netname )
         return m_layerColorsHi[aLayer];
 
-    if( !m_componentHighlightString.IsEmpty() && item &&
-        m_componentHighlightString == item->GetNetAttributes().m_Cmpref )
+    if( !m_componentHighlightString.IsEmpty() && gbrItem &&
+        m_componentHighlightString == gbrItem->GetNetAttributes().m_Cmpref )
         return m_layerColorsHi[aLayer];
 
-    if( !m_attributeHighlightString.IsEmpty() && item && item->GetDcodeDescr() &&
-        m_attributeHighlightString == item->GetDcodeDescr()->m_AperFunction )
+    if( !m_attributeHighlightString.IsEmpty() && gbrItem && gbrItem->GetDcodeDescr() &&
+        m_attributeHighlightString == gbrItem->GetDcodeDescr()->m_AperFunction )
         return m_layerColorsHi[aLayer];
 
     // Return grayish color for non-highlighted layers in the high contrast mode
@@ -214,7 +214,7 @@ void GERBVIEW_PAINTER::draw( /*const*/ GERBER_DRAW_ITEM* aItem, int aLayer )
         m_gal->SetIsFill( false );
         m_gal->SetStrokeColor( color );
         m_gal->SetFillColor( COLOR4D( 0, 0, 0, 0 ) );
-        m_gal->SetLineWidth( 2 );
+        m_gal->SetLineWidth( textSize/10 );
         m_gal->SetFontBold( false );
         m_gal->SetFontItalic( false );
         m_gal->SetTextMirrored( false );
@@ -260,10 +260,21 @@ void GERBVIEW_PAINTER::draw( /*const*/ GERBER_DRAW_ITEM* aItem, int aLayer )
         for( auto it = absolutePolygon.Iterate( 0 ); it; ++it )
             *it = aItem->GetABPosition( *it );
 
-        if( !isFilled )
+        // Degenerated polygons (having < 3 points) are drawn as lines
+        // to avoid issues in draw polygon functions
+        if( !isFilled || absolutePolygon.COutline( 0 ).PointCount() < 3 )
             m_gal->DrawPolyline( absolutePolygon.COutline( 0 ) );
         else
+        {
+            // On Opengl, a not convex filled polygon is usually drawn by using triangles as primitives.
+            // CacheTriangulation() can create basic triangle primitives to draw the polygon solid shape
+            // on Opengl
+            if( m_gal->IsOpenGlEngine() )
+                absolutePolygon.CacheTriangulation();
+
             m_gal->DrawPolygon( absolutePolygon );
+        }
+
         break;
     }
 
@@ -423,27 +434,21 @@ void GERBVIEW_PAINTER::drawFlashedShape( GERBER_DRAW_ITEM* aItem, bool aFilled )
         int radius = code->m_Size.x >> 1;
         VECTOR2D start( aItem->GetABPosition( aItem->m_Start ) );
 
-        if( !aFilled )
+        if( !aFilled || code->m_DrillShape == APT_DEF_NO_HOLE )
         {
             m_gal->DrawCircle( start, radius );
         }
-        else
+        else    // rectangular hole
         {
-            if( code->m_DrillShape == APT_DEF_NO_HOLE )
-            {
-                m_gal->DrawCircle( start, radius );
-            }
-            else    // rectangular hole
-            {
-                if( code->m_Polygon.OutlineCount() == 0 )
-                    code->ConvertShapeToPolygon();
+            if( code->m_Polygon.OutlineCount() == 0 )
+                code->ConvertShapeToPolygon();
 
-                SHAPE_POLY_SET poly = code->m_Polygon;
-                poly.Move( aItem->m_Start );
+            SHAPE_POLY_SET poly = code->m_Polygon;
+            poly.Move( aItem->m_Start );
 
-                drawPolygon( aItem, poly, aFilled );
-            }
+            drawPolygon( aItem, poly, aFilled );
         }
+
         break;
     }
 

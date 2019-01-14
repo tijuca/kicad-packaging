@@ -320,7 +320,7 @@ void EAGLE_PLUGIN::clear_cu_map()
 {
     // All cu layers are invalid until we see them in the <layers> section while
     // loading either a board or library.  See loadLayerDefs().
-    for( unsigned i = 0;  i < DIM(m_cu_map);  ++i )
+    for( unsigned i = 0;  i < arrayDim(m_cu_map);  ++i )
         m_cu_map[i] = -1;
 }
 
@@ -435,7 +435,7 @@ void EAGLE_PLUGIN::loadLayerDefs( wxXmlNode* aLayers )
 
 #if 0 && defined(DEBUG)
     printf( "m_cu_map:\n" );
-    for( unsigned i=0; i<DIM(m_cu_map);  ++i )
+    for( unsigned i=0; i<arrayDim(m_cu_map);  ++i )
     {
         printf( "\t[%d]:%d\n", i, m_cu_map[i] );
     }
@@ -710,6 +710,7 @@ void EAGLE_PLUGIN::loadPlain( wxXmlNode* aGraphics )
 
             if( layer != UNDEFINED_LAYER )
             {
+                const BOARD_DESIGN_SETTINGS& designSettings = m_board->GetDesignSettings();
                 DIMENSION* dimension = new DIMENSION( m_board );
                 m_board->Add( dimension, ADD_APPEND );
 
@@ -735,16 +736,10 @@ void EAGLE_PLUGIN::loadPlain( wxXmlNode* aGraphics )
                 // The origin and end are assumed to always be in this order from eagle
                 dimension->SetOrigin( wxPoint( kicad_x( d.x1 ), kicad_y( d.y1 ) ) );
                 dimension->SetEnd( wxPoint( kicad_x( d.x2 ), kicad_y( d.y2 ) ) );
-                dimension->Text().SetTextSize( m_board->GetDesignSettings().m_PcbTextSize );
-
-                int width = m_board->GetDesignSettings().m_PcbTextWidth;
-                int maxThickness = Clamp_Text_PenSize( width, dimension->Text().GetTextSize() );
-
-                if( width > maxThickness )
-                    width = maxThickness;
-
-                dimension->Text().SetThickness( width );
-                dimension->SetWidth( width );
+                dimension->Text().SetTextSize( designSettings.GetTextSize( layer ) );
+                dimension->Text().SetThickness( designSettings.GetTextThickness( layer ) );
+                dimension->SetWidth( designSettings.GetLineThickness( layer ) );
+                dimension->SetUnits( MILLIMETRES, false );
 
                 // check which axis the dimension runs in
                 // because the "height" of the dimension is perpendicular to that axis
@@ -768,7 +763,7 @@ void EAGLE_PLUGIN::loadPlain( wxXmlNode* aGraphics )
 
 void EAGLE_PLUGIN::loadLibrary( wxXmlNode* aLib, const wxString* aLibName )
 {
-    if( !aLib || !aLibName )
+    if( !aLib )
         return;
 
     // library will have <xmlattr> node, skip that and get the single packages node
@@ -1178,7 +1173,7 @@ ZONE_CONTAINER* EAGLE_PLUGIN::loadPolygon( wxXmlNode* aPolyNode )
         zone->SetHatch( ZONE_CONTAINER::DIAGONAL_EDGE, zone->GetDefaultHatchPitch(), true );
 
     // clearances, etc.
-    zone->SetArcSegmentCount( 32 );     // @todo: should be a constructor default?
+    zone->SetArcSegmentCount( ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF );     // @todo: should be a constructor default?
     zone->SetMinThickness( std::max<int>(
             ZONE_THICKNESS_MIN_VALUE_MIL*IU_PER_MILS, p.width.ToPcbUnits() ) );
 
@@ -1394,20 +1389,29 @@ void EAGLE_PLUGIN::packageWire( MODULE* aModule, wxXmlNode* aTree ) const
 {
     EWIRE        w( aTree );
     PCB_LAYER_ID layer = kicad_layer( w.layer );
+    wxPoint      start( kicad_x( w.x1 ), kicad_y( w.y1 ) );
+    wxPoint      end(   kicad_x( w.x2 ), kicad_y( w.y2 ) );
+    int          width = w.width.ToPcbUnits();
 
-    if( IsCopperLayer( layer ) )  // skip copper "package.circle"s
+    if( width <= 0 )
     {
-        wxLogMessage( wxString::Format(
-                    _( "Line on copper layer in package %s (%f mm, %f mm) (%f mm, %f mm)."
-                    "\nMoving to Dwgs.User layer" ),
-                    aModule->GetFPID().GetLibItemName().c_str(), w.x1.ToMm(), w.y1.ToMm(),
-                    w.x2.ToMm(), w.y2.ToMm() ) );
-        layer = Dwgs_User;
+        switch( layer )
+        {
+        case Edge_Cuts:
+            width = DEFAULT_EDGE_WIDTH;
+            break;
+        case F_SilkS:
+        case B_SilkS:
+            width = DEFAULT_SILK_LINE_WIDTH;
+            break;
+        case F_CrtYd:
+        case B_CrtYd:
+            width = DEFAULT_COURTYARD_WIDTH;
+            break;
+        default:
+            width = DEFAULT_LINE_WIDTH;
+        }
     }
-
-    wxPoint start( kicad_x( w.x1 ), kicad_y( w.y1 ) );
-    wxPoint end(   kicad_x( w.x2 ), kicad_y( w.y2 ) );
-    int     width = w.width.ToPcbUnits();
 
     // FIXME: the cap attribute is ignored because kicad can't create lines
     //        with flat ends.
@@ -1516,14 +1520,6 @@ void EAGLE_PLUGIN::packageText( MODULE* aModule, wxXmlNode* aTree ) const
     ETEXT        t( aTree );
     PCB_LAYER_ID layer = kicad_layer( t.layer );
 
-    if( IsCopperLayer( layer ) )  // skip copper texts
-    {
-        wxLogMessage( wxString::Format(
-                _( "Unsupported text on copper layer in package %s.\nMoving to Dwgs.User layer." ),
-                aModule->GetFPID().GetLibItemName().c_str() ) );
-        layer = Dwgs_User;
-    }
-
     if( layer == UNDEFINED_LAYER )
     {
         layer = Cmts_User;
@@ -1629,16 +1625,8 @@ void EAGLE_PLUGIN::packageRectangle( MODULE* aModule, wxXmlNode* aTree ) const
 {
     ERECT        r( aTree );
     PCB_LAYER_ID layer = kicad_layer( r.layer );
-
-    if( IsCopperLayer( layer ) )  // skip copper "package.circle"s
-    {
-        wxLogMessage( wxString::Format(
-                _( "Unsupported rectangle on copper layer in package %s.\nMoving to Dwgs.User layer." ),
-                aModule->GetFPID().GetLibItemName().c_str() ) );
-        layer = Dwgs_User;
-    }
-
     EDGE_MODULE* dwg = new EDGE_MODULE( aModule, S_POLYGON );
+
     aModule->GraphicalItemsList().PushBack( dwg );
 
     dwg->SetLayer( layer );
@@ -1670,18 +1658,10 @@ void EAGLE_PLUGIN::packageRectangle( MODULE* aModule, wxXmlNode* aTree ) const
 
 void EAGLE_PLUGIN::packagePolygon( MODULE* aModule, wxXmlNode* aTree ) const
 {
-    EPOLYGON    p( aTree );
-    PCB_LAYER_ID    layer = kicad_layer( p.layer );
+    EPOLYGON      p( aTree );
+    PCB_LAYER_ID  layer = kicad_layer( p.layer );
+    EDGE_MODULE*  dwg = new EDGE_MODULE( aModule, S_POLYGON );
 
-    if( IsCopperLayer( layer ) )  // skip copper "package.circle"s
-    {
-        wxLogMessage( wxString::Format(
-                _( "Unsupported polygon on copper layer in package %s.\nMoving to Dwgs.User layer." ),
-                aModule->GetFPID().GetLibItemName().c_str() ) );
-        layer = Dwgs_User;
-    }
-
-    EDGE_MODULE* dwg = new EDGE_MODULE( aModule, S_POLYGON );
     aModule->GraphicalItemsList().PushBack( dwg );
 
     dwg->SetWidth( 0 );     // it's filled, no need for boundary width
@@ -1757,30 +1737,39 @@ void EAGLE_PLUGIN::packageCircle( MODULE* aModule, wxXmlNode* aTree ) const
 {
     ECIRCLE         e( aTree );
     PCB_LAYER_ID    layer = kicad_layer( e.layer );
+    EDGE_MODULE*    gr = new EDGE_MODULE( aModule, S_CIRCLE );
+    int             width = e.width.ToPcbUnits();
 
-    if( IsCopperLayer( layer ) )  // skip copper "package.circle"s
+    if( width <= 0 )
     {
-        wxLogMessage( wxString::Format(
-                _( "Unsupported circle on copper layer in package %s.\nMoving to Dwgs.User layer." ),
-                aModule->GetFPID().GetLibItemName().c_str() ) );
-        layer = Dwgs_User;
+        switch( layer )
+        {
+        case Edge_Cuts:
+            width = DEFAULT_EDGE_WIDTH;
+            break;
+        case F_SilkS:
+        case B_SilkS:
+            width = DEFAULT_SILK_LINE_WIDTH;
+            break;
+        case F_CrtYd:
+        case B_CrtYd:
+            width = DEFAULT_COURTYARD_WIDTH;
+            break;
+        default:
+            width = DEFAULT_LINE_WIDTH;
+        }
     }
 
-    EDGE_MODULE*    gr = new EDGE_MODULE( aModule, S_CIRCLE );
-
     aModule->GraphicalItemsList().PushBack( gr );
+    gr->SetWidth( width );
 
-    gr->SetWidth( e.width.ToPcbUnits() );
-
-    switch( (int) layer )
+    switch ( (int) layer )
     {
-    case UNDEFINED_LAYER:   layer = Cmts_User;          break;
-    /*
-    case Eco1_User:            layer = F_SilkS; break;
-    case Eco2_User:            layer = B_SilkS;  break;
-    */
+    case UNDEFINED_LAYER:
+        layer = Cmts_User;
+        break;
     default:
-                            break;
+        break;
     }
 
     gr->SetLayer( layer );
@@ -2176,7 +2165,7 @@ PCB_LAYER_ID EAGLE_PLUGIN::kicad_layer( int aEagleLayer ) const
     int kiLayer;
 
     // eagle copper layer:
-    if( aEagleLayer >= 1 && aEagleLayer < int( DIM( m_cu_map ) ) )
+    if( aEagleLayer >= 1 && aEagleLayer < int( arrayDim( m_cu_map ) ) )
     {
         kiLayer = m_cu_map[aEagleLayer];
     }

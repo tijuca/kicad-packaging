@@ -49,7 +49,7 @@
 #include <menus_helpers.h>
 
 
-static wxMenu* Append_Track_Width_List( BOARD* aBoard );
+static wxMenu* Append_Track_Width_List( BOARD* aBoard, EDA_UNITS_T aUnits );
 
 
 bool PCB_EDIT_FRAME::OnRightClick( const wxPoint& aMousePos, wxMenu* aPopMenu )
@@ -293,16 +293,14 @@ bool PCB_EDIT_FRAME::OnRightClick( const wxPoint& aMousePos, wxMenu* aPopMenu )
         case SCREEN_T:
         case TYPE_NOT_INIT:
         case PCB_T:
-            msg.Printf( wxT( "PCB_EDIT_FRAME::OnRightClick() Error: unexpected DrawType %d" ),
+            wxLogDebug( wxT( "PCB_EDIT_FRAME::OnRightClick() Error: unexpected DrawType %d" ),
                         item->Type() );
-            wxMessageBox( msg );
             SetCurItem( NULL );
             break;
 
         default:
-            msg.Printf( wxT( "PCB_EDIT_FRAME::OnRightClick() Error: unknown DrawType %d" ),
+            wxLogDebug( wxT( "PCB_EDIT_FRAME::OnRightClick() Error: unknown DrawType %d" ),
                         item->Type() );
-            wxMessageBox( msg );
 
             // Attempt to clear error (but should no occurs )
             if( item->Type() >= MAX_STRUCT_TYPE_ID )
@@ -360,7 +358,7 @@ bool PCB_EDIT_FRAME::OnRightClick( const wxPoint& aMousePos, wxMenu* aPopMenu )
             AddMenuItem( aPopMenu, ID_POPUP_PCB_BEGIN_TRACK,
                          msg, KiBitmap( add_tracks_xpm ) );
 
-            AddMenuItem( aPopMenu, Append_Track_Width_List( GetBoard() ),
+            AddMenuItem( aPopMenu, Append_Track_Width_List( GetBoard(), GetUserUnits() ),
                          ID_POPUP_PCB_SELECT_WIDTH, _( "Select Track Width" ),
                          KiBitmap( width_track_xpm ) );
 
@@ -393,24 +391,12 @@ bool PCB_EDIT_FRAME::OnRightClick( const wxPoint& aMousePos, wxMenu* aPopMenu )
 
     case ID_NO_TOOL_SELECTED:
     {
-        wxMenu* commands = new wxMenu;
-        AddMenuItem( aPopMenu, commands, ID_POPUP_PCB_AUTOPLACE_COMMANDS,
-                     _( "Global Spread and Place" ), KiBitmap( move_xpm ) );
-        AddMenuItem( commands, ID_POPUP_PCB_SPREAD_ALL_MODULES,
-                     _( "Spread out All Footprints" ), KiBitmap( move_xpm ) );
-        commands->Append( ID_POPUP_PCB_SPREAD_NEW_MODULES,
-                          _( "Spread out Footprints not Already on Board" ) );
-        AddMenuItem( commands, ID_POPUP_PCB_AUTOPLACE_FREE_ALL_MODULES,
-                _( "Unlock All Footprints" ), KiBitmap( unlocked_xpm ) );
-        AddMenuItem( commands, ID_POPUP_PCB_AUTOPLACE_FIXE_ALL_MODULES,
-                _( "Lock All Footprints" ), KiBitmap( locked_xpm ) );
-
         if( !trackFound )
         {
             msg = AddHotkeyName( _( "Begin Track" ), g_Board_Editor_Hotkeys_Descr, HK_ADD_NEW_TRACK );
             AddMenuItem( aPopMenu, ID_POPUP_PCB_BEGIN_TRACK, msg, KiBitmap( add_tracks_xpm ) );
 
-            AddMenuItem( aPopMenu, Append_Track_Width_List( GetBoard() ),
+            AddMenuItem( aPopMenu, Append_Track_Width_List( GetBoard(), GetUserUnits() ),
                          ID_POPUP_PCB_SELECT_WIDTH, _( "Select Track Width" ),
                          KiBitmap( width_track_xpm ) );
 
@@ -517,7 +503,7 @@ void PCB_EDIT_FRAME::createPopupMenuForTracks( TRACK* Track, wxMenu* PopMenu )
                      _( "Place Node" ), KiBitmap( checked_ok_xpm ) );
         return;
     }
-    else // Edition in progress
+    else // Edit in progress
     {
         if( flags & IS_NEW )
         {
@@ -579,7 +565,8 @@ void PCB_EDIT_FRAME::createPopupMenuForTracks( TRACK* Track, wxMenu* PopMenu )
     }
 
     // Allows switching to another track/via size when routing
-    AddMenuItem( PopMenu, Append_Track_Width_List( GetBoard() ), ID_POPUP_PCB_SELECT_WIDTH,
+    AddMenuItem( PopMenu, Append_Track_Width_List( GetBoard(), GetUserUnits() ),
+                 ID_POPUP_PCB_SELECT_WIDTH,
                  _( "Select Track Width" ), KiBitmap( width_track_xpm ) );
 
     // Delete control:
@@ -602,12 +589,12 @@ void PCB_EDIT_FRAME::createPopupMenuForTracks( TRACK* Track, wxMenu* PopMenu )
                      KiBitmap( delete_net_xpm ) );
     }
 
-    // Add global edition command
+    // Add global editing commands:
     if( !flags )
     {
         PopMenu->AppendSeparator();
         AddMenuItem( PopMenu, ID_POPUP_PCB_EDIT_ALL_VIAS_AND_TRACK_SIZE,
-                     _( "Edit All Tracks and Vias..." ), KiBitmap( width_track_via_xpm ) );
+                     _( "Set Track and Via Sizes..." ), KiBitmap( width_track_via_xpm ) );
     }
 
     // Add lock/unlock flags menu:
@@ -639,6 +626,7 @@ void PCB_EDIT_FRAME::createPopupMenuForTracks( TRACK* Track, wxMenu* PopMenu )
 void PCB_EDIT_FRAME::createPopUpMenuForZones( ZONE_CONTAINER* edge_zone, wxMenu* aPopMenu )
 {
     wxString msg;
+    GENERAL_COLLECTORS_GUIDE guide = GetCollectorsGuide();
 
     if( edge_zone->GetFlags() == IS_DRAGGED )
     {
@@ -657,19 +645,20 @@ void PCB_EDIT_FRAME::createPopUpMenuForZones( ZONE_CONTAINER* edge_zone, wxMenu*
     else
     {
         wxMenu* zones_menu = new wxMenu();
+        int     accuracy = KiROUND( 5 * guide.OnePixelInIU() );
 
         AddMenuItem( aPopMenu, zones_menu, -1,
                     edge_zone->GetIsKeepout() ? _("Keepout Area") : _( "Zones" ),
                     KiBitmap( add_zone_xpm ) );
 
-        if( edge_zone->HitTestForCorner( RefPos( true ) ) )
+        if( edge_zone->HitTestForCorner( RefPos( true ), accuracy * 2 ) )
         {
             AddMenuItem( zones_menu, ID_POPUP_PCB_MOVE_ZONE_CORNER,
-                         _( "Move" ), KiBitmap( move_xpm ) );
+                         _( "Move Corner" ), KiBitmap( move_xpm ) );
             AddMenuItem( zones_menu, ID_POPUP_PCB_DELETE_ZONE_CORNER,
-                         _( "Delete" ), KiBitmap( delete_xpm ) );
+                         _( "Delete Corner" ), KiBitmap( delete_xpm ) );
         }
-        else if( edge_zone->HitTestForEdge( RefPos( true ) ) )
+        else if( edge_zone->HitTestForEdge( RefPos( true ), accuracy ) )
         {
             AddMenuItem( zones_menu, ID_POPUP_PCB_ADD_ZONE_CORNER,
                          _( "Create Corner" ), KiBitmap( add_corner_xpm ) );
@@ -737,7 +726,7 @@ void PCB_EDIT_FRAME::createPopUpMenuForFootprints( MODULE* aModule, wxMenu* menu
 
     sub_menu_footprint = new wxMenu;
 
-    msg = aModule->GetSelectMenuText();
+    msg = aModule->GetSelectMenuText( m_UserUnits );
     AddMenuItem( menu, sub_menu_footprint, -1, msg, KiBitmap( module_xpm ) );
 
     if( !flags )
@@ -807,17 +796,9 @@ void PCB_EDIT_FRAME::createPopUpMenuForFootprints( MODULE* aModule, wxMenu* menu
 
     if( !aModule->IsLocked() )
     {
-        msg = AddHotkeyName( _("Lock Footprint" ), g_Board_Editor_Hotkeys_Descr,
-                             HK_LOCK_UNLOCK_FOOTPRINT );
-        AddMenuItem( sub_menu_footprint, ID_POPUP_PCB_AUTOPLACE_FIXE_MODULE, msg,
-                     KiBitmap( locked_xpm ) );
     }
     else
     {
-        msg = AddHotkeyName( _( "Unlock Footprint" ), g_Board_Editor_Hotkeys_Descr,
-                             HK_LOCK_UNLOCK_FOOTPRINT );
-        AddMenuItem( sub_menu_footprint, ID_POPUP_PCB_AUTOPLACE_FREE_MODULE, msg,
-                     KiBitmap( unlocked_xpm ) );
     }
 
 }
@@ -830,7 +811,7 @@ void PCB_EDIT_FRAME::createPopUpMenuForFpTexts( TEXTE_MODULE* FpText, wxMenu* me
     wxMenu*  sub_menu_Fp_text;
     int      flags = FpText->GetFlags();
 
-    wxString msg = FpText->GetSelectMenuText();
+    wxString msg = FpText->GetSelectMenuText( m_UserUnits );
 
     sub_menu_Fp_text = new wxMenu;
 
@@ -894,7 +875,7 @@ void PCB_EDIT_FRAME::createPopUpMenuForFpPads( D_PAD* Pad, wxMenu* menu )
 
     SetCurrentNetClass( Pad->GetNetClassName() );
 
-    wxString msg = Pad->GetSelectMenuText();
+    wxString msg = Pad->GetSelectMenuText( m_UserUnits );
 
     sub_menu_Pad = new wxMenu;
     AddMenuItem( menu, sub_menu_Pad, -1, msg, KiBitmap( pad_xpm ) );
@@ -913,7 +894,7 @@ void PCB_EDIT_FRAME::createPopUpMenuForFpPads( D_PAD* Pad, wxMenu* menu )
                  wxEmptyString,
                  KiBitmap( copy_pad_settings_xpm ) );
     AddMenuItem( sub_menu_Pad, ID_POPUP_PCB_APPLY_PAD_SETTINGS,
-                 _( "Apply Pad Properties" ),
+                 _( "Paste Pad Properties" ),
                  wxEmptyString,
                  KiBitmap( apply_pad_settings_xpm ) );
     AddMenuItem( sub_menu_Pad, ID_POPUP_PCB_GLOBAL_IMPORT_PAD_SETTINGS,
@@ -940,7 +921,7 @@ void PCB_EDIT_FRAME::createPopUpMenuForTexts( TEXTE_PCB* Text, wxMenu* menu )
     wxMenu*  sub_menu_Text;
     int      flags = Text->GetFlags();
 
-    wxString msg = Text->GetSelectMenuText();
+    wxString msg = Text->GetSelectMenuText( m_UserUnits );
 
     sub_menu_Text = new wxMenu;
 
@@ -988,11 +969,11 @@ void PCB_EDIT_FRAME::createPopUpMenuForMarkers( MARKER_PCB* aMarker, wxMenu* aPo
  * creates a wxMenu * which shows the last used track widths and via diameters
  * @return a pointer to the menu
  */
-static wxMenu* Append_Track_Width_List( BOARD* aBoard )
+static wxMenu* Append_Track_Width_List( BOARD* aBoard, EDA_UNITS_T aUnits )
 {
-    wxString msg;
-    wxMenu*  trackwidth_menu;
-    wxString value;
+    wxString               msg;
+    wxMenu*                trackwidth_menu;
+    BOARD_DESIGN_SETTINGS& bds = aBoard->GetDesignSettings();
 
     trackwidth_menu = new wxMenu;
 
@@ -1000,20 +981,18 @@ static wxMenu* Append_Track_Width_List( BOARD* aBoard )
                              _( "Use the track width when starting on a track, otherwise the current track width" ),
                              true );
 
-    if( aBoard->GetDesignSettings().m_UseConnectedTrackWidth )
+    if( bds.m_UseConnectedTrackWidth )
         trackwidth_menu->Check( ID_POPUP_PCB_SELECT_AUTO_WIDTH, true );
 
-    if(  aBoard->GetDesignSettings().GetViaSizeIndex() != 0
-      || aBoard->GetDesignSettings().GetTrackWidthIndex() != 0
-      || aBoard->GetDesignSettings().m_UseConnectedTrackWidth )
+    if( bds.GetViaSizeIndex() != 0 || bds.GetTrackWidthIndex() != 0 || bds.m_UseConnectedTrackWidth )
         trackwidth_menu->Append( ID_POPUP_PCB_SELECT_USE_NETCLASS_VALUES,
                                  _( "Use Netclass Values" ),
                                  _( "Use track and via sizes from their Netclass values" ),
                                  true );
 
-    for( unsigned ii = 0; ii < aBoard->GetDesignSettings().m_TrackWidthList.size(); ii++ )
+    for( unsigned ii = 0; ii < bds.m_TrackWidthList.size(); ii++ )
     {
-        value = StringFromValue( g_UserUnit, aBoard->GetDesignSettings().m_TrackWidthList[ii], true );
+        wxString value = StringFromValue( aUnits, bds.m_TrackWidthList[ii], true );
         msg.Printf( _( "Track %s" ), GetChars( value ) );
 
         if( ii == 0 )
@@ -1024,16 +1003,12 @@ static wxMenu* Append_Track_Width_List( BOARD* aBoard )
 
     trackwidth_menu->AppendSeparator();
 
-    for( unsigned ii = 0; ii < aBoard->GetDesignSettings().m_ViasDimensionsList.size(); ii++ )
+    for( unsigned ii = 0; ii < bds.m_ViasDimensionsList.size(); ii++ )
     {
-        value = StringFromValue( g_UserUnit,
-                                 aBoard->GetDesignSettings().m_ViasDimensionsList[ii].m_Diameter,
-                                 true );
-        wxString drill = StringFromValue( g_UserUnit,
-                                          aBoard->GetDesignSettings().m_ViasDimensionsList[ii].m_Drill,
-                                          true );
+        wxString value = StringFromValue( aUnits, bds.m_ViasDimensionsList[ii].m_Diameter, true );
+        wxString drill = StringFromValue( aUnits, bds.m_ViasDimensionsList[ii].m_Drill, true );
 
-        if( aBoard->GetDesignSettings().m_ViasDimensionsList[ii].m_Drill <= 0 )
+        if( bds.m_ViasDimensionsList[ii].m_Drill <= 0 )
         {
             msg.Printf( _( "Via %s" ), GetChars( value ) );
         }

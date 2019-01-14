@@ -29,6 +29,7 @@
 #include <class_pad.h>
 #include <class_track.h>
 #include <class_marker_pcb.h>
+#include <class_zone.h>
 
 
 /* This module contains out of line member functions for classes given in
@@ -149,12 +150,13 @@ const KICAD_T GENERAL_COLLECTOR::Zones[] = {
 
 SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_ITEM* testItem, void* testData )
 {
-    BOARD_ITEM* item   = (BOARD_ITEM*) testItem;
-    MODULE*     module = NULL;
-    D_PAD*      pad    = NULL;
-    bool        pad_through = false;
-    VIA*        via    = NULL;
-    MARKER_PCB* marker = NULL;
+    BOARD_ITEM*     item   = (BOARD_ITEM*) testItem;
+    MODULE*         module = NULL;
+    D_PAD*          pad    = NULL;
+    bool            pad_through = false;
+    VIA*            via    = NULL;
+    MARKER_PCB*     marker = NULL;
+    ZONE_CONTAINER* zone   = NULL;
 
 #if 0   // debugging
     static int  breakhere = 0;
@@ -268,6 +270,7 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_ITEM* testItem, void* testData )
         break;
 
     case PCB_ZONE_AREA_T:
+        zone = static_cast<ZONE_CONTAINER*>( item );
         break;
 
     case PCB_TEXT_T:
@@ -386,17 +389,14 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_ITEM* testItem, void* testData )
         }
     }
 
-    if( item->IsOnLayer( m_Guide->GetPreferredLayer() ) ||
-            m_Guide->IgnorePreferredLayer() )
+    if( item->IsOnLayer( m_Guide->GetPreferredLayer() ) || m_Guide->IgnorePreferredLayer() )
     {
         PCB_LAYER_ID layer = item->GetLayer();
 
-        /* Modules and their subcomponents: reference, value and pads
-         * are not sensitive to the layer visibility controls.  They all
-         * have their own separate visibility controls for vias,
-         * GetLayer() has no meaning, but IsOnLayer() works fine. User
-         * text in module *is* sensitive to layer visibility but that
-         * was already handled */
+        // Modules and their subcomponents: reference, value and pads are not sensitive
+        // to the layer visibility controls.  They all have their own separate visibility
+        // controls for vias, GetLayer() has no meaning, but IsOnLayer() works fine. User
+        // text in module *is* sensitive to layer visibility but that was already handled.
 
         if( via || module || pad || m_Guide->IsLayerVisible( layer )
                 || !m_Guide->IgnoreNonVisibleLayers() )
@@ -405,10 +405,24 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_ITEM* testItem, void* testData )
             {
                 if( !item->IsLocked() || !m_Guide->IgnoreLockedItems() )
                 {
-                    if( item->HitTest( m_RefPos ) )
+                    if( zone )
+                    {
+                        bool testFill = !m_Guide->IgnoreZoneFills();
+                        int  accuracy = KiROUND( 5 * m_Guide->OnePixelInIU() );
+
+                        if( zone->HitTestForCorner( m_RefPos, accuracy * 2 )
+                            || zone->HitTestForEdge( m_RefPos, accuracy )
+                            || ( testFill && zone->HitTestFilledArea( m_RefPos ) ) )
+                        {
+                            Append( item );
+                            goto exit;
+                        }
+                    }
+                    else if( item->HitTest( m_RefPos ) )
                     {
                         if( !module || module->HitTestAccurate( m_RefPos ) )
                             Append( item );
+
                         goto exit;
                     }
                 }
@@ -425,11 +439,10 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_ITEM* testItem, void* testData )
 
         PCB_LAYER_ID layer = item->GetLayer();
 
-        /* Modules and their subcomponents: reference, value and pads
-         * are not sensitive to the layer visibility controls.  They all
-         * have their own separate visibility controls. User texts
-         * follows layer visibility controls (but that was already
-         * checked) */
+        // Modules and their subcomponents: reference, value and pads are not sensitive
+        // to the layer visibility controls.  They all have their own separate visibility
+        // controls for vias, GetLayer() has no meaning, but IsOnLayer() works fine. User
+        // text in module *is* sensitive to layer visibility but that was already handled.
 
         if( via || module || pad || m_Guide->IsLayerVisible( layer )
                 || !m_Guide->IgnoreNonVisibleLayers() )
@@ -438,7 +451,20 @@ SEARCH_RESULT GENERAL_COLLECTOR::Inspect( EDA_ITEM* testItem, void* testData )
             {
                 if( !item->IsLocked() || !m_Guide->IgnoreLockedItems() )
                 {
-                    if( item->HitTest( m_RefPos ) )
+                    if( zone )
+                    {
+                        bool testFill = !m_Guide->IgnoreZoneFills();
+                        int  accuracy = KiROUND( 5 * m_Guide->OnePixelInIU() );
+
+                        if( zone->HitTestForCorner( m_RefPos, accuracy * 2 )
+                            || zone->HitTestForEdge( m_RefPos, accuracy )
+                            || ( testFill && zone->HitTestFilledArea( m_RefPos ) ) )
+                        {
+                            Append2nd( item );
+                            goto exit;
+                        }
+                    }
+                    else if( item->HitTest( m_RefPos ) )
                     {
                         Append2nd( item );
                         goto exit;

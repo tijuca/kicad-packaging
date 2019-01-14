@@ -38,7 +38,7 @@
 #include <pcb_base_frame.h>
 #include <base_units.h>
 #include <msgpanel.h>
-
+#include <pgm_base.h>
 #include <3d_viewer/eda_3d_viewer.h>                                            // To include VIEWER3D_FRAMENAME
 
 #include <pcbnew.h>
@@ -59,8 +59,10 @@
 
 #include <tool/tool_manager.h>
 #include <tool/tool_dispatcher.h>
+#include <tools/pcb_actions.h>
 
-const wxChar PCB_BASE_FRAME::CANVAS_TYPE_KEY[] = wxT( "canvas_type" );
+const wxChar PCB_BASE_FRAME::AUTO_ZOOM_KEY[] = wxT( "AutoZoom" );
+const wxChar PCB_BASE_FRAME::ZOOM_KEY[] = wxT( "Zoom" );
 
 // Configuration entry names.
 static const wxChar UserGridSizeXEntry[] = wxT( "PcbUserGrid_X" );
@@ -105,11 +107,10 @@ PCB_BASE_FRAME::PCB_BASE_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrame
         const wxString& aTitle, const wxPoint& aPos, const wxSize& aSize,
         long aStyle, const wxString & aFrameName ) :
     EDA_DRAW_FRAME( aKiway, aParent, aFrameType, aTitle, aPos, aSize, aStyle, aFrameName ),
+    m_Pcb( nullptr ),
     m_configSettings( aFrameType )
 {
-    m_Pcb                 = NULL;
-
-    m_UserGridSize        = wxPoint( 10 * IU_PER_MILS, 10 * IU_PER_MILS );
+    m_UserGridSize        = wxPoint( (int) 10 * IU_PER_MILS, (int) 10 * IU_PER_MILS );
     m_Collector           = new GENERAL_COLLECTOR();
 
     m_FastGrid1           = 0;
@@ -124,6 +125,12 @@ PCB_BASE_FRAME::PCB_BASE_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrame
 
 PCB_BASE_FRAME::~PCB_BASE_FRAME()
 {
+    // Ensure m_canvasType is up to date, to save it in config
+    if( !GetGalCanvas() )
+        m_canvasType = EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE;
+    else
+        m_canvasType = GetGalCanvas()->GetBackend();
+
     delete m_Collector;
     delete m_Pcb;
 }
@@ -169,7 +176,7 @@ FP_LIB_TABLE* PROJECT::PcbFootprintLibs()
     FP_LIB_TABLE*   tbl = (FP_LIB_TABLE*) GetElem( ELEM_FPTBL );
 
     // its gotta be NULL or a FP_LIB_TABLE, or a bug.
-    wxASSERT( !tbl || dynamic_cast<FP_LIB_TABLE*>( tbl ) );
+    wxASSERT( !tbl || tbl->Type() == FP_LIB_TABLE_T );
 
     if( !tbl )
     {
@@ -205,6 +212,35 @@ void PCB_BASE_FRAME::SetBoard( BOARD* aBoard )
         delete m_Pcb;
         m_Pcb = aBoard;
         m_Pcb->SetColorsSettings( &Settings().Colors() );
+    }
+}
+
+
+void PCB_BASE_FRAME::AddModuleToBoard( MODULE* module )
+{
+    if( module )
+    {
+        GetBoard()->Add( module, ADD_APPEND );
+
+        module->SetFlags( IS_NEW );
+
+        if( IsGalCanvasActive() )
+            module->SetPosition( wxPoint( 0, 0 ) ); // cursor in GAL may not be initialized at the moment
+        else
+            module->SetPosition( GetCrossHairPosition() );
+
+        module->SetTimeStamp( GetNewTimeStamp() );
+        GetBoard()->m_Status_Pcb = 0;
+
+        // Put it on FRONT layer,
+        // (Can be stored flipped if the lib is an archive built from a board)
+        if( module->IsFlipped() )
+            module->Flip( module->GetPosition() );
+
+        // Place it in orientation 0,
+        // even if it is not saved with orientation 0 in lib
+        // (Can happen if the lib is an archive built from a board)
+        module->SetOrientation( 0 );
     }
 }
 
@@ -293,6 +329,13 @@ void PCB_BASE_FRAME::SetDesignSettings( const BOARD_DESIGN_SETTINGS& aSettings )
 }
 
 
+void PCB_BASE_FRAME::SetDrawBgColor( COLOR4D aColor )
+{
+    m_drawBgColor= aColor;
+    m_auimgr.Update();
+}
+
+
 const ZONE_SETTINGS& PCB_BASE_FRAME::GetZoneSettings() const
 {
     wxASSERT( m_Pcb );
@@ -362,48 +405,8 @@ double PCB_BASE_FRAME::BestZoom()
 }
 
 
-void PCB_BASE_FRAME::FocusOnLocation( const wxPoint& aPos,
-                                      bool aWarpMouseCursor, bool aCenterView )
-{
-    if( IsGalCanvasActive() )
-    {
-        if( aCenterView )
-            GetGalCanvas()->GetView()->SetCenter( aPos );
-
-        if( aWarpMouseCursor )
-            GetGalCanvas()->GetViewControls()->SetCursorPosition( aPos );
-        else
-            GetGalCanvas()->GetViewControls()->SetCrossHairCursorPosition( aPos );
-    }
-    else
-    {
-        INSTALL_UNBUFFERED_DC( dc, m_canvas );
-
-        // There may be need to reframe the drawing.
-        if( aCenterView || !m_canvas->IsPointOnDisplay( aPos ) )
-        {
-            SetCrossHairPosition( aPos );
-            RedrawScreen( aPos, aWarpMouseCursor );
-        }
-        else
-        {
-            // Put cursor on item position
-            m_canvas->CrossHairOff( &dc );
-            SetCrossHairPosition( aPos );
-
-            if( aWarpMouseCursor )
-                m_canvas->MoveCursorToCrossHair();
-        }
-
-        // Be sure cross hair cursor is ON:
-        m_canvas->CrossHairOn( &dc );
-        m_canvas->CrossHairOn( &dc );
-    }
-}
-
-
 // Virtual function
-void PCB_BASE_FRAME::ReCreateMenuBar( void )
+void PCB_BASE_FRAME::ReCreateMenuBar()
 {
 }
 
@@ -543,7 +546,7 @@ void PCB_BASE_FRAME::OnTogglePadDrawMode( wxCommandEvent& aEvent )
 
     if( gal )
     {
-    // Apply new display options to the GAL canvas
+        // Apply new display options to the GAL canvas
         auto view = static_cast<KIGFX::PCB_VIEW*>( gal->GetView() );
         view->UpdateDisplayOptions( displ_opts );
 
@@ -572,6 +575,16 @@ void PCB_BASE_FRAME::OnToggleEdgeDrawMode( wxCommandEvent& aEvent )
 {
     auto displ_opts = (PCB_DISPLAY_OPTIONS*)GetDisplayOptions();
     displ_opts->m_DisplayModEdgeFill = !displ_opts->m_DisplayModEdgeFill;
+    EDA_DRAW_PANEL_GAL* gal = GetGalCanvas();
+
+    if( gal )
+    {
+        // Apply new display options to the GAL canvas
+        auto view = static_cast<KIGFX::PCB_VIEW*>( gal->GetView() );
+        view->UpdateDisplayOptions( displ_opts );
+        view->MarkTargetDirty( KIGFX::TARGET_NONCACHED );
+    }
+
     m_canvas->Refresh();
 }
 
@@ -580,6 +593,16 @@ void PCB_BASE_FRAME::OnToggleTextDrawMode( wxCommandEvent& aEvent )
 {
     auto displ_opts = (PCB_DISPLAY_OPTIONS*)GetDisplayOptions();
     displ_opts->m_DisplayModTextFill = !displ_opts->m_DisplayModTextFill;
+    EDA_DRAW_PANEL_GAL* gal = GetGalCanvas();
+
+    if( gal )
+    {
+        // Apply new display options to the GAL canvas
+        auto view = static_cast<KIGFX::PCB_VIEW*>( gal->GetView() );
+        view->UpdateDisplayOptions( displ_opts );
+        view->MarkTargetDirty( KIGFX::TARGET_NONCACHED );
+    }
+
     m_canvas->Refresh();
 }
 
@@ -638,6 +661,12 @@ void PCB_BASE_FRAME::OnUpdateEdgeDrawMode( wxUpdateUIEvent& aEvent )
 {
     auto displ_opts = (PCB_DISPLAY_OPTIONS*)GetDisplayOptions();
     aEvent.Check( !displ_opts->m_DisplayModEdgeFill );
+
+    wxString msgEdgesFill[2] = { _( "Show outlines in filled mode" ),
+                                 _( "Show outlines in sketch mode" ) };
+
+    unsigned i = displ_opts->m_DisplayModTextFill == SKETCH ? 0 : 1;
+    m_optionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH, msgEdgesFill[i] );
 }
 
 
@@ -645,35 +674,17 @@ void PCB_BASE_FRAME::OnUpdateTextDrawMode( wxUpdateUIEvent& aEvent )
 {
     auto displ_opts = (PCB_DISPLAY_OPTIONS*)GetDisplayOptions();
     aEvent.Check( !displ_opts->m_DisplayModTextFill );
-}
 
-
-void PCB_BASE_FRAME::OnUpdateSelectGrid( wxUpdateUIEvent& aEvent )
-{
-    // No need to update the grid select box if it doesn't exist or the grid setting change
-    // was made using the select box.
-    if( m_gridSelectBox == NULL || m_auxiliaryToolBar == NULL )
-        return;
-
-    int select = wxNOT_FOUND;
-
-    for( size_t i = 0; i < GetScreen()->GetGridCount(); i++ )
-    {
-        if( GetScreen()->GetGridCmdId() == GetScreen()->GetGrid( i ).m_CmdId )
-        {
-            select = (int) i;
-            break;
-        }
-    }
-
-    if( select != m_gridSelectBox->GetSelection() )
-        m_gridSelectBox->SetSelection( select );
+    wxString msgTextsFill[2] = { _( "Show texts in filled mode" ),
+                                 _( "Show texts in sketch mode" ) };
+    unsigned i = displ_opts->m_DisplayModTextFill == SKETCH ? 0 : 1;
+    m_optionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH, msgTextsFill[i] );
 }
 
 
 void PCB_BASE_FRAME::OnUpdateSelectZoom( wxUpdateUIEvent& aEvent )
 {
-    if( m_zoomSelectBox == NULL || m_auxiliaryToolBar == NULL )
+    if( m_zoomSelectBox == NULL || m_zoomSelectBox->GetParent() == NULL )
         return;
 
     int current = 0;    // display Auto if no match found
@@ -732,14 +743,14 @@ void PCB_BASE_FRAME::UpdateMsgPanel()
 
     if( item )
     {
-        item->GetMsgPanelInfo( items );
+        item->GetMsgPanelInfo( m_UserUnits, items );
     }
     else       // show general information about the board
     {
         if( IsGalCanvasActive() )
-            GetGalCanvas()->GetMsgPanelInfo( items );
+            GetGalCanvas()->GetMsgPanelInfo( m_UserUnits, items );
         else
-            m_Pcb->GetMsgPanelInfo( items );
+            m_Pcb->GetMsgPanelInfo( m_UserUnits, items );
     }
 
     SetMsgPanel( items );
@@ -754,8 +765,8 @@ BOARD_ITEM* PCB_BASE_FRAME::GetCurItem()
 
 GENERAL_COLLECTORS_GUIDE PCB_BASE_FRAME::GetCollectorsGuide()
 {
-    GENERAL_COLLECTORS_GUIDE guide( m_Pcb->GetVisibleLayers(),
-                                    GetActiveLayer() );
+    GENERAL_COLLECTORS_GUIDE guide( m_Pcb->GetVisibleLayers(), GetActiveLayer(),
+                                    GetGalCanvas()->GetView() );
 
     // account for the globals
     guide.SetIgnoreMTextsMarkedNoShow( ! m_Pcb->IsElementVisible( LAYER_MOD_TEXT_INVISIBLE ) );
@@ -765,6 +776,7 @@ GENERAL_COLLECTORS_GUIDE PCB_BASE_FRAME::GetCollectorsGuide()
     guide.SetIgnoreModulesOnFront( ! m_Pcb->IsElementVisible( LAYER_MOD_FR ) );
     guide.SetIgnorePadsOnBack( ! m_Pcb->IsElementVisible( LAYER_PAD_BK ) );
     guide.SetIgnorePadsOnFront( ! m_Pcb->IsElementVisible( LAYER_PAD_FR ) );
+    guide.SetIgnoreThroughHolePads( ! m_Pcb->IsElementVisible( LAYER_PADS_TH ) );
     guide.SetIgnoreModulesVals( ! m_Pcb->IsElementVisible( LAYER_MOD_VALUES ) );
     guide.SetIgnoreModulesRefs( ! m_Pcb->IsElementVisible( LAYER_MOD_REFERENCES ) );
     guide.SetIgnoreThroughVias( ! m_Pcb->IsElementVisible( LAYER_VIA_THROUGH ) );
@@ -832,7 +844,7 @@ void PCB_BASE_FRAME::UpdateStatusBar()
 
         ro = hypot( dx, dy );
         wxString formatter;
-        switch( g_UserUnit )
+        switch( GetUserUnits() )
         {
         case INCHES:
             formatter = wxT( "r %.6f  theta %.1f" );
@@ -851,19 +863,19 @@ void PCB_BASE_FRAME::UpdateStatusBar()
             break;
         }
 
-        line.Printf( formatter, To_User_Unit( g_UserUnit, ro ), theta );
+        line.Printf( formatter, To_User_Unit( GetUserUnits(), ro ), theta );
 
         SetStatusText( line, 3 );
     }
 
     // Display absolute coordinates:
-    dXpos = To_User_Unit( g_UserUnit, GetCrossHairPosition().x );
-    dYpos = To_User_Unit( g_UserUnit, GetCrossHairPosition().y );
+    dXpos = To_User_Unit( GetUserUnits(), GetCrossHairPosition().x );
+    dYpos = To_User_Unit( GetUserUnits(), GetCrossHairPosition().y );
 
     // The following sadly is an if Eeschema/if Pcbnew
     wxString absformatter;
 
-    switch( g_UserUnit )
+    switch( GetUserUnits() )
     {
     case INCHES:
         absformatter = wxT( "X %.6f  Y %.6f" );
@@ -893,8 +905,8 @@ void PCB_BASE_FRAME::UpdateStatusBar()
         // Display relative coordinates:
         dx = GetCrossHairPosition().x - screen->m_O_Curseur.x;
         dy = GetCrossHairPosition().y - screen->m_O_Curseur.y;
-        dXpos = To_User_Unit( g_UserUnit, dx );
-        dYpos = To_User_Unit( g_UserUnit, dy );
+        dXpos = To_User_Unit( GetUserUnits(), dx );
+        dYpos = To_User_Unit( GetUserUnits(), dy );
 
         // We already decided the formatter above
         line.Printf( locformatter, dXpos, dYpos, hypot( dXpos, dYpos ) );
@@ -907,7 +919,7 @@ void PCB_BASE_FRAME::unitsChangeRefresh()
 {
     EDA_DRAW_FRAME::unitsChangeRefresh();    // Update the status bar.
 
-    updateGridSelectBox();
+    UpdateGridSelectBox();
 }
 
 
@@ -953,9 +965,9 @@ void PCB_BASE_FRAME::SaveSettings( wxConfigBase* aCfg )
 
     wxString baseCfgName = GetName();
 
-    aCfg->Write( baseCfgName + UserGridSizeXEntry, To_User_Unit( g_UserUnit, m_UserGridSize.x ) );
-    aCfg->Write( baseCfgName + UserGridSizeYEntry, To_User_Unit( g_UserUnit, m_UserGridSize.y ) );
-    aCfg->Write( baseCfgName + UserGridUnitsEntry, ( long )g_UserUnit );
+    aCfg->Write( baseCfgName + UserGridSizeXEntry, To_User_Unit( m_UserUnits, m_UserGridSize.x ) );
+    aCfg->Write( baseCfgName + UserGridSizeYEntry, To_User_Unit( m_UserUnits, m_UserGridSize.y ) );
+    aCfg->Write( baseCfgName + UserGridUnitsEntry, ( long )m_UserUnits );
     aCfg->Write( baseCfgName + DisplayPadFillEntry, m_DisplayOptions.m_DisplayPadFill );
     aCfg->Write( baseCfgName + DisplayViaFillEntry, m_DisplayOptions.m_DisplayViaFill );
     aCfg->Write( baseCfgName + DisplayPadNumberEntry, m_DisplayOptions.m_DisplayPadNum );
@@ -963,6 +975,26 @@ void PCB_BASE_FRAME::SaveSettings( wxConfigBase* aCfg )
     aCfg->Write( baseCfgName + DisplayModuleTextEntry, m_DisplayOptions.m_DisplayModTextFill );
     aCfg->Write( baseCfgName + FastGrid1Entry, ( long )m_FastGrid1 );
     aCfg->Write( baseCfgName + FastGrid2Entry, ( long )m_FastGrid2 );
+}
+
+
+void PCB_BASE_FRAME::CommonSettingsChanged()
+{
+    EDA_DRAW_FRAME::CommonSettingsChanged();
+
+    ReCreateHToolbar();
+    ReCreateAuxiliaryToolbar();
+    ReCreateVToolbar();
+    ReCreateOptToolbar();
+
+    EDA_3D_VIEWER* viewer = Get3DViewerFrame();
+
+    if( viewer )
+    {
+        bool option;
+        Pgm().CommonSettings()->Read( ENBL_MOUSEWHEEL_PAN_KEY, &option );
+        viewer->GetSettings().SetFlag( FL_MOUSEWHEEL_PANNING, option );
+    }
 }
 
 
@@ -985,7 +1017,7 @@ const wxString PCB_BASE_FRAME::GetZoomLevelIndicator() const
 }
 
 
-void PCB_BASE_FRAME::updateGridSelectBox()
+void PCB_BASE_FRAME::UpdateGridSelectBox()
 {
     UpdateStatusBar();
     DisplayUnitsMsg();
@@ -996,7 +1028,7 @@ void PCB_BASE_FRAME::updateGridSelectBox()
     // Update grid values with the current units setting.
     m_gridSelectBox->Clear();
     wxArrayString gridsList;
-    int icurr = GetScreen()->BuildGridsChoiceList( gridsList, g_UserUnit != INCHES );
+    int icurr = GetScreen()->BuildGridsChoiceList( gridsList, GetUserUnits() != INCHES );
 
     for( size_t i = 0; i < GetScreen()->GetGridCount(); i++ )
     {
@@ -1004,8 +1036,12 @@ void PCB_BASE_FRAME::updateGridSelectBox()
         m_gridSelectBox->Append( gridsList[i], (void*) &grid.m_CmdId );
     }
 
+    m_gridSelectBox->Append( wxT( "---" ) );
+    m_gridSelectBox->Append( _( "Edit user grid..." ) );
+
     m_gridSelectBox->SetSelection( icurr );
 }
+
 
 void PCB_BASE_FRAME::updateZoomSelectBox()
 {
@@ -1044,7 +1080,7 @@ void PCB_BASE_FRAME::SetFastGrid1()
 
     if( m_gridSelectBox )
     {
-        wxCommandEvent cmd( wxEVT_CHOICE );
+        wxCommandEvent cmd( wxEVT_COMBOBOX );
         cmd.SetEventObject( this );
         OnSelectGrid( cmd );
     }
@@ -1063,7 +1099,7 @@ void PCB_BASE_FRAME::SetFastGrid2()
 
     if( m_gridSelectBox )
     {
-        wxCommandEvent cmd( wxEVT_CHOICE );
+        wxCommandEvent cmd( wxEVT_COMBOBOX );
         cmd.SetEventObject( this );
         OnSelectGrid( cmd );
     }
@@ -1077,7 +1113,7 @@ void PCB_BASE_FRAME::SetNextGrid()
 
     if( m_gridSelectBox )
     {
-        wxCommandEvent cmd( wxEVT_CHOICE );
+        wxCommandEvent cmd( wxEVT_COMBOBOX );
         cmd.SetEventObject( this );
         OnSelectGrid( cmd );
     }
@@ -1092,7 +1128,7 @@ void PCB_BASE_FRAME::SetPrevGrid()
 
     if( m_gridSelectBox )
     {
-        wxCommandEvent cmd( wxEVT_CHOICE );
+        wxCommandEvent cmd( wxEVT_COMBOBOX );
         cmd.SetEventObject( this );
         OnSelectGrid( cmd );
     }
@@ -1122,7 +1158,7 @@ void PCB_BASE_FRAME::UseGalCanvas( bool aEnable )
         auto painter = static_cast<KIGFX::PCB_PAINTER*>( galCanvas->GetView()->GetPainter() );
         auto settings = painter->GetSettings();
         auto displ_opts = (PCB_DISPLAY_OPTIONS*)GetDisplayOptions();
-        settings->LoadDisplayOptions( displ_opts );
+        settings->LoadDisplayOptions( displ_opts, ShowPageLimits() );
 
         galCanvas->GetView()->RecacheAllItems();
         galCanvas->SetEventDispatcher( m_toolDispatcher );

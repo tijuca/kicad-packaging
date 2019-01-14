@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -33,7 +33,7 @@
 #include <base_struct.h>
 #include <draw_graphic_text.h>
 #include <kicad_string.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <plotter.h>
 #include <trigo.h>
 #include <base_units.h>
@@ -58,6 +58,14 @@ LIB_FIELD::LIB_FIELD( int idfield ) :
     LIB_ITEM( LIB_FIELD_T, NULL )
 {
     Init( idfield );
+}
+
+
+LIB_FIELD::LIB_FIELD( int aID, wxString& aName ) :
+    LIB_ITEM( LIB_FIELD_T, NULL )
+{
+    Init( aID );
+    m_name = aName;
 }
 
 
@@ -109,7 +117,19 @@ void LIB_FIELD::Init( int id )
 
 int LIB_FIELD::GetPenSize() const
 {
-    return GetThickness() == 0 ? GetDefaultLineThickness() : GetThickness();
+    int pensize = GetThickness();
+
+    if( pensize == 0 )   // Use default values for pen size
+    {
+        if( IsBold() )
+            pensize = GetPenSizeForBold( GetTextWidth() );
+        else
+            pensize = GetDefaultLineThickness();
+    }
+
+    // Clip pen size for small texts:
+    pensize = Clamp_Text_PenSize( pensize, GetTextSize(), IsBold() );
+    return pensize;
 }
 
 
@@ -120,11 +140,6 @@ void LIB_FIELD::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& a
     wxPoint  text_pos;
     COLOR4D color = COLOR4D::UNSPECIFIED;
     int      linewidth = GetPenSize();
-
-    if( IsBold() )
-        linewidth = GetPenSizeForBold( GetTextWidth() );
-    else
-        linewidth = Clamp_Text_PenSize( linewidth, GetTextSize(), IsBold() );
 
     if( !IsVisible() && ( aColor == COLOR4D::UNSPECIFIED ) )
     {
@@ -393,26 +408,27 @@ const EDA_RECT LIB_FIELD::GetBoundingBox() const
 }
 
 
-COLOR4D LIB_FIELD::GetDefaultColor()
+void LIB_FIELD::ViewGetLayers( int aLayers[], int& aCount ) const
 {
-    COLOR4D color;
+    aCount      = 1;
 
     switch( m_id )
     {
-    case REFERENCE:
-        color = GetLayerColor( LAYER_REFERENCEPART );
-        break;
-
-    case VALUE:
-        color = GetLayerColor( LAYER_VALUEPART );
-        break;
-
-    default:
-        color = GetLayerColor( LAYER_FIELDS );
-        break;
+    case REFERENCE: aLayers[0] = LAYER_REFERENCEPART; break;
+    case VALUE:     aLayers[0] = LAYER_VALUEPART;     break;
+    default:        aLayers[0] = LAYER_FIELDS;        break;
     }
+}
 
-    return color;
+
+COLOR4D LIB_FIELD::GetDefaultColor()
+{
+    switch( m_id )
+    {
+    case REFERENCE: return GetLayerColor( LAYER_REFERENCEPART );
+    case VALUE:     return GetLayerColor( LAYER_VALUEPART );
+    default:        return GetLayerColor( LAYER_FIELDS );
+    }
 }
 
 
@@ -507,18 +523,6 @@ void LIB_FIELD::SetText( const wxString& aText )
     wxString oldValue( m_Text );
     wxString newValue( aText );
 
-    if( m_id == VALUE && m_Parent != NULL )
-    {
-        LIB_PART* parent = GetParent();
-
-        // Set the parent component and root alias to the new name.
-        if( parent->GetName().CmpNoCase( aText ) != 0 )
-        {
-            ReplaceIllegalFileNameChars( newValue, '_' );
-            parent->SetName( newValue );
-        }
-    }
-
     if( InEditMode() )
     {
         m_Text = oldValue;
@@ -532,11 +536,9 @@ void LIB_FIELD::SetText( const wxString& aText )
 }
 
 
-wxString LIB_FIELD::GetSelectMenuText() const
+wxString LIB_FIELD::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
-    return wxString::Format( _( "Field %s %s" ),
-                             GetChars( GetName() ),
-                             GetChars( ShortenedShownText() ) );
+    return wxString::Format( _( "Field %s \"%s\"" ), GetName(), ShortenedShownText() );
 }
 
 
@@ -549,7 +551,6 @@ void LIB_FIELD::BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition )
     {
         m_initialPos = GetTextPos();
         m_initialCursorPos = aPosition;
-        SetEraseLastDrawItem();
     }
     else
     {
@@ -577,11 +578,10 @@ void LIB_FIELD::EndEdit( const wxPoint& aPosition, bool aAbort )
     m_Flags = 0;
     m_rotate = false;
     m_updateText = false;
-    SetEraseLastDrawItem( false );
 }
 
 
-void LIB_FIELD::calcEdit( const wxPoint& aPosition )
+void LIB_FIELD::CalcEdit( const wxPoint& aPosition )
 {
     if( m_rotate )
     {
@@ -606,25 +606,24 @@ void LIB_FIELD::calcEdit( const wxPoint& aPosition )
 }
 
 
-void LIB_FIELD::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
+void LIB_FIELD::GetMsgPanelInfo( EDA_UNITS_T aUnits, MSG_PANEL_ITEMS& aList )
 {
     wxString msg;
 
-    LIB_ITEM::GetMsgPanelInfo( aList );
+    LIB_ITEM::GetMsgPanelInfo( aUnits, aList );
 
     // Display style:
     msg = GetTextStyleName();
     aList.push_back( MSG_PANEL_ITEM( _( "Style" ), msg, MAGENTA ) );
 
-    msg = StringFromValue( g_UserUnit, GetTextWidth(), true );
+    msg = MessageTextFromValue( aUnits, GetTextWidth(), true );
     aList.push_back( MSG_PANEL_ITEM( _( "Width" ), msg, BLUE ) );
 
-    msg = StringFromValue( g_UserUnit, GetTextHeight(), true );
+    msg = MessageTextFromValue( aUnits, GetTextHeight(), true );
     aList.push_back( MSG_PANEL_ITEM( _( "Height" ), msg, BLUE ) );
 
     // Display field name (ref, value ...)
-    msg = GetName();
-    aList.push_back( MSG_PANEL_ITEM( _( "Field" ), msg, BROWN ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Field" ), GetName(), BROWN ) );
 
     // Display field text:
     aList.push_back( MSG_PANEL_ITEM( _( "Value" ), GetShownText(), BROWN ) );

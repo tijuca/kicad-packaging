@@ -28,9 +28,12 @@
 #include <vector>
 #include <set>
 #include <unordered_map>
+#include <memory>
 
 #include <math/box2.h>
 #include <gal/definitions.h>
+
+#include <view/view_overlay.h>
 
 namespace KIGFX
 {
@@ -272,16 +275,27 @@ public:
      * Sets limits for view area.
      * @param aBoundary is the box that limits view area.
      */
-    inline void SetBoundary( const BOX2I& aBoundary )
+    inline void SetBoundary( const BOX2D& aBoundary )
     {
         m_boundary = aBoundary;
+    }
+
+     /**
+     * Function SetBoundary()
+     * Sets limits for view area.
+     * @param aBoundary is the box that limits view area.
+     */
+    inline void SetBoundary( const BOX2I& aBoundary )
+    {
+        m_boundary.SetOrigin( aBoundary.GetOrigin() );
+        m_boundary.SetEnd( aBoundary.GetEnd() );
     }
 
     /**
      * Function GetBoundary()
      * @return Current view area boundary.
      */
-    inline const BOX2I& GetBoundary() const
+    inline const BOX2D& GetBoundary() const
     {
         return m_boundary;
     }
@@ -307,6 +321,15 @@ public:
      * @param aCenter: the new center point, in world space coordinates.
      */
     void SetCenter( const VECTOR2D& aCenter );
+
+    /**
+     * Function SetCenter()
+     * Sets the center point of the VIEW, attempting to avoid \a occultingScreenRect (for
+     * instance, the screen rect of a modeless dialog in front of the VIEW).
+     * @param aCenter: the new center point, in world space coordinates.
+     * @param occultingScreenRect: the occulting rect, in screen space coordinates.
+     */
+    void SetCenter( VECTOR2D aCenter, const BOX2D& occultingScreenRect );
 
     /**
      * Function GetCenter()
@@ -386,7 +409,7 @@ public:
      */
     inline void SetLayerVisible( int aLayer, bool aVisible = true )
     {
-        wxASSERT( aLayer < (int) m_layers.size() );
+        wxCHECK( aLayer < (int) m_layers.size(), /*void*/ );
 
         if( m_layers[aLayer].visible != aVisible )
         {
@@ -403,15 +426,13 @@ public:
      */
     inline bool IsLayerVisible( int aLayer ) const
     {
-        wxASSERT( aLayer < (int) m_layers.size() );
-
+        wxCHECK( aLayer < (int) m_layers.size(), false );
         return m_layers.at( aLayer ).visible;
     }
 
     inline void SetLayerDisplayOnly( int aLayer, bool aDisplayOnly = true )
     {
-        wxASSERT( aLayer < (int) m_layers.size() );
-
+        wxCHECK( aLayer < (int) m_layers.size(), /*void*/ );
         m_layers[aLayer].displayOnly = aDisplayOnly;
     }
 
@@ -423,8 +444,7 @@ public:
      */
     inline void SetLayerTarget( int aLayer, RENDER_TARGET aTarget )
     {
-        wxASSERT( aLayer < (int) m_layers.size() );
-
+        wxCHECK( aLayer < (int) m_layers.size(), /*void*/ );
         m_layers[aLayer].target = aTarget;
     }
 
@@ -564,8 +584,7 @@ public:
      */
     bool IsTargetDirty( int aTarget ) const
     {
-        wxASSERT( aTarget < TARGETS_NUMBER );
-
+        wxCHECK( aTarget < TARGETS_NUMBER, false );
         return m_dirtyTargets[aTarget];
     }
 
@@ -576,15 +595,14 @@ public:
      */
     inline void MarkTargetDirty( int aTarget )
     {
-        wxASSERT( aTarget < TARGETS_NUMBER );
-
+        wxCHECK( aTarget < TARGETS_NUMBER, /* void */ );
         m_dirtyTargets[aTarget] = true;
     }
 
     /// Returns true if the layer is cached
     inline bool IsCached( int aLayer ) const
     {
-        wxASSERT( aLayer < (int) m_layers.size() );
+        wxCHECK( aLayer < (int) m_layers.size(), false );
 
         try
         {
@@ -633,8 +651,6 @@ public:
     void UpdateAllItemsConditionally( int aUpdateFlags,
                                       std::function<bool( VIEW_ITEM* )> aCondition );
 
-    const BOX2I CalculateExtents() ;
-
     /**
      * Function IsUsingDrawPriority()
      * @return true if draw priority is being respected while redrawing.
@@ -672,15 +688,35 @@ public:
         m_reverseDrawOrder = aFlag;
     }
 
-    static const int VIEW_MAX_LAYERS = 512;      ///< maximum number of layers that may be shown
+    std::shared_ptr<VIEW_OVERLAY> MakeOverlay();
 
+    /**
+     * Returns a new VIEW object that shares the same set of VIEW_ITEMs and LAYERs.
+     * GAL, PAINTER and other properties are left uninitialized.
+     */
+    std::unique_ptr<VIEW> DataReference() const;
 
-private:
+    /**
+     * @return the printing mode.
+     * if return <= 0, the current mode is not a printing mode, just the draw mode
+     */
+    int GetPrintMode() { return m_printMode; }
+
+    /**
+     * Set the printing mode.
+     * @param aPrintMode is the printing mode.
+     * If 0, the current mode is not a printing mode, just the draw mode
+     */
+    void SetPrintMode( int aPrintMode ) { m_printMode = aPrintMode; }
+
+    static constexpr int VIEW_MAX_LAYERS = 512;      ///< maximum number of layers that may be shown
+
+protected:
     struct VIEW_LAYER
     {
         bool                    visible;         ///< is the layer to be rendered?
         bool                    displayOnly;     ///< is the layer display only?
-        VIEW_RTREE*             items;           ///< R-tree indexing all items on this layer.
+        std::shared_ptr<VIEW_RTREE> items;       ///< R-tree indexing all items on this layer.
         int                     renderingOrder;  ///< rendering order of this layer
         int                     id;              ///< layer ID
         RENDER_TARGET           target;          ///< where the layer should be rendered
@@ -708,8 +744,7 @@ private:
 
     inline void markTargetClean( int aTarget )
     {
-        wxASSERT( aTarget < TARGETS_NUMBER );
-
+        wxCHECK( aTarget < TARGETS_NUMBER, /* void */ );
         m_dirtyTargets[aTarget] = false;
     }
 
@@ -787,6 +822,9 @@ private:
     /// Contains set of possible displayed layers and its properties
     LAYER_MAP m_layers;
 
+    /// Flat list of all items
+    std::shared_ptr<std::vector<VIEW_ITEM*>> m_allItems;
+
     /// Sorted list of pointers to members of m_layers
     LAYER_ORDER m_orderedLayers;
 
@@ -800,7 +838,7 @@ private:
     double m_scale;
 
     /// View boundaries
-    BOX2I m_boundary;
+    BOX2D m_boundary;
 
     /// Scale lower limit
     double m_minScale;
@@ -831,8 +869,6 @@ private:
     static const int TOP_LAYER_MODIFIER;
 
     /// Flat list of all items
-    std::vector<VIEW_ITEM*> m_allItems;
-
     /// Flag to respect draw priority when drawing items
     bool m_useDrawPriority;
 
@@ -841,6 +877,12 @@ private:
 
     /// Flag to reverse the draw order when using draw priority
     bool m_reverseDrawOrder;
+
+    /// A control for printing: m_printMode <= 0 means no printing mode (normal draw mode
+    /// m_printMode > 0 is a printing mode (currently means "we are in printing mode")
+    int m_printMode;
+
+    VIEW( const VIEW& ) = delete;
 };
 } // namespace KIGFX
 

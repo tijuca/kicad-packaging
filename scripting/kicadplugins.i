@@ -102,7 +102,7 @@ def LoadOnePlugin(Dirname, ModuleName):
     try:  # If there is an error loading the script, skip it
         mtime = os.path.getmtime(module_filename)
 
-        if KICAD_PLUGINS.has_key(ModuleName):
+        if ModuleName in KICAD_PLUGINS:
             plugin = KICAD_PLUGINS[ModuleName]
 
             if not plugin["modification_time"] == mtime:
@@ -121,8 +121,7 @@ def LoadOnePlugin(Dirname, ModuleName):
         if NOT_LOADED_WIZARDS != "" :
             NOT_LOADED_WIZARDS += "\n"
         NOT_LOADED_WIZARDS += module_filename
-        FULL_BACK_TRACE += traceback.format_exc(sys.exc_info())
-        pass
+        FULL_BACK_TRACE += traceback.format_exc()
 
 
 
@@ -154,8 +153,7 @@ def LoadOneSubdirPlugin(Dirname, SubDirname):
                 if NOT_LOADED_WIZARDS != "" :
                     NOT_LOADED_WIZARDS += "\n"
                 NOT_LOADED_WIZARDS += fullPath
-                FULL_BACK_TRACE += traceback.format_exc(sys.exc_info())
-                pass
+                FULL_BACK_TRACE += traceback.format_exc()
 
         else:
             if NOT_LOADED_WIZARDS != "" :
@@ -260,7 +258,7 @@ def LoadPlugins(bundlepath=None):
             if module == '__init__.py' or module[-3:] != '.py':
                 continue
 
-            LoadOnePlugin(plugins_dir, module);
+            LoadOnePlugin(plugins_dir, module)
 
 
 class KiCadPlugin:
@@ -268,6 +266,9 @@ class KiCadPlugin:
         pass
 
     def register(self):
+        import inspect
+        import os
+
         if isinstance(self,FilePlugin):
             pass # register to file plugins in C++
 
@@ -276,6 +277,14 @@ class KiCadPlugin:
             return
 
         if isinstance(self,ActionPlugin):
+            """
+            Get path to .py or .pyc that has definition of plugin class.
+            If path is binary but source also exists, assume definition is in source.
+            """
+            self.__plugin_path = inspect.getfile(self.__class__)
+            if self.__plugin_path.endswith('.pyc') and os.path.isfile(self.__plugin_path[:-1]):
+                self.__plugin_path = self.__plugin_path[:-1]
+            self.__plugin_path = self.__plugin_path + '/' + self.__class__.__name__
             PYTHON_ACTION_PLUGINS.register_action(self)
             return
 
@@ -294,6 +303,9 @@ class KiCadPlugin:
             return
 
         return
+
+    def GetPluginPath( self ):
+        return self.__plugin_path
 
 
 class FilePlugin(KiCadPlugin):
@@ -633,6 +645,8 @@ class FootprintWizardPlugin(KiCadPlugin, object):
 class ActionPlugin(KiCadPlugin, object):
     def __init__( self ):
         KiCadPlugin.__init__( self )
+        self.icon_file_name = ""
+        self.show_toolbar_button = False
         self.defaults()
 
     def defaults( self ):
@@ -648,6 +662,12 @@ class ActionPlugin(KiCadPlugin, object):
 
     def GetDescription( self ):
         return self.description
+
+    def GetShowToolbarButton( self ):
+        return self.show_toolbar_button
+
+    def GetIconFileName( self ):
+        return self.icon_file_name
 
     def Run(self):
         return

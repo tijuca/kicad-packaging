@@ -580,6 +580,88 @@ BOARD* PCB_PARSER::parseBOARD_unchecked()
         }
     }
 
+    if( m_undefinedLayers.size() > 0 )
+    {
+        bool deleteItems;
+        std::vector<BOARD_ITEM*> deleteList;
+        wxString msg = wxString::Format( _( "Items found on undefined layers.  Do you wish to\n"
+                                            "rescue them to the Cmts.User layer?" ) );
+        wxString details = wxString::Format( _( "Undefined layers:" ) );
+
+        for( const wxString& undefinedLayer : m_undefinedLayers )
+            details += wxT( "\n   " ) + undefinedLayer;
+
+        wxRichMessageDialog dlg( nullptr, msg, _( "Warning" ),
+                                 wxYES_NO | wxCANCEL | wxCENTRE | wxICON_WARNING | wxSTAY_ON_TOP );
+        dlg.ShowDetailedText( details );
+        dlg.SetYesNoCancelLabels( _( "Rescue" ), _( "Delete" ), _( "Cancel" ) );
+
+        switch( dlg.ShowModal() )
+        {
+        case wxID_YES:    deleteItems = false; break;
+        case wxID_NO:     deleteItems = true;  break;
+        case wxID_CANCEL:
+        default:          THROW_IO_ERROR( wxT( "CANCEL" ) );
+        }
+
+        auto visitItem = [&]( BOARD_ITEM* item )
+                            {
+                                if( item->GetLayer() == Rescue )
+                                {
+                                    if( deleteItems )
+                                        deleteList.push_back( item );
+                                    else
+                                        item->SetLayer( Cmts_User );
+                                }
+                            };
+
+        for( TRACK* segm = m_board->m_Track;  segm;  segm = segm->Next() )
+        {
+            if( segm->Type() == PCB_VIA_T )
+            {
+                VIA*         via = (VIA*) segm;
+                PCB_LAYER_ID top_layer, bottom_layer;
+
+                if( via->GetViaType() == VIA_THROUGH )
+                    continue;
+
+                via->LayerPair( &top_layer, &bottom_layer );
+
+                if( top_layer == Rescue || bottom_layer == Rescue )
+                {
+                    if( deleteItems )
+                        deleteList.push_back( via );
+                    else
+                    {
+                        if( top_layer == Rescue )
+                            top_layer = F_Cu;
+
+                        if( bottom_layer == Rescue )
+                            bottom_layer = B_Cu;
+
+                        via->SetLayerPair( top_layer, bottom_layer );
+                    }
+                }
+            }
+            else
+                visitItem( segm );
+        }
+
+        for( TRACK* segm = m_board->m_SegZoneDeprecated; segm; segm = segm->Next() )
+            visitItem( segm );
+
+        for( BOARD_ITEM* zone : m_board->Zones() )
+            visitItem( zone );
+
+        for( BOARD_ITEM* drawing : m_board->Drawings() )
+            visitItem( drawing );
+
+        for( BOARD_ITEM* item : deleteList )
+            m_board->Delete( item );
+
+        m_undefinedLayers.clear();
+    }
+
     return m_board;
 }
 
@@ -976,17 +1058,8 @@ T PCB_PARSER::lookUpLayer( const M& aMap )
         }
 #endif
 
-        wxString error = wxString::Format( _(
-                "Layer \"%s\" in file\n"
-                "\"%s\"\n"
-                "at line %d, position %d\n"
-                "was not defined in the layers section"
-                ),
-            GetChars( FROM_UTF8( CurText() ) ),
-            GetChars( CurSource() ),
-            CurLineNumber(), CurOffset() );
-
-        THROW_IO_ERROR( error );
+        m_undefinedLayers.insert( curText );
+        return Rescue;
     }
 
     return it->second;
@@ -1077,16 +1150,6 @@ void PCB_PARSER::parseSetup()
             NeedRIGHT();
             break;
 
-        case T_segment_width:
-            designSettings.m_DrawSegmentWidth = parseBoardUnits( T_segment_width );
-            NeedRIGHT();
-            break;
-
-        case T_edge_width:
-            designSettings.m_EdgeSegmentWidth = parseBoardUnits( T_edge_width );
-            NeedRIGHT();
-            break;
-
         case T_via_size:
             defaultNetClass->SetViaDiameter( parseBoardUnits( T_via_size ) );
             NeedRIGHT();
@@ -1146,30 +1209,45 @@ void PCB_PARSER::parseSetup()
             NeedRIGHT();
             break;
 
-        case T_pcb_text_width:
-            designSettings.m_PcbTextWidth = parseBoardUnits( T_pcb_text_width );
+        // 6.0 TODO: change these names, or leave them?
+        // 6.0 TODO: add LAYER_CLASS_OTHERS read/write
+        // 6.0 TODO: add m_TextItalic read/write
+        // 6.0 TODO: add m_TextUpright read/write
+
+        case T_segment_width:
+            designSettings.m_LineThickness[ LAYER_CLASS_COPPER ] = parseBoardUnits( T_segment_width );
             NeedRIGHT();
             break;
 
-        case T_pcb_text_size:
-            designSettings.m_PcbTextSize.x = parseBoardUnits( "pcb text width" );
-            designSettings.m_PcbTextSize.y = parseBoardUnits( "pcb text height" );
+        case T_edge_width:
+            designSettings.m_LineThickness[ LAYER_CLASS_EDGES ] = parseBoardUnits( T_edge_width );
             NeedRIGHT();
             break;
 
         case T_mod_edge_width:
-            designSettings.m_ModuleSegmentWidth = parseBoardUnits( T_mod_edge_width );
+            designSettings.m_LineThickness[ LAYER_CLASS_SILK ] = parseBoardUnits( T_mod_edge_width );
             NeedRIGHT();
             break;
 
-        case T_mod_text_size:
-            designSettings.m_ModuleTextSize.x = parseBoardUnits( "module text width" );
-            designSettings.m_ModuleTextSize.y = parseBoardUnits( "module text height" );
+        case T_pcb_text_width:
+            designSettings.m_TextThickness[ LAYER_CLASS_COPPER ] = parseBoardUnits( T_pcb_text_width );
             NeedRIGHT();
             break;
 
         case T_mod_text_width:
-            designSettings.m_ModuleTextWidth = parseBoardUnits( T_mod_text_width );
+            designSettings.m_TextThickness[ LAYER_CLASS_SILK ] = parseBoardUnits( T_mod_text_width );
+            NeedRIGHT();
+            break;
+
+        case T_pcb_text_size:
+            designSettings.m_TextSize[ LAYER_CLASS_COPPER ].x = parseBoardUnits( "pcb text width" );
+            designSettings.m_TextSize[ LAYER_CLASS_COPPER ].y = parseBoardUnits( "pcb text height" );
+            NeedRIGHT();
+            break;
+
+        case T_mod_text_size:
+            designSettings.m_TextSize[ LAYER_CLASS_SILK ].x = parseBoardUnits( "module text width" );
+            designSettings.m_TextSize[ LAYER_CLASS_SILK ].y = parseBoardUnits( "module text height" );
             NeedRIGHT();
             break;
 
@@ -1652,12 +1730,19 @@ DIMENSION* PCB_PARSER::parseDIMENSION()
         case T_gr_text:
         {
             TEXTE_PCB* text = parseTEXTE_PCB();
+
             // This copy  (using the copy constructor) rebuild the text timestamp,
             // that is not what we want.
             dimension->Text() = *text;
             // reinitialises the text time stamp to the right value (the dimension time stamp)
             dimension->Text().SetTimeStamp( dimension->GetTimeStamp() );
             dimension->SetPosition( text->GetTextPos() );
+
+            EDA_UNITS_T units = INCHES;
+            bool useMils = false;
+            FetchUnitsFromString( text->GetText(), units, useMils );
+            dimension->SetUnits( units, useMils );
+
             delete text;
             break;
         }
@@ -2087,7 +2172,7 @@ TEXTE_MODULE* PCB_PARSER::parseTEXTE_MODULE()
 
     if( CurTok() == T_unlocked )
     {
-        text->SetUnlocked( true );
+        text->SetKeepUpright( false );
         NextTok();
     }
 
@@ -2205,8 +2290,8 @@ EDGE_MODULE* PCB_PARSER::parseEDGE_MODULE()
             Expecting( T_pts );
 
         segment->SetStart0( parseXY() );
-        segment->SetBezControl1( parseXY() );
-        segment->SetBezControl2( parseXY() );
+        segment->SetBezier0_C1( parseXY() );
+        segment->SetBezier0_C2( parseXY() );
         segment->SetEnd0( parseXY() );
         NeedRIGHT();
         break;

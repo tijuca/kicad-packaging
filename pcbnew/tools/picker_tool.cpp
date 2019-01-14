@@ -25,13 +25,10 @@
 #include "picker_tool.h"
 #include "pcb_actions.h"
 #include "grid_helper.h"
-
-#include <pcb_edit_frame.h>
 #include <view/view_controls.h>
 #include <tool/tool_manager.h>
 #include "tool_event_utils.h"
 #include "selection_tool.h"
-
 
 TOOL_ACTION PCB_ACTIONS::pickerTool( "pcbnew.Picker", AS_GLOBAL, 0, "", "", NULL, AF_ACTIVATE );
 
@@ -43,52 +40,27 @@ PICKER_TOOL::PICKER_TOOL()
 }
 
 
-bool PICKER_TOOL::Init()
-{
-    auto activeToolCondition = [ this ] ( const SELECTION& aSel ) {
-        return ( frame()->GetToolId() != ID_NO_TOOL_SELECTED );
-    };
-
-    SELECTION_TOOL* selTool = m_toolMgr->GetTool<SELECTION_TOOL>();
-
-    // We delegate our context menu to the Selection tool, so make sure it has a
-    // "Cancel" item at the top.
-    if( selTool )
-    {
-        auto& toolMenu = selTool->GetToolMenu();
-        auto& menu = toolMenu.GetMenu();
-
-        menu.AddItem( ACTIONS::cancelInteractive, activeToolCondition, 1000 );
-        menu.AddSeparator( activeToolCondition, 1000 );
-    }
-
-    return true;
-}
-
-
 int PICKER_TOOL::Main( const TOOL_EVENT& aEvent )
 {
     KIGFX::VIEW_CONTROLS* controls = getViewControls();
     GRID_HELPER grid( frame() );
     int finalize_state = WAIT_CANCEL;
 
-    assert( !m_picking );
-    m_picking = true;
-    m_picked = NULLOPT;
-
     setControls();
 
     while( OPT_TOOL_EVENT evt = Wait() )
     {
-        auto mousePos = controls->GetMousePosition();
-        auto p = grid.BestSnapAnchor( mousePos, nullptr );
-        controls->ForceCursorPosition( true, p );
+        grid.SetSnap( !evt->Modifier( MD_SHIFT ) );
+        grid.SetUseGrid( !evt->Modifier( MD_ALT ) );
+        controls->SetSnapping( !evt->Modifier( MD_ALT ) );
+        VECTOR2I cursorPos = grid.BestSnapAnchor( controls->GetMousePosition(), nullptr );
+        controls->ForceCursorPosition(true, cursorPos );
 
         if( evt->IsClick( BUT_LEFT ) )
         {
             bool getNext = false;
 
-            m_picked = VECTOR2D( p );
+            m_picked = cursorPos;
 
             if( m_clickHandler )
             {
@@ -112,11 +84,33 @@ int PICKER_TOOL::Main( const TOOL_EVENT& aEvent )
             else
                 setControls();
         }
-        else if( evt->IsCancel() || TOOL_EVT_UTILS::IsCancelInteractive( *evt ) || evt->IsActivate() )
+
+        else if( TOOL_EVT_UTILS::IsCancelInteractive( *evt ) )
         {
-            finalize_state = EVT_CANCEL;
+            if( m_cancelHandler )
+            {
+                try
+                {
+                    (*m_cancelHandler)();
+                }
+                catch( std::exception& e )
+                {
+                    std::cerr << "PICKER_TOOL cancel handler error: " << e.what() << std::endl;
+                }
+            }
+
+            // Activating a new tool may have alternate finalization from canceling the current tool
+            if( evt->IsActivate() )
+                finalize_state = END_ACTIVATE;
+            else
+                finalize_state = EVT_CANCEL;
+
             break;
         }
+
+        else if( evt->IsClick( BUT_RIGHT ) )
+            m_menu.ShowContextMenu();
+
         else
             m_toolMgr->PassEvent();
     }
@@ -153,9 +147,11 @@ void PICKER_TOOL::reset()
     m_cursorVisible = true;
     m_cursorCapture = false;
     m_autoPanning = false;
+    m_layerMask = LSET::AllLayersMask();
 
-    m_picking = false;
+    m_picked = NULLOPT;
     m_clickHandler = NULLOPT;
+    m_cancelHandler = NULLOPT;
     m_finalizeHandler = NULLOPT;
 }
 
@@ -164,8 +160,10 @@ void PICKER_TOOL::setControls()
 {
     KIGFX::VIEW_CONTROLS* controls = getViewControls();
 
+    // Ensure that the view controls do not handle our snapping as we use the GRID_HELPER
+    controls->SetSnapping( false );
+
     controls->ShowCursor( m_cursorVisible );
-    controls->SetSnapping( m_cursorSnapping );
     controls->CaptureCursor( m_cursorCapture );
     controls->SetAutoPan( m_autoPanning );
 }

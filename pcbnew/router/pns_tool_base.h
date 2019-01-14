@@ -57,7 +57,7 @@ protected:
     virtual ITEM* pickSingleItem( const VECTOR2I& aWhere, int aNet = -1, int aLayer = -1,
                                   bool aIgnorePads = false );
     virtual void highlightNet( bool aEnabled, int aNetcode = -1 );
-    virtual void updateStartItem( TOOL_EVENT& aEvent, bool aIgnorePads = false );
+    virtual void updateStartItem( const TOOL_EVENT& aEvent, bool aIgnorePads = false );
     virtual void updateEndItem( const TOOL_EVENT& aEvent );
     void deleteTraces( ITEM* aStartItem, bool aWholeTrack );
 
@@ -68,6 +68,7 @@ protected:
     ITEM* m_startItem;
     int m_startLayer;
     VECTOR2I m_startSnapPoint;
+    bool m_startHighlight;                ///< Keeps track of whether the net was highlighted before routing
 
     ITEM* m_endItem;
     VECTOR2I m_endSnapPoint;

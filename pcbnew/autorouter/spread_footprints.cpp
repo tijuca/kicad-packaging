@@ -65,6 +65,8 @@ typedef std::vector<TSubRect> CSubRectArray;
 // Use 0.01 mm units to calculate placement, to avoid long calculation time
 const int scale = (int)(0.01 * IU_PER_MM);
 
+const int PADDING = (int)(1 * IU_PER_MM);
+
 // Populates a list of rectangles, from a list of modules
 void fillRectList( CSubRectArray& vecSubRects, std::vector <MODULE*>& aModuleList )
 {
@@ -72,8 +74,9 @@ void fillRectList( CSubRectArray& vecSubRects, std::vector <MODULE*>& aModuleLis
 
     for( unsigned ii = 0; ii < aModuleList.size(); ii++ )
     {
-        EDA_RECT fpBox = aModuleList[ii]->GetBoundingBox();
-        TSubRect fpRect( fpBox.GetWidth()/scale, fpBox.GetHeight()/scale, ii );
+        EDA_RECT fpBox = aModuleList[ii]->GetFootprintRect();
+        TSubRect fpRect( ( fpBox.GetWidth() + PADDING ) / scale,
+                         ( fpBox.GetHeight() + PADDING ) / scale, ii );
         vecSubRects.push_back( fpRect );
     }
 }
@@ -156,7 +159,7 @@ void moveFootprintsInArea( CRectPlacement& aPlacementArea,
 
         MODULE * module = aModuleList[vecSubRects[it].n];
 
-        EDA_RECT fpBBox = module->GetBoundingBox();
+        EDA_RECT fpBBox = module->GetFootprintRect();
         wxPoint mod_pos = pos + ( module->GetPosition() - fpBBox.GetOrigin() )
                           + aFreeArea.GetOrigin();
 
@@ -284,7 +287,7 @@ void PCB_EDIT_FRAME::SpreadFootprints( std::vector<MODULE*>* aFootprints,
                 islastItem = true;
 
             footprintListBySheet.push_back( footprint );
-            subsurface += footprint->GetArea();
+            subsurface += footprint->GetArea( PADDING );
 
             if( islastItem )
             {

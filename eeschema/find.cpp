@@ -35,14 +35,14 @@
  */
 #include <fctsys.h>
 #include <pgm_base.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <confirm.h>
 #include <kicad_string.h>
 #include <gestfich.h>
 #include <sch_edit_frame.h>
 #include <base_units.h>
 #include <trace_helpers.h>
-
+#include <sch_view.h>
 #include <general.h>
 #include <class_library.h>
 #include <lib_pin.h>
@@ -90,14 +90,13 @@ void SCH_EDIT_FRAME::OnFindDrcMarker( wxFindDialogEvent& event )
 
         SetCrossHairPosition( lastMarker->GetPosition() );
 
-        RedrawScreen( lastMarker->GetPosition(), warpCursor );
 
-        wxString path = sheetFoundIn->Path();
-        wxString units = GetAbbreviatedUnitsLabel();
-        double x = To_User_Unit( g_UserUnit, (double) lastMarker->GetPosition().x );
-        double y = To_User_Unit( g_UserUnit, (double) lastMarker->GetPosition().y );
-        msg.Printf( _( "Design rule check marker found in sheet %s at %0.3f%s, %0.3f%s" ),
-                    GetChars( path ), x, GetChars( units ), y, GetChars( units) );
+        CenterScreen( lastMarker->GetPosition(), warpCursor );
+
+        msg.Printf( _( "Design rule check marker found in sheet %s at %s, %s" ),
+                    sheetFoundIn->Path(),
+                    MessageTextFromValue( m_UserUnits, lastMarker->GetPosition().x ),
+                    MessageTextFromValue( m_UserUnits, lastMarker->GetPosition().y ) );
         SetStatusText( msg );
     }
     else
@@ -110,18 +109,17 @@ void SCH_EDIT_FRAME::OnFindDrcMarker( wxFindDialogEvent& event )
 SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
                                                 bool            aSearchHierarchy,
                                                 SCH_SEARCH_T    aSearchType,
-                                                const wxString& aSearchText,
-                                                bool            aWarpMouse )
+                                                const wxString& aSearchText )
 {
     SCH_SHEET_PATH* sheet = NULL;
     SCH_SHEET_PATH* sheetWithComponentFound = NULL;
     SCH_ITEM*       item = NULL;
     SCH_COMPONENT*  Component = NULL;
     wxPoint         pos;
-    bool            centerAndRedraw = false;
     bool            notFound = true;
-    LIB_PIN*        pin;
+    LIB_PIN*        pin = nullptr;
     SCH_SHEET_LIST  sheetList( g_RootSheet );
+    EDA_ITEM*       foundItem = nullptr;
 
     if( !aSearchHierarchy )
         sheetList.push_back( *m_CurrentSheet );
@@ -151,6 +149,7 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
                 case FIND_COMPONENT_ONLY:    // Find component only
                     notFound = false;
                     pos = pSch->GetPosition();
+                    foundItem = Component;
                     break;
 
                 case FIND_PIN:               // find a pin
@@ -162,11 +161,13 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
 
                     notFound = false;
                     pos += pin->GetPosition();
+                    foundItem = Component;
                     break;
 
                 case FIND_REFERENCE:         // find reference
                     notFound = false;
                     pos = pSch->GetField( REFERENCE )->GetPosition();
+                    foundItem = pSch->GetField( REFERENCE );
                     break;
 
                 case FIND_VALUE:             // find value
@@ -177,6 +178,8 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
 
                     notFound = false;
                     pos = pSch->GetField( VALUE )->GetPosition();
+                    foundItem = pSch->GetField( VALUE );
+
                     break;
                 }
             }
@@ -194,9 +197,7 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
         {
             sheet->LastScreen()->SetZoom( GetScreen()->GetZoom() );
             *m_CurrentSheet = *sheet;
-            m_CurrentSheet->UpdateAllScreenReferences();
-            sheet->LastScreen()->TestDanglingEnds();
-            centerAndRedraw = true;
+            DisplayCurrentSheet();
         }
 
         wxPoint delta;
@@ -204,34 +205,9 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
         delta = Component->GetTransform().TransformCoordinate( pos );
         pos   = delta + Component->GetPosition();
 
-
-        /* There may be need to reframe the drawing */
-        if( ! m_canvas->IsPointOnDisplay( pos ) )
-        {
-            centerAndRedraw = true;
-        }
-
-        if( centerAndRedraw )
-        {
-            SetCrossHairPosition( pos );
-            RedrawScreen( pos, aWarpMouse );
-        }
-
-        else
-        {
-            INSTALL_UNBUFFERED_DC( dc, m_canvas );
-
-            m_canvas->CrossHairOff( &dc );
-
-            if( aWarpMouse )
-                m_canvas->MoveCursor( pos );
-
-            SetCrossHairPosition( pos );
-
-            m_canvas->CrossHairOn( &dc );
-        }
+        SetCrossHairPosition( pos );
+        CenterScreen( pos, false );
     }
-
 
     /* Print diag */
     wxString msg_item;
@@ -240,47 +216,28 @@ SCH_ITEM* SCH_EDIT_FRAME::FindComponentAndItem( const wxString& aReference,
     switch( aSearchType )
     {
     default:
-    case FIND_COMPONENT_ONLY:      // Find component only
-        msg_item = _( "component" );
-        break;
-
-    case FIND_PIN:                 // find a pin
-        msg_item.Printf( _( "pin %s" ), GetChars( aSearchText ) );
-        break;
-
-    case FIND_REFERENCE:           // find reference
-        msg_item.Printf( _( "reference %s" ), GetChars( aSearchText ) );
-        break;
-
-    case FIND_VALUE:               // find value
-        msg_item.Printf( _( "value %s" ), GetChars( aSearchText ) );
-        break;
-
-    case FIND_FIELD:               // find field. todo
-        msg_item.Printf( _( "field %s" ), GetChars( aSearchText ) );
-        break;
+    case FIND_COMPONENT_ONLY: msg_item = _( "component" );                         break;
+    case FIND_PIN:            msg_item.Printf( _( "pin %s" ), aSearchText );       break;
+    case FIND_REFERENCE:      msg_item.Printf( _( "reference %s" ), aSearchText ); break;
+    case FIND_VALUE:          msg_item.Printf( _( "value %s" ), aSearchText );     break;
+    case FIND_FIELD:          msg_item.Printf( _( "field %s" ), aSearchText );     break;
     }
 
     if( Component )
     {
         if( !notFound )
-        {
-            msg.Printf( _( "%s %s found" ),
-                        GetChars( aReference ), GetChars( msg_item ) );
-        }
+            msg.Printf( _( "%s %s found" ), aReference, msg_item );
         else
-        {
-            msg.Printf( _( "%s found but %s not found" ),
-                        GetChars( aReference ), GetChars( msg_item ) );
-        }
+            msg.Printf( _( "%s found but %s not found" ), aReference, msg_item );
     }
     else
-    {
-        msg.Printf( _( "Component %s not found" ),
-                    GetChars( aReference ) );
-    }
+        msg.Printf( _( "Component %s not found" ), aReference );
 
     SetStatusText( msg );
+
+    // highlight selection if foundItem is not null, or clear any highlighted selection
+    GetCanvas()->GetView()->HighlightItem( foundItem, pin );
+    GetCanvas()->Refresh();
 
     return item;
 }
@@ -386,6 +343,7 @@ void SCH_EDIT_FRAME::OnFindReplace( wxFindDialogEvent& aEvent )
 
             if( m_foundItems.ReplaceItem( sheet ) )
             {
+                GetCanvas()->GetView()->Update( undoItem, KIGFX::ALL );
                 OnModify();
                 SaveUndoItemInUndoList( undoItem );
                 updateFindReplaceView( aEvent );
@@ -416,6 +374,7 @@ void SCH_EDIT_FRAME::OnFindReplace( wxFindDialogEvent& aEvent )
 
         if( m_foundItems.ReplaceItem( sheet ) )
         {
+            GetCanvas()->GetView()->Update( undoItem, KIGFX::ALL );
             OnModify();
             SaveUndoItemInUndoList( undoItem );
             updateFindReplaceView( aEvent );
@@ -440,16 +399,11 @@ void SCH_EDIT_FRAME::updateFindReplaceView( wxFindDialogEvent& aEvent )
     wxString                msg;
     SCH_SHEET_LIST          schematic( g_RootSheet );
     SCH_FIND_COLLECTOR_DATA data;
-    SCH_FIND_REPLACE_DATA   searchCriteria;
     bool                    warpCursor = !( aEvent.GetFlags() & FR_NO_WARP_CURSOR );
-
-    searchCriteria.SetFlags( aEvent.GetFlags() );
-    searchCriteria.SetFindString( aEvent.GetFindString() );
-    searchCriteria.SetReplaceString( aEvent.GetReplaceString() );
 
     if( m_foundItems.GetItem( data ) != NULL )
     {
-        wxLogTrace( traceFindReplace, wxT( "Found " ) + m_foundItems.GetText() );
+        wxLogTrace( traceFindReplace, wxT( "Found " ) + m_foundItems.GetText( MILLIMETRES ) );
 
         SCH_SHEET_PATH* sheet = schematic.GetSheetByPath( data.GetSheetPath() );
 
@@ -478,12 +432,10 @@ void SCH_EDIT_FRAME::updateFindReplaceView( wxFindDialogEvent& aEvent )
             sheet->LastScreen()->TestDanglingEnds();
         }
 
-        // careful here
         SetCrossHairPosition( data.GetPosition() );
+        CenterScreen( data.GetPosition(), warpCursor );
 
-        RedrawScreen( data.GetPosition(), warpCursor );
-
-        msg = m_foundItems.GetText();
+        msg = m_foundItems.GetText( m_UserUnits );
 
         if( aEvent.GetFlags() & FR_SEARCH_REPLACE )
             aEvent.SetFlags( aEvent.GetFlags() | FR_REPLACE_ITEM_FOUND );
@@ -496,5 +448,6 @@ void SCH_EDIT_FRAME::updateFindReplaceView( wxFindDialogEvent& aEvent )
         msg.Printf( _( "No item found matching %s." ), GetChars( aEvent.GetFindString() ) );
     }
 
+    *m_findReplaceStatus = msg;
     SetStatusText( msg );
 }

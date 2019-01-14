@@ -37,21 +37,19 @@ public:
     PICKER_TOOL();
     ~PICKER_TOOL() {}
 
+    ///> Event handler types.
+    typedef std::function<bool(const VECTOR2D&)> CLICK_HANDLER;
+    typedef std::function<void(void)> CANCEL_HANDLER;
+    typedef std::function<void(const int&)> FINALIZE_HANDLER;
+
     enum pickerEndState
     {
         WAIT_CANCEL,
         CLICK_CANCEL,
+        END_ACTIVATE,
         EVT_CANCEL,
         EXCEPTION_CANCEL
     };
-
-    ///> Mouse event click handler type.
-    typedef std::function<bool(const VECTOR2D&)> CLICK_HANDLER;
-
-    typedef std::function<void(const int&)> FINALIZE_HANDLER;
-
-    /// @copydoc TOOL_INTERACTIVE::Init()
-    bool Init() override;
 
     ///> @copydoc TOOL_INTERACTIVE::Reset()
     void Reset( RESET_REASON aReason ) override {}
@@ -84,20 +82,10 @@ public:
     inline void SetCursorCapture( bool aEnable ) { m_cursorCapture = aEnable; }
 
     /**
-     * Function GetPoint()
-     * Returns picked point.
+     * Function SetLayerSet()
+     * Sets the tool's snap layer set
      */
-    inline OPT<VECTOR2D> GetPoint() const
-    {
-        assert( !m_picking );
-        return m_picked;
-    }
-
-    /**
-     * Function IsPicking()
-     * Returns information whether the tool is still active.
-     */
-    bool IsPicking() const { return m_picking; }
+    inline void SetLayerSet( LSET aLayerSet ) { m_layerMask = aLayerSet; }
 
     /**
      * Function SetClickHandler()
@@ -108,6 +96,16 @@ public:
     {
         assert( !m_clickHandler );
         m_clickHandler = aHandler;
+    }
+
+    /**
+     * Function SetCancelHandler()
+     * Sets a handler for cancel events (ESC or context-menu Cancel).
+     */
+    inline void SetCancelHandler( CANCEL_HANDLER aHandler )
+    {
+        assert( !m_cancelHandler );
+        m_cancelHandler = aHandler;
     }
 
     /**
@@ -130,17 +128,18 @@ private:
     bool m_cursorCapture;
     bool m_autoPanning;
 
-    ///> Optional mouse click event handler.
+    ///> The layer set to use for optional snapping
+    LSET m_layerMask;
+
+    ///> Optional event handlers.
     OPT<CLICK_HANDLER> m_clickHandler;
+    OPT<CANCEL_HANDLER> m_cancelHandler;
 
     ///> Picked point (if any).
     OPT<VECTOR2D> m_picked;
 
     ///> Optional finalize state handler.
     OPT<FINALIZE_HANDLER> m_finalizeHandler;
-
-    ///> Activity status.
-    bool m_picking;
 
     ///> Reinitializes tool to its initial state.
     void reset();

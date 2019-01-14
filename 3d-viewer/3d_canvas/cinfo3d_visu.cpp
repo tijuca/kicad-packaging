@@ -256,7 +256,8 @@ unsigned int CINFO3D_VISU::GetNrSegmentsCircle( int aDiameterBIU ) const
 {
     wxASSERT( aDiameterBIU > 0 );
 
-    return GetArcToSegmentCount( aDiameterBIU / 2, ARC_HIGH_DEF, 360.0 );
+    // Require at least 3 segments for a circle
+    return std::max( GetArcToSegmentCount( aDiameterBIU / 2, ARC_HIGH_DEF, 360.0 ), 3 );
 }
 
 
@@ -461,9 +462,6 @@ void CINFO3D_VISU::createBoardPolygon()
         errmsg.append( _( "Cannot determine the board outline." ) );
         wxLogMessage( errmsg );
     }
-
-    // Be sure the polygon is strictly simple to avoid issues.
-    m_board_poly.Simplify( SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
 
     Polygon_Calc_BBox_3DU( m_board_poly, m_board2dBBox3DU, m_biuTo3Dunits );
 }

@@ -7,7 +7,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
-"POT-Creation-Date: 2018-07-18 17:30+0300\n"
+"POT-Creation-Date: 2019-01-03 18:10+0100\n"
 "PO-Revision-Date: 2018-07-18 17:33+0300\n"
 "Last-Translator: Baranovskiy Konstantin <baranovskiykonstantin@gmail.com>\n"
 "Language-Team: Russian\n"
@@ -4328,11 +4328,17 @@ msgstr ""
 
 #. type: Plain text
 #: eeschema_design_verification_with_erc.adoc:19
+#, fuzzy
+#| msgid ""
+#| "In fact all detected errors must be checked and then corrected before "
+#| "proceeding as normal. The quality of the ERC is directly related to the "
+#| "care taken in declaring electrical pin properties during symbol library "
+#| "creation. ERC output is reported as \"errors\" or \"warnings\"."
 msgid ""
 "In fact all detected errors must be checked and then corrected before "
 "proceeding as normal. The quality of the ERC is directly related to the care "
 "taken in declaring electrical pin properties during symbol library creation. "
-"ERC output is reported as \"errors\" or \"warnings\"."
+"ERC output is reported as ``errors'' or ``warnings''."
 msgstr ""
 "На деле, все обнаруженные ошибки должны быть проверены и исправлены прежде "
 "чем двигаться далее. Качество проверки напрямую зависит от того, насколько "
@@ -5463,8 +5469,12 @@ msgstr ""
 
 #. type: Plain text
 #: eeschema_generic_commands.adoc:47
+#, fuzzy
+#| msgid ""
+#| "Holding \"Shift\", \"Ctrl\", or \"Shift + Ctrl\" during selection "
+#| "respectively performs copying, dragging and deletion:"
 msgid ""
-"Holding \"Shift\", \"Ctrl\", or \"Shift + Ctrl\" during selection "
+"Holding ``Shift'', ``Ctrl'', or ``Shift + Ctrl'' during selection "
 "respectively performs copying, dragging and deletion:"
 msgstr ""
 "Нажимая клавишу \"Shift\", \"Ctrl\" или \"Shift + Ctrl\" в процессе "
@@ -11720,22 +11730,26 @@ msgstr ""
 "К числу может прибавляться один из следующих не чувствительных к регистру\n"
 "суффиксов:\n"
 
-#. type: delimited block |
-#: eeschema_schematic_creation_and_editing.adoc:68
-#, no-wrap
+#. type: Plain text
+#: eeschema_schematic_creation_and_editing.adoc:69
+#, fuzzy
+#| msgid ""
+#| "| p | n | u | m | k | meg | g | t\n"
+#| "| 10^-12^ | 10^-9^ | 10^-6^ | 10^-3^ | 10^3^ | 10^6^ | 10^9^ | 10^12^\n"
 msgid ""
-"| p | n | u | m | k | meg | g | t\n"
-"| 10^-12^ | 10^-9^ | 10^-6^ | 10^-3^ | 10^3^ | 10^6^ | 10^9^ | 10^12^\n"
+"|=== | p | n | u | m | k | meg | g | t | 10^-12^ | 10^-9^ | 10^-6^ | 10^-3^ "
+"| 10^3^ | 10^6^ | 10^9^ | 10^12^ |==="
 msgstr ""
 "| p | n | u | m | k | meg | g | t\n"
 "| 10^-12^ | 10^-9^ | 10^-6^ | 10^-3^ | 10^3^ | 10^6^ | 10^9^ | 10^12^\n"
 
-#. type: delimited block |
-#: eeschema_schematic_creation_and_editing.adoc:74
-#, no-wrap
-msgid ""
-"| ki | mi | gi | ti\n"
-"| 2^10^ | 2^20^ | 2^30^ | 2^40^\n"
+#. type: Plain text
+#: eeschema_schematic_creation_and_editing.adoc:75
+#, fuzzy
+#| msgid ""
+#| "| ki | mi | gi | ti\n"
+#| "| 2^10^ | 2^20^ | 2^30^ | 2^40^\n"
+msgid "|=== | ki | mi | gi | ti | 2^10^ | 2^20^ | 2^30^ | 2^40^ |==="
 msgstr ""
 "| ki | mi | gi | ti\n"
 "| 2^10^ | 2^20^ | 2^30^ | 2^40^\n"
@@ -12495,8 +12509,9 @@ msgstr "Все эти символы -- компоненты библиотек�
 
 #. type: Title ====
 #: eeschema_schematic_creation_and_editing.adoc:339
-#, no-wrap
-msgid "\"No Connect\" flag"
+#, fuzzy, no-wrap
+#| msgid "\"No Connect\" flag"
+msgid "``No Connect'' flag"
 msgstr "Флаг \"Не подключено\""
 
 #. type: Plain text

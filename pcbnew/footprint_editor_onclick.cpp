@@ -71,14 +71,9 @@ void FOOTPRINT_EDIT_FRAME::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
                 break;
 
             default:
-            {
-                wxString msg;
-                msg.Printf( wxT( "WinEDA_ModEditFrame::OnLeftClick err:Struct %d, m_Flag %X" ),
+                wxLogDebug( wxT( "WinEDA_ModEditFrame::OnLeftClick err:Struct %d, m_Flag %X" ),
                             item->Type(), item->GetFlags() );
-                DisplayError( this, msg );
                 item->ClearFlags();
-                break;
-            }
             }
         }
 
@@ -134,9 +129,7 @@ void FOOTPRINT_EDIT_FRAME::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
                 SetCurItem( Begin_Edge_Module( (EDGE_MODULE*) item, DC, S_SEGMENT ) );
             }
             else
-            {
-                wxMessageBox( wxT( "ProcessCommand error: unknown shape" ) );
-            }
+                wxLogDebug( wxT( "ProcessCommand error: unknown shape" ) );
         }
         break;
 
@@ -202,12 +195,12 @@ void FOOTPRINT_EDIT_FRAME::OnLeftClick( wxDC* DC, const wxPoint& MousePos )
         break;
 
     case ID_MODEDIT_MEASUREMENT_TOOL:
-        DisplayError( this, wxT( "Measurement Tool not available in Legacy Toolset" ) );
+        DisplayError( this, _( "Measurement Tool not available in Legacy Toolset" ) );
         SetNoToolSelected();
         break;
 
     default:
-        DisplayError( this, wxT( "FOOTPRINT_EDIT_FRAME::ProcessCommand error" ) );
+        wxLogDebug( wxT( "FOOTPRINT_EDIT_FRAME::ProcessCommand error" ) );
         SetNoToolSelected();
     }
 
@@ -319,7 +312,7 @@ bool FOOTPRINT_EDIT_FRAME::OnRightClick( const wxPoint& MousePos, wxMenu* PopMen
             AddMenuItem( PopMenu, ID_POPUP_PCB_COPY_PAD_SETTINGS,
                          _( "Copy Pad Properties" ), KiBitmap( copy_pad_settings_xpm ) );
             AddMenuItem( PopMenu, ID_POPUP_PCB_APPLY_PAD_SETTINGS,
-                         _( "Apply Pad Properties" ), KiBitmap( apply_pad_settings_xpm ) );
+                         _( "Paste Pad Properties" ), KiBitmap( apply_pad_settings_xpm ) );
             msg = AddHotkeyName( _("Delete Pad" ), g_Module_Editor_Hotkeys_Descr, HK_DELETE );
             AddMenuItem( PopMenu, ID_POPUP_PCB_DELETE_PAD, msg, KiBitmap( delete_pad_xpm ) );
 
@@ -448,34 +441,22 @@ bool FOOTPRINT_EDIT_FRAME::OnRightClick( const wxPoint& MousePos, wxMenu* PopMen
         case PCB_MARKER_T:
         case PCB_DIMENSION_T:
         case PCB_TARGET_T:
-            msg.Printf( wxT( "FOOTPRINT_EDIT_FRAME::OnRightClick Error: Unexpected DrawType %d" ),
+            wxLogDebug( wxT( "FOOTPRINT_EDIT_FRAME::OnRightClick Error: Unexpected DrawType %d" ),
                         item->Type() );
-            DisplayError( this, msg );
             break;
 
         case SCREEN_T:
         case TYPE_NOT_INIT:
         case PCB_T:
-            msg.Printf( wxT( "FOOTPRINT_EDIT_FRAME::OnRightClick Error: illegal DrawType %d" ),
+            wxLogDebug( wxT( "FOOTPRINT_EDIT_FRAME::OnRightClick Error: illegal DrawType %d" ),
                         item->Type() );
-            DisplayError( this, msg );
             break;
 
         default:
-            msg.Printf( wxT( "FOOTPRINT_EDIT_FRAME::OnRightClick Error: unknown DrawType %d" ),
+            wxLogDebug( wxT( "FOOTPRINT_EDIT_FRAME::OnRightClick Error: unknown DrawType %d" ),
                         item->Type() );
-            DisplayError( this, msg );
             break;
         }
-        PopMenu->AppendSeparator();
-    }
-
-    if( ( GetToolId() == ID_MODEDIT_LINE_TOOL ) ||
-        ( GetToolId() == ID_MODEDIT_CIRCLE_TOOL ) ||
-        ( GetToolId() == ID_MODEDIT_ARC_TOOL ) )
-    {
-        AddMenuItem( PopMenu, ID_POPUP_MODEDIT_ENTER_EDGE_WIDTH, _("Set Line Width..." ),
-                     KiBitmap( width_segment_xpm ) );
         PopMenu->AppendSeparator();
     }
 
@@ -533,24 +514,17 @@ void FOOTPRINT_EDIT_FRAME::OnEditItemRequest( wxDC* aDC, BOARD_ITEM* aItem )
         break;
 
     case PCB_MODULE_T:
-        {
-        DIALOG_FOOTPRINT_FP_EDITOR dialog( this, static_cast<MODULE*>( aItem ) );
-        dialog.ShowModal();
-        GetScreen()->GetCurItem()->ClearFlags();
+        editFootprintProperties( (MODULE*) aItem );
         m_canvas->MoveCursorToCrossHair();
         m_canvas->Refresh();
-        }
         break;
 
     case PCB_MODULE_TEXT_T:
-        InstallTextModOptionsFrame( static_cast<TEXTE_MODULE*>( aItem ), aDC );
-        m_canvas->MoveCursorToCrossHair();
+        InstallTextOptionsFrame( aItem, aDC );
         break;
 
     case PCB_MODULE_EDGE_T :
-        m_canvas->MoveCursorToCrossHair();
-        InstallFootprintBodyItemPropertiesDlg( static_cast<EDGE_MODULE*>( aItem ) );
-        m_canvas->Refresh();
+        InstallGraphicItemPropertiesDialog( aItem );
         break;
 
     default:

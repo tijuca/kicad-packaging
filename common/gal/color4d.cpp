@@ -79,6 +79,20 @@ COLOR4D::COLOR4D( EDA_COLOR_T aColor )
     }
 
 
+    wxColour COLOR4D::ToColour() const
+    {
+        using CHAN_T = wxColourBase::ChannelType;
+
+        const wxColour colour(
+            static_cast<CHAN_T>( r * 255 + 0.5 ),
+            static_cast<CHAN_T>( g * 255 + 0.5 ),
+            static_cast<CHAN_T>( b * 255 + 0.5 ),
+            static_cast<CHAN_T>( a * 255 + 0.5 )
+        );
+        return colour;
+    }
+
+
     COLOR4D COLOR4D::LegacyMix( COLOR4D aColor ) const
     {
         COLOR4D candidate;
@@ -398,9 +412,13 @@ void COLOR4D::FromHSV( double aInH, double aInS, double aInV )
 
 COLOR4D& COLOR4D::Saturate( double aFactor )
 {
+    // One can saturate a color only when r, v, b are not equal
+    if( r == g && r == b )
+        return *this;
+
     double h, s, v;
 
-    ToHSV( h, s, v );
+    ToHSV( h, s, v, true );
     FromHSV( h, aFactor, 1.0 );
 
     return *this;

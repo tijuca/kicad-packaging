@@ -38,6 +38,7 @@
 #include <transform.h>
 #include <general.h>
 #include <vector>
+#include <set>
 #include <lib_draw_item.h>
 
 class SCH_SCREEN;
@@ -68,8 +69,6 @@ extern std::string toUTFTildaText( const wxString& txt );
  */
 class SCH_COMPONENT : public SCH_ITEM
 {
-    friend class DIALOG_EDIT_COMPONENT_IN_SCHEMATIC;
-
 public:
     enum AUTOPLACED { AUTOPLACED_NO = 0, AUTOPLACED_AUTO, AUTOPLACED_MANUAL };
 private:
@@ -94,6 +93,7 @@ private:
 
     std::vector<bool> m_isDangling; ///< One isDangling per pin
     std::vector<wxPoint> m_Pins;
+    std::set<wxString> m_highlightedPins; ///< God forgive me - Tom
 
     AUTOPLACED  m_fieldsAutoplaced; ///< indicates status of field autoplacement
 
@@ -122,6 +122,7 @@ public:
      * Create schematic component from library component object.
      *
      * @param aPart - library part to create schematic component from.
+     * @param aLibId - libId of alias to create.
      * @param aSheet - Schematic sheet the component is place into.
      * @param unit - Part for components that have multiple parts per
      *               package.
@@ -130,7 +131,7 @@ public:
      * @param pos - Position to place new component.
      * @param setNewItemFlag - Set the component IS_NEW and IS_MOVED flags.
      */
-    SCH_COMPONENT( LIB_PART& aPart, SCH_SHEET_PATH* aSheet,
+    SCH_COMPONENT( LIB_PART& aPart, LIB_ID aLibId, SCH_SHEET_PATH* aSheet,
                    int unit = 0, int convert = 0,
                    const wxPoint& pos = wxPoint( 0, 0 ),
                    bool setNewItemFlag = false );
@@ -148,12 +149,19 @@ public:
 
     ~SCH_COMPONENT() { }
 
+    static inline bool ClassOf( const EDA_ITEM* aItem )
+    {
+        return aItem && SCH_COMPONENT_T == aItem->Type();
+    }
+
     wxString GetClass() const override
     {
         return wxT( "SCH_COMPONENT" );
     }
 
     const wxArrayString& GetPathsAndReferences() const { return m_PathsAndReferences; }
+
+    void ViewGetLayers( int aLayers[], int& aCount ) const override;
 
     /**
      * Return true for items which are moved with the anchor point at mouse cursor
@@ -176,12 +184,12 @@ public:
     /**
      * Return information about the aliased parts
      */
-    wxString GetAliasDescription() const;
+    wxString GetDescription() const;
 
     /**
      * Return the documentation text for the given part alias
      */
-    wxString GetAliasDocumentation() const;
+    wxString GetDatasheet() const;
 
     /**
      * Assigns the current #LIB_PART from \a aLibs which this symbol is based on.
@@ -287,7 +295,7 @@ public:
      */
     wxPoint GetScreenCoord( const wxPoint& aPoint );
 
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
+    void GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList ) override;
 
     /**
      * Clear exiting component annotation.
@@ -320,6 +328,12 @@ public:
      * @param aNewTimeStamp = new time stamp
      */
     void SetTimeStamp( timestamp_t aNewTimeStamp );
+
+    /**
+     * Clear the HIGHLIGHTED flag of all items of the component
+     * (fields, pins ...)
+     */
+    void ClearAllHighlightFlags();
 
     const EDA_RECT GetBoundingBox() const override;
 
@@ -363,6 +377,13 @@ public:
      * @return the newly inserted field.
      */
     SCH_FIELD* AddField( const SCH_FIELD& aField );
+
+    /**
+     * Removes a user field from the symbol.
+     * @param aFieldName is the user fieldName to remove.  Attempts to remove a mandatory
+     *                   field or a non-existant field are silently ignored.
+     */
+    void RemoveField( const wxString& aFieldName );
 
     /**
      * Search for a #SCH_FIELD with \a aFieldName
@@ -450,6 +471,8 @@ public:
      * @param aPinsList is the list to populate with all of the pins.
      */
     void GetPins( std::vector<LIB_PIN*>& aPinsList );
+
+    std::vector<bool>* GetDanglingPinFlags() { return &m_isDangling; }
 
     void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
                GR_DRAWMODE aDrawMode, COLOR4D aColor = COLOR4D::UNSPECIFIED ) override
@@ -564,16 +587,7 @@ public:
      *
      * @return true if any pin's state has changed.
      */
-    bool IsDanglingStateChanged( std::vector<DANGLING_END_ITEM>& aItemList ) override;
-
-    /**
-     * Return whether any pin in this symbol is dangling.
-     *
-     * @note This does not update the internal status.  It only checks the existing status.
-     *
-     * @return true if any pins of this symbol are not connect otherwise false.
-     */
-    bool IsDangling() const override;
+    bool UpdateDanglingState( std::vector<DANGLING_END_ITEM>& aItemList ) override;
 
     wxPoint GetPinPhysicalPosition( const LIB_PIN* Pin ) const;
 
@@ -585,7 +599,8 @@ public:
     {
         return ( aItem->Type() == SCH_LINE_T && aItem->GetLayer() == LAYER_WIRE ) ||
                 ( aItem->Type() == SCH_NO_CONNECT_T ) ||
-                ( aItem->Type() == SCH_JUNCTION_T );
+                ( aItem->Type() == SCH_JUNCTION_T ) ||
+                ( aItem->Type() == SCH_COMPONENT_T ) ;
     }
 
     /**
@@ -609,7 +624,7 @@ public:
      */
     LIB_ITEM* GetDrawItem( const wxPoint& aPosition, KICAD_T aType = TYPE_NOT_INIT );
 
-    wxString GetSelectMenuText() const override;
+    wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
 
     BITMAP_DEF GetMenuImage() const override;
 
@@ -640,6 +655,12 @@ public:
 #if defined(DEBUG)
     void Show( int nestLevel, std::ostream& os ) const override;
 #endif
+
+    void ClearHighlightedPins();
+
+    void HighlightPin( LIB_PIN* aPin );
+
+    bool IsPinHighlighted( const LIB_PIN* aPin );
 
 private:
     bool doIsConnected( const wxPoint& aPosition ) const override;

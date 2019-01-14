@@ -148,6 +148,7 @@ protected:
      * Subclasses can override this to provide logic for allowing
      * arbitrary color selection via wxColourPicker instead of DisplayColorFrame.
      */
+    // LEGACY TODO: obsolete once legacy canvas removed
     virtual bool AreArbitraryColorsAllowed() { return false; }
 
     /**
@@ -307,6 +308,8 @@ public:
     {
         for( int row=0;  row<aRowCount;  ++row )
             AppendLayerRow( aRowsArray[row] );
+
+        UpdateLayouts();
     }
 
     /**
@@ -331,6 +334,8 @@ public:
     {
         for( int row=0;  row<aRowCount;  ++row )
             AppendRenderRow( aRowsArray[row] );
+
+        UpdateLayouts();
     }
 
     /**

@@ -199,14 +199,14 @@ bool GERBER_FILE_IMAGE::LoadGerberFile( const wxString& aFullFileName )
                 }
                 else        //Error
                 {
-                    AddMessageToList( wxT("Expected RS274X Command")  );
+                    AddMessageToList( "Expected RS274X Command"  );
                     m_CommandState = CMD_IDLE;
                     text++;
                 }
                 break;
 
             default:
-                msg.Printf( wxT("Unexpected symbol <%c>"), *text );
+                msg.Printf( "Unexpected char 0x%2.2X &lt;%c&lt;", *text, *text );
                 AddMessageToList( msg );
                 text++;
                 break;

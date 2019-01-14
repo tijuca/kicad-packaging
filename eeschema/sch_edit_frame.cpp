@@ -30,13 +30,14 @@
 #include <kiface_i.h>
 #include <pgm_base.h>
 #include <gr_basic.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <gestfich.h>
 #include <confirm.h>
 #include <base_units.h>
 #include <msgpanel.h>
 #include <html_messagebox.h>
 #include <executable_names.h>
+#include <eda_dockart.h>
 
 #include <general.h>
 #include <eeschema_id.h>
@@ -60,6 +61,8 @@
 #include <invoke_sch_dialog.h>
 #include <dialogs/dialog_schematic_find.h>
 #include <dialog_symbol_remap.h>
+#include <view/view.h>
+#include <tool/tool_manager.h>
 
 #include <wx/display.h>
 #include <build_version.h>
@@ -68,6 +71,11 @@
 #include <netlist_exporter_kicad.h>
 #include <kiway.h>
 #include <dialogs/dialog_fields_editor_global.h>
+
+#include <sch_view.h>
+#include <sch_painter.h>
+
+#include <gal/graphics_abstraction_layer.h>
 
 // non-member so it can be moved easily, and kept REALLY private.
 // Do NOT Clear() in here.
@@ -153,9 +161,9 @@ SEARCH_STACK* PROJECT::SchSearchS()
 
 PART_LIBS* PROJECT::SchLibs()
 {
-    PART_LIBS* libs = (PART_LIBS*)  GetElem( PROJECT::ELEM_SCH_PART_LIBS );
+    PART_LIBS* libs = (PART_LIBS*) GetElem( PROJECT::ELEM_SCH_PART_LIBS );
 
-    wxASSERT( !libs || dynamic_cast<PART_LIBS*>( libs ) );
+    wxASSERT( !libs || libs->Type() == PART_LIBS_T );
 
     if( !libs )
     {
@@ -225,7 +233,7 @@ BEGIN_EVENT_TABLE( SCH_EDIT_FRAME, EDA_DRAW_FRAME )
     EVT_MENU( ID_NEW_PROJECT, SCH_EDIT_FRAME::OnNewProject )
     EVT_MENU( ID_LOAD_PROJECT, SCH_EDIT_FRAME::OnLoadProject )
 
-    EVT_MENU_RANGE( wxID_FILE1, wxID_FILE9, SCH_EDIT_FRAME::OnLoadFile )
+    EVT_MENU_RANGE( ID_FILE1, ID_FILEMAX, SCH_EDIT_FRAME::OnLoadFile )
 
     EVT_MENU( ID_APPEND_PROJECT, SCH_EDIT_FRAME::OnAppendProject )
     EVT_MENU( ID_IMPORT_NON_KICAD_SCH, SCH_EDIT_FRAME::OnImportProject )
@@ -245,8 +253,7 @@ BEGIN_EVENT_TABLE( SCH_EDIT_FRAME, EDA_DRAW_FRAME )
 
     EVT_MENU( ID_CONFIG_SAVE, SCH_EDIT_FRAME::Process_Config )
     EVT_MENU( ID_CONFIG_READ, SCH_EDIT_FRAME::Process_Config )
-    EVT_MENU_RANGE( ID_PREFERENCES_HOTKEY_START, ID_PREFERENCES_HOTKEY_END,
-                    SCH_EDIT_FRAME::Process_Config )
+    EVT_MENU( ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST, SCH_EDIT_FRAME::Process_Config )
 
     EVT_TOOL( wxID_PREFERENCES, SCH_EDIT_FRAME::OnPreferencesOptions )
     EVT_MENU( ID_PREFERENCES_CONFIGURE_PATHS, SCH_EDIT_FRAME::OnConfigurePaths )
@@ -287,6 +294,7 @@ BEGIN_EVENT_TABLE( SCH_EDIT_FRAME, EDA_DRAW_FRAME )
     EVT_MENU( wxID_INDEX, EDA_DRAW_FRAME::GetKicadHelp )
     EVT_MENU( ID_HELP_GET_INVOLVED, EDA_DRAW_FRAME::GetKicadContribute )
     EVT_MENU( wxID_ABOUT, EDA_BASE_FRAME::GetKicadAbout )
+    EVT_MENU( ID_GRID_SETTINGS, SCH_BASE_FRAME::OnGridSettings )
 
     // Tools and buttons for vertical toolbar.
     EVT_TOOL( ID_NO_TOOL_SELECTED, SCH_EDIT_FRAME::OnSelectTool )
@@ -313,6 +321,10 @@ BEGIN_EVENT_TABLE( SCH_EDIT_FRAME, EDA_DRAW_FRAME )
     EVT_MENU_RANGE( ID_SCH_MIRROR_X, ID_SCH_ORIENT_NORMAL, SCH_EDIT_FRAME::OnOrient )
     EVT_MENU_RANGE( ID_POPUP_START_RANGE, ID_POPUP_END_RANGE,
                     SCH_EDIT_FRAME::Process_Special_Functions )
+    EVT_MENU( ID_POPUP_SCH_DISPLAYDOC_CMP, SCH_EDIT_FRAME::OnEditItem )
+
+    EVT_MENU( ID_MENU_CANVAS_CAIRO, SCH_EDIT_FRAME::OnSwitchCanvas )
+    EVT_MENU( ID_MENU_CANVAS_OPENGL, SCH_EDIT_FRAME::OnSwitchCanvas )
 
     // Tools and buttons options toolbar
     EVT_TOOL( ID_TB_OPTIONS_HIDDEN_PINS, SCH_EDIT_FRAME::OnSelectOptionToolbar )
@@ -341,6 +353,8 @@ BEGIN_EVENT_TABLE( SCH_EDIT_FRAME, EDA_DRAW_FRAME )
     EVT_UPDATE_UI( ID_UPDATE_ONE_SHEET, SCH_EDIT_FRAME::OnUpdateSaveSheet )
     EVT_UPDATE_UI( ID_POPUP_SCH_LEAVE_SHEET, SCH_EDIT_FRAME::OnUpdateHierarchySheet )
     EVT_UPDATE_UI( ID_REMAP_SYMBOLS, SCH_EDIT_FRAME::OnUpdateRemapSymbols )
+    EVT_UPDATE_UI( ID_MENU_CANVAS_CAIRO, SCH_EDIT_FRAME::OnUpdateSwitchCanvas )
+    EVT_UPDATE_UI( ID_MENU_CANVAS_OPENGL, SCH_EDIT_FRAME::OnUpdateSwitchCanvas )
 
     /* Search dialog events. */
     EVT_FIND_CLOSE( wxID_ANY, SCH_EDIT_FRAME::OnFindDialogClose )
@@ -363,17 +377,18 @@ SCH_EDIT_FRAME::SCH_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ):
     m_DefaultSchematicFileName = NAMELESS_PROJECT;
     m_DefaultSchematicFileName += wxT( ".sch" );
     m_showAllPins = false;
-    m_previewPosition = wxDefaultPosition;
-    m_previewSize = wxDefaultSize;
     m_printMonochrome = true;
     m_printSheetReference = true;
     SetShowPageLimits( true );
-    m_annotateDialog = nullptr;
     m_hotkeysDescrList = g_Schematic_Hokeys_Descr;
     m_dlgFindReplace = NULL;
     m_findReplaceData = new wxFindReplaceData( wxFR_DOWN );
+    m_findReplaceStatus = new wxString( wxEmptyString );
     m_undoItem = NULL;
     m_hasAutoSave = true;
+    m_FrameSize = ConvertDialogToPixels( wxSize( 500, 350 ) );    // default in case of no prefs
+
+    m_toolManager = new TOOL_MANAGER;
 
     SetForceHVLines( true );
     SetSpiceAjustPassiveValues( false );
@@ -384,16 +399,13 @@ SCH_EDIT_FRAME::SCH_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ):
     SetIcon( icon );
 
     // Initialize grid id to the default value (50 mils):
-    const int default_grid = ID_POPUP_GRID_LEVEL_50 - ID_POPUP_GRID_LEVEL_1000;
-    m_LastGridSizeId = default_grid;
+    m_LastGridSizeId = ID_POPUP_GRID_LEVEL_50 - ID_POPUP_GRID_LEVEL_1000;
 
     LoadSettings( config() );
 
     CreateScreens();
 
-    // Ensure m_LastGridSizeId is an offset inside the allowed schematic grid range
-    if( !GetScreen()->GridExists( m_LastGridSizeId + ID_POPUP_GRID_LEVEL_1000 ) )
-        m_LastGridSizeId = default_grid;
+    SetPresetGrid( m_LastGridSizeId );
 
     SetSize( m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y );
 
@@ -412,37 +424,20 @@ SCH_EDIT_FRAME::SCH_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ):
     m_pageSetupData.GetPrintData().SetNoCopies( 1 );
 
     m_auimgr.SetManagedWindow( this );
+    m_auimgr.SetArtProvider( new EDA_DOCKART( this ) );
 
-    EDA_PANEINFO horiz;
-    horiz.HorizontalToolbarPane();
-
-    EDA_PANEINFO vert;
-    vert.VerticalToolbarPane();
-
-    EDA_PANEINFO mesg;
-    mesg.MessageToolbarPane();
-
-    if( m_mainToolBar )
-        m_auimgr.AddPane( m_mainToolBar,
-                          wxAuiPaneInfo( horiz ).Name( wxT( "m_mainToolBar" ) ).Top().Row( 0 ) );
-
-    if( m_drawToolBar )
-        m_auimgr.AddPane( m_drawToolBar, wxAuiPaneInfo( vert ).Name( wxT( "m_drawToolBar" ) ).Right() );
-
-    if( m_optionsToolBar )
-        m_auimgr.AddPane( m_optionsToolBar,
-                          wxAuiPaneInfo( vert ).Name( wxT( "m_optionsToolBar" ) ).Left() );
-
-    if( m_canvas )
-        m_auimgr.AddPane( m_canvas, wxAuiPaneInfo().Name( wxT( "DrawFrame" ) ).CentrePane() );
-
-    if( m_messagePanel )
-        m_auimgr.AddPane( m_messagePanel, wxAuiPaneInfo( mesg ).Name( wxT( "MsgPanel" ) ).Bottom().
-                          Layer(10) );
+    m_auimgr.AddPane( m_mainToolBar, EDA_PANE().HToolbar().Name( "MainToolbar" ).Top().Layer(6) );
+    m_auimgr.AddPane( m_optionsToolBar, EDA_PANE().VToolbar().Name( "OptToolbar" ).Left().Layer(3) );
+    m_auimgr.AddPane( m_drawToolBar, EDA_PANE().VToolbar().Name( "ToolsToolbar" ).Right().Layer(1) );
+    m_auimgr.AddPane( m_canvas->GetWindow(), EDA_PANE().Canvas().Name( "DrawFrame" ).Center() );
+    m_auimgr.AddPane( m_messagePanel, EDA_PANE().Messages().Name( "MsgPanel" ).Bottom().Layer(6) );
 
     m_auimgr.Update();
 
     Zoom_Automatique( false );
+
+    if( GetGalCanvas() )
+        GetGalCanvas()->GetGAL()->SetGridVisibility( IsGridVisible() );
 
     // Net list generator
     DefaultExecFlags();
@@ -463,13 +458,11 @@ SCH_EDIT_FRAME::~SCH_EDIT_FRAME()
 
     delete m_CurrentSheet;          // a SCH_SHEET_PATH, on the heap.
     delete m_undoItem;
-    delete g_RootSheet;
     delete m_findReplaceData;
+    delete m_findReplaceStatus;
 
-    m_CurrentSheet = NULL;
-    m_undoItem = NULL;
+    delete g_RootSheet;
     g_RootSheet = NULL;
-    m_findReplaceData = NULL;
 }
 
 
@@ -591,7 +584,19 @@ SCH_SHEET_PATH& SCH_EDIT_FRAME::GetCurrentSheet()
 
 void SCH_EDIT_FRAME::SetCurrentSheet( const SCH_SHEET_PATH& aSheet )
 {
-    *m_CurrentSheet = aSheet;
+    if( aSheet != *m_CurrentSheet )
+    {
+        *m_CurrentSheet = aSheet;
+
+        static_cast<SCH_DRAW_PANEL*>( m_canvas )->DisplaySheet( m_CurrentSheet->LastScreen() );
+    }
+}
+
+
+void SCH_EDIT_FRAME::HardRedraw()
+{
+    static_cast<SCH_DRAW_PANEL*>( m_canvas )->DisplaySheet( m_CurrentSheet->LastScreen() );
+    GetCanvas()->Refresh();
 }
 
 
@@ -641,6 +646,7 @@ void SCH_EDIT_FRAME::OnCloseWindow( wxCloseEvent& aEvent )
             return;
 
         viewlibFrame = (LIB_VIEW_FRAME*) Kiway().Player( FRAME_SCH_VIEWER_MODAL, false );
+
         if( viewlibFrame && !viewlibFrame->Close() )   // Can close modal component viewer?
             return;
     }
@@ -655,34 +661,19 @@ void SCH_EDIT_FRAME::OnCloseWindow( wxCloseEvent& aEvent )
     if( sheetList.IsModified() )
     {
         wxString fileName = Prj().AbsolutePath( g_RootSheet->GetScreen()->GetFileName() );
-        wxString msg = wxString::Format( _(
-                "Save the changes in\n\"%s\"\nbefore closing?"),
-                GetChars( fileName )
-                );
+        wxString msg = _( "Save changes to\n\"%s\"\nbefore closing?" );
 
-        int ii = DisplayExitDialog( this, msg );
-
-        switch( ii )
+        if( !HandleUnsavedChanges( this, wxString::Format( msg, fileName ),
+                                   [&]()->bool { return SaveProject(); } ) )
         {
-        case wxID_CANCEL:
             aEvent.Veto();
             return;
-
-        case wxID_NO:
-            break;
-
-        case wxID_YES:
-            wxCommandEvent tmp( ID_SAVE_PROJECT );
-            OnSaveProject( tmp );
-            break;
         }
     }
 
     // Close the find dialog and preserve it's setting if it is displayed.
     if( m_dlgFindReplace )
     {
-        m_findDialogPosition = m_dlgFindReplace->GetPosition();
-        m_findDialogSize = m_dlgFindReplace->GetSize();
         m_findStringHistoryList = m_dlgFindReplace->GetFindEntries();
         m_replaceStringHistoryList = m_dlgFindReplace->GetReplaceEntries();
         m_dlgFindReplace->Destroy();
@@ -969,26 +960,13 @@ void SCH_EDIT_FRAME::OnFindItems( wxCommandEvent& aEvent )
         m_dlgFindReplace = NULL;
     }
 
-    // Verify the find dialog is not drawn off the visible display area in case the
-    // display configuration has changed since the last time the dialog position was
-    // saved.
-    wxRect displayRect = wxDisplay().GetGeometry();
-    wxRect dialogRect = wxRect( m_findDialogPosition, m_findDialogSize );
-
-    wxPoint position = m_findDialogPosition;
-
-    if( !displayRect.Contains( dialogRect ) )
-    {
-        position = wxDefaultPosition;
-    }
-
     int style = 0;
 
     if( aEvent.GetId() == wxID_REPLACE )
         style = wxFR_REPLACEDIALOG;
 
-    m_dlgFindReplace = new DIALOG_SCH_FIND( this, m_findReplaceData, position, m_findDialogSize,
-                                            style );
+    m_dlgFindReplace = new DIALOG_SCH_FIND( this, m_findReplaceData, m_findReplaceStatus,
+                                            wxDefaultPosition, wxDefaultSize, style );
 
     m_dlgFindReplace->SetFindEntries( m_findStringHistoryList );
     m_dlgFindReplace->SetReplaceEntries( m_replaceStringHistoryList );
@@ -1004,8 +982,6 @@ void SCH_EDIT_FRAME::OnFindDialogClose( wxFindDialogEvent& event )
 
     if( m_dlgFindReplace )
     {
-        m_findDialogPosition = m_dlgFindReplace->GetPosition();
-        m_findDialogSize = m_dlgFindReplace->GetSize();
         m_findStringHistoryList = m_dlgFindReplace->GetFindEntries();
         m_replaceStringHistoryList = m_dlgFindReplace->GetReplaceEntries();
         m_dlgFindReplace->Destroy();
@@ -1061,16 +1037,14 @@ void SCH_EDIT_FRAME::OnNewProject( wxCommandEvent& event )
 
         if( create_me.FileExists() )
         {
-            wxString msg = wxString::Format( _(
-                    "Schematic file \"%s\" already exists, use Open instead" ),
-                    GetChars( create_me.GetFullName() )
-                    );
+            wxString msg;
+            msg.Printf( _( "Schematic file \"%s\" already exists." ), create_me.GetFullName() );
             DisplayError( this, msg );
             return ;
         }
 
         // OpenProjectFiles() requires absolute
-        wxASSERT_MSG( create_me.IsAbsolute(), wxT( "wxFileDialog returned non-absolute" ) );
+        wxASSERT_MSG( create_me.IsAbsolute(), "wxFileDialog returned non-absolute path" );
 
         OpenProjectFiles( std::vector<wxString>( 1, create_me.GetFullPath() ), KICTL_CREATE );
         m_mruPath = create_me.GetPath();
@@ -1080,7 +1054,6 @@ void SCH_EDIT_FRAME::OnNewProject( wxCommandEvent& event )
 
 void SCH_EDIT_FRAME::OnLoadProject( wxCommandEvent& event )
 {
-//  wxString pro_dir = wxPathOnly( Prj().GetProjectFullName() );
     wxString pro_dir = m_mruPath;
 
     wxFileDialog dlg( this, _( "Open Schematic" ), pro_dir,
@@ -1264,7 +1237,7 @@ void SCH_EDIT_FRAME::OnOpenLibraryEditor( wxCommandEvent& event )
         if( !entry )     // Should not occur
             return;
 
-        libeditFrame->LoadComponentAndSelectLib( id );
+        libeditFrame->LoadComponentAndSelectLib( id, component->GetUnit(), component->GetConvert() );
     }
 
     SchematicCleanUp();
@@ -1371,7 +1344,7 @@ bool SCH_EDIT_FRAME::isAutoSaveRequired() const
 }
 
 
-void SCH_EDIT_FRAME::addCurrentItemToList( bool aRedraw )
+void SCH_EDIT_FRAME::addCurrentItemToScreen()
 {
     SCH_SCREEN* screen = GetScreen();
     SCH_ITEM*   item = screen->GetCurItem();
@@ -1380,26 +1353,28 @@ void SCH_EDIT_FRAME::addCurrentItemToList( bool aRedraw )
 
     m_canvas->SetAutoPanRequest( false );
 
-    SCH_ITEM* undoItem = item;
+    SCH_SHEET*     parentSheet = nullptr;
+    SCH_COMPONENT* parentComponent = nullptr;
+    SCH_ITEM*      undoItem = item;
 
     if( item->Type() == SCH_SHEET_PIN_T )
     {
-        SCH_SHEET* sheet = (SCH_SHEET*) item->GetParent();
+        parentSheet = (SCH_SHEET*) item->GetParent();
 
-        wxCHECK_RET( (sheet != NULL) && (sheet->Type() == SCH_SHEET_T),
+        wxCHECK_RET( parentSheet && parentSheet->Type() == SCH_SHEET_T,
                      wxT( "Cannot place sheet pin in invalid schematic sheet object." ) );
 
-        undoItem = sheet;
+        undoItem = parentSheet;
     }
 
     else if( item->Type() == SCH_FIELD_T )
     {
-        SCH_COMPONENT* cmp = (SCH_COMPONENT*) item->GetParent();
+        parentComponent = (SCH_COMPONENT*) item->GetParent();
 
-        wxCHECK_RET( (cmp != NULL) && (cmp->Type() == SCH_COMPONENT_T),
+        wxCHECK_RET( parentComponent && parentComponent->Type() == SCH_COMPONENT_T,
                      wxT( "Cannot place field in invalid schematic component object." ) );
 
-        undoItem = cmp;
+        undoItem = parentComponent;
     }
 
     if( item->IsNew() )
@@ -1421,38 +1396,37 @@ void SCH_EDIT_FRAME::addCurrentItemToList( bool aRedraw )
                 screen->SetCurItem( NULL );
                 delete item;
 
-                if( aRedraw )
-                    GetCanvas()->Refresh();
-
                 return;
             }
 
             SetSheetNumberAndCount();
-        }
 
-        if( undoItem == item )
-        {
             if( !screen->CheckIfOnDrawList( item ) )  // don't want a loop!
-                screen->Append( item );
+                AddToScreen( item );
 
             SetRepeatItem( item );
-
             SaveCopyInUndoList( undoItem, UR_NEW );
+        }
+        else if( item->Type() == SCH_SHEET_PIN_T )
+        {
+            // Sheet pins are owned by their parent sheet.
+            SaveCopyInUndoList( undoItem, UR_CHANGED );     // save the parent sheet
+
+            parentSheet->AddPin( (SCH_SHEET_PIN*) item );
+        }
+        else if( item->Type() == SCH_FIELD_T )
+        {
+            // Component fields are also owned by their parent, but new component fields
+            // are handled elsewhere.
+            wxLogMessage( wxT( "addCurrentItemToScreen: unexpected new SCH_FIELD" ) );
         }
         else
         {
-            // Here, item is not a basic schematic item, but an item inside
-            // a parent basic schematic item,
-            // currently: sheet pin or component field.
-            // currently, only a sheet pin can be found as new item,
-            // because new component fields have a specific handling, and do not appears here
-            SaveCopyInUndoList( undoItem, UR_CHANGED );
+            if( !screen->CheckIfOnDrawList( item ) )  // don't want a loop!
+                AddToScreen( item );
 
-            if( item->Type() == SCH_SHEET_PIN_T )
-                ( (SCH_SHEET*)undoItem )->AddPin( (SCH_SHEET_PIN*) item );
-            else
-                wxLogMessage( wxT( "addCurrentItemToList: expected type = SCH_SHEET_PIN_T, actual type = %d" ),
-                              item->Type() );
+            SetRepeatItem( item );
+            SaveCopyInUndoList( undoItem, UR_NEW );
         }
 
         if( doClearAnnotation )
@@ -1469,15 +1443,19 @@ void SCH_EDIT_FRAME::addCurrentItemToList( bool aRedraw )
     }
 
     item->ClearFlags();
+
     screen->SetModify();
     screen->SetCurItem( NULL );
     m_canvas->SetMouseCapture( NULL, NULL );
     m_canvas->EndMouseCapture();
 
+    RefreshItem( item );
+
     if( item->IsConnectable() )
     {
         std::vector< wxPoint > pts;
         item->GetConnectionPoints( pts );
+
         for( auto i = pts.begin(); i != pts.end(); i++ )
         {
             for( auto j = i + 1; j != pts.end(); j++ )
@@ -1486,11 +1464,11 @@ void SCH_EDIT_FRAME::addCurrentItemToList( bool aRedraw )
             if( screen->IsJunctionNeeded( *i, true ) )
                 AddJunction( *i, true );
         }
-        screen->TestDanglingEnds();
+
+        TestDanglingEnds();
     }
 
-    if( aRedraw )
-        GetCanvas()->Refresh();
+    GetCanvas()->Refresh();
 }
 
 
@@ -1525,21 +1503,53 @@ void SCH_EDIT_FRAME::UpdateTitle()
 }
 
 
-int SCH_EDIT_FRAME::GetIconScale()
+void SCH_EDIT_FRAME::CommonSettingsChanged()
 {
-    int scale = 0;
-    Kiface().KifaceSettings()->Read( SchIconScaleEntry, &scale, 0 );
-    return scale;
-}
+    SCH_BASE_FRAME::CommonSettingsChanged();
 
-
-void SCH_EDIT_FRAME::SetIconScale( int aScale )
-{
-    Kiface().KifaceSettings()->Write( SchIconScaleEntry, aScale );
-    ReCreateMenuBar();
     ReCreateHToolbar();
     ReCreateVToolbar();
     ReCreateOptToolbar();
     Layout();
     SendSizeEvent();
 }
+
+
+void SCH_EDIT_FRAME::OnPageSettingsChange()
+{
+    // Rebuild the sheet view (draw area and any other items):
+    DisplayCurrentSheet();
+}
+
+
+void SCH_EDIT_FRAME::ShowChangedLanguage()
+{
+    // call my base class
+    SCH_BASE_FRAME::ShowChangedLanguage();
+
+    // tooltips in toolbars
+    ReCreateHToolbar();
+    ReCreateVToolbar();
+    ReCreateOptToolbar();
+
+    // status bar
+    UpdateMsgPanel();
+}
+
+
+void SCH_EDIT_FRAME::SetScreen( BASE_SCREEN* aScreen )
+{
+    EDA_DRAW_FRAME::SetScreen( aScreen );
+    auto c = static_cast<SCH_DRAW_PANEL*>(m_canvas);
+    c->DisplaySheet( static_cast<SCH_SCREEN*>( aScreen ) );
+}
+
+
+const BOX2I SCH_EDIT_FRAME::GetDocumentExtents() const
+{
+    int sizeX = GetScreen()->GetPageSettings().GetWidthIU();
+    int sizeY = GetScreen()->GetPageSettings().GetHeightIU();
+
+    return BOX2I( VECTOR2I(0, 0), VECTOR2I( sizeX, sizeY ) );
+}
+

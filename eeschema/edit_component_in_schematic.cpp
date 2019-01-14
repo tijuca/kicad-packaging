@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2016 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2008 Wayne Stambaugh <stambaughw@gmail.com>
- * Copyright (C) 2004-2017 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,7 +30,7 @@
 
 #include <fctsys.h>
 #include <gr_basic.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <confirm.h>
 #include <sch_edit_frame.h>
 #include <msgpanel.h>
@@ -79,16 +79,16 @@ void SCH_EDIT_FRAME::EditComponentFieldText( SCH_FIELD* aField )
     dlg.UpdateField( aField, m_CurrentSheet );
     m_canvas->MoveCursorToCrossHair();
     m_canvas->SetIgnoreMouseEvents( false );
-    OnModify();
 
     if( m_autoplaceFields )
         component->AutoAutoplaceFields( GetScreen() );
 
-    m_canvas->Refresh();
+    RefreshItem( aField );
+    OnModify();
 
     MSG_PANEL_ITEMS items;
     component->SetCurrentSheetPath( &GetCurrentSheet() );
-    component->GetMsgPanelInfo( items );
+    component->GetMsgPanelInfo( m_UserUnits, items );
     SetMsgPanel( items );
 }
 
@@ -110,5 +110,6 @@ void SCH_EDIT_FRAME::RotateField( SCH_FIELD* aField )
     else
         aField->SetTextAngle( TEXT_ANGLE_HORIZ );
 
+    RefreshItem( aField );
     OnModify();
 }
