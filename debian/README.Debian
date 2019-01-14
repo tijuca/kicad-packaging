@@ -34,33 +34,6 @@ find any of the files in the .config folder.
 
  -- Carsten Schoenert <c.schoenert@t-online.de>  Mo, 23 Apr 2018 15:00:00 +0800
 
-KiCad 5, GTK+2 vs GTK+3 Restrictions
-------------------------------------
-
-Right now KiCad 5.x isn't fully ready for using GTK+3 bindings through
-wxWidgets3 and related additional packages which depend somehow on wxWidget3
-like the package wxpython.
-
-What are the problems?
-There are two bigger issues that resulting in some restricted behavior of
-the KiCad binaries.
-
- 1.) First the wxWidget GUI binding against GTK+3 aren't fully
-     ready for a full productive usage of the KiCad suite and KiCad is becoming
-     significantly sluggish if the GTK+3 libraries of wxWidget would be used.
-     Also some sporadic segfaults can happen. To use GTK+3 some more source
-     code improvements needs to be done by upstream. Maybe a series of
-     KiCad 5.1.x will be released later to fix this problem.
-     So currently KiCad is build to use still GTK+2 bindings.
-
- 2.) The usage of the scripting features of wxpython isn't possible as the
-     wxpython package isn't available anymore for usage with GTK+2. This
-     unfortunately is resulting in a turned off support of SCRIPTING_WXPYTHON
-     and the Pcbnew application hasn't a Python scripting interface for now.
-     This should be usable again once a full GTK+3 support is built into KiCad.
-
- -- Carsten Schoenert <c.schoenert@t-online.de>  Sat, 26 May 2018 12:00:00 +0200
-
 KiCad 5, the 'Modern Toolset (Accelerated)' in Gerbview or Pcbnew and Wayland
 -----------------------------------------------------------------------------
 
