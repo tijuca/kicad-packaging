@@ -27,11 +27,12 @@
 #include <plotter.h>
 #include <macros.h>
 #include <convert_to_biu.h>
+#include <board_design_settings.h>
 
 
-#define PLOT_LINEWIDTH_MIN        (0.02*IU_PER_MM)  // min value for default line thickness
-#define PLOT_LINEWIDTH_MAX        (2*IU_PER_MM)     // max value for default line thickness
-#define PLOT_LINEWIDTH_DEFAULT    (0.15*IU_PER_MM)  // def. value for default line thickness
+#define PLOT_LINEWIDTH_MIN        ( 0.02 * IU_PER_MM )  // min value for default line thickness
+#define PLOT_LINEWIDTH_MAX        ( 2 * IU_PER_MM )     // max value for default line thickness
+#define PLOT_LINEWIDTH_DEFAULT    ( DEFAULT_TEXT_WIDTH * IU_PER_MM )
 #define HPGL_PEN_DIAMETER_MIN     0
 #define HPGL_PEN_DIAMETER_MAX     100.0     // Unit = mil
 #define HPGL_PEN_SPEED_MIN        1         // this param is always in cm/s
@@ -92,7 +93,7 @@ static bool setDouble( double* aTarget, double aValue, double aMin, double aMax 
 PCB_PLOT_PARAMS::PCB_PLOT_PARAMS()
 {
     m_useGerberProtelExtensions  = false;
-    m_useGerberAttributes        = false;
+    m_useGerberX2format          = false;
     m_includeGerberNetlistInfo   = false;
     m_createGerberJobFile        = false;
     m_gerberPrecision            = gbrDefaultPrecision;
@@ -161,7 +162,7 @@ void PCB_PLOT_PARAMS::Format( OUTPUTFORMATTER* aFormatter,
                        m_useGerberProtelExtensions ? trueStr : falseStr );
 
     aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_usegerberattributes ),
-                       GetUseGerberAttributes() ? trueStr : falseStr );
+                       GetUseGerberX2format() ? trueStr : falseStr );
 
     aFormatter->Print( aNestLevel+1, "(%s %s)\n", getTokenName( T_usegerberadvancedattributes ),
                        GetIncludeGerberNetlistInfo() ? trueStr : falseStr );
@@ -238,9 +239,9 @@ bool PCB_PLOT_PARAMS::IsSameAs( const PCB_PLOT_PARAMS &aPcbPlotParams, bool aCom
         return false;
     if( m_useGerberProtelExtensions != aPcbPlotParams.m_useGerberProtelExtensions )
         return false;
-    if( m_useGerberAttributes != aPcbPlotParams.m_useGerberAttributes )
+    if( m_useGerberX2format != aPcbPlotParams.m_useGerberX2format )
         return false;
-    if( m_useGerberAttributes && m_includeGerberNetlistInfo != aPcbPlotParams.m_includeGerberNetlistInfo )
+    if( m_includeGerberNetlistInfo != aPcbPlotParams.m_includeGerberNetlistInfo )
         return false;
     if( m_createGerberJobFile != aPcbPlotParams.m_createGerberJobFile )
         return false;
@@ -401,7 +402,7 @@ void PCB_PLOT_PARAMS_PARSER::Parse( PCB_PLOT_PARAMS* aPcbPlotParams )
             break;
 
         case T_usegerberattributes:
-            aPcbPlotParams->m_useGerberAttributes = parseBool();
+            aPcbPlotParams->m_useGerberX2format = parseBool();
             break;
 
         case T_usegerberadvancedattributes:

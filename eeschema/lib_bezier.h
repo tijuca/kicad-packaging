@@ -63,6 +63,7 @@ public:
         return _( "Bezier" );
     }
 
+    void Reserve( size_t aCount ) { m_BezierPoints.reserve( aCount ); }
     void AddPoint( const wxPoint& aPoint ) { m_BezierPoints.push_back( aPoint ); }
 
     void SetOffset( const wxPoint& aOffset ) override;
@@ -87,7 +88,7 @@ public:
 
     void Move( const wxPoint& aPosition ) override;
 
-    wxPoint GetPosition() const override { return m_PolyPoints[0]; }
+    wxPoint GetPosition() const override; 
 
     void MirrorHorizontal( const wxPoint& aCenter ) override;
 
@@ -104,7 +105,7 @@ public:
 
     int GetPenSize( ) const override;
 
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
+    void GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList ) override;
 
     EDA_ITEM* Clone() const override;
 

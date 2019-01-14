@@ -7,6 +7,7 @@ add_definitions( -DCVPCB )
 
 include_directories( BEFORE ${INC_BEFORE} )
 include_directories(
+    ../include/legacy_wx
     ./dialogs
     ../3d-viewer
     ../pcbnew
@@ -25,8 +26,6 @@ set( CVPCB_DIALOGS
     dialogs/dialog_display_options_base.cpp
     dialogs/dialog_config_equfiles_base.cpp
     dialogs/dialog_config_equfiles.cpp
-    ../pcbnew/dialogs/dialog_fp_lib_table.cpp
-    ../pcbnew/dialogs/dialog_fp_lib_table_base.cpp
     ../pcbnew/dialogs/dialog_fp_plugin_options.cpp
     ../pcbnew/dialogs/dialog_fp_plugin_options_base.cpp
     )
@@ -36,6 +35,7 @@ set( CVPCB_SRCS
     ../pcbnew/board_items_to_polygon_shape_transform.cpp
     ../pcbnew/pcb_general_settings.cpp
     ../pcbnew/drc_item.cpp
+    ../pcbnew/tools/grid_helper.cpp
     auto_associate.cpp
     cfg.cpp
     components_listbox.cpp
@@ -46,7 +46,10 @@ set( CVPCB_SRCS
     listbox_base.cpp
     menubar.cpp
     readwrite_dlgs.cpp
-    tool_cvpcb.cpp
+    toolbars_cvpcb.cpp
+    tools/cvpcb_actions.cpp
+    tools/cvpcb_control.cpp
+    tools/cvpcb_selection_tool.cpp
     )
 
 
@@ -147,6 +150,23 @@ target_link_libraries( cvpcb_kiface
     bitmaps
     polygon
     gal
+    legacy_wx
+    pcbcommon
+    pcad2kicadpcb
+    3d-viewer
+    common
+    bitmaps
+    polygon
+    gal
+    legacy_wx
+    pcbcommon
+    pcad2kicadpcb
+    3d-viewer
+    common
+    bitmaps
+    polygon
+    gal
+    legacy_wx
     ${wxWidgets_LIBRARIES}
     ${GDI_PLUS_LIBRARIES}
     )

@@ -71,6 +71,7 @@ TOOL_BASE::TOOL_BASE( const std::string& aToolName ) :
 
     m_startItem = nullptr;
     m_startLayer = 0;
+    m_startHighlight = false;
 
     m_endItem = nullptr;
     m_gridHelper = nullptr;
@@ -189,15 +190,12 @@ ITEM* TOOL_BASE::pickSingleItem( const VECTOR2I& aWhere, int aNet, int aLayer, b
             if( item && !item->Layers().Overlaps( tl ) )
                 item = NULL;
 
-        if( item )
+        if( item && ( aLayer < 0 || item->Layers().Overlaps( aLayer ) ) )
         {
             rv = item;
             break;
         }
     }
-
-    if( rv && aLayer >= 0 && !rv->Layers().Overlaps( aLayer ) )
-        rv = NULL;
 
     if( rv )
     {
@@ -213,9 +211,20 @@ void TOOL_BASE::highlightNet( bool aEnabled, int aNetcode )
     RENDER_SETTINGS* rs = getView()->GetPainter()->GetSettings();
 
     if( aNetcode >= 0 && aEnabled )
+    {
+        // If the user has previously set the current net to be highlighted,
+        // we assume they want to keep it highlighted after routing
+        m_startHighlight = ( rs->IsHighlightEnabled() && rs->GetHighlightNetCode() == aNetcode );
+
         rs->SetHighlight( true, aNetcode );
+    }
     else
-        rs->SetHighlight( false );
+    {
+        if( !m_startHighlight )
+            rs->SetHighlight( false );
+
+        m_startHighlight = false;
+    }
 
     getView()->UpdateAllLayersColor();
 }
@@ -248,7 +257,7 @@ bool TOOL_BASE::checkSnap( ITEM *aItem )
     return doSnap;
 }
 
-void TOOL_BASE::updateStartItem( TOOL_EVENT& aEvent, bool aIgnorePads )
+void TOOL_BASE::updateStartItem( const TOOL_EVENT& aEvent, bool aIgnorePads )
 {
     int tl = getView()->GetTopLayer();
     VECTOR2I cp = controls()->GetCursorPosition();

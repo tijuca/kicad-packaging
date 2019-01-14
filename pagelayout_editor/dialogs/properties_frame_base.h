@@ -57,6 +57,8 @@ class PANEL_PROPERTIES_BASE : public wxPanel
 		wxStaticText* m_staticTextVjust;
 		wxChoice* m_choiceVjustify;
 		wxCheckBox* m_checkBoxItalic;
+		wxStaticLine* m_staticline81;
+		wxStaticText* m_staticTextSizeInfo;
 		wxStaticText* m_staticTexTsizeX;
 		wxStaticText* m_staticTextTsizeY;
 		wxTextCtrl* m_textCtrlTextSizeX;
@@ -97,11 +99,10 @@ class PANEL_PROPERTIES_BASE : public wxPanel
 		wxStaticText* m_staticTextThickness;
 		wxTextCtrl* m_textCtrlThickness;
 		wxStaticText* m_staticTextInfoThickness;
-		wxBoxSizer* m_SizerRotation;
+		wxBoxSizer* m_SizerRotAndPPI;
 		wxStaticLine* m_staticline1;
 		wxStaticText* m_staticTextRot;
 		wxTextCtrl* m_textCtrlRotation;
-		wxBoxSizer* m_SizerBitmapPPI;
 		wxStaticText* m_staticTextBitmapPPI;
 		wxTextCtrl* m_textCtrlBitmapPPI;
 		wxStaticLine* m_staticline4;
@@ -129,6 +130,7 @@ class PANEL_PROPERTIES_BASE : public wxPanel
 		wxTextCtrl* m_textCtrlDefaultLineWidth;
 		wxStaticText* m_staticText221;
 		wxTextCtrl* m_textCtrlDefaultTextThickness;
+		wxStaticText* m_staticText2211;
 		wxButton* m_buttonDefault;
 		wxStaticLine* m_staticline9;
 		wxStaticText* m_staticTextMargins;
@@ -153,7 +155,7 @@ class PANEL_PROPERTIES_BASE : public wxPanel
 	
 	public:
 		
-		PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL ); 
+		PANEL_PROPERTIES_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 371,864 ), long style = wxTAB_TRAVERSAL ); 
 		~PANEL_PROPERTIES_BASE();
 	
 };

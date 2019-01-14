@@ -39,6 +39,83 @@
  */
 static const char illegalFileNameChars[] = "\\/:\"<>|";
 
+/**
+ * These Escape/Unescape routines use HTML-entity-reference-style encoding to handle
+ * characters which are:
+ *   (a) not legal in filenames
+ *   (b) used as control characters in LIB_IDs
+ *   (c) used to delineate hierarchical paths
+ */
+wxString EscapeString( const wxString& aSource )
+{
+    return aSource;
+
+    wxString converted;
+
+    for( wxUniChar c: aSource )
+    {
+        if( c == '\"' )
+            converted += "&quot;";
+        else if( c == '\'' )
+            converted += "&apos;";
+        else if( c == '&' )
+            converted += "&amp;";
+        else if( c == '<' )
+            converted += "&lt;";
+        else if( c == '>' )
+            converted += "&gt;";
+        else if( c == '\\' )
+            converted += "&Backslash;";
+        else if( c == '/' )
+            converted += "&frasl;";
+        else if( c == '|' )
+            converted += "&verbar;";
+        else if( c == ':' )
+            converted += "&colon;";
+        else if( c == ' ' )
+            converted += "&nbsp;";
+        else if( c == '%' )
+            converted += "&percnt;";
+        else if( c == '$' )
+            converted += "&dollar;";
+        else if( c == '\t' )
+            converted += "&tab;";
+        else if( c == '\n' || c == '\r' )
+            converted += "&Newline;";
+        else
+            converted += c;
+    }
+
+    return converted;
+}
+
+
+wxString UnescapeString( const wxString& aSource )
+{
+    return aSource;
+
+    wxString converted = aSource;
+
+    converted.Replace( "&quot;", "\"" );
+    converted.Replace( "&apos;", "'" );
+    converted.Replace( "&lt;", "<" );
+    converted.Replace( "&gt;", ">" );
+    converted.Replace( "&Backslash;", "\\" );
+    converted.Replace( "&frasl;", "/" );
+    converted.Replace( "&verbar;", "|" );
+    converted.Replace( "&colon;", ":" );
+    converted.Replace( "&nbsp;", " " );
+    converted.Replace( "&percnt;", "%" );
+    converted.Replace( "&dollar;", "$" );
+    converted.Replace( "&tab;", "\t" );
+    converted.Replace( "&Newline;", "\n" );
+
+    // must be done last
+    converted.Replace( "&amp;", "&" );
+
+    return converted;
+}
+
 
 int ReadDelimitedText( wxString* aDest, const char* aSource )
 {
@@ -242,55 +319,50 @@ int StrNumCmp( const wxString& aString1, const wxString& aString2, int aLength, 
 
     wxString::const_iterator str1 = aString1.begin(), str2 = aString2.begin();
 
-    if( ( str1 == aString1.end() ) || ( str2 == aString2.end() ) )
-        return 0;
-
     for( i = 0; i < aLength; i++ )
     {
-        if( isdigit( *str1 ) && isdigit( *str2 ) ) /* digit found */
+        wxUniChar c1 = *str1;
+        wxUniChar c2 = *str2;
+
+        if( isdigit( c1 ) && isdigit( c2 ) ) /* digit found */
         {
             nb1 = 0;
             nb2 = 0;
 
-            while( isdigit( *str1 ) )
+            while( isdigit( c1 ) )
             {
-                nb1 = nb1 * 10 + (int) *str1 - '0';
-                ++str1;
+                nb1 = nb1 * 10 + (int) c1 - '0';
+                c1 = *(++str1);
             }
 
-            while( isdigit( *str2 ) )
+            while( isdigit( c2 ) )
             {
-                nb2 = nb2 * 10 + (int) *str2 - '0';
-                ++str2;
+                nb2 = nb2 * 10 + (int) c2 - '0';
+                c2 = *(++str2);
             }
 
             if( nb1 < nb2 )
                 return -1;
-
-            if( nb1 > nb2 )
+            else if( nb1 > nb2 )
                 return 1;
         }
 
         if( aIgnoreCase )
         {
-            if( toupper( *str1 ) < toupper( *str2 ) )
+            if( toupper( c1 ) < toupper(c2 ) )
                 return -1;
-
-            if( toupper( *str1 ) > toupper( *str2 ) )
+            else if( toupper( c1 ) > toupper( c2 ) )
                 return 1;
-
-            if( ( *str1 == 0 ) && ( *str2 == 0 ) )
+            else if( ( c1 == 0 ) && ( c2 == 0 ) )
                 return 0;
         }
         else
         {
-            if( *str1 < *str2 )
+            if( c1 < c2 )
                 return -1;
-
-            if( *str1 > *str2 )
+            else if( c1 > c2 )
                 return 1;
-
-            if( ( str1 == aString1.end() ) && ( str2 == aString2.end() ) )
+            else if( ( c1 == 0 ) && ( c2 == 0 ) )
                 return 0;
         }
 
@@ -419,8 +491,12 @@ bool ApplyModifier( double& value, const wxString& aString )
 //
 // TODO: case (d) unimplemented !!!
 //
-int ValueStringCompare( const wxString& strFWord, const wxString& strSWord )
+int ValueStringCompare( wxString strFWord, wxString strSWord )
 {
+    // Compare unescaped text
+    strFWord = UnescapeString( strFWord );
+    strSWord = UnescapeString( strSWord );
+
     // The different sections of the two strings
     wxString strFWordBeg, strFWordMid, strFWordEnd;
     wxString strSWordBeg, strSWordMid, strSWordEnd;
@@ -463,8 +539,12 @@ int ValueStringCompare( const wxString& strFWord, const wxString& strSWord )
 }
 
 
-int RefDesStringCompare( const wxString& strFWord, const wxString& strSWord )
+int RefDesStringCompare( wxString strFWord, wxString strSWord )
 {
+    // Compare unescaped text
+    strFWord = UnescapeString( strFWord );
+    strSWord = UnescapeString( strSWord );
+
     // The different sections of the two strings
     wxString strFWordBeg, strFWordMid, strFWordEnd;
     wxString strSWordBeg, strSWordMid, strSWordEnd;

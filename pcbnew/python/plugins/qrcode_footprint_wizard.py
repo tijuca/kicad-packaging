@@ -20,7 +20,7 @@ import FootprintWizardBase
 
 # Additional import for QRCode
 # see https://github.com/kazuhikoarase/qrcode-generator/blob/master/python/qrcode.py
-import qrcode
+import kicad_qrcode as qrcode  # TODO: local qrcode package is prefered, so we renamed it
 
 class QRCodeWizard(FootprintWizardBase.FootprintWizard):
     GetName = lambda self: '2D Barcode QRCode'
@@ -36,9 +36,9 @@ class QRCodeWizard(FootprintWizardBase.FootprintWizard):
         self.AddParam("Barcode", "Use SilkS layer", self.uBool, False)
         self.AddParam("Barcode", "Use Cu layer", self.uBool, True)
         self.AddParam("Caption", "Enabled", self.uBool, True)
-        self.AddParam("Caption", "Height", self.uMM, 1.2)
-        self.AddParam("Caption", "Width", self.uMM, 1.2)
-        self.AddParam("Caption", "Thickness", self.uMM, 0.12)
+        self.AddParam("Caption", "Height", self.uMM, 1.0)
+        self.AddParam("Caption", "Width", self.uMM, 1.0)
+        self.AddParam("Caption", "Thickness", self.uMM, 0.15)
 
 
     def CheckParameters(self):

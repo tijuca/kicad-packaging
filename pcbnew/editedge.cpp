@@ -101,8 +101,7 @@ static void Move_Segment( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aPos
     wxPoint delta;
     delta = aPanel->GetParent()->GetCrossHairPosition() - s_LastPosition;
 
-    segment->SetStart( segment->GetStart() + delta );
-    segment->SetEnd(   segment->GetEnd()   + delta );
+    segment->Move( delta );
 
     s_LastPosition = aPanel->GetParent()->GetCrossHairPosition();
 
@@ -176,12 +175,8 @@ void PCB_EDIT_FRAME::Delete_Drawings_All_Layer( PCB_LAYER_ID aLayer )
             break;
 
         default:
-        {
-            msg.Printf( wxT("Delete_Drawings_All_Layer() error: unknown type %d"),
-                        item->Type() );
-            wxMessageBox( msg );
-            break;
-        }
+            wxLogDebug( wxT( "Delete_Drawings_All_Layer() error: unknown type %d" ), item->Type() );
+
         }
     }
 
@@ -243,33 +238,27 @@ static void Abort_EditEdge( EDA_DRAW_PANEL* aPanel, wxDC* DC )
  */
 DRAWSEGMENT* PCB_EDIT_FRAME::Begin_DrawSegment( DRAWSEGMENT* Segment, STROKE_T shape, wxDC* DC )
 {
-    int          s_large;
+    int          lineWidth;
     DRAWSEGMENT* DrawItem;
 
-    s_large = GetDesignSettings().m_DrawSegmentWidth;
+    lineWidth = GetDesignSettings().GetLineThickness( GetActiveLayer() );
 
-    if( GetActiveLayer() == Edge_Cuts )
-    {
-        s_large = GetDesignSettings().m_EdgeSegmentWidth;
-    }
-
-    if( Segment == NULL )        // Create new trace.
+    if( Segment == NULL )        // Create new segment.
     {
         SetCurItem( Segment = new DRAWSEGMENT( GetBoard() ) );
         Segment->SetFlags( IS_NEW );
         Segment->SetLayer( GetActiveLayer() );
-        Segment->SetWidth( s_large );
+        Segment->SetWidth( lineWidth );
         Segment->SetShape( shape );
         Segment->SetAngle( 900 );
         Segment->SetStart( GetCrossHairPosition() );
         Segment->SetEnd( GetCrossHairPosition() );
         m_canvas->SetMouseCapture( DrawSegment, Abort_EditEdge );
     }
-    else    /* The ending point ccordinate Segment->m_End was updated by he function
-             * DrawSegment() called on a move mouse event
-             * during the segment creation
-             */
+    else
     {
+        // The ending point coordinate Segment->m_End was updated by the function
+        // DrawSegment() called on a move mouse event during the segment creation
         if( Segment->GetStart() != Segment->GetEnd() )
         {
             if( Segment->GetShape() == S_SEGMENT )
@@ -288,7 +277,7 @@ DRAWSEGMENT* PCB_EDIT_FRAME::Begin_DrawSegment( DRAWSEGMENT* Segment, STROKE_T s
 
                 Segment->SetFlags( IS_NEW );
                 Segment->SetLayer( DrawItem->GetLayer() );
-                Segment->SetWidth( s_large );
+                Segment->SetWidth( lineWidth );
                 Segment->SetShape( DrawItem->GetShape() );
                 Segment->SetType( DrawItem->GetType() );
                 Segment->SetAngle( DrawItem->GetAngle() );

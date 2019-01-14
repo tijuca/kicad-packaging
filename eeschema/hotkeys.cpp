@@ -31,7 +31,7 @@
 #include <eeschema_id.h>
 #include <hotkeys.h>
 #include <sch_edit_frame.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 
 #include <general.h>
 #include <lib_edit_frame.h>
@@ -115,7 +115,7 @@ static EDA_HOTKEY HkZoomOut( _HKI( "Zoom Out" ), HK_ZOOM_OUT, WXK_F2, ID_KEY_ZOO
 static EDA_HOTKEY HkZoomOut( _HKI( "Zoom Out" ), HK_ZOOM_OUT, GR_KB_CTRL + '-', ID_KEY_ZOOM_OUT );
 #endif
 
-static EDA_HOTKEY HkHelp( _HKI( "Help (this window)" ), HK_HELP, GR_KB_CTRL + WXK_F1 );
+static EDA_HOTKEY HkHelp( _HKI( "List Hotkeys" ), HK_HELP, GR_KB_CTRL + WXK_F1 );
 static EDA_HOTKEY HkResetLocalCoord( _HKI( "Reset Local Coordinates" ), HK_RESET_LOCAL_COORD, ' ' );
 static EDA_HOTKEY HkLeaveSheet( _HKI( "Leave Sheet" ), HK_LEAVE_SHEET, GR_KB_ALT + WXK_BACK,
                                 ID_POPUP_SCH_LEAVE_SHEET );
@@ -169,10 +169,13 @@ static EDA_HOTKEY HkEditComponentReference( _HKI( "Edit Symbol Reference" ),
 static EDA_HOTKEY HkEditComponentFootprint( _HKI( "Edit Symbol Footprint" ),
                                             HK_EDIT_COMPONENT_FOOTPRINT, 'F',
                                             ID_SCH_EDIT_COMPONENT_FOOTPRINT );
+static EDA_HOTKEY HkShowComponentDatasheet( _HKI( "Show Symbol Datasheet" ),
+                                           HK_SHOW_COMPONENT_DATASHEET, 'D' + GR_KB_CTRL,
+                                           ID_POPUP_SCH_DISPLAYDOC_CMP );
 static EDA_HOTKEY HkEditComponentWithLibedit( _HKI( "Edit with Symbol Editor" ),
-                                              HK_EDIT_COMPONENT_WITH_LIBEDIT,
-                                              'E' + GR_KB_CTRL,
+                                              HK_EDIT_COMPONENT_WITH_LIBEDIT, 'E' + GR_KB_CTRL,
                                               ID_POPUP_SCH_CALL_LIBEDIT_AND_LOAD_CMP );
+
 static EDA_HOTKEY HkMove( _HKI( "Move Schematic Item" ),
                           HK_MOVE_COMPONENT_OR_ITEM, 'M',
                           ID_SCH_MOVE_ITEM );
@@ -203,10 +206,8 @@ static EDA_HOTKEY HkZoomSelection( _HKI( "Zoom to Selection" ), HK_ZOOM_SELECTIO
 static EDA_HOTKEY HkCreatePin( _HKI( "Create Pin" ), HK_LIBEDIT_CREATE_PIN, 'P' );
 static EDA_HOTKEY HkInsertPin( _HKI( "Repeat Pin" ), HK_REPEAT_LAST, WXK_INSERT );
 static EDA_HOTKEY HkMoveLibItem( _HKI( "Move Library Item" ), HK_LIBEDIT_MOVE_GRAPHIC_ITEM, 'M' );
-
-// Load/save files
-static EDA_HOTKEY HkSaveAllLib( _HKI( "Save All Libraries" ), HK_SAVE_ALL_LIBS, 'S' + GR_KB_CTRL,
-                                ID_LIBEDIT_SAVE_ALL_LIBS );
+static EDA_HOTKEY HkViewDoc( _HKI( "Show Datasheet" ), HK_LIBEDIT_VIEW_DOC, 'D' + GR_KB_CTRL,
+                             ID_LIBEDIT_VIEW_DOC );
 
 // Autoplace fields
 static EDA_HOTKEY HkAutoplaceFields( _HKI( "Autoplace Fields" ), HK_AUTOPLACE_FIELDS, 'O',
@@ -241,6 +242,18 @@ static EDA_HOTKEY HkEditCut( _HKI( "Cut" ), HK_EDIT_CUT, GR_KB_CTRL + 'X', (int)
 static EDA_HOTKEY HkEditCopy( _HKI( "Copy" ), HK_EDIT_COPY, GR_KB_CTRL + 'C', (int) wxID_COPY );
 static EDA_HOTKEY HkEditPaste( _HKI( "Paste" ), HK_EDIT_PASTE, GR_KB_CTRL + 'V', (int) wxID_PASTE );
 
+static EDA_HOTKEY HkCanvasOpenGL( _HKI( "Switch to Modern Toolset with hardware-accelerated graphics (recommended)" ),
+                                  HK_CANVAS_OPENGL,
+#ifdef __WXMAC__
+                                  GR_KB_ALT +
+#endif
+                                  WXK_F11, ID_MENU_CANVAS_OPENGL );
+static EDA_HOTKEY HkCanvasCairo( _HKI( "Switch to Modern Toolset with software graphics (fall-back)" ),
+                                 HK_CANVAS_CAIRO,
+#ifdef __WXMAC__
+                                 GR_KB_ALT +
+#endif
+                                 WXK_F12, ID_MENU_CANVAS_CAIRO );
 
 // List of common hotkey descriptors
 static EDA_HOTKEY* common_Hotkey_List[] =
@@ -299,6 +312,7 @@ static EDA_HOTKEY* schematic_Hotkey_List[] =
     &HkEditComponentValue,
     &HkEditComponentReference,
     &HkEditComponentFootprint,
+    &HkShowComponentDatasheet,
     &HkEditComponentWithLibedit,
     &HkBeginWire,
     &HkBeginBus,
@@ -318,18 +332,20 @@ static EDA_HOTKEY* schematic_Hotkey_List[] =
     &HkLeaveSheet,
     &HkDeleteNode,
     &HkHighlightConnection,
+    &HkCanvasCairo,
+    &HkCanvasOpenGL,
     NULL
 };
 
 // List of hotkey descriptors for library editor
 static EDA_HOTKEY* libEdit_Hotkey_List[] =
 {
-    &HkSaveAllLib,
     &HkCreatePin,
     &HkInsertPin,
     &HkMoveLibItem,
     &HkMirrorX,
     &HkMirrorY,
+    &HkViewDoc,
     NULL
 };
 
@@ -464,10 +480,11 @@ bool SCH_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
         }
         else if( screen->m_BlockLocate.GetState() == STATE_NO_BLOCK )
         {
-            OnLeftClick( aDC, aPosition );
+            auto pos = GetCrossHairPosition();
+            OnLeftClick( aDC, pos );
 
             if( hotKey->m_Idcommand == HK_LEFT_DCLICK )
-                OnLeftDClick( aDC, aPosition );
+                OnLeftDClick( aDC, pos );
         }
         break;
 
@@ -492,12 +509,12 @@ bool SCH_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
             GetEventHandler()->ProcessEvent( cmd );
         }
         else if( notBusy )
-            DeleteItemAtCrossHair( aDC );
+            DeleteItemAtCrossHair();
         break;
 
     case HK_REPEAT_LAST:
         if( notBusy )
-            RepeatDrawItem( aDC );
+            RepeatDrawItem();
         break;
 
     case HK_END_CURR_LINEWIREBUS:
@@ -606,8 +623,8 @@ bool SCH_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
 
         // Fall through
     case HK_EDIT:
-        // Edit schematic item. Do not allow sheet edition when mowing
-        // Because a sheet edition can be complex.
+        // Edit schematic item. Do not allow sheet editing when mowing because sheet editing
+        // can be complex.
         if( itemInEdit && screen->GetCurItem()->Type() == SCH_SHEET_T )
                 break;
 
@@ -615,18 +632,22 @@ bool SCH_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
     case HK_EDIT_COMPONENT_VALUE:           // Edit component value field.
     case HK_EDIT_COMPONENT_REFERENCE:       // Edit component value reference.
     case HK_EDIT_COMPONENT_FOOTPRINT:       // Edit component footprint field.
+    case HK_SHOW_COMPONENT_DATASHEET:       // Show component datasheet in browser.
     case HK_MIRROR_Y:                       // Mirror Y
     case HK_MIRROR_X:                       // Mirror X
     case HK_ORIENT_NORMAL_COMPONENT:        // Orient 0, no mirror (Component)
     case HK_ROTATE:                         // Rotate schematic item.
     case HK_EDIT_COMPONENT_WITH_LIBEDIT:    // Call Libedit and load the current component
     case HK_AUTOPLACE_FIELDS:               // Autoplace all fields around component
+    case HK_CANVAS_CAIRO:
+    case HK_CANVAS_OPENGL:
         {
-            // force a new item search on hot keys at current position,
+           // force a new item search on hot keys at current position,
             // if there is no currently edited item,
             // to avoid using a previously selected item
             if( ! itemInEdit )
                 screen->SetCurItem( NULL );
+
             EDA_HOTKEY_CLIENT_DATA data( aPosition );
             cmd.SetInt( hotKey->m_Idcommand );
             cmd.SetClientObject( &data );
@@ -766,21 +787,13 @@ bool LIB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
         break;
 
     case HK_ROTATE:
-        if( blocInProgress )
-        {
-            GetScreen()->m_BlockLocate.SetCommand( BLOCK_ROTATE );
-            HandleBlockPlace( aDC );
-        }
-        else
-        {
-            if ( !itemInEdit )
-                SetDrawItem( LocateItemUsingCursor( aPosition ) );
+        if ( !itemInEdit && !blocInProgress )
+            SetDrawItem( LocateItemUsingCursor( aPosition ) );
 
-            if( GetDrawItem() )
-            {
-                cmd.SetId( ID_LIBEDIT_ROTATE_ITEM );
-                GetEventHandler()->ProcessEvent( cmd );
-            }
+        if( blocInProgress || GetDrawItem() )
+        {
+            cmd.SetId( ID_LIBEDIT_ROTATE_ITEM );
+            OnRotate( cmd );
         }
         break;
 
@@ -844,7 +857,7 @@ bool LIB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
         if( blocInProgress || GetDrawItem() )
         {
             cmd.SetId( ID_LIBEDIT_MIRROR_Y );
-            GetEventHandler()->ProcessEvent( cmd );
+            OnOrient( cmd );
         }
         break;
 
@@ -855,7 +868,7 @@ bool LIB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
         if( blocInProgress || GetDrawItem() )
         {
             cmd.SetId( ID_LIBEDIT_MIRROR_X );
-            GetEventHandler()->ProcessEvent( cmd );
+            OnOrient( cmd );
         }
         break;
     }

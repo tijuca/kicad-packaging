@@ -51,10 +51,9 @@
 #include <footprint_viewer_frame.h>
 #include <pcb_layer_box_selector.h>
 #include <dialog_drc.h>
-#include <dialog_global_edit_tracks_and_vias.h>
 #include <invoke_pcb_dialog.h>
 #include <array_creator.h>
-#include <connectivity_data.h>
+#include <connectivity/connectivity_data.h>
 
 #include <zone_filler.h>
 
@@ -78,7 +77,6 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
     {
     case wxID_CUT:
     case wxID_COPY:
-    case ID_PCB_USER_GRID_SETUP:
     case ID_TOOLBARH_PCB_SELECT_LAYER:
     case ID_AUX_TOOLBAR_PCB_SELECT_LAYER_PAIR:
     case ID_POPUP_PCB_ROTATE_TEXTEPCB:
@@ -157,10 +155,6 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
     case ID_POPUP_PCB_MOVE_MODULE_REQUEST:
     case ID_POPUP_PCB_MOVE_TEXTMODULE_REQUEST:
     case ID_POPUP_PCB_MOVE_PCB_TARGET_REQUEST:
-    case ID_POPUP_PCB_AUTOPLACE_FIXE_ALL_MODULES:
-    case ID_POPUP_PCB_AUTOPLACE_FIXE_MODULE:
-    case ID_POPUP_PCB_AUTOPLACE_FREE_ALL_MODULES:
-    case ID_POPUP_PCB_AUTOPLACE_FREE_MODULE:
         break;
 
     case ID_POPUP_CANCEL_CURRENT_COMMAND:
@@ -238,7 +232,6 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
             if( !viewer )
             {
                 viewer = (FOOTPRINT_VIEWER_FRAME*) Kiway().Player( FRAME_PCB_MODULE_VIEWER, true );
-                viewer->Zoom_Automatique( false );
             }
             else
             {
@@ -301,7 +294,7 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_DRC_CONTROL:
-        // Shows the DRC dialog in non modal mode, to allows board edition
+        // Shows the DRC dialog in non modal mode, to allows board editing
         // with the DRC dialog opened and showing errors.
         m_drc->ShowDRCDialog();
         break;
@@ -343,26 +336,10 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         OnModify();
         break;
 
-    case ID_PCB_EDIT_ALL_VIAS_AND_TRACK_SIZE:
-        {
-        DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS dlg( this, GetBoard()->GetHighLightNetCode() );
-        dlg.ShowModal();
-        }
-        break;
-
     case ID_POPUP_PCB_EDIT_ALL_VIAS_AND_TRACK_SIZE:
-        if( GetCurItem() == NULL )
-            break;
         {
-        int type = GetCurItem()->Type();
-
-        if( type == PCB_TRACE_T || type == PCB_VIA_T )
-        {
-            BOARD_CONNECTED_ITEM*item = (BOARD_CONNECTED_ITEM*) GetCurItem();
-            DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS dlg( this, item->GetNetCode() );
-            dlg.ShowModal();
-        }
-
+            wxCommandEvent dummy;
+            OnEditTracksAndVias( dummy );
         }
         m_canvas->MoveCursorToCrossHair();
         break;
@@ -470,21 +447,22 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_PCB_DELETE_TRACKSEG:
-        if( GetCurItem() == NULL )
-            break;
-
-        m_canvas->MoveCursorToCrossHair();
-        SetCurItem( Delete_Segment( &dc, (TRACK*) GetCurItem() ) );
-        OnModify();
+        if( GetCurItem() )
+        {
+            m_canvas->MoveCursorToCrossHair();
+            SetCurItem( Delete_Segment( &dc, (TRACK*) GetCurItem() ) );
+            OnModify();
+        }
         break;
 
     case ID_POPUP_PCB_DELETE_TRACK:
-        if( GetCurItem() == NULL )
-            break;
-        m_canvas->MoveCursorToCrossHair();
-        Delete_Track( &dc, (TRACK*) GetCurItem() );
-        SetCurItem( NULL );
-        OnModify();
+        if( GetCurItem() )
+        {
+            m_canvas->MoveCursorToCrossHair();
+            Delete_Track( &dc, (TRACK*) GetCurItem() );
+            SetCurItem( NULL );
+            OnModify();
+        }
         break;
 
     case ID_POPUP_PCB_DELETE_TRACKNET:
@@ -524,9 +502,7 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
     case ID_POPUP_PCB_DELETE_ZONE:
         m_canvas->MoveCursorToCrossHair();
 
-        if( GetCurItem() == NULL )
-            break;
-
+        if( GetCurItem() )
         {
             SEGZONE* zsegm   = (SEGZONE*) GetCurItem();
             int      netcode = zsegm->GetNetCode();
@@ -858,19 +834,19 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_PCB_UPDATE_FOOTPRINTS:
-        if( GetCurItem() && GetCurItem()->Type() != PCB_MODULE_T )
-            break;
-
-        InstallExchangeModuleFrame( (MODULE*) GetCurItem(), true );
-        m_canvas->MoveCursorToCrossHair();
+        if( GetCurItem() && GetCurItem()->Type() == PCB_MODULE_T )
+        {
+            InstallExchangeModuleFrame( dynamic_cast<MODULE*>( GetCurItem() ), true, true );
+            m_canvas->MoveCursorToCrossHair();
+        }
         break;
 
     case ID_POPUP_PCB_EXCHANGE_FOOTPRINTS:
-        if( GetCurItem() && GetCurItem()->Type() != PCB_MODULE_T )
-            break;
-
-        InstallExchangeModuleFrame( (MODULE*) GetCurItem(), false );
-        m_canvas->MoveCursorToCrossHair();
+        if( GetCurItem() && GetCurItem()->Type() == PCB_MODULE_T )
+        {
+            InstallExchangeModuleFrame( dynamic_cast<MODULE*>( GetCurItem() ), false, true );
+            m_canvas->MoveCursorToCrossHair();
+        }
         break;
 
     case ID_POPUP_PCB_EDIT_MODULE_PRMS:
@@ -964,7 +940,7 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
 
     case ID_POPUP_PCB_GLOBAL_IMPORT_PAD_SETTINGS:
         m_canvas->MoveCursorToCrossHair();
-        DlgGlobalChange_PadSettings( (D_PAD*) GetCurItem(), true );
+        PushPadProperties((D_PAD*) GetCurItem() );
         break;
 
     case ID_POPUP_PCB_COPY_PAD_SETTINGS:
@@ -980,8 +956,7 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_PCB_EDIT_TEXTMODULE:
-        InstallTextModOptionsFrame( static_cast<TEXTE_MODULE*>( GetCurItem() ), &dc );
-        m_canvas->MoveCursorToCrossHair();
+        InstallTextOptionsFrame( GetCurItem(), &dc );
         break;
 
     case ID_POPUP_PCB_RESET_TEXT_SIZE:
@@ -1060,8 +1035,7 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_PCB_EDIT_TEXTEPCB:
-        InstallTextPCBOptionsFrame( (TEXTE_PCB*) GetCurItem(), &dc );
-        m_canvas->MoveCursorToCrossHair();
+        InstallTextOptionsFrame( GetCurItem(), &dc );
         break;
 
     case ID_POPUP_PCB_ROTATE_TEXTEPCB:
@@ -1144,14 +1118,7 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_PCB_EDIT_DRAWING:
-#ifndef USE_WX_OVERLAY
-        InstallGraphicItemPropertiesDialog( (DRAWSEGMENT*) GetCurItem(), &dc );
-#else
-        // #1277772 - Draw into dialog converted in refresh request
-        InstallGraphicItemPropertiesDialog( (DRAWSEGMENT*) GetCurItem(), NULL );
-        m_canvas->Refresh();
-#endif
-        m_canvas->MoveCursorToCrossHair();
+        InstallGraphicItemPropertiesDialog( GetCurItem() );
         break;
 
     case ID_POPUP_PCB_MOVE_DRAWING_REQUEST:
@@ -1248,19 +1215,15 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_MENU_PCB_UPDATE_FOOTPRINTS:
-        InstallExchangeModuleFrame( (MODULE*) nullptr, true );
+        InstallExchangeModuleFrame( dynamic_cast<MODULE*>( GetCurItem() ), true, false );
         break;
 
     case ID_MENU_PCB_EXCHANGE_FOOTPRINTS:
-        InstallExchangeModuleFrame( (MODULE*) nullptr, false );
+        InstallExchangeModuleFrame( dynamic_cast<MODULE*>( GetCurItem() ), false, false );
         break;
 
     case ID_MENU_PCB_SWAP_LAYERS:
         Swap_Layers( event );
-        break;
-
-    case ID_PCB_USER_GRID_SETUP:
-        InvokeDialogGrid();
         break;
 
     case ID_POPUP_PCB_DISPLAY_FOOTPRINT_DOC:
@@ -1279,53 +1242,14 @@ void PCB_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         ArchiveModulesOnBoard( true );
         break;
 
-    case ID_GEN_IMPORT_DXF_FILE:
-        InvokeDXFDialogBoardImport( this );
+    case ID_GEN_IMPORT_GRAPHICS_FILE:
+        InvokeDialogImportGfxBoard( this );
         m_canvas->Refresh();
         break;
 
-    case ID_POPUP_PCB_SPREAD_ALL_MODULES:
-        if( !IsOK( this,
-                   _("Not locked footprints inside the board will be moved. OK?") ) )
-            break;
-        // Fall through
-    case ID_POPUP_PCB_SPREAD_NEW_MODULES:
-        if( GetBoard()->m_Modules == NULL )
-        {
-            DisplayError( this, _( "No footprint found!" ) );
-            return;
-        }
-        else
-        {
-            MODULE* footprint = GetBoard()->m_Modules;
-            std::vector<MODULE*> footprintList;
-            for( ; footprint != NULL; footprint = footprint->Next() )
-                footprintList.push_back( footprint );
-
-            SpreadFootprints( &footprintList, id == ID_POPUP_PCB_SPREAD_NEW_MODULES,
-                              true, GetCrossHairPosition() );
-        }
-        break;
-    case ID_POPUP_PCB_AUTOPLACE_FIXE_MODULE:
-        LockModule( (MODULE*) GetScreen()->GetCurItem(), true );
-        break;
-
-    case ID_POPUP_PCB_AUTOPLACE_FREE_MODULE:
-        LockModule( (MODULE*) GetScreen()->GetCurItem(), false );
-        break;
-
-    case ID_POPUP_PCB_AUTOPLACE_FREE_ALL_MODULES:
-        LockModule( NULL, false );
-        break;
-
-    case ID_POPUP_PCB_AUTOPLACE_FIXE_ALL_MODULES:
-        LockModule( NULL, true );
-        break;
 
     default:
-        wxString msg;
-        msg.Printf( wxT( "PCB_EDIT_FRAME::Process_Special_Functions() unknown event id %d" ), id );
-        DisplayError( this, msg );
+        wxLogDebug( wxT( "PCB_EDIT_FRAME::Process_Special_Functions() unknown event id %d" ), id );
         break;
     }
 
@@ -1401,11 +1325,7 @@ void PCB_EDIT_FRAME::RemoveStruct( BOARD_ITEM* Item, wxDC* DC )
     case TYPE_NOT_INIT:
     case PCB_T:
     default:
-        {
-            wxString msg = wxString::Format(
-                wxT( "Remove: item type %d unknown." ), Item->Type() );
-            DisplayError( this, msg );
-        }
+        wxLogDebug( wxT( "Remove: item type %d unknown." ), Item->Type() );
         break;
     }
 }
@@ -1598,9 +1518,11 @@ void PCB_EDIT_FRAME::OnSelectTool( wxCommandEvent& aEvent )
 
 void PCB_EDIT_FRAME::moveExact()
 {
-    MOVE_PARAMETERS params;
+    wxPoint         translation;
+    double          rotation;
+    ROTATION_ANCHOR rotationAnchor = ROTATE_AROUND_ITEM_ANCHOR;
 
-    DIALOG_MOVE_EXACT dialog( this, params );
+    DIALOG_MOVE_EXACT dialog( this, translation, rotation, rotationAnchor );
     int ret = dialog.ShowModal();
 
     if( ret == wxID_OK )
@@ -1616,43 +1538,23 @@ void PCB_EDIT_FRAME::moveExact()
             // Could be moved or rotated
             SaveCopyInUndoList( itemToSave, UR_CHANGED );
 
-            // begin with the default anchor
-            wxPoint anchorPoint = item->GetPosition();
+            item->Move( translation );
 
-            if( item->Type() == PCB_MODULE_T )
+            switch( rotationAnchor )
             {
-                // cast to module to allow access to the pads
-                MODULE* mod = static_cast<MODULE*>( item );
-
-                switch( params.anchor )
-                {
-                case ANCHOR_TOP_LEFT_PAD:
-                    if( mod->GetTopLeftPad()->GetAttribute() == PAD_ATTRIB_SMD )
-                    {
-                        anchorPoint = mod->GetTopLeftPad()->GetBoundingBox().GetPosition();
-                    }
-                    else
-                    {
-                        anchorPoint = mod->GetTopLeftPad()->GetPosition();
-                    }
-                    break;
-                case ANCHOR_CENTER_FOOTPRINT:
-                    anchorPoint = mod->GetFootprintRect().GetCenter();
-                    break;
-                case ANCHOR_FROM_LIBRARY:
-                    ; // nothing to do
-                }
+            case ROTATE_AROUND_ITEM_ANCHOR:
+                item->Rotate( item->GetPosition(), rotation );
+                break;
+            case ROTATE_AROUND_USER_ORIGIN:
+                item->Rotate( GetScreen()->m_O_Curseur, rotation );
+                break;
+            case ROTATE_AROUND_AUX_ORIGIN:
+                item->Rotate( GetAuxOrigin(), rotation );
+                break;
+            default:
+                wxFAIL_MSG( "Rotation choice shouldn't have been available in this context." );
             }
 
-            if( params.origin == RELATIVE_TO_CURRENT_POSITION )
-            {
-                anchorPoint = wxPoint( 0, 0 );
-            }
-
-            wxPoint finalMoveVector = params.translation - anchorPoint;
-
-            item->Move( finalMoveVector );
-            item->Rotate( item->GetPosition(), params.rotation );
             m_canvas->Refresh();
         }
     }

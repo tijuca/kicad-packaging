@@ -145,7 +145,7 @@ bool GERBER_JOBFILE_READER::ReadGerberJobFile()
     else
     {
         if( m_reporter )
-            m_reporter->ReportTail( _( "This job file uses an outdated format. Please, recreate it" ),
+            m_reporter->ReportTail( _( "This job file uses an outdated format. Please, recreate it." ),
                                 REPORTER::RPT_WARNING );
 
         return false;
@@ -205,7 +205,7 @@ bool GERBVIEW_FRAME::LoadGerberJobFile( const wxString& aFullFileName )
 
             wxArrayString& gbrfiles = gbjReader.GetGerberFiles();
 
-            success = loadListOfGerberFiles( currentPath, gbrfiles );
+            success = loadListOfGerberAndDrillFiles( currentPath, gbrfiles );
         }
     }
 

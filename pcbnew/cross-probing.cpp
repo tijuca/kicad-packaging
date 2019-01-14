@@ -252,6 +252,9 @@ std::string FormatProbeItem( BOARD_ITEM* aItem )
 {
     MODULE*     module;
 
+    if( !aItem )
+        return "$CLEAR: \"HIGHLIGHTED\""; // message to clear highlight state
+
     switch( aItem->Type() )
     {
     case PCB_MODULE_T:
@@ -309,13 +312,6 @@ std::string FormatProbeItem( BOARD_ITEM* aItem )
  */
 void PCB_EDIT_FRAME::SendMessageToEESCHEMA( BOARD_ITEM* aSyncItem )
 {
-#if 1
-    wxASSERT( aSyncItem );      // can't we fix the caller?
-#else
-    if( !aSyncItem )
-        return;
-#endif
-
     std::string packet = FormatProbeItem( aSyncItem );
 
     if( packet.size() )
@@ -404,8 +400,13 @@ void PCB_EDIT_FRAME::KiwayMailIn( KIWAY_EXPRESS& mail )
         else
         {
             DIALOG_UPDATE_PCB updateDialog( this, &netlist );
-            updateDialog.PerformUpdate( true );
             updateDialog.ShowModal();
+
+            auto selectionTool = static_cast<SELECTION_TOOL*>(
+                    m_toolManager->FindTool( "pcbnew.InteractiveSelection" ) );
+
+            if( !selectionTool->GetSelection().Empty() )
+                GetToolManager()->InvokeTool( "pcbnew.InteractiveEdit" );
         }
 
         break;

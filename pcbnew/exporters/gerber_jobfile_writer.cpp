@@ -155,19 +155,10 @@ void GERBER_JOBFILE_WRITER::addJSONHeader()
     addJSONObject( text );
     closeBlockWithSep();
 
-    // creates the TF.CreationDate ext:
+    // creates the CreationDate attribute:
     // The attribute value must conform to the full version of the ISO 8601
-    // date and time format, including time and time zone. Note that this is
-    // the date the Gerber file was effectively created,
-    // not the time the project of PCB was started
-    wxDateTime date( wxDateTime::GetTimeNow() );
-    // Date format: see http://www.cplusplus.com/reference/ctime/strftime
-    wxString msg = date.Format( wxT( "%z" ) );  // Extract the time zone offset
-    // The time zone offset format is + (or -) mm or hhmm  (mm = number of minutes, hh = number of hours)
-    // we want +(or -) hh:mm
-    if( msg.Len() > 3 )
-        msg.insert( 3, ":", 1 ),
-    text.Printf( wxT( "\"CreationDate\":  \"%s%s\"\n" ),date.FormatISOCombined(), msg );
+    // date and time format, including time and time zone.
+    text = GbrMakeCreationDateAttributeString( GBR_NC_STRING_FORMAT_GBRJOB ) + "\n";
     addJSONObject( text );
 
     closeBlockWithSep();
@@ -293,8 +284,8 @@ void GERBER_JOBFILE_WRITER::addJSONGeneralSpecs()
     /* The board type according to IPC-2221. There are six primary board types:
     - Type 1 - Single-sided
     - Type 2 - Double-sided
-    - Type 3 – Multilayer, TH components only
-    - Type 4 – Multilayer, with TH, blind and/or buried vias.
+    - Type 3 - Multilayer, TH components only
+    - Type 4 - Multilayer, with TH, blind and/or buried vias.
     - Type 5 - Multilayer metal-core board, TH components only
     - Type 6 - Multilayer metal-core
     */
@@ -303,16 +294,16 @@ void GERBER_JOBFILE_WRITER::addJSONGeneralSpecs()
     /* Via protection: key words:
     Ia Tented - Single-sided
     Ib Tented - Double-sided
-    IIa Tented and Covered – Single-sided
-    IIb Tented and Covered – Double-sided
-    IIIa Plugged – Single-sided
-    IIIb…….Plugged – Double-sided
-    IVa…….Plugged and Covered – Single-sided
-    IVb…….Plugged and Covered – Double-sided
+    IIa Tented and Covered - Single-sided
+    IIb Tented and Covered - Double-sided
+    IIIa Plugged - Single-sided
+    IIIb Plugged - Double-sided
+    IVa Plugged and Covered - Single-sided
+    IVb Plugged and Covered - Double-sided
     V Filled (fully plugged)
     VI Filled and Covered
     VIII Filled and Capped
-    None…...No protection
+    None...No protection
     */
     addJSONObject( wxString::Format( "\"ViaProtection\": \"%s\",\n", "Ib" ) );
 #endif

@@ -40,6 +40,7 @@
 #include <wx/filename.h>
 #include <wx/stdpaths.h>
 #include <wx/snglinst.h>
+#include <wx/html/htmlwin.h>
 
 #include <kiway.h>
 #include <pgm_base.h>
@@ -99,6 +100,21 @@ PGM_BASE& Pgm()
     return program;
 }
 
+// A module to allow Html modules initialization/cleanup
+// When a wxHtmlWindow is used *only* in a dll/so module, the Html text is displayed
+// as plain text.
+// This helper class is just used to force wxHtmlWinParser initialization
+// see https://groups.google.com/forum/#!topic/wx-users/FF0zv5qGAT0
+class HtmlModule: public wxModule
+{
+public:
+    HtmlModule() { }
+    virtual bool OnInit() override { AddDependency( CLASSINFO( wxHtmlWinParser ) ); return true; };
+    virtual void OnExit() override {};
+private:
+    wxDECLARE_DYNAMIC_CLASS( HtmlModule );
+};
+wxIMPLEMENT_DYNAMIC_CLASS(HtmlModule, wxModule);
 
 /**
  * Struct APP_SINGLE_TOP
@@ -123,6 +139,11 @@ struct APP_SINGLE_TOP : public wxApp
 
     bool OnInit() override
     {
+        // Force wxHtmlWinParser initialization when a wxHtmlWindow is used only
+        // in a shared modules (.so or .dll file)
+        // Otherwise the Html text is displayed as plain text.
+        HtmlModule html_init;
+
         try
         {
             return program.OnPgmInit();
@@ -344,11 +365,11 @@ bool PGM_SINGLE_TOP::OnPgmInit()
             argSet.push_back( App().argv[i] );
         }
 
-        // special attention to the first argument: argv[1] (==argSet[0])
-        wxFileName argv1( argSet[0] );
-
-        if( argc - args_offset > 1 )
+        // special attention to a single argument: argv[1] (==argSet[0])
+        if( argc == args_offset + 1 )
         {
+            wxFileName argv1( argSet[0] );
+
 #if defined(PGM_DATA_FILE_EXT)
             // PGM_DATA_FILE_EXT, if present, may be different for each compile,
             // it may come from CMake on the compiler command line, but often does not.

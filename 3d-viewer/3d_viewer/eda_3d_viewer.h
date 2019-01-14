@@ -3,8 +3,8 @@
  *
  * Copyright (C) 2015-2016 Mario Luzeiro <mrluzeiro@ua.pt>
  * Copyright (C) 2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2011 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2011 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,11 +32,11 @@
 #ifndef EDA_3D_VIEWER_H
 #define EDA_3D_VIEWER_H
 
-
 #include "../3d_canvas/cinfo3d_visu.h"
 #include "../3d_canvas/eda_3d_canvas.h"
 #include <kiway_player.h>
 #include <wx/colourdata.h>
+#include <../common/dialogs/dialog_color_picker.h>  // for CUSTOM_COLORS_LIST definition
 
 
 #define KICAD_DEFAULT_3D_DRAWFRAME_STYLE    (wxDEFAULT_FRAME_STYLE | wxWANTS_CHARS)
@@ -44,7 +44,6 @@
 #define VIEWER3D_FRAMENAME wxT( "Viewer3DFrameName" )
 
 /**
- *  Class EDA_3D_VIEWER
  *  Create and handle a window for the 3d viewer connected to a Kiway and a pcbboard
  */
 class EDA_3D_VIEWER : public KIWAY_PLAYER
@@ -85,44 +84,37 @@ class EDA_3D_VIEWER : public KIWAY_PLAYER
     void NewDisplay( bool aForceImmediateRedraw = false );
 
     /**
-     *  Function SetDefaultFileName
      *  Set the default file name (eg: to be suggested to a screenshot)
      *  @param aFn = file name to assign
      */
-    void SetDefaultFileName( const wxString &aFn )
+    void SetDefaultFileName( const wxString& aFn )
     {
-        wxFileName fn( aFn );
-        m_defaultSaveScreenshotFileName = fn.GetName();
+        m_defaultSaveScreenshotFileName = aFn;
     }
 
     /**
-     *  Function GetDefaultFileName
      *  @return the default suggested file name
      */
-    const wxString &GetDefaultFileName() const { return m_defaultSaveScreenshotFileName; }
+    const wxFileName& GetDefaultFileName() const { return m_defaultSaveScreenshotFileName; }
 
     /**
-     * Function GetSettings
      *  @return current settings
      */
     CINFO3D_VISU &GetSettings() { return m_settings; }
 
     /**
-     * Function Set3DColorFromUser
      * Get a SFVEC3D from a wx colour dialog
      * @param aColor is the SFVEC3D to change
      * @param aTitle is the title displayed in the colordialog selector
-     * @param aPredefinedColors is a reference to a wxColourData
+     * @param aPredefinedColors is a reference to a CUSTOM_COLOR_ITEM list
      * which contains a few predefined colors
-     * if it is NULL, no predefined colors are used
-     * @return true if a new color is chosen, false if
-     * no change or aborted by user
+     * if empty, no predefined colors are used.
+     * no change if aborted by user
      */
     bool Set3DColorFromUser( SFVEC3D &aColor, const wxString& aTitle,
-                             wxColourData* aPredefinedColors = NULL );
+                             CUSTOM_COLORS_LIST* aPredefinedColors );
 
     /**
-     * Function Set3DSolderMaskColorFromUser
      * Set the solder mask color from a set of colors
      * @return true if a new color is chosen, false if
      * no change or aborted by user
@@ -130,7 +122,6 @@ class EDA_3D_VIEWER : public KIWAY_PLAYER
     bool Set3DSolderMaskColorFromUser();
 
     /**
-     * Function Set3DSolderPasteColorFromUser
      * Set the solder mask color from a set of colors
      * @return true if a new color is chosen, false if
      * no change or aborted by user
@@ -138,7 +129,6 @@ class EDA_3D_VIEWER : public KIWAY_PLAYER
     bool Set3DSolderPasteColorFromUser();
 
     /**
-     * Function Set3DCopperColorFromUser
      * Set the copper color from a set of colors
      * @return true if a new color is chosen, false if
      * no change or aborted by user
@@ -146,7 +136,6 @@ class EDA_3D_VIEWER : public KIWAY_PLAYER
     bool Set3DCopperColorFromUser();
 
     /**
-     * Function Set3DBoardBodyBodyColorFromUser
      * Set the copper color from a set of colors
      * @return true if a new color is chosen, false if
      * no change or aborted by user
@@ -154,7 +143,6 @@ class EDA_3D_VIEWER : public KIWAY_PLAYER
     bool Set3DBoardBodyColorFromUser();
 
     /**
-     * Function Set3DSilkScreenColorFromUser
      * Set the silkscreen color from a set of colors
      * @return true if a new color is chosen, false if
      * no change or aborted by user
@@ -207,7 +195,6 @@ class EDA_3D_VIEWER : public KIWAY_PLAYER
     void RedrawActiveWindow( wxDC *DC, bool EraseBg );
 
     /**
-     *  Function TakeScreenshot
      *  Create a Screenshot of the current 3D view.
      *  Output file format is png or jpeg, or image is copied to the clipboard
      */
@@ -225,7 +212,7 @@ class EDA_3D_VIEWER : public KIWAY_PLAYER
     /**
      *  Filename to propose for save a screenshot
      */
-    wxString m_defaultSaveScreenshotFileName;
+    wxFileName m_defaultSaveScreenshotFileName;
 
     /**
      *  The canvas where the openGL context will be rendered

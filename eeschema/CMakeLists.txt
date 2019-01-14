@@ -23,6 +23,8 @@ include_directories(
     ./dialogs
     ./netlist_exporters
     ./widgets
+    ./libedit
+    ./libview
     ../common
     ../common/dialogs
     ${INC_AFTER}
@@ -46,13 +48,9 @@ set( EESCHEMA_DLGS
     dialogs/dialog_edit_components_libid_base.cpp
     dialogs/dialog_edit_label.cpp
     dialogs/dialog_edit_label_base.cpp
-    dialogs/dialog_edit_libentry_fields_in_lib.cpp
-    dialogs/dialog_edit_libentry_fields_in_lib_base.cpp
     dialogs/dialog_edit_line_style.cpp
     dialogs/dialog_edit_line_style_base.cpp
     dialogs/dialog_edit_one_field.cpp
-    dialogs/dialog_eeschema_options.cpp
-    dialogs/dialog_eeschema_options_base.cpp
     dialogs/dialog_erc.cpp
     dialogs/dialog_erc_base.cpp
     dialogs/dialog_global_sym_lib_table_config.cpp
@@ -67,8 +65,6 @@ set( EESCHEMA_DLGS
     dialogs/dialog_lib_edit_text_base.cpp
     dialogs/dialog_lib_new_component.cpp
     dialogs/dialog_lib_new_component_base.cpp
-    dialogs/dialog_libedit_options.cpp
-    dialogs/dialog_libedit_options_base.cpp
     dialogs/dialog_netlist.cpp
     dialogs/dialog_netlist_base.cpp
     dialogs/dialog_plot_schematic.cpp
@@ -83,40 +79,70 @@ set( EESCHEMA_DLGS
     dialogs/dialog_sch_sheet_props_base.cpp
     dialogs/dialog_schematic_find.cpp
     dialogs/dialog_schematic_find_base.cpp
-    dialogs/dialog_sym_lib_table.cpp
-    dialogs/dialog_sym_lib_table_base.cpp
+    dialogs/dialog_set_grid.cpp
+    dialogs/dialog_set_grid_base.cpp
     dialogs/dialog_symbol_remap.cpp
     dialogs/dialog_symbol_remap_base.cpp
     dialogs/dialog_update_fields.cpp
     dialogs/dialog_update_fields_base.cpp
+    dialogs/panel_eeschema_template_fieldnames.cpp
+    dialogs/panel_eeschema_template_fieldnames_base.cpp
+    dialogs/panel_eeschema_display_options.cpp
+    dialogs/panel_eeschema_display_options_base.cpp
+    dialogs/panel_eeschema_settings.cpp
+    dialogs/panel_eeschema_settings_base.cpp
+    dialogs/panel_libedit_display_options.cpp
+    dialogs/panel_libedit_settings.cpp
+    dialogs/panel_libedit_settings_base.cpp
+    dialogs/panel_sym_lib_table.cpp
+    dialogs/panel_sym_lib_table_base.cpp
     )
 
 set( EESCHEMA_WIDGETS
-    widgets/cmp_tree_pane.cpp
-    widgets/component_tree.cpp
     widgets/pin_shape_combobox.cpp
     widgets/pin_type_combobox.cpp
+    widgets/symbol_preview_widget.cpp
+    widgets/symbol_tree_pane.cpp
     widgets/widget_eeschema_color_config.cpp
     )
 
 
+set ( EESCHEMA_LIBEDIT_SRCS
+    libedit/block_libedit.cpp
+    libedit/controller.cpp
+    libedit/libedit.cpp
+    libedit/libedit_onleftclick.cpp
+    libedit/libedit_onrightclick.cpp
+    libedit/libedit_plot_component.cpp
+    libedit/libedit_undo_redo.cpp
+    libedit/lib_edit_frame.cpp
+    libedit/libfield.cpp
+    libedit/menubar_libedit.cpp
+    libedit/pinedit.cpp
+    libedit/symbdraw.cpp
+    libedit/symbedit.cpp
+    libedit/tool_lib.cpp
+    libedit/lib_export.cpp
+    libedit/lib_manager.cpp
+
+)
 set( EESCHEMA_SRCS
     ${EESCHEMA_DLGS}
     ${EESCHEMA_WIDGETS}
+    ${EESCHEMA_LIBEDIT_SRCS}
+    bom_plugins.cpp
+    sch_view.cpp
+    sch_painter.cpp
     annotate.cpp
     autoplace_fields.cpp
     backanno.cpp
     block.cpp
-    block_libedit.cpp
     bus-wire-junction.cpp
     busentry.cpp
     class_libentry.cpp
     class_library.cpp
     cmp_library_keywords.cpp
     cmp_library_lexer.cpp
-    cmp_tree_model.cpp
-    cmp_tree_model_adapter.cpp
-    cmp_tree_model_adapter_base.cpp
     component_references_lister.cpp
     controle.cpp
     cross-probing.cpp
@@ -129,6 +155,7 @@ set( EESCHEMA_SRCS
     eeschema_config.cpp
     erc.cpp
     events_called_functions_for_edit.cpp
+    fields_grid_table.cpp
     files-io.cpp
     find.cpp
     generate_alias_info.cpp
@@ -141,24 +168,13 @@ set( EESCHEMA_SRCS
     lib_circle.cpp
     lib_collectors.cpp
     lib_draw_item.cpp
-    lib_export.cpp
     lib_field.cpp
-    lib_manager.cpp
-    lib_manager_adapter.cpp
     lib_pin.cpp
     lib_polyline.cpp
     lib_rectangle.cpp
     lib_text.cpp
     libarch.cpp
-    libedit.cpp
-    libedit_onleftclick.cpp
-    libedit_onrightclick.cpp
-    libedit_plot_component.cpp
-    libedit_undo_redo.cpp
-    lib_edit_frame.cpp
-    libfield.cpp
     menubar.cpp
-    menubar_libedit.cpp
     netlist_generator.cpp
     netlist_object_list.cpp
     netlist_object.cpp
@@ -168,12 +184,12 @@ set( EESCHEMA_SRCS
     pin_number.cpp
     pin_shape.cpp
     pin_type.cpp
-    pinedit.cpp
     plot_schematic_DXF.cpp
     plot_schematic_HPGL.cpp
     plot_schematic_PDF.cpp
     plot_schematic_PS.cpp
     plot_schematic_SVG.cpp
+    sch_draw_panel.cpp
     project_rescue.cpp
     sch_base_frame.cpp
     sch_bitmap.cpp
@@ -190,6 +206,7 @@ set( EESCHEMA_SRCS
     sch_marker.cpp
     sch_no_connect.cpp
     sch_plugin.cpp
+    sch_preview_panel.cpp
     sch_screen.cpp
     sch_sheet.cpp
     sch_sheet_path.cpp
@@ -202,12 +219,11 @@ set( EESCHEMA_SRCS
     selpart.cpp
     sheet.cpp
     sheetlab.cpp
-    symbdraw.cpp
-    symbedit.cpp
     symbol_lib_table.cpp
+    symbol_tree_model_adapter.cpp
+    symbol_tree_synchronizing_adapter.cpp
     template_fieldnames.cpp
     template_fieldnames_keywords.cpp
-    tool_lib.cpp
     tool_sch.cpp
     tool_viewlib.cpp
     transform.cpp
@@ -308,6 +324,19 @@ target_link_libraries( eeschema
     common
     bitmaps
     gal
+    legacy_gal
+    common
+    bitmaps
+    gal
+    legacy_gal
+    common
+    bitmaps
+    gal
+    legacy_gal
+    common
+    bitmaps
+    gal
+    legacy_gal
     ${wxWidgets_LIBRARIES}
     )
 
@@ -321,6 +350,22 @@ target_link_libraries( eeschema_kiface
     bitmaps
     polygon
     gal
+    legacy_gal
+    common
+    bitmaps
+    polygon
+    gal
+    legacy_gal
+    common
+    bitmaps
+    polygon
+    gal
+    legacy_gal
+    common
+    bitmaps
+    polygon
+    gal
+    legacy_gal
     ${wxWidgets_LIBRARIES}
     ${GDI_PLUS_LIBRARIES}
     )
@@ -468,4 +513,3 @@ add_custom_target(
 add_dependencies( eeschema_kiface dialog_bom_cfg_lexer_source_files )
 
 add_subdirectory( plugins )
-add_subdirectory( qa )

@@ -33,7 +33,7 @@
 #include <trace_helpers.h>
 #include <sch_item_struct.h>
 #include <sch_screen.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <sch_edit_frame.h>
 
 #include <general.h>
@@ -68,6 +68,14 @@ SCH_ITEM::~SCH_ITEM()
 }
 
 
+void SCH_ITEM::ViewGetLayers( int aLayers[], int& aCount ) const
+{
+    // Basic fallback
+    aCount      = 1;
+    aLayers[0]  = LAYER_DEVICE;
+}
+
+
 bool SCH_ITEM::IsConnected( const wxPoint& aPosition ) const
 {
     if( m_Flags & STRUCT_DELETED || m_Flags & SKIP_STRUCT )
@@ -93,51 +101,4 @@ bool SCH_ITEM::operator < ( const SCH_ITEM& aItem ) const
 void SCH_ITEM::Plot( PLOTTER* aPlotter )
 {
     wxFAIL_MSG( wxT( "Plot() method not implemented for class " ) + GetClass() );
-}
-
-
-std::string SCH_ITEM::FormatInternalUnits( int aValue )
-{
-    char    buf[50];
-    double  engUnits = aValue;
-    int     len;
-
-    if( engUnits != 0.0 && fabs( engUnits ) <= 0.0001 )
-    {
-        len = snprintf( buf, sizeof(buf), "%.10f", engUnits );
-
-        while( --len > 0 && buf[len] == '0' )
-            buf[len] = '\0';
-
-        ++len;
-    }
-    else
-    {
-        len = snprintf( buf, sizeof(buf), "%.10g", engUnits );
-    }
-
-    return std::string( buf, len );
-}
-
-
-std::string SCH_ITEM::FormatAngle( double aAngle )
-{
-    char temp[50];
-    int len;
-
-    len = snprintf( temp, sizeof(temp), "%.10g", aAngle / 10.0 );
-
-    return std::string( temp, len );
-}
-
-
-std::string SCH_ITEM::FormatInternalUnits( const wxPoint& aPoint )
-{
-    return FormatInternalUnits( aPoint.x ) + " " + FormatInternalUnits( aPoint.y );
-}
-
-
-std::string SCH_ITEM::FormatInternalUnits( const wxSize& aSize )
-{
-    return FormatInternalUnits( aSize.GetWidth() ) + " " + FormatInternalUnits( aSize.GetHeight() );
 }

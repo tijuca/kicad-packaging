@@ -32,6 +32,7 @@
 #include <pcb_base_frame.h>
 
 #include <boost/bimap.hpp>
+#include <widgets/unit_binder.h>
 
 class CONFIG_SAVE_RESTORE_WINDOW
 {
@@ -40,6 +41,7 @@ private:
     enum CONFIG_CTRL_TYPE_T
     {
         CFG_CTRL_TEXT,
+        CFG_CTRL_UNIT_BINDER,
         CFG_CTRL_CHECKBOX,
         CFG_CTRL_RADIOBOX,
         CFG_CTRL_CHOICE,
@@ -48,7 +50,7 @@ private:
 
     struct CONFIG_CTRL_T
     {
-        wxControl* control;
+        void* control;
         CONFIG_CTRL_TYPE_T type;
         void* dest;
     };
@@ -82,6 +84,14 @@ protected:
         ctrls.push_back( ctrlInfo );
     }
 
+    void Add( UNIT_BINDER& ctrl, int& dest )
+    {
+        CONFIG_CTRL_T ctrlInfo = { &ctrl, CFG_CTRL_UNIT_BINDER, (void*) &dest };
+
+        ctrls.push_back( ctrlInfo );
+    }
+
+
     void Add( wxChoice* ctrl, int& dest )
     {
         CONFIG_CTRL_T ctrlInfo = { ctrl, CFG_CTRL_CHOICE, (void*) &dest };
@@ -109,6 +119,10 @@ protected:
 
             case CFG_CTRL_TEXT:
                 *(wxString*) iter->dest = static_cast<wxTextCtrl*>( iter->control )->GetValue();
+                break;
+
+            case CFG_CTRL_UNIT_BINDER:
+                *(int*) iter->dest = static_cast<UNIT_BINDER*>( iter->control )->GetValue();
                 break;
 
             case CFG_CTRL_CHOICE:
@@ -150,6 +164,10 @@ protected:
                 static_cast<wxTextCtrl*>( iter->control )->SetValue( *(wxString*) iter->dest );
                 break;
 
+            case CFG_CTRL_UNIT_BINDER:
+                static_cast<UNIT_BINDER*>( iter->control )->SetValue( *(int*) iter->dest );
+                break;
+
             case CFG_CTRL_CHOICE:
                 static_cast<wxChoice*>( iter->control )->SetSelection( *(int*) iter->dest );
                 break;
@@ -182,7 +200,7 @@ public:
     };
 
     // NOTE: do not change order relative to charSetDescriptions
-    enum ARRAY_NUMBERING_TYPE_T
+    enum NUMBERING_TYPE_T
     {
         NUMBERING_NUMERIC = 0,      ///< Arabic numerals: 0,1,2,3,4,5,6,7,8,9,10,11...
         NUMBERING_HEX,
@@ -245,7 +263,7 @@ public:
         }
 
     protected:
-        static wxString getCoordinateNumber( int n, ARRAY_NUMBERING_TYPE_T type );
+        static wxString getCoordinateNumber( int n, NUMBERING_TYPE_T type );
 
         // allow the dialog to set directly
         friend class DIALOG_CREATE_ARRAY;
@@ -282,7 +300,7 @@ public:
         bool    m_stagger_rows;
         bool    m_2dArrayNumbering;
         int     m_numberingOffsetX, m_numberingOffsetY;
-        ARRAY_NUMBERING_TYPE_T m_priAxisNumType, m_secAxisNumType;
+        NUMBERING_TYPE_T m_priAxisNumType, m_secAxisNumType;
 
         void        TransformItem( int n, BOARD_ITEM* item, const wxPoint& rotPoint ) const override;
         int         GetArraySize() const override;
@@ -307,7 +325,7 @@ private:
         double m_angle;
         wxPoint m_centre;
         bool m_rotateItems;
-        ARRAY_NUMBERING_TYPE_T m_numberingType;
+        NUMBERING_TYPE_T m_numberingType;
         long m_numberingOffset;
 
         void        TransformItem( int n, BOARD_ITEM* item, const wxPoint& rotPoint ) const override;
@@ -337,6 +355,11 @@ private:
      * We retain ownership of this
      */
     ARRAY_OPTIONS* m_settings;
+
+    UNIT_BINDER    m_hSpacing, m_vSpacing;
+    UNIT_BINDER    m_hOffset, m_vOffset;
+    UNIT_BINDER    m_hCentre, m_vCentre;
+    UNIT_BINDER    m_circRadius;
 
     /*
      * The position of the original item(s), used for finding radius, etc
@@ -368,21 +391,21 @@ private:
 
         bool m_optionsSet;
 
-        wxString m_gridNx, m_gridNy,
-                 m_gridDx, m_gridDy,
-                 m_gridOffsetX, m_gridOffsetY,
-                 m_gridStagger;
+        wxString m_gridNx, m_gridNy;
+        int      m_gridDx, m_gridDy;
+        int      m_gridOffsetX, m_gridOffsetY;
+        wxString m_gridStagger;
 
-        int     m_gridStaggerType, m_gridNumberingAxis;
-        bool    m_gridNumberingReverseAlternate;
-        int     m_grid2dArrayNumbering;
-        int     m_gridPriAxisNumScheme, m_gridSecAxisNumScheme;
+        int      m_gridStaggerType, m_gridNumberingAxis;
+        bool     m_gridNumberingReverseAlternate;
+        int      m_grid2dArrayNumbering;
+        int      m_gridPriAxisNumScheme, m_gridSecAxisNumScheme;
         wxString m_gridPriNumberingOffset, m_gridSecNumberingOffset;
 
-        wxString m_circCentreX, m_circCentreY,
-                 m_circAngle, m_circCount, m_circNumberingOffset;
-        bool m_circRotate;
-        int m_arrayTypeTab;
+        int      m_circCentreX, m_circCentreY;
+        wxString m_circAngle, m_circCount, m_circNumberingOffset;
+        bool     m_circRotate;
+        int      m_arrayTypeTab;
     };
 
     // some uses of arrays might not allow component renumbering

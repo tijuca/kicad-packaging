@@ -105,6 +105,7 @@ class FP_LIB_TABLE : public LIB_TABLE
     friend class FP_LIB_TABLE_GRID;
 
 public:
+    KICAD_T Type() override { return FP_LIB_TABLE_T; }
 
     virtual void Parse( LIB_TABLE_LEXER* aLexer ) override;
 
@@ -187,12 +188,21 @@ public:
     MODULE* FootprintLoad( const wxString& aNickname, const wxString& aFootprintName );
 
     /**
-     * Function LoadEnumeratedFootprint
+     * Function FootprintExists
+     *
+     * indicates whether or not the given footprint already exists in the given library.
+     */
+    bool FootprintExists( const wxString& aNickname, const wxString& aFootprintName );
+
+    /**
+     * Function GetEnumeratedFootprint
      *
      * a version of FootprintLoad() for use after FootprintEnumerate() for more efficient
-     * cache management.
+     * cache management.  Return value is const to allow it to return a reference to a cached
+     * item.
      */
-    MODULE* LoadEnumeratedFootprint( const wxString& aNickname, const wxString& aFootprintName );
+    const MODULE* GetEnumeratedFootprint( const wxString& aNickname,
+                                          const wxString& aFootprintName );
     /**
      * Enum SAVE_T
      * is the set of return values from FootprintSave() below.

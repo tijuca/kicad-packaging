@@ -33,7 +33,7 @@
 #include <pgm_base.h>
 #include <kiway.h>
 #include <gr_basic.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <confirm.h>
 #include <sch_edit_frame.h>
 #include <kicad_device_context.h>
@@ -48,7 +48,7 @@
 #include <symbol_lib_table.h>
 
 #include <dialog_choose_component.h>
-#include <cmp_tree_model_adapter.h>
+#include <symbol_tree_model_adapter.h>
 
 
 SCH_BASE_FRAME::COMPONENT_SELECTION SCH_BASE_FRAME::SelectComponentFromLibBrowser(
@@ -98,10 +98,10 @@ SCH_BASE_FRAME::COMPONENT_SELECTION SCH_BASE_FRAME::SelectComponentFromLibBrowse
 }
 
 
-SCH_BASE_FRAME::COMPONENT_SELECTION SCH_BASE_FRAME::SelectComponentFromLibrary(
+SCH_BASE_FRAME::COMPONENT_SELECTION SCH_BASE_FRAME::SelectComponentFromLibTree(
         const SCHLIB_FILTER*                aFilter,
         std::vector<COMPONENT_SELECTION>&   aHistoryList,
-        bool                                aUseLibBrowser,
+        bool                                aAllowBrowser,
         int                                 aUnit,
         int                                 aConvert,
         bool                                aShowFootprints,
@@ -116,7 +116,8 @@ SCH_BASE_FRAME::COMPONENT_SELECTION SCH_BASE_FRAME::SelectComponentFromLibrary(
     if( !dialogLock.try_lock() )
         return COMPONENT_SELECTION();
 
-    auto adapter( CMP_TREE_MODEL_ADAPTER::Create( libs ) );
+    auto adapterPtr( SYMBOL_TREE_MODEL_ADAPTER::Create( libs ) );
+    auto adapter = static_cast<SYMBOL_TREE_MODEL_ADAPTER*>( adapterPtr.get() );
     bool loaded = false;
 
     if( aFilter )
@@ -132,43 +133,42 @@ SCH_BASE_FRAME::COMPONENT_SELECTION SCH_BASE_FRAME::SelectComponentFromLibrary(
             }
         }
 
-        if( aFilter->GetFilterPowerParts() )
-            adapter->SetFilter( CMP_TREE_MODEL_ADAPTER::CMP_FILTER_POWER );
+        adapter->AssignIntrinsicRanks();
 
+        if( aFilter->GetFilterPowerParts() )
+            adapter->SetFilter( SYMBOL_TREE_MODEL_ADAPTER::CMP_FILTER_POWER );
     }
+
+    std::vector< LIB_TREE_ITEM* > history_list;
+
+    for( auto const& i : aHistoryList )
+    {
+        LIB_ALIAS* alias = GetLibAlias( i.LibId );
+
+        if( alias )
+            history_list.push_back( alias );
+    }
+
+    adapter->DoAddLibrary( "-- " + _( "Recently Used" ) + " --", wxEmptyString, history_list, true );
 
     if( !aHistoryList.empty() )
-    {
-        std::vector< LIB_ALIAS* > history_list;
-
-        for( auto const& i : aHistoryList )
-        {
-            LIB_ALIAS* alias = GetLibAlias( i.LibId );
-
-            if( alias )
-                history_list.push_back( alias );
-        }
-
-        adapter->AddAliasList( "-- " + _( "History" ) + " --", _( "Recently used items" ), history_list );
         adapter->SetPreselectNode( aHistoryList[0].LibId, aHistoryList[0].Unit );
-    }
 
     const std::vector< wxString > libNicknames = libs->GetLogicalLibs();
 
     if( !loaded )
-    {
-        adapter->AddLibrariesWithProgress( libNicknames, this );
-    }
+        adapter->AddLibraries( libNicknames, this );
 
     if( aHighlight && aHighlight->IsValid() )
         adapter->SetPreselectNode( *aHighlight, /* aUnit */ 0 );
 
-    if( adapter->GetFilter() == CMP_TREE_MODEL_ADAPTER::CMP_FILTER_POWER )
-        dialogTitle.Printf( _( "Choose Power Symbol (%d items loaded)" ), adapter->GetComponentsCount() );
+    if( adapter->GetFilter() == SYMBOL_TREE_MODEL_ADAPTER::CMP_FILTER_POWER )
+        dialogTitle.Printf( _( "Choose Power Symbol (%d items loaded)" ), adapter->GetItemCount() );
     else
-        dialogTitle.Printf( _( "Choose Symbol (%d items loaded)" ), adapter->GetComponentsCount() );
+        dialogTitle.Printf( _( "Choose Symbol (%d items loaded)" ), adapter->GetItemCount() );
 
-    DIALOG_CHOOSE_COMPONENT dlg( this, dialogTitle, adapter, aConvert, aAllowFields, aShowFootprints );
+    DIALOG_CHOOSE_COMPONENT dlg( this, dialogTitle, adapterPtr, aConvert,
+                                 aAllowFields, aShowFootprints, aAllowBrowser );
 
     if( dlg.ShowQuasiModal() == wxID_CANCEL )
         return COMPONENT_SELECTION();
@@ -211,17 +211,16 @@ SCH_BASE_FRAME::COMPONENT_SELECTION SCH_BASE_FRAME::SelectComponentFromLibrary(
 }
 
 
-SCH_COMPONENT* SCH_EDIT_FRAME::Load_Component( wxDC*                          aDC,
-                                               const SCHLIB_FILTER*           aFilter,
+SCH_COMPONENT* SCH_EDIT_FRAME::Load_Component( const SCHLIB_FILTER*           aFilter,
                                                SCH_BASE_FRAME::HISTORY_LIST&  aHistoryList,
-                                               bool                           aUseLibBrowser )
+                                               bool                           aAllowBrowser )
 {
     wxString msg;
 
     SetRepeatItem( NULL );
     m_canvas->SetIgnoreMouseEvents( true );
 
-    auto sel = SelectComponentFromLibrary( aFilter, aHistoryList, aUseLibBrowser, 1, 1,
+    auto sel = SelectComponentFromLibTree( aFilter, aHistoryList, aAllowBrowser, 1, 1,
                                            m_footprintPreview );
 
     if( !sel.LibId.IsValid() )
@@ -246,13 +245,9 @@ SCH_COMPONENT* SCH_EDIT_FRAME::Load_Component( wxDC*                          aD
     if( !part )
         return NULL;
 
-    SCH_COMPONENT* component = new SCH_COMPONENT( *part, m_CurrentSheet, sel.Unit, sel.Convert,
+    SCH_COMPONENT* component = new SCH_COMPONENT( *part, libId, m_CurrentSheet,
+                                                  sel.Unit, sel.Convert,
                                                   GetCrossHairPosition(), true );
-
-    // Set the m_ChipName value, from component name in lib, for aliases
-    // Note if part is found, and if name is an alias of a component,
-    // alias exists because its root component was found
-    component->SetLibId( libId );
 
     // Be sure the link to the corresponding LIB_PART is OK:
     component->Resolve( *Prj().SchSymbolLibTable() );
@@ -266,33 +261,18 @@ SCH_COMPONENT* SCH_EDIT_FRAME::Load_Component( wxDC*                          aD
             field->SetText( i.second );
     }
 
-    // Set the component value that can differ from component name in lib, for aliases
-    component->GetField( VALUE )->SetText( sel.LibId.GetLibItemName() );
-
-    // If there is no field defined in the component, copy one over from the library
-    // ( from the .dcm file )
-    // This way the Datasheet field will not be empty and can be changed from the schematic
-    if( component->GetField( DATASHEET )->GetText().IsEmpty() )
-    {
-        LIB_ALIAS* entry = GetLibAlias( component->GetLibId(), true, true );
-
-        if( entry && !!entry->GetDocFileName() )
-            component->GetField( DATASHEET )->SetText( entry->GetDocFileName() );
-    }
-
     MSG_PANEL_ITEMS items;
 
     component->SetCurrentSheetPath( &GetCurrentSheet() );
-    component->GetMsgPanelInfo( items );
+    component->GetMsgPanelInfo( m_UserUnits, items );
 
     SetMsgPanel( items );
-    component->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
     component->SetFlags( IS_NEW );
 
     if( m_autoplaceFields )
         component->AutoplaceFields( /* aScreen */ NULL, /* aManual */ false );
 
-    PrepareMoveItem( (SCH_ITEM*) component, aDC );
+    PrepareMoveItem( component );
 
     return component;
 }
@@ -300,51 +280,39 @@ SCH_COMPONENT* SCH_EDIT_FRAME::Load_Component( wxDC*                          aD
 
 void SCH_EDIT_FRAME::OrientComponent( COMPONENT_ORIENTATION_T aOrientation )
 {
-    SCH_SCREEN* screen = GetScreen();
-    SCH_ITEM* item = screen->GetCurItem();
-
-    wxCHECK_RET( item != NULL && item->Type() == SCH_COMPONENT_T,
-                 wxT( "Cannot change orientation of invalid schematic item." ) );
-
+    SCH_SCREEN*    screen = GetScreen();
+    SCH_ITEM*      item = screen->GetCurItem();
     SCH_COMPONENT* component = (SCH_COMPONENT*) item;
 
-    m_canvas->MoveCursorToCrossHair();
+    GetCanvas()->MoveCursorToCrossHair();
 
     if( item->GetFlags() == 0 )
         SetUndoItem( item );
 
-    INSTALL_UNBUFFERED_DC( dc, m_canvas );
-
     component->SetOrientation( aOrientation );
 
-    m_canvas->CrossHairOn( &dc );
+    m_canvas->CrossHairOn( );
 
     if( item->GetFlags() == 0 )
     {
-        addCurrentItemToList();
+        addCurrentItemToScreen();
         SchematicCleanUp( true );
     }
 
-    if( GetScreen()->TestDanglingEnds() )
-        m_canvas->Refresh();
+    TestDanglingEnds();
 
+    RefreshItem( item );
     OnModify();
 }
 
 
 void SCH_EDIT_FRAME::OnSelectUnit( wxCommandEvent& aEvent )
 {
-    SCH_SCREEN* screen = GetScreen();
-    SCH_ITEM*   item = screen->GetCurItem();
-
-    wxCHECK_RET( item != NULL && item->Type() == SCH_COMPONENT_T,
-                 wxT( "Cannot select unit of invalid schematic item." ) );
-
-    INSTALL_UNBUFFERED_DC( dc, m_canvas );
-
-    m_canvas->MoveCursorToCrossHair();
-
+    SCH_SCREEN*    screen = GetScreen();
+    SCH_ITEM*      item = screen->GetCurItem();
     SCH_COMPONENT* component = (SCH_COMPONENT*) item;
+
+    GetCanvas()->MoveCursorToCrossHair();
 
     int unit = aEvent.GetId() + 1 - ID_POPUP_SCH_SELECT_UNIT1;
 
@@ -354,10 +322,6 @@ void SCH_EDIT_FRAME::OnSelectUnit( wxCommandEvent& aEvent )
         return;
 
     int unitCount = part->GetUnitCount();
-
-    wxCHECK_RET( (unit >= 1) && (unit <= unitCount),
-                 wxString::Format( wxT( "Cannot select unit %d from component " ), unit ) +
-                 part->GetName() );
 
     if( unitCount <= 1 || component->GetUnit() == unit )
         return;
@@ -370,11 +334,6 @@ void SCH_EDIT_FRAME::OnSelectUnit( wxCommandEvent& aEvent )
     if( !flags )    // No command in progress: save in undo list
         SaveCopyInUndoList( component, UR_CHANGED );
 
-    if( flags )
-        component->Draw( m_canvas, &dc, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
-    else
-        component->Draw( m_canvas, &dc, wxPoint( 0, 0 ), g_XorMode );
-
     /* Update the unit number. */
     component->SetUnitSelection( m_CurrentSheet, unit );
     component->SetUnit( unit );
@@ -384,14 +343,14 @@ void SCH_EDIT_FRAME::OnSelectUnit( wxCommandEvent& aEvent )
     if( m_autoplaceFields )
         component->AutoAutoplaceFields( GetScreen() );
 
-    if( screen->TestDanglingEnds() )
-        m_canvas->Refresh();
+    TestDanglingEnds();
 
+    RefreshItem( component );
     OnModify();
 }
 
 
-void SCH_EDIT_FRAME::ConvertPart( SCH_COMPONENT* aComponent, wxDC* DC )
+void SCH_EDIT_FRAME::ConvertPart( SCH_COMPONENT* aComponent )
 {
     if( !aComponent )
         return;
@@ -413,11 +372,6 @@ void SCH_EDIT_FRAME::ConvertPart( SCH_COMPONENT* aComponent, wxDC* DC )
 
         STATUS_FLAGS flags = aComponent->GetFlags();
 
-        if( aComponent->GetFlags() )
-            aComponent->Draw( m_canvas, DC, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
-        else
-            aComponent->Draw( m_canvas, DC, wxPoint( 0, 0 ), g_XorMode );
-
         aComponent->SetConvert( aComponent->GetConvert() + 1 );
 
         // ensure m_Convert = 0, 1 or 2
@@ -431,16 +385,11 @@ void SCH_EDIT_FRAME::ConvertPart( SCH_COMPONENT* aComponent, wxDC* DC )
 
         // The alternate symbol may cause a change in the connection status so test the
         // connections so the connection indicators are drawn correctly.
-        GetScreen()->TestDanglingEnds();
+        TestDanglingEnds();
         aComponent->ClearFlags();
         aComponent->SetFlags( flags );   // Restore m_Flag (modified by SetConvert())
 
-        /* Redraw the component in the new position. */
-        if( aComponent->IsMoving() )
-            aComponent->Draw( m_canvas, DC, wxPoint( 0, 0 ), g_XorMode, g_GhostColor );
-        else
-            aComponent->Draw( m_canvas, DC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
-
+        RefreshItem( aComponent );
         OnModify();
     }
 }

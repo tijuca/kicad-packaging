@@ -188,7 +188,7 @@ public:
 
     bool IsConnectable() const override { return true; }
 
-    wxString GetSelectMenuText() const override;
+    wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
 
     BITMAP_DEF GetMenuImage() const override;
 
@@ -313,7 +313,7 @@ public:
      */
     int GetScreenCount() const;
 
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
+    void GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList ) override;
 
     /* there is no member for orientation in sch_sheet, to preserve file
      * format, we detect orientation based on pin edges
@@ -516,9 +516,7 @@ public:
 
     void GetEndPoints( std::vector <DANGLING_END_ITEM>& aItemList ) override;
 
-    bool IsDanglingStateChanged( std::vector< DANGLING_END_ITEM >& aItemList ) override;
-
-    bool IsDangling() const override;
+    bool UpdateDanglingState( std::vector<DANGLING_END_ITEM>& aItemList ) override;
 
     bool IsSelectStateChanged( const wxRect& aRect ) override;
 
@@ -535,7 +533,7 @@ public:
 
     SEARCH_RESULT Visit( INSPECTOR inspector, void* testData, const KICAD_T scanTypes[] ) override;
 
-    wxString GetSelectMenuText() const override;
+    wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
 
     BITMAP_DEF GetMenuImage() const override;
 
@@ -543,6 +541,8 @@ public:
                          SCH_SHEET_PATH*      aSheetPath ) override;
 
     SCH_ITEM& operator=( const SCH_ITEM& aSheet );
+
+    void ViewGetLayers( int aLayers[], int& aCount ) const override;
 
     wxPoint GetPosition() const override { return m_pos; }
 

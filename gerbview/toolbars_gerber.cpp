@@ -56,6 +56,10 @@ void GERBVIEW_FRAME::ReCreateHToolbar( void )
                             KiScaledBitmap( delete_gerber_xpm, this ),
                             _( "Clear all layers" ) );
 
+    m_mainToolBar->AddTool( ID_GERBVIEW_RELOAD_ALL, wxEmptyString,
+                            KiScaledBitmap( reload2_xpm, this ),
+                            _( "Reload all layers" ) );
+
     m_mainToolBar->AddTool( wxID_FILE, wxEmptyString, KiScaledBitmap( load_gerber_xpm, this ),
                             _( "Open Gerber file(s) on the current layer. Previous data will be deleted" ) );
 
@@ -64,10 +68,6 @@ void GERBVIEW_FRAME::ReCreateHToolbar( void )
                             _( "Open Excellon drill file(s) on the current layer. Previous data will be deleted" ) );
 
     KiScaledSeparator( m_mainToolBar, this );
-    m_mainToolBar->AddTool( ID_GERBVIEW_SET_PAGE_BORDER, wxEmptyString, KiScaledBitmap( sheetset_xpm, this ),
-                            _( "Show/hide frame reference and select paper size for printing" ) );
-
-    m_mainToolBar->AddSeparator();
     m_mainToolBar->AddTool( wxID_PRINT, wxEmptyString, KiScaledBitmap( print_button_xpm, this ),
                             _( "Print layers" ) );
 
@@ -119,37 +119,40 @@ void GERBVIEW_FRAME::ReCreateAuxiliaryToolbar()
     // Creates box to display and choose components:
     if( !m_SelComponentBox )
     {
-        m_SelComponentBox = new wxChoice( m_auxiliaryToolBar,
-                                          ID_GBR_AUX_TOOLBAR_PCB_CMP_CHOICE );
-        m_SelComponentBox->SetToolTip( _("Select a component and highlight items belonging to this component") );
+        m_SelComponentBox = new wxComboBox( m_auxiliaryToolBar,
+                                          ID_GBR_AUX_TOOLBAR_PCB_CMP_CHOICE, wxEmptyString,
+                                          wxDefaultPosition, wxDefaultSize, 0, nullptr, wxCB_READONLY );
+        m_SelComponentBox->SetToolTip( _("Highlight items belonging to this component") );
         text = new wxStaticText( m_auxiliaryToolBar, wxID_ANY, _( "Cmp: ") );
         m_auxiliaryToolBar->AddControl( text );
         m_auxiliaryToolBar->AddControl( m_SelComponentBox );
-        KiScaledSeparator( m_auxiliaryToolBar, this );
+        m_auxiliaryToolBar->AddSpacer( 5 );
     }
 
     // Creates choice box to display net names and highlight selected:
     if( !m_SelNetnameBox )
     {
-        m_SelNetnameBox = new wxChoice( m_auxiliaryToolBar,
-                                        ID_GBR_AUX_TOOLBAR_PCB_NET_CHOICE );
-        m_SelNetnameBox->SetToolTip( _("Select a net name and highlight graphic items belonging to this net") );
+        m_SelNetnameBox = new wxComboBox( m_auxiliaryToolBar,
+                                        ID_GBR_AUX_TOOLBAR_PCB_NET_CHOICE, wxEmptyString,
+                                        wxDefaultPosition, wxDefaultSize, 0, nullptr, wxCB_READONLY );
+        m_SelNetnameBox->SetToolTip( _("Highlight items belonging to this net") );
         text = new wxStaticText( m_auxiliaryToolBar, wxID_ANY, _( "Net:" ) );
         m_auxiliaryToolBar->AddControl( text );
         m_auxiliaryToolBar->AddControl( m_SelNetnameBox );
-        KiScaledSeparator( m_auxiliaryToolBar, this );
+        m_auxiliaryToolBar->AddSpacer( 5 );
     }
 
     // Creates choice box to display aperture attributes and highlight selected:
     if( !m_SelAperAttributesBox )
     {
-        m_SelAperAttributesBox = new wxChoice( m_auxiliaryToolBar,
-                                               ID_GBR_AUX_TOOLBAR_PCB_APERATTRIBUTES_CHOICE );
-        m_SelAperAttributesBox->SetToolTip( _("Select an aperture attribute and highlight graphic items having this attribute") );
+        m_SelAperAttributesBox = new wxComboBox( m_auxiliaryToolBar,
+                                               ID_GBR_AUX_TOOLBAR_PCB_APERATTRIBUTES_CHOICE, wxEmptyString,
+                                               wxDefaultPosition, wxDefaultSize, 0, nullptr, wxCB_READONLY );
+        m_SelAperAttributesBox->SetToolTip( _("Highlight items with this aperture attribute") );
         text = new wxStaticText( m_auxiliaryToolBar, wxID_ANY, _( "Attr:" ) );
         m_auxiliaryToolBar->AddControl( text );
         m_auxiliaryToolBar->AddControl( m_SelAperAttributesBox );
-        KiScaledSeparator( m_auxiliaryToolBar, this );
+        m_auxiliaryToolBar->AddSpacer( 5 );
     }
 
     if( !m_DCodeSelector )
@@ -162,10 +165,28 @@ void GERBVIEW_FRAME::ReCreateAuxiliaryToolbar()
         m_auxiliaryToolBar->AddControl( m_DCodeSelector );
     }
 
+    if( !m_gridSelectBox )
+    {
+        KiScaledSeparator( m_auxiliaryToolBar, this );
+        m_gridSelectBox = new wxComboBox( m_auxiliaryToolBar, ID_ON_GRID_SELECT, wxEmptyString,
+                                          wxDefaultPosition, wxDefaultSize, 0, nullptr, wxCB_READONLY );
+        m_auxiliaryToolBar->AddControl( m_gridSelectBox );
+    }
+
+    if( !m_zoomSelectBox )
+    {
+        KiScaledSeparator( m_auxiliaryToolBar, this );
+        m_zoomSelectBox = new wxComboBox( m_auxiliaryToolBar, ID_ON_ZOOM_SELECT, wxEmptyString,
+                                          wxDefaultPosition, wxDefaultSize, 0, nullptr, wxCB_READONLY );
+        m_auxiliaryToolBar->AddControl( m_zoomSelectBox );
+    }
+
     updateComponentListSelectBox();
     updateNetnameListSelectBox();
     updateAperAttributesSelectBox();
     updateDCodeSelectBox();
+    updateGridSelectBox();
+    updateZoomSelectBox();
 
     // combobox sizes can have changed: apply new best sizes
     auto item = m_auxiliaryToolBar->FindTool( ID_GBR_AUX_TOOLBAR_PCB_CMP_CHOICE );
@@ -176,6 +197,12 @@ void GERBVIEW_FRAME::ReCreateAuxiliaryToolbar()
 
     item = m_auxiliaryToolBar->FindTool( ID_GBR_AUX_TOOLBAR_PCB_APERATTRIBUTES_CHOICE );
     item->SetMinSize( m_SelAperAttributesBox->GetBestSize() );
+
+    item = m_auxiliaryToolBar->FindTool( ID_ON_GRID_SELECT );
+    item->SetMinSize( m_gridSelectBox->GetBestSize() );
+
+    item = m_auxiliaryToolBar->FindTool( ID_ON_ZOOM_SELECT );
+    item->SetMinSize( m_zoomSelectBox->GetBestSize() );
 
     // after adding the buttons to the toolbar, must call Realize()
     m_auxiliaryToolBar->Realize();
@@ -191,9 +218,9 @@ void GERBVIEW_FRAME::ReCreateVToolbar( void )
                                       KICAD_AUI_TB_STYLE | wxAUI_TB_VERTICAL );
 
     // Set up toolbar
-    m_drawToolBar->AddTool( ID_NO_TOOL_SELECTED, wxEmptyString,
+    m_drawToolBar->AddTool( ID_NO_TOOL_SELECTED, _( "Select item" ),
                             KiScaledBitmap( cursor_xpm, this ) );
-    KiScaledSeparator( m_drawToolBar, this );
+    KiScaledSeparator( m_mainToolBar, this );
 
     m_drawToolBar->Realize();
 }
@@ -222,7 +249,7 @@ void GERBVIEW_FRAME::ReCreateOptToolbar( void )
                                    wxITEM_CHECK );
     }
 
-    KiScaledSeparator( m_optionsToolBar, this );
+    KiScaledSeparator( m_mainToolBar, this );
 
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_GRID, wxEmptyString,
                                KiScaledBitmap( grid_xpm, this ),
@@ -344,8 +371,8 @@ void GERBVIEW_FRAME::updateDCodeSelectBox()
     // Build the aperture list of the current layer, and add it to the combo box:
     wxArrayString dcode_list;
     wxString msg;
-    const char* units = g_UserUnit == INCHES ? "mils" : "mm";
-    double scale = g_UserUnit == INCHES ? IU_PER_MILS : IU_PER_MM;
+    const char* units = GetUserUnits() == INCHES ? "mils" : "mm";
+    double scale = GetUserUnits() == INCHES ? IU_PER_MILS : IU_PER_MM;
 
     for( int ii = 0; ii < TOOLS_MAX_COUNT; ii++ )
     {

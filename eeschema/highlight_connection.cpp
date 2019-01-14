@@ -29,15 +29,18 @@
  */
 
 #include <fctsys.h>
-#include <class_drawpanel.h>
+#include <sch_view.h>
+#include <sch_draw_panel.h>
 #include <sch_edit_frame.h>
 #include <erc.h>
 
 #include <netlist_object.h>
 
+// List of items having the highlight option modified, therefore need to be redrawn
 
 bool SCH_EDIT_FRAME::HighlightConnectionAtPosition( wxPoint aPosition )
 {
+    std::vector<EDA_ITEM*> itemsToRedraw;
     m_SelectedNetName = "";
     bool buildNetlistOk = false;
 
@@ -68,26 +71,45 @@ bool SCH_EDIT_FRAME::HighlightConnectionAtPosition( wxPoint aPosition )
 
     SendCrossProbeNetName( m_SelectedNetName );
     SetStatusText( "selected net: " + m_SelectedNetName );
-    SetCurrentSheetHighlightFlags();
-    m_canvas->Refresh();
+    SetCurrentSheetHighlightFlags( &itemsToRedraw );
 
+    // Be sure hightlight change will be redrawn
+    KIGFX::VIEW* view = GetGalCanvas()->GetView();
+
+    for( auto item : itemsToRedraw )
+        view->Update( (KIGFX::VIEW_ITEM*)item, KIGFX::VIEW_UPDATE_FLAGS::REPAINT );
+
+    //view->MarkTargetDirty( KIGFX::TARGET_NONCACHED );
+    GetGalCanvas()->Refresh();
     return buildNetlistOk;
 }
 
 
-bool SCH_EDIT_FRAME::SetCurrentSheetHighlightFlags()
+bool SCH_EDIT_FRAME::SetCurrentSheetHighlightFlags( std::vector<EDA_ITEM*>* aItemsToRedrawList )
 {
     SCH_SCREEN* screen = m_CurrentSheet->LastScreen();
+
+    if( !screen )
+        return true;
 
     // Disable highlight flag on all items in the current screen
     for( SCH_ITEM* ptr = screen->GetDrawItems(); ptr; ptr = ptr->Next() )
     {
+        if( ptr->GetState( BRIGHTENED ) && aItemsToRedrawList )
+            aItemsToRedrawList->push_back( ptr );
+
         ptr->SetState( BRIGHTENED, false );
+
 
         if( ptr->Type() == SCH_SHEET_T )
         {
             for( SCH_SHEET_PIN& pin : static_cast<SCH_SHEET*>( ptr )->GetPins() )
+            {
+                if( ptr->GetState( BRIGHTENED ) && aItemsToRedrawList )
+                    aItemsToRedrawList->push_back( &pin );
+
                 pin.SetState( BRIGHTENED, false );
+            }
         }
     }
 
@@ -108,6 +130,9 @@ bool SCH_EDIT_FRAME::SetCurrentSheetHighlightFlags()
         {
             obj1->m_Comp->SetState( BRIGHTENED, true );
 
+            if( aItemsToRedrawList )
+                aItemsToRedrawList->push_back( obj1->m_Comp );
+
             //if a bus is associated with this net highlight it as well
             if( obj1->m_BusNetCode )
             {
@@ -115,7 +140,12 @@ bool SCH_EDIT_FRAME::SetCurrentSheetHighlightFlags()
                 {
                     if( obj2 && obj2->m_Comp && obj2->m_SheetPath == *m_CurrentSheet &&
                         obj1->m_BusNetCode == obj2->m_BusNetCode )
+                    {
+                        if( aItemsToRedrawList )
+                            aItemsToRedrawList->push_back( obj2->m_Comp );
+
                         obj2->m_Comp->SetState( BRIGHTENED, true );
+                    }
                 }
             }
         }

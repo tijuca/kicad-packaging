@@ -2,6 +2,8 @@
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
  * Copyright (C) 2013 CERN
+ * Copyright (C) 2018 KiCad Developers, see AUTHORS.txt for contributors.
+ *
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
  * This program is free software; you can redistribute it and/or
@@ -29,7 +31,6 @@
 
 #include <ratsnest_viewitem.h>
 #include <ratsnest_data.h>
-#include <connectivity_data.h>
 #include <gal/graphics_abstraction_layer.h>
 #include <pcb_painter.h>
 #include <layers_id_colors_and_visibility.h>
@@ -56,9 +57,12 @@ const BOX2I RATSNEST_VIEWITEM::ViewBBox() const
     return bbox;
 }
 
+
 void RATSNEST_VIEWITEM::ViewDraw( int aLayer, KIGFX::VIEW* aView ) const
 {
-    if( !m_data->TryLock() )
+    std::unique_lock<std::mutex> lock( m_data->GetLock(), std::try_to_lock );
+
+    if( !lock )
         return;
 
     constexpr int CROSS_SIZE = 200000;
@@ -79,14 +83,18 @@ void RATSNEST_VIEWITEM::ViewDraw( int aLayer, KIGFX::VIEW* aView ) const
     {
         if ( l.a == l.b )
         {
-            gal->DrawLine( VECTOR2I( l.a.x - CROSS_SIZE, l.a.y - CROSS_SIZE ), VECTOR2I( l.b.x + CROSS_SIZE, l.b.y + CROSS_SIZE ) );
-            gal->DrawLine( VECTOR2I( l.a.x - CROSS_SIZE, l.a.y + CROSS_SIZE ), VECTOR2I( l.b.x + CROSS_SIZE, l.b.y - CROSS_SIZE ) );
-        } else {
+            gal->DrawLine( VECTOR2I( l.a.x - CROSS_SIZE, l.a.y - CROSS_SIZE ),
+                           VECTOR2I( l.b.x + CROSS_SIZE, l.b.y + CROSS_SIZE ) );
+            gal->DrawLine( VECTOR2I( l.a.x - CROSS_SIZE, l.a.y + CROSS_SIZE ),
+                           VECTOR2I( l.b.x + CROSS_SIZE, l.b.y - CROSS_SIZE ) );
+        }
+        else
+        {
             gal->DrawLine( l.a, l.b );
         }
     }
 
-    for( int i = 1; i < m_data->GetNetCount(); ++i )
+    for( int i = 1 /* skip "No Net" at [0] */; i < m_data->GetNetCount(); ++i )
     {
         RN_NET* net = m_data->GetRatsnestForNet( i );
 
@@ -130,8 +138,10 @@ void RATSNEST_VIEWITEM::ViewDraw( int aLayer, KIGFX::VIEW* aView ) const
             {
                 if ( source == target )
                 {
-                    gal->DrawLine( VECTOR2I( source.x - CROSS_SIZE, source.y - CROSS_SIZE ), VECTOR2I( source.x + CROSS_SIZE, source.y + CROSS_SIZE ) );
-                    gal->DrawLine( VECTOR2I( source.x - CROSS_SIZE, source.y + CROSS_SIZE ), VECTOR2I( source.x + CROSS_SIZE, source.y - CROSS_SIZE ) );
+                    gal->DrawLine( VECTOR2I( source.x - CROSS_SIZE, source.y - CROSS_SIZE ),
+                                   VECTOR2I( source.x + CROSS_SIZE, source.y + CROSS_SIZE ) );
+                    gal->DrawLine( VECTOR2I( source.x - CROSS_SIZE, source.y + CROSS_SIZE ),
+                                   VECTOR2I( source.x + CROSS_SIZE, source.y - CROSS_SIZE ) );
                 }
                 else
                 {
@@ -140,8 +150,6 @@ void RATSNEST_VIEWITEM::ViewDraw( int aLayer, KIGFX::VIEW* aView ) const
             }
         }
     }
-
-    m_data->Unlock();
 }
 
 

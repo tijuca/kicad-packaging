@@ -41,7 +41,7 @@
 FOOTPRINTS_LISTBOX::FOOTPRINTS_LISTBOX( CVPCB_MAINFRAME* parent,
                                         wxWindowID id, const wxPoint& loc,
                                         const wxSize& size ) :
-    ITEMS_LISTBOX_BASE( parent, id, loc, size, wxLC_SINGLE_SEL )
+    ITEMS_LISTBOX_BASE( parent, id, loc, size, wxLC_SINGLE_SEL | wxNO_BORDER )
 {
 }
 
@@ -112,15 +112,28 @@ void FOOTPRINTS_LISTBOX::SetSelection( int index, bool State )
 
     if( (index >= 0)  && (GetCount() > 0) )
     {
-#ifndef __WXMAC__
         Select( index, State );
-#endif
-
         EnsureVisible( index );
-
-#ifdef __WXMAC__
         Refresh();
-#endif
+    }
+}
+
+
+void FOOTPRINTS_LISTBOX::SetSelectedFootprint( const LIB_ID& aFPID )
+{
+    wxString id = wxString::Format( "%s:%s",
+                                    GetChars( aFPID.GetLibNickname() ),
+                                    GetChars( aFPID.GetLibItemName() ) );
+
+    for( int i = 0; i < GetCount(); ++i )
+    {
+        wxString candidate = m_footprintList.Item( i ).substr( 4 );
+
+        if( candidate.CmpNoCase( id ) == 0 )
+        {
+            SetSelection( i, true );
+            return;
+        }
     }
 }
 
@@ -154,7 +167,7 @@ void FOOTPRINTS_LISTBOX::SetFootprints( FOOTPRINT_LIST& aList, const wxString& a
     for( auto& i: filter )
     {
         msg.Printf( "%3d %s:%s", int( newList.GetCount() + 1 ),
-                    GetChars( i.GetNickname() ),
+                    GetChars( i.GetLibNickname() ),
                     GetChars( i.GetFootprintName() ) );
         newList.Add( msg );
     }

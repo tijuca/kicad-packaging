@@ -1,8 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.txt for contributors.
- * Copyright (C) 2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,6 +28,7 @@
 #include <fctsys.h>
 #include <kiface_i.h>
 #include <kiway.h>
+#include <kiway_express.h>
 #include <class_drawpanel.h>
 #include <pcb_draw_panel_gal.h>
 #include <confirm.h>
@@ -52,6 +52,9 @@
 #include <pcbnew_id.h>
 #include <footprint_edit_frame.h>
 #include <footprint_viewer_frame.h>
+#include <footprint_tree_pane.h>
+#include <fp_lib_table.h>
+#include <widgets/lib_tree.h>
 #include <collectors.h>
 #include <tool/tool_manager.h>
 #include <tools/pcb_actions.h>
@@ -139,7 +142,7 @@ BOARD_ITEM* FOOTPRINT_EDIT_FRAME::ModeditLocateAndDisplay( int aHotKeyCode )
         {
             item = (*m_Collector)[ii];
 
-            wxString    text = item->GetSelectMenuText();
+            wxString    text = item->GetSelectMenuText( GetUserUnits() );
             BITMAP_DEF  xpm  = item->GetMenuImage();
 
             AddMenuItem( &itemMenu,
@@ -173,20 +176,58 @@ BOARD_ITEM* FOOTPRINT_EDIT_FRAME::ModeditLocateAndDisplay( int aHotKeyCode )
 
 void FOOTPRINT_EDIT_FRAME::LoadModuleFromBoard( wxCommandEvent& event )
 {
-    if( GetScreen()->IsModify() )
-    {
-        if( !IsOK( this,
-                   _( "Current footprint changes will be lost and this operation cannot be undone. Continue?" ) ) )
-            return;
-    }
+    Load_Module_From_BOARD( NULL );
+}
 
-    if( ! Load_Module_From_BOARD( NULL ) )
+
+void FOOTPRINT_EDIT_FRAME::LoadModuleFromLibrary( LIB_ID aFPID)
+{
+    MODULE* module = LoadFootprint( aFPID );
+
+    if( !module )
         return;
 
-    GetScreen()->ClearUndoRedoList();
-    GetScreen()->ClrModify();
+    if( !Clear_Pcb( true ) )
+        return;
+
+    SetCrossHairPosition( wxPoint( 0, 0 ) );
+    AddModuleToBoard( module );
+
+    if( GetBoard()->m_Modules )
+    {
+        GetBoard()->m_Modules->ClearFlags();
+
+        // if either m_Reference or m_Value are gone, reinstall them -
+        // otherwise you cannot see what you are doing on board
+        TEXTE_MODULE* ref = &GetBoard()->m_Modules->Reference();
+        TEXTE_MODULE* val = &GetBoard()->m_Modules->Value();
+
+        if( val && ref )
+        {
+            ref->SetType( TEXTE_MODULE::TEXT_is_REFERENCE );    // just in case ...
+
+            if( ref->GetLength() == 0 )
+                ref->SetText( wxT( "Ref**" ) );
+
+            val->SetType( TEXTE_MODULE::TEXT_is_VALUE );        // just in case ...
+
+            if( val->GetLength() == 0 )
+                val->SetText( wxT( "Val**" ) );
+        }
+    }
+
+    Zoom_Automatique( false );
 
     Update3DView();
+
+    GetScreen()->ClrModify();
+
+    updateView();
+    m_canvas->Refresh();
+
+    m_treePane->GetLibTree()->ExpandLibId( aFPID );
+    m_treePane->GetLibTree()->CenterLibId( aFPID );
+    m_treePane->GetLibTree()->Refresh();        // update highlighting
 }
 
 
@@ -207,7 +248,6 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
     case wxID_COPY:
     case ID_TOOLBARH_PCB_SELECT_LAYER:
     case ID_MODEDIT_PAD_SETTINGS:
-    case ID_PCB_USER_GRID_SETUP:
     case ID_POPUP_PCB_ROTATE_TEXTEPCB:
     case ID_POPUP_PCB_EDIT_TEXTEPCB:
     case ID_POPUP_PCB_ROTATE_TEXTMODULE:
@@ -221,7 +261,6 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
     case ID_POPUP_MODEDIT_EDIT_BODY_ITEM:
     case ID_POPUP_MODEDIT_EDIT_WIDTH_ALL_EDGE:
     case ID_POPUP_MODEDIT_EDIT_LAYER_ALL_EDGE:
-    case ID_POPUP_MODEDIT_ENTER_EDGE_WIDTH:
     case ID_POPUP_PCB_DELETE_EDGE:
     case ID_POPUP_PCB_DELETE_TEXTMODULE:
     case ID_POPUP_PCB_DELETE_PAD:
@@ -253,18 +292,6 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         Close( true );
         break;
 
-    case ID_MODEDIT_SELECT_CURRENT_LIB:
-        {
-            wxString library = SelectLibrary( GetCurrentLib() );
-
-            if( library.size() )
-            {
-                Prj().SetRString( PROJECT::PCB_LIB_NICKNAME, library );
-                updateTitle();
-            }
-        }
-        break;
-
     case ID_OPEN_MODULE_VIEWER:
         {
             FOOTPRINT_VIEWER_FRAME* viewer = (FOOTPRINT_VIEWER_FRAME*) Kiway().Player( FRAME_PCB_MODULE_VIEWER, false );
@@ -292,56 +319,74 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_MODEDIT_DELETE_PART:
-        DeleteModuleFromCurrentLibrary();
+        if( DeleteModuleFromLibrary( getTargetFPID(), true ) )
+        {
+            if( getTargetFPID() == GetLoadedFPID() )
+                Clear_Pcb( false );
+
+            SyncLibraryTree( true );
+        }
         break;
 
     case ID_MODEDIT_NEW_MODULE:
         {
-            if( GetScreen()->IsModify() && !GetBoard()->IsEmpty() )
-            {
-                if( !IsOK( this, _( "Current Footprint will be lost and this operation cannot be undone. Continue ?" ) ) )
-                    break;
-            }
-
+            LIB_ID selected = m_treePane->GetLibTree()->GetSelectedLibId();
             MODULE* module = CreateNewModule( wxEmptyString );
 
-            if( module )        // i.e. if create module command not aborted
+            if( !module )
+                break;
+
+            if( !Clear_Pcb( true ) )
+                break;
+
+            SetCrossHairPosition( wxPoint( 0, 0 ) );
+            AddModuleToBoard( module );
+
+            // Initialize data relative to nets and netclasses (for a new
+            // module the defaults are used)
+            // This is mandatory to handle and draw pads
+            GetBoard()->BuildListOfNets();
+            module->SetPosition( wxPoint( 0, 0 ) );
+
+            if( GetBoard()->m_Modules )
+                GetBoard()->m_Modules->ClearFlags();
+
+            Zoom_Automatique( false );
+            GetScreen()->SetModify();
+
+            // If selected from the library tree then go ahead and save it there
+            if( !selected.GetLibNickname().empty() )
             {
-                Clear_Pcb( false );
-
-                SetCrossHairPosition( wxPoint( 0, 0 ) );
-                AddModuleToBoard( module );
-
-                // Initialize data relative to nets and netclasses (for a new
-                // module the defaults are used)
-                // This is mandatory to handle and draw pads
-                GetBoard()->BuildListOfNets();
-                module->SetPosition( wxPoint( 0, 0 ) );
-
-                if( GetBoard()->m_Modules )
-                    GetBoard()->m_Modules->ClearFlags();
-
-                Zoom_Automatique( false );
+                LIB_ID fpid = module->GetFPID();
+                fpid.SetLibNickname( selected.GetLibNickname() );
+                module->SetFPID( fpid );
+                SaveFootprint( module );
+                GetScreen()->ClrModify();
             }
 
             updateView();
             m_canvas->Refresh();
+            Update3DView();
 
-            GetScreen()->ClrModify();
+            SyncLibraryTree( false );
         }
         break;
 
     case ID_MODEDIT_NEW_MODULE_FROM_WIZARD:
         {
+            LIB_ID selected = m_treePane->GetLibTree()->GetSelectedLibId();
+
             if( GetScreen()->IsModify() && !GetBoard()->IsEmpty() )
             {
-                if( !IsOK( this,
-                           _( "Current Footprint will be lost and this operation cannot be undone. Continue ?" ) ) )
+                if( !HandleUnsavedChanges( this, _( "The current footprint has been modified.  Save changes?" ),
+                                           [&]()->bool { return SaveFootprint( GetBoard()->m_Modules ); } ) )
+                {
                     break;
+                }
             }
 
             FOOTPRINT_WIZARD_FRAME* wizard = (FOOTPRINT_WIZARD_FRAME*) Kiway().Player(
-                        FRAME_PCB_FOOTPRINT_WIZARD_MODAL, true, this );
+                        FRAME_PCB_FOOTPRINT_WIZARD, true, this );
 
             if( wizard->ShowModal( NULL, this ) )
             {
@@ -356,7 +401,7 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
                 SetCrossHairPosition( wxPoint( 0, 0 ) );
 
                 //  Add the new object to board
-                GetBoard()->Add( module, ADD_APPEND );
+                AddModuleToBoard( module );
 
                 // Initialize data relative to nets and netclasses (for a new
                 // module the defaults are used)
@@ -366,122 +411,136 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
                 module->ClearFlags();
 
                 Zoom_Automatique( false );
+                GetScreen()->SetModify();
+
+                // If selected from the library tree then go ahead and save it there
+                if( !selected.GetLibNickname().empty() )
+                {
+                    LIB_ID fpid = module->GetFPID();
+                    fpid.SetLibNickname( selected.GetLibNickname() );
+                    module->SetFPID( fpid );
+                    SaveFootprint( module );
+                    GetScreen()->ClrModify();
+                }
+
                 updateView();
                 m_canvas->Refresh();
-
                 Update3DView();
 
-                GetScreen()->ClrModify();
+                SyncLibraryTree( false );
             }
 
             wizard->Destroy();
         }
         break;
 
-    case ID_MODEDIT_SAVE_LIBMODULE:
-        if( GetBoard()->m_Modules )
+    case ID_MODEDIT_SAVE:
+        if( getTargetFPID() == GetLoadedFPID() )
         {
-            SaveFootprintInLibrary( GetCurrentLib(), GetBoard()->m_Modules );
+            if( SaveFootprint( GetBoard()->m_Modules ) )
+            {
+                m_toolManager->GetView()->Update( GetBoard()->m_Modules );
 
-            m_toolManager->GetView()->Update( GetBoard()->m_Modules );
+                if( IsGalCanvasActive() && GetGalCanvas() )
+                    GetGalCanvas()->ForceRefresh();
+                else
+                    GetCanvas()->Refresh();
 
-            if( IsGalCanvasActive() && GetGalCanvas() )
-                GetGalCanvas()->ForceRefresh();
+                GetScreen()->ClrModify();
+            }
+        }
+
+        m_treePane->GetLibTree()->Refresh();
+        break;
+
+    case ID_MODEDIT_SAVE_AS:
+        if( getTargetFPID().GetLibItemName().empty() )
+        {
+            // Save Library As
+            const wxString& src_libNickname = getTargetFPID().GetLibNickname();
+            wxString src_libFullName = Prj().PcbFootprintLibs()->GetFullURI( src_libNickname );
+
+            if( SaveLibraryAs( src_libFullName ) )
+                SyncLibraryTree( true );
+        }
+        else if( getTargetFPID() == GetLoadedFPID() )
+        {
+            // Save Board Footprint As
+            MODULE* footprint = GetBoard()->m_Modules;
+
+            if( footprint && SaveFootprintAs( footprint ) )
+            {
+                m_footprintNameWhenLoaded = footprint->GetFPID().GetLibItemName();
+                m_toolManager->GetView()->Update( GetBoard()->m_Modules );
+                GetScreen()->ClrModify();
+
+                if( IsGalCanvasActive() && GetGalCanvas() )
+                    GetGalCanvas()->ForceRefresh();
+                else
+                    GetCanvas()->Refresh();
+
+                SyncLibraryTree( true );
+            }
+        }
+        else
+        {
+            // Save Selected Footprint As
+            MODULE* footprint = LoadFootprint( getTargetFPID() );
+
+            if( footprint && SaveFootprintAs( footprint ) )
+                SyncLibraryTree( true );
+        }
+
+        m_treePane->GetLibTree()->Refresh();
+        break;
+
+    case ID_MODEDIT_REVERT_PART:
+        RevertFootprint();
+        break;
+
+    case ID_MODEDIT_CUT_PART:
+    case ID_MODEDIT_COPY_PART:
+        if( getTargetFPID().IsValid() )
+        {
+            LIB_ID fpID = getTargetFPID();
+
+            if( fpID == GetLoadedFPID() )
+                m_copiedModule.reset( new MODULE( *GetBoard()->m_Modules.GetFirst() ) );
             else
-                GetCanvas()->Refresh();
+                m_copiedModule.reset( LoadFootprint( fpID ) );
 
-            GetScreen()->ClrModify();
+            if( id == ID_MODEDIT_CUT_PART )
+            {
+                if( fpID == GetLoadedFPID() )
+                    Clear_Pcb( false );
+
+                DeleteModuleFromLibrary( fpID, false );
+            }
+
+            SyncLibraryTree( true );
+        }
+        break;
+
+    case ID_MODEDIT_PASTE_PART:
+        if( m_copiedModule && !getTargetFPID().GetLibNickname().empty() )
+        {
+            wxString newLib = getTargetFPID().GetLibNickname();
+            MODULE*  newModule( m_copiedModule.get() );
+            wxString newName = newModule->GetFPID().GetLibItemName();
+
+            while( Prj().PcbFootprintLibs()->FootprintExists( newLib, newName ) )
+                newName += _( "_copy" );
+
+            newModule->SetFPID( LIB_ID( newLib, newName ) );
+            saveFootprintInLibrary( newModule, newLib );
+
+            SyncLibraryTree( true );
+            m_treePane->GetLibTree()->SelectLibId( newModule->GetFPID() );
         }
         break;
 
     case ID_MODEDIT_INSERT_MODULE_IN_BOARD:
-    case ID_MODEDIT_UPDATE_MODULE_IN_BOARD:
-        {
-            // update module in the current board,
-            // not just add it to the board with total disregard for the netlist...
-            PCB_EDIT_FRAME* pcbframe = (PCB_EDIT_FRAME*) Kiway().Player( FRAME_PCB, false );
-
-            if( pcbframe == NULL )      // happens when the board editor is not active (or closed)
-            {
-                DisplayErrorMessage( this, _("No board currently open." ) );
-                break;
-            }
-
-            BOARD*          mainpcb  = pcbframe->GetBoard();
-            MODULE*         source_module  = NULL;
-            MODULE*         module_in_edit = GetBoard()->m_Modules;
-
-            // Search the old module (source) if exists
-            // Because this source could be deleted when editing the main board...
-            if( module_in_edit->GetLink() )        // this is not a new module ...
-            {
-                source_module = mainpcb->m_Modules;
-
-                for( ; source_module != NULL; source_module = source_module->Next() )
-                {
-                    if( module_in_edit->GetLink() == source_module->GetTimeStamp() )
-                        break;
-                }
-            }
-
-            if( ( source_module == NULL )
-              && ( id == ID_MODEDIT_UPDATE_MODULE_IN_BOARD ) ) // source not found
-            {
-                wxString msg;
-                msg.Printf( _( "Unable to find the footprint source on the main board" ) );
-                msg << _( "\nCannot update the footprint" );
-                DisplayError( this, msg );
-                break;
-            }
-
-            if( ( source_module != NULL )
-              && ( id == ID_MODEDIT_INSERT_MODULE_IN_BOARD ) ) // source not found
-            {
-                wxString msg;
-                msg.Printf( _( "A footprint source was found on the main board" ) );
-                msg << _( "\nCannot insert this footprint" );
-                DisplayError( this, msg );
-                break;
-            }
-
-            m_toolManager->RunAction( PCB_ACTIONS::selectionClear, true );
-            pcbframe->GetToolManager()->RunAction( PCB_ACTIONS::selectionClear, true );
-            BOARD_COMMIT commit( pcbframe );
-
-            // Create the "new" module
-            MODULE* newmodule = new MODULE( *module_in_edit );
-            newmodule->SetParent( mainpcb );
-            newmodule->SetLink( 0 );
-
-            if( source_module )         // this is an update command
-            {
-                // In the main board,
-                // the new module replace the old module (pos, orient, ref, value
-                // and connexions are kept)
-                // and the source_module (old module) is deleted
-                pcbframe->Exchange_Module( source_module, newmodule, commit );
-                newmodule->SetTimeStamp( module_in_edit->GetLink() );
-                commit.Push( wxT( "Update module" ) );
-            }
-            else        // This is an insert command
-            {
-                wxPoint cursor_pos = pcbframe->GetCrossHairPosition();
-
-                commit.Add( newmodule );
-                pcbframe->SetCrossHairPosition( wxPoint( 0, 0 ) );
-                pcbframe->PlaceModule( newmodule, NULL );
-                newmodule->SetPosition( wxPoint( 0, 0 ) );
-                pcbframe->SetCrossHairPosition( cursor_pos );
-                newmodule->SetTimeStamp( GetNewTimeStamp() );
-                commit.Push( wxT( "Insert module" ) );
-            }
-
-            newmodule->ClearFlags();
-            GetScreen()->ClrModify();
-            pcbframe->SetCurItem( NULL );
-            // @todo LEGACY should be unnecessary
-            mainpcb->m_Status_Pcb = 0;
-        }
+        SaveFootprintToBoard( true );
         break;
 
     case ID_MODEDIT_IMPORT_PART:
@@ -502,75 +561,36 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_MODEDIT_EXPORT_PART:
-        if( GetBoard()->m_Modules )
+        if( getTargetFPID() == GetLoadedFPID() )
             Export_Module( GetBoard()->m_Modules );
+        else
+            Export_Module( LoadFootprint( getTargetFPID() ) );
         break;
 
-    case ID_MODEDIT_CREATE_NEW_LIB_AND_SAVE_CURRENT_PART:
-        if( GetBoard()->m_Modules )
+    case ID_MODEDIT_CREATE_NEW_LIB:
+    {
+        wxFileName fn( CreateNewLibrary() );
+        wxString name = fn.GetName();
+
+        if( !name.IsEmpty() )
         {
-            // CreateModuleLibrary() only creates a new library, does not save footprint
-            wxString libPath = CreateNewLibrary();
-            if( libPath.size() )
-                SaveCurrentModule( &libPath );
+            LIB_ID newLib( name, wxEmptyString );
+
+            SyncLibraryTree( true );
+            m_treePane->GetLibTree()->SelectLibId( newLib );
         }
+    }
+        break;
+
+    case ID_MODEDIT_ADD_LIBRARY:
+        AddLibrary();
         break;
 
     case ID_MODEDIT_SHEET_SET:
         break;
 
-    case ID_MODEDIT_LOAD_MODULE:
-    {
-        wxLogDebug( wxT( "Loading module from library " ) + getLibPath() );
-
-        if( GetScreen()->IsModify() && !GetBoard()->IsEmpty() )
-        {
-            if( !IsOK( this, _( "Current Footprint will be lost and this operation cannot be undone. Continue ?" ) ) )
-                break;
-        }
-
-        MODULE* module = LoadModuleFromLibrary( GetCurrentLib() );
-
-        if( !module )
-            break;
-
-        Clear_Pcb( false );
-
-        SetCrossHairPosition( wxPoint( 0, 0 ) );
-        AddModuleToBoard( module );
-
-        if( GetBoard()->m_Modules )
-        {
-            GetBoard()->m_Modules->ClearFlags();
-
-            // if either m_Reference or m_Value are gone, reinstall them -
-            // otherwise you cannot see what you are doing on board
-            TEXTE_MODULE* ref = &GetBoard()->m_Modules->Reference();
-            TEXTE_MODULE* val = &GetBoard()->m_Modules->Value();
-
-            if( val && ref )
-            {
-                ref->SetType( TEXTE_MODULE::TEXT_is_REFERENCE );    // just in case ...
-
-                if( ref->GetLength() == 0 )
-                    ref->SetText( wxT( "Ref**" ) );
-
-                val->SetType( TEXTE_MODULE::TEXT_is_VALUE );        // just in case ...
-
-                if( val->GetLength() == 0 )
-                    val->SetText( wxT( "Val**" ) );
-            }
-        }
-
-        Zoom_Automatique( false );
-
-        Update3DView();
-
-        GetScreen()->ClrModify();
-
-        updateView();
-        m_canvas->Refresh();
-    }
+    case ID_MODEDIT_EDIT_MODULE:
+        LoadModuleFromLibrary( m_treePane->GetLibTree()->GetSelectedLibId() );
         break;
 
     case ID_MODEDIT_PAD_SETTINGS:
@@ -585,11 +605,7 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         if( GetBoard()->m_Modules )
         {
             SetCurItem( GetBoard()->m_Modules );
-
-            DIALOG_FOOTPRINT_FP_EDITOR dialog( this, (MODULE*) GetScreen()->GetCurItem() );
-
-            dialog.ShowModal();
-            GetScreen()->GetCurItem()->ClearFlags();
+            editFootprintProperties( (MODULE*) GetScreen()->GetCurItem() );
 
             m_canvas->Refresh();
         }
@@ -614,13 +630,9 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_PCB_EDIT_MODULE_PRMS:
-        {
-            DIALOG_FOOTPRINT_FP_EDITOR dialog( this, (MODULE*) GetScreen()->GetCurItem() );
-            dialog.ShowModal();
-            GetScreen()->GetCurItem()->ClearFlags();
-            m_canvas->MoveCursorToCrossHair();
-            m_canvas->Refresh();
-        }
+        editFootprintProperties( (MODULE*) GetScreen()->GetCurItem() );
+        m_canvas->MoveCursorToCrossHair();
+        m_canvas->Refresh();
         break;
 
     case ID_POPUP_PCB_MOVE_PAD_REQUEST:
@@ -665,7 +677,7 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
     case ID_POPUP_PCB_GLOBAL_IMPORT_PAD_SETTINGS:
         SaveCopyInUndoList( GetBoard()->m_Modules, UR_CHANGED );
         // Calls the global change dialog:
-        DlgGlobalChange_PadSettings( (D_PAD*) GetScreen()->GetCurItem() );
+        PushPadProperties((D_PAD*) GetScreen()->GetCurItem());
         m_canvas->MoveCursorToCrossHair();
         break;
 
@@ -675,8 +687,7 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_POPUP_PCB_EDIT_TEXTMODULE:
-        InstallTextModOptionsFrame( static_cast<TEXTE_MODULE*>( GetScreen()->GetCurItem() ), &dc );
-        m_canvas->MoveCursorToCrossHair();
+        InstallTextOptionsFrame( GetScreen()->GetCurItem(), &dc );
         break;
 
     case ID_POPUP_PCB_MOVE_TEXTMODULE_REQUEST:
@@ -711,28 +722,8 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         }
         break;
 
-    case ID_POPUP_MODEDIT_ENTER_EDGE_WIDTH:
-        {
-            EDGE_MODULE* edge = NULL;
-
-            if( GetScreen()->GetCurItem()
-              && ( GetScreen()->GetCurItem()->Type() == PCB_MODULE_EDGE_T ) )
-            {
-                edge = (EDGE_MODULE*) GetScreen()->GetCurItem();
-            }
-
-            Enter_Edge_Width( edge );
-            m_canvas->MoveCursorToCrossHair();
-
-            if( edge )
-                m_canvas->Refresh();
-        }
-        break;
-
     case  ID_POPUP_MODEDIT_EDIT_BODY_ITEM :
-        m_canvas->MoveCursorToCrossHair();
-        InstallFootprintBodyItemPropertiesDlg( (EDGE_MODULE*) GetScreen()->GetCurItem() );
-        m_canvas->Refresh();
+        InstallGraphicItemPropertiesDialog( GetScreen()->GetCurItem() );
         break;
 
     case ID_POPUP_MODEDIT_EDIT_WIDTH_ALL_EDGE:
@@ -760,28 +751,6 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         SaveCopyInUndoList( GetBoard()->m_Modules, UR_CHANGED );
         Transform( (MODULE*) GetScreen()->GetCurItem(), id );
         m_canvas->Refresh();
-        break;
-
-    case ID_PCB_DRAWINGS_WIDTHS_SETUP:
-        InstallOptionsFrame( pos );
-        break;
-
-    case ID_PCB_PAD_SETUP:
-        {
-            BOARD_ITEM* item = GetCurItem();
-
-            if( item )
-            {
-                if( item->Type() != PCB_PAD_T )
-                    item = NULL;
-            }
-
-            InstallPadOptionsFrame( (D_PAD*) item );
-        }
-        break;
-
-    case ID_PCB_USER_GRID_SETUP:
-        InvokeDialogGrid();
         break;
 
     case ID_POPUP_PLACE_BLOCK:
@@ -827,29 +796,41 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         HandleBlockEnd( &dc );
         break;
 
-    case ID_GEN_IMPORT_DXF_FILE:
+    case ID_GEN_IMPORT_GRAPHICS_FILE:
         if( GetBoard()->m_Modules )
         {
-            InvokeDXFDialogModuleImport( this, GetBoard()->m_Modules );
+            InvokeDialogImportGfxModule( this, GetBoard()->m_Modules );
             m_canvas->Refresh();
         }
         break;
 
     default:
-        DisplayError( this,
-                      wxT( "FOOTPRINT_EDIT_FRAME::Process_Special_Functions error" ) );
+        wxLogDebug( wxT( "FOOTPRINT_EDIT_FRAME::Process_Special_Functions error" ) );
         break;
     }
 }
 
 
+void FOOTPRINT_EDIT_FRAME::editFootprintProperties( MODULE* aModule )
+{
+    LIB_ID oldFPID = aModule->GetFPID();
+
+    DIALOG_FOOTPRINT_FP_EDITOR dialog( this, aModule );
+    dialog.ShowModal();
+
+    GetScreen()->GetCurItem()->ClearFlags();
+
+    updateTitle();      // in case of a name change...
+}
+
+
 void FOOTPRINT_EDIT_FRAME::moveExact()
 {
-    MOVE_PARAMETERS params;
-    params.allowOverride = false;
-    params.editingFootprint = true;
+    wxPoint         translation;
+    double          rotation;
+    ROTATION_ANCHOR rotationAnchor = ROTATE_AROUND_ITEM_ANCHOR;
 
-    DIALOG_MOVE_EXACT dialog( this, params );
+    DIALOG_MOVE_EXACT dialog( this, translation, rotation, rotationAnchor );
     int ret = dialog.ShowModal();
 
     if( ret == wxID_OK )
@@ -858,17 +839,22 @@ void FOOTPRINT_EDIT_FRAME::moveExact()
 
         BOARD_ITEM* item = GetScreen()->GetCurItem();
 
-        wxPoint anchorPoint = item->GetPosition();
+        item->Move( translation );
 
-        if( params.origin == RELATIVE_TO_CURRENT_POSITION )
+        switch( rotationAnchor )
         {
-            anchorPoint = wxPoint( 0, 0 );
+        case ROTATE_AROUND_ITEM_ANCHOR:
+            item->Rotate( item->GetPosition(), rotation );
+            break;
+        case ROTATE_AROUND_USER_ORIGIN:
+            item->Rotate( GetScreen()->m_O_Curseur, rotation );
+            break;
+        default:
+            wxFAIL_MSG( "Rotation choice shouldn't have been available in this context." );
         }
 
-        wxPoint finalMoveVector = params.translation - anchorPoint;
 
-        item->Move( finalMoveVector );
-        item->Rotate( item->GetPosition(), params.rotation );
+        item->Rotate( item->GetPosition(), rotation );
         m_canvas->Refresh();
     }
 
@@ -898,15 +884,25 @@ void FOOTPRINT_EDIT_FRAME::Transform( MODULE* module, int transform )
 
     case ID_MODEDIT_MODULE_MOVE_EXACT:
     {
-        MOVE_PARAMETERS params;
+        wxPoint         translation;
+        double          rotation;
+        ROTATION_ANCHOR rotationAnchor = ROTATE_AROUND_ITEM_ANCHOR;
 
-        DIALOG_MOVE_EXACT dialog( this, params );
-        int ret = dialog.ShowModal();
+        DIALOG_MOVE_EXACT dialog( this, translation, rotation, rotationAnchor );
 
-        if( ret == wxID_OK )
+        if( dialog.ShowModal() == wxID_OK )
         {
-            MoveMarkedItemsExactly( module, wxPoint( 0, 0 ),
-                    params.translation, params.rotation, true );
+            switch( rotationAnchor )
+            {
+            case ROTATE_AROUND_ITEM_ANCHOR:
+                MoveMarkedItemsExactly( module, module->GetPosition() + translation, translation, rotation, true );
+                break;
+            case ROTATE_AROUND_USER_ORIGIN:
+                MoveMarkedItemsExactly( module, GetScreen()->m_O_Curseur, translation, rotation, true );
+                break;
+            default:
+                wxFAIL_MSG( "Rotation choice shouldn't have been available in this context." );
+            }
         }
 
         break;
@@ -1081,4 +1077,58 @@ bool FOOTPRINT_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileS
     m_canvas->Refresh();
 
     return true;
+}
+
+
+void FOOTPRINT_EDIT_FRAME::KiwayMailIn( KIWAY_EXPRESS& mail )
+{
+    const std::string& payload = mail.GetPayload();
+
+    switch( mail.Command() )
+    {
+    case MAIL_FP_EDIT:
+        if( !payload.empty() )
+        {
+            wxFileName fpFileName( payload );
+            wxString libNickname;
+            wxString msg;
+
+            FP_LIB_TABLE*        libTable = Prj().PcbFootprintLibs();
+            const LIB_TABLE_ROW* libTableRow = libTable->FindRowByURI( fpFileName.GetPath() );
+
+            if( !libTableRow )
+            {
+                msg.Printf( _( "The current configuration does not include the footprint library\n"
+                               "\"%s\".\nUse Manage Footprint Libraries to edit the configuration." ),
+                            fpFileName.GetPath() );
+                DisplayErrorMessage( this, _( "Library not found in footprint library table." ), msg );
+                break;
+            }
+
+            libNickname = libTableRow->GetNickName();
+
+            if( !libTable->HasLibrary( libNickname, true ) )
+            {
+                msg.Printf( _( "The library with the nickname \"%s\" is not enabled\n"
+                               "in the current configuration.  Use Manage Footprint Libraries to\n"
+                               "edit the configuration." ), libNickname );
+                DisplayErrorMessage( this, _( "Footprint library not enabled." ), msg );
+                break;
+            }
+
+            LIB_ID  fpId( libNickname, fpFileName.GetName() );
+
+            if( m_treePane )
+            {
+                m_treePane->GetLibTree()->SelectLibId( fpId );
+                wxCommandEvent event( COMPONENT_SELECTED );
+                wxPostEvent( m_treePane, event );
+            }
+        }
+
+        break;
+
+    default:
+        ;
+    }
 }

@@ -26,6 +26,8 @@
 #include <cstdint>
 #include <thread>
 #include <mutex>
+#include <algorithm>
+#include <future>
 
 #include <class_board.h>
 #include <class_zone.h>
@@ -36,7 +38,7 @@
 #include <class_pcb_text.h>
 #include <class_pcb_target.h>
 
-#include <connectivity_data.h>
+#include <connectivity/connectivity_data.h>
 #include <board_commit.h>
 
 #include <widgets/progress_reporter.h>
@@ -62,10 +64,8 @@ extern void CreateThermalReliefPadPolygon( SHAPE_POLY_SET& aCornerBuffer,
 static double s_thermalRot = 450;    // angle of stubs in thermal reliefs for round pads
 static const bool s_DumpZonesWhenFilling = false;
 
-
-ZONE_FILLER::ZONE_FILLER(  BOARD* aBoard, COMMIT* aCommit, wxWindow* aActiveWindow ) :
-    m_board( aBoard ), m_commit( aCommit ), m_activeWindow( aActiveWindow ),
-    m_progressReporter( nullptr )
+ZONE_FILLER::ZONE_FILLER(  BOARD* aBoard, COMMIT* aCommit ) :
+    m_board( aBoard ), m_commit( aCommit ), m_progressReporter( nullptr )
 {
 }
 
@@ -85,7 +85,9 @@ bool ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones, bool aCheck )
     std::vector<CN_ZONE_ISOLATED_ISLAND_LIST> toFill;
     auto connectivity = m_board->GetConnectivity();
 
-    if( !connectivity->TryLock() )
+    std::unique_lock<std::mutex> lock( connectivity->GetLock(), std::try_to_lock );
+
+    if( !lock )
         return false;
 
     for( auto zone : aZones )
@@ -111,47 +113,66 @@ bool ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones, bool aCheck )
         m_progressReporter->SetMaxProgress( toFill.size() );
     }
 
+    // Remove deprecaded segment zones (only found in very old boards)
+    m_board->m_SegZoneDeprecated.DeleteAll();
 
     std::atomic<size_t> nextItem( 0 );
-    std::atomic<size_t> threadsFinished( 0 );
-    size_t parallelThreadCount = std::min<size_t>(
-            std::max<size_t>( std::thread::hardware_concurrency(), 2 ),
-            toFill.size() );
+    size_t parallelThreadCount = std::min<size_t>( std::thread::hardware_concurrency(), toFill.size() );
+    std::vector<std::future<size_t>> returns( parallelThreadCount );
 
-    for( size_t ii = 0; ii < parallelThreadCount; ++ii )
+    auto fill_lambda = [&] ( PROGRESS_REPORTER* aReporter ) -> size_t
     {
-        std::thread t = std::thread( [ & ]()
+        size_t num = 0;
+
+        for( size_t i = nextItem++; i < toFill.size(); i = nextItem++ )
         {
-            for( size_t i = nextItem.fetch_add( 1 );
-                    i < toFill.size();
-                    i = nextItem.fetch_add( 1 ) )
+            ZONE_CONTAINER* zone = toFill[i].m_zone;
+
+            if( zone->GetFillMode() == ZFM_SEGMENTS )
+            {
+                ZONE_SEGMENT_FILL segFill;
+                fillZoneWithSegments( zone, zone->GetFilledPolysList(), segFill );
+                zone->SetFillSegments( segFill );
+            }
+            else
             {
                 SHAPE_POLY_SET rawPolys, finalPolys;
-                ZONE_CONTAINER* zone = toFill[i].m_zone;
                 fillSingleZone( zone, rawPolys, finalPolys );
 
                 zone->SetRawPolysList( rawPolys );
                 zone->SetFilledPolysList( finalPolys );
-                zone->SetIsFilled( true );
-
-                if( m_progressReporter )
-                    m_progressReporter->AdvanceProgress();
             }
 
-            threadsFinished++;
-        } );
+            zone->SetIsFilled( true );
 
-        t.detach();
-    }
+            if( m_progressReporter )
+                m_progressReporter->AdvanceProgress();
 
+            num++;
+        }
 
-    // Finalize the triangulation threads
-    while( threadsFinished < parallelThreadCount )
+        return num;
+    };
+
+    if( parallelThreadCount <= 1 )
+        fill_lambda( m_progressReporter );
+    else
     {
-        if( m_progressReporter )
-            m_progressReporter->KeepRefreshing();
+        for( size_t ii = 0; ii < parallelThreadCount; ++ii )
+            returns[ii] = std::async( std::launch::async, fill_lambda, m_progressReporter );
 
-        std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
+        for( size_t ii = 0; ii < parallelThreadCount; ++ii )
+        {
+            // Here we balance returns with a 100ms timeout to allow UI updating
+            std::future_status status;
+            do
+            {
+                if( m_progressReporter )
+                    m_progressReporter->KeepRefreshing();
+
+                status = returns[ii].wait_for( std::chrono::milliseconds( 100 ) );
+            } while( status != std::future_status::ready );
+        }
     }
 
     // Now update the connectivity to check for copper islands
@@ -166,17 +187,14 @@ bool ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones, bool aCheck )
     connectivity->FindIsolatedCopperIslands( toFill );
 
     // Now remove insulated copper islands
-    if( m_progressReporter )
-    {
-        m_progressReporter->AdvancePhase();
-        m_progressReporter->SetMaxProgress( toFill.size() );
-        m_progressReporter->KeepRefreshing();
-    }
-
     bool outOfDate = false;
 
     for( auto& zone : toFill )
     {
+        // Non-net zones do not have islands by definition
+        if( zone.m_zone->GetNetCode() <= 0 )
+            continue;
+
         std::sort( zone.m_islands.begin(), zone.m_islands.end(), std::greater<int>() );
         SHAPE_POLY_SET poly = zone.m_zone->GetFilledPolysList();
 
@@ -189,34 +207,34 @@ bool ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones, bool aCheck )
 
         if( aCheck && zone.m_lastPolys.GetHash() != poly.GetHash() )
             outOfDate = true;
-
-        if( m_progressReporter )
-        {
-            m_progressReporter->AdvanceProgress();
-            m_progressReporter->KeepRefreshing();
-        }
     }
 
     if( aCheck )
     {
-        bool cancel = !outOfDate || !IsOK( m_activeWindow,
-                _( "Zone fills are out-of-date. Re-fill?" ) );
+        bool refill = false;
+        wxCHECK( m_progressReporter, false );
 
-        if( m_progressReporter )
+        if( outOfDate )
         {
-            // Sigh.  Patch another case of "fall behind" dialogs on Mac.
-            if( m_progressReporter->GetParent() )
-                m_progressReporter->GetParent()->Raise();
-            m_progressReporter->Raise();
+            m_progressReporter->Hide();
+
+            KIDIALOG dlg( m_progressReporter->GetParent(),
+                          _( "Zone fills are out-of-date. Refill?" ),
+                          _( "Confirmation" ), wxOK | wxCANCEL | wxICON_WARNING );
+            dlg.SetOKCancelLabels( _( "Refill" ), _( "Continue without Refill" ) );
+            dlg.DoNotShowCheckbox( __FILE__, __LINE__ );
+
+            refill = ( dlg.ShowModal() == wxID_OK );
+
+            m_progressReporter->Show();
         }
 
-        if( cancel )
+        if( !refill )
         {
             if( m_commit )
                 m_commit->Revert();
 
             connectivity->SetProgressReporter( nullptr );
-            connectivity->Unlock();
             return false;
         }
     }
@@ -230,96 +248,43 @@ bool ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones, bool aCheck )
 
 
     nextItem = 0;
-    threadsFinished = 0;
-    for( size_t ii = 0; ii < parallelThreadCount; ++ii )
+
+    auto tri_lambda = [&] ( PROGRESS_REPORTER* aReporter ) -> size_t
     {
-        std::thread t = std::thread( [ & ]()
+        size_t num = 0;
+
+        for( size_t i = nextItem++; i < toFill.size(); i = nextItem++ )
         {
-            for( size_t i = nextItem.fetch_add( 1 );
-                    i < toFill.size();
-                    i = nextItem.fetch_add( 1 ) )
-            {
-                toFill[i].m_zone->CacheTriangulation();
+            toFill[i].m_zone->CacheTriangulation();
+            num++;
 
-                if( m_progressReporter )
-                     m_progressReporter->AdvanceProgress();
-             }
-
-             threadsFinished++;
-         } );
-
-         t.detach();
-     }
-
-
-     // Finalize the triangulation threads
-     while( threadsFinished < parallelThreadCount )
-     {
-         if( m_progressReporter )
-             m_progressReporter->KeepRefreshing();
-
-         std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
-     }
-
-
-    // Remove deprecaded segment zones (only found in very old boards)
-    m_board->m_SegZoneDeprecated.DeleteAll();
-
-    // If some zones must be filled by segments, create the filling segments
-    // (note, this is a outdated option, but it exists)
-    if( int zone_count = std::count_if( toFill.begin(), toFill.end(),
-            []( CN_ZONE_ISOLATED_ISLAND_LIST& aList )
-            { return aList.m_zone->GetFillMode() == ZFM_SEGMENTS; } ) > 0 )
-    {
-        if( m_progressReporter )
-        {
-            m_progressReporter->AdvancePhase();
-            m_progressReporter->Report( _( "Performing segment fills..." ) );
-            m_progressReporter->SetMaxProgress( zone_count );
+            if( m_progressReporter )
+                m_progressReporter->AdvanceProgress();
         }
 
-        parallelThreadCount = std::min<size_t>( static_cast<size_t>( zone_count ), parallelThreadCount );
-        nextItem = 0;
-        threadsFinished = 0;
+        return num;
+    };
+
+    if( parallelThreadCount <= 1 )
+        tri_lambda( m_progressReporter );
+    else
+    {
+        for( size_t ii = 0; ii < parallelThreadCount; ++ii )
+            returns[ii] = std::async( std::launch::async, tri_lambda, m_progressReporter );
+
         for( size_t ii = 0; ii < parallelThreadCount; ++ii )
         {
-            std::thread t = std::thread( [ & ]()
+            // Here we balance returns with a 100ms timeout to allow UI updating
+            std::future_status status;
+            do
             {
-                for( size_t i = nextItem.fetch_add( 1 );
-                        i < toFill.size();
-                        i = nextItem.fetch_add( 1 ) )
-                {
-                    ZONE_CONTAINER* zone = toFill[i].m_zone;
+                if( m_progressReporter )
+                    m_progressReporter->KeepRefreshing();
 
-                    if( zone->GetFillMode() == ZFM_SEGMENTS )
-                    {
-                        ZONE_SEGMENT_FILL segFill;
-
-                        fillZoneWithSegments( zone, zone->GetFilledPolysList(), segFill );
-                        zone->SetFillSegments( segFill );
-
-                        if( m_progressReporter )
-                             m_progressReporter->AdvanceProgress();
-                    }
-                 }
-
-                 threadsFinished++;
-             } );
-
-             t.detach();
-         }
-
-
-         // Finalize the triangulation threads
-         while( threadsFinished < parallelThreadCount )
-         {
-             if( m_progressReporter )
-                 m_progressReporter->KeepRefreshing();
-
-             std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
-         }
+                status = returns[ii].wait_for( std::chrono::milliseconds( 100 ) );
+            } while( status != std::future_status::ready );
+        }
     }
-
 
     if( m_progressReporter )
     {
@@ -344,7 +309,6 @@ bool ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones, bool aCheck )
         connectivity->RecalculateRatsnest();
     }
 
-    connectivity->Unlock();
     return true;
 }
 
@@ -352,21 +316,19 @@ bool ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones, bool aCheck )
 void ZONE_FILLER::buildZoneFeatureHoleList( const ZONE_CONTAINER* aZone,
         SHAPE_POLY_SET& aFeatures ) const
 {
-    int segsPerCircle;
-    double correctionFactor;
-
     // Set the number of segments in arc approximations
-    if( aZone->GetArcSegmentCount() > SEGMENT_COUNT_CROSSOVER  )
-        segsPerCircle = ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF;
-    else
-        segsPerCircle = ARC_APPROX_SEGMENTS_COUNT_LOW_DEF;
+    // Since we can no longer edit the segment count in pcbnew, we set
+    // the fill to our high-def count to avoid jagged knock-outs
+    // However, if the user has edited their zone to increase the segment count,
+    // we keep this preference
+    int segsPerCircle = std::max( aZone->GetArcSegmentCount(), ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF );
 
     /* calculates the coeff to compensate radius reduction of holes clearance
      * due to the segment approx.
      * For a circle the min radius is radius * cos( 2PI / segsPerCircle / 2)
      * correctionFactor is 1 /cos( PI/segsPerCircle  )
      */
-    correctionFactor = GetCircletoPolyCorrectionFactor( segsPerCircle );
+    double correctionFactor = GetCircletoPolyCorrectionFactor( segsPerCircle );
 
     aFeatures.RemoveAllContours();
 
@@ -544,77 +506,83 @@ void ZONE_FILLER::buildZoneFeatureHoleList( const ZONE_CONTAINER* aZone,
         {
             int clearance = std::max( zone_clearance, item_clearance );
             track->TransformShapeWithClearanceToPolygon( aFeatures,
-                    clearance,
-                    segsPerCircle,
-                    correctionFactor );
+                    clearance, segsPerCircle, correctionFactor );
         }
     }
 
-    /* Add module edge items that are on copper layers
-     * Pcbnew allows these items to be on copper layers in microwave applictions
-     * This is a bad thing, but must be handled here, until a better way is found
+    /* Add graphic items that are on copper layers.  These have no net, so we just
+     * use the zone clearance (or edge clearance).
      */
-    for( auto module : m_board->Modules() )
+    auto doGraphicItem = [&]( BOARD_ITEM* aItem )
     {
-        for( auto item : module->GraphicalItems() )
-        {
-            if( !item->IsOnLayer( aZone->GetLayer() ) && !item->IsOnLayer( Edge_Cuts ) )
-                continue;
+        // A item on the Edge_Cuts is always seen as on any layer:
+        if( !aItem->IsOnLayer( aZone->GetLayer() ) && !aItem->IsOnLayer( Edge_Cuts ) )
+            return;
 
-            if( item->Type() != PCB_MODULE_EDGE_T )
-                continue;
+        if( !aItem->GetBoundingBox().Intersects( zone_boundingbox ) )
+            return;
 
-            item_boundingbox = item->GetBoundingBox();
-
-            if( item_boundingbox.Intersects( zone_boundingbox ) )
-            {
-                int zclearance = zone_clearance;
-
-                if( item->IsOnLayer( Edge_Cuts ) )
-                    // use only the m_ZoneClearance, not the clearance using
-                    // the netclass value, because we do not have a copper item
-                    zclearance = zone_to_edgecut_clearance;
-
-                ( (EDGE_MODULE*) item )->TransformShapeWithClearanceToPolygon(
-                        aFeatures, zclearance, segsPerCircle, correctionFactor );
-            }
-        }
-    }
-
-    // Add graphic items (copper texts) and board edges
-    // Currently copper texts have no net, so only the zone_clearance
-    // is used.
-    for( auto item : m_board->Drawings() )
-    {
-        if( item->GetLayer() != aZone->GetLayer() && item->GetLayer() != Edge_Cuts )
-            continue;
-
+        bool ignoreLineWidth = false;
         int zclearance = zone_clearance;
 
-        if( item->GetLayer() == Edge_Cuts )
+        if( aItem->IsOnLayer( Edge_Cuts ) )
+        {
             // use only the m_ZoneClearance, not the clearance using
             // the netclass value, because we do not have a copper item
             zclearance = zone_to_edgecut_clearance;
 
-        switch( item->Type() )
+#if 0
+// 6.0 TODO: we're leaving this off for 5.1 so that people can continue to use the board
+// edge width as a hack for edge clearance.
+            // edge cuts by definition don't have a width
+            ignoreLineWidth = true;
+#endif
+        }
+
+        switch( aItem->Type() )
         {
         case PCB_LINE_T:
-            ( (DRAWSEGMENT*) item )->TransformShapeWithClearanceToPolygon(
-                    aFeatures,
-                    zclearance, segsPerCircle, correctionFactor );
+            ( (DRAWSEGMENT*) aItem )->TransformShapeWithClearanceToPolygon(
+                    aFeatures, zclearance, segsPerCircle, correctionFactor, ignoreLineWidth );
             break;
 
         case PCB_TEXT_T:
-            ( (TEXTE_PCB*) item )->TransformBoundingBoxWithClearanceToPolygon(
-                    aFeatures, zclearance );
+            ( (TEXTE_PCB*) aItem )->TransformBoundingBoxWithClearanceToPolygon(
+                    &aFeatures, zclearance );
+            break;
+
+        case PCB_MODULE_EDGE_T:
+            ( (EDGE_MODULE*) aItem )->TransformShapeWithClearanceToPolygon(
+                    aFeatures, zclearance, segsPerCircle, correctionFactor, ignoreLineWidth );
+            break;
+
+        case PCB_MODULE_TEXT_T:
+            if( ( (TEXTE_MODULE*) aItem )->IsVisible() )
+            {
+                ( (TEXTE_MODULE*) aItem )->TransformBoundingBoxWithClearanceToPolygon(
+                        &aFeatures, zclearance );
+            }
             break;
 
         default:
             break;
         }
+    };
+
+    for( auto module : m_board->Modules() )
+    {
+        doGraphicItem( &module->Reference() );
+        doGraphicItem( &module->Value() );
+
+        for( auto item : module->GraphicalItems() )
+            doGraphicItem( item );
     }
 
-    // Add zones outlines having an higher priority and keepout
+    for( auto item : m_board->Drawings() )
+        doGraphicItem( item );
+
+    /* Add zones outlines having an higher priority and keepout
+     */
     for( int ii = 0; ii < m_board->GetAreaCount(); ii++ )
     {
         ZONE_CONTAINER* zone = m_board->GetArea( ii );
@@ -663,7 +631,8 @@ void ZONE_FILLER::buildZoneFeatureHoleList( const ZONE_CONTAINER* aZone,
                 aFeatures, min_clearance, use_net_clearance );
     }
 
-    // Remove thermal symbols
+    /* Remove thermal symbols
+     */
     for( auto module : m_board->Modules() )
     {
         for( auto pad : module->Pads() )
@@ -681,6 +650,9 @@ void ZONE_FILLER::buildZoneFeatureHoleList( const ZONE_CONTAINER* aZone,
                 continue;
 
             if( pad->GetNetCode() != aZone->GetNetCode() )
+                continue;
+
+            if( pad->GetNetCode() <= 0 )
                 continue;
 
             item_boundingbox = pad->GetBoundingBox();
@@ -734,22 +706,17 @@ void ZONE_FILLER::computeRawFilledAreas( const ZONE_CONTAINER* aZone,
         SHAPE_POLY_SET& aRawPolys,
         SHAPE_POLY_SET& aFinalPolys ) const
 {
-    int segsPerCircle;
-    double correctionFactor;
     int outline_half_thickness = aZone->GetMinThickness() / 2;
 
     std::unique_ptr<SHAPE_FILE_IO> dumper( new SHAPE_FILE_IO(
                     s_DumpZonesWhenFilling ? "zones_dump.txt" : "", SHAPE_FILE_IO::IOM_APPEND ) );
 
     // Set the number of segments in arc approximations
-    if( aZone->GetArcSegmentCount() == ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF  )
-        segsPerCircle = ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF;
-    else
-        segsPerCircle = ARC_APPROX_SEGMENTS_COUNT_LOW_DEF;
+    int segsPerCircle = std::max( aZone->GetArcSegmentCount(), ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF );
 
     /* calculates the coeff to compensate radius reduction of holes clearance
      */
-    correctionFactor = GetCircletoPolyCorrectionFactor( segsPerCircle );
+    double correctionFactor = GetCircletoPolyCorrectionFactor( segsPerCircle );
 
     if( s_DumpZonesWhenFilling )
         dumper->BeginGroup( "clipper-zone" );
@@ -854,7 +821,7 @@ bool ZONE_FILLER::fillSingleZone( const ZONE_CONTAINER* aZone, SHAPE_POLY_SET& a
     {
         aRawPolys = smoothedPoly;
         aFinalPolys = smoothedPoly;
-        aFinalPolys.Inflate( -aZone->GetMinThickness() / 2, 16 );
+        aFinalPolys.Inflate( -aZone->GetMinThickness() / 2, ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF );
         aFinalPolys.Fracture( SHAPE_POLY_SET::PM_FAST );
     }
 

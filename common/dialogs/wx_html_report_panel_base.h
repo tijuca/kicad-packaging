@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct 17 2016)
+// C++ code generated with wxFormBuilder (version Jun  5 2018)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __WX_HTML_REPORT_PANEL_BASE_H__
@@ -42,14 +42,14 @@ class WX_HTML_REPORT_PANEL_BASE : public wxPanel
 		wxStaticBoxSizer* m_box;
 		wxFlexGridSizer* m_fgSizer;
 		wxHtmlWindow* m_htmlView;
-		wxStaticText* m_staticText3;
+		wxStaticText* m_staticTextShow;
 		wxCheckBox* m_checkBoxShowAll;
 		wxCheckBox* m_checkBoxShowErrors;
 		wxStaticBitmap* m_errorsBadge;
 		wxCheckBox* m_checkBoxShowWarnings;
 		wxStaticBitmap* m_warningsBadge;
-		wxCheckBox* m_checkBoxShowInfos;
 		wxCheckBox* m_checkBoxShowActions;
+		wxCheckBox* m_checkBoxShowInfos;
 		wxButton* m_btnSaveReportToFile;
 		
 		// Virtual event handlers, overide them in your derived class
@@ -57,14 +57,14 @@ class WX_HTML_REPORT_PANEL_BASE : public wxPanel
 		virtual void onCheckBoxShowAll( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onCheckBoxShowErrors( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onCheckBoxShowWarnings( wxCommandEvent& event ) { event.Skip(); }
-		virtual void onCheckBoxShowInfos( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onCheckBoxShowActions( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onCheckBoxShowInfos( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onBtnSaveToFile( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
 		
-		WX_HTML_REPORT_PANEL_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxTAB_TRAVERSAL ); 
+		WX_HTML_REPORT_PANEL_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 567,228 ), long style = wxTAB_TRAVERSAL ); 
 		~WX_HTML_REPORT_PANEL_BASE();
 	
 };

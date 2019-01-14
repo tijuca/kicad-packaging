@@ -33,6 +33,7 @@
 
 #include <wx/richmsgdlg.h>
 #include <vector>
+#include <functional>
 
 class wxCheckBox;
 class wxStaticBitmap;
@@ -50,10 +51,7 @@ public:
     KIDIALOG( wxWindow* aParent, const wxString& aMessage, KD_TYPE aType, const wxString& aCaption = "" );
 
     ///> Shows the 'do not show again' checkbox
-    void DoNotShowCheckbox()
-    {
-        ShowCheckBox( _( "Do not show again" ), false );
-    }
+    void DoNotShowCheckbox( wxString file, int line );
 
     ///> Checks the 'do not show again' setting for the dialog
     bool DoNotShowAgain() const;
@@ -63,9 +61,6 @@ public:
     int ShowModal() override;
 
 protected:
-    ///> Sets the dialog hash value
-    void setHash();
-
     ///> Unique identifier of the dialog
     unsigned long m_hash;
 
@@ -76,19 +71,38 @@ protected:
 
 
 /**
- * Function DisplayExitDialog
- * displays a dialog with 3 buttons:
- * Save and Exit
- * Cancel
- * Exit without save
+ * Function HandleUnsavedChanges
+ * displays a dialog with Save, Cancel and Discard Changes buttons.
  *
  * @param aParent = the parent window
  * @param aMessage = the main message to put in dialog
- * If empty, the standard message will be shown:
- * Save the changes before closing?
+ * @param aSaveFunction = a function to save changes, if requested.  Must return true if
+ *                        the save was successful and false otherwise (which will result
+ *                        in HandleUnsavedChanges() returning wxID_CANCEL).
  * @return wxID_YES, wxID_CANCEL, wxID_NO.
  */
-int DisplayExitDialog( wxWindow* aParent, const wxString& aMessage );
+bool HandleUnsavedChanges( wxWindow* aParent, const wxString& aMessage,
+                           const std::function<bool()>& aSaveFunction );
+
+
+/**
+ * Function UnsavedChangesDialog
+ * a specialized version of HandleUnsavedChanges which handles an apply-to-all checkbox.
+ *
+ * @param aParent = the parent window
+ * @param aMessage = the main message to put in dialog
+ * @param aApplyToAll = if non-null an "Apply to all" checkbox will be shown and it's value
+ *                      written back to the bool.
+ * @return wxID_YES, wxID_CANCEL, wxID_NO.
+ */
+int UnsavedChangesDialog( wxWindow* aParent, const wxString& aMessage, bool* aApplyToAll );
+
+
+/**
+ * Function ConfirmRevertDialog
+ * displays a confirmation for a revert action
+ */
+bool ConfirmRevertDialog( wxWindow* parent, const wxString& aMessage );
 
 
 /**
@@ -132,26 +146,21 @@ void DisplayInfoMessage( wxWindow* parent, const wxString& aMessage, const wxStr
 bool IsOK( wxWindow* aParent, const wxString& aMessage );
 
 /**
- * Function YesNoCancelDialog
- * displays a yes/no/cancel dialog with \a aMessage and returns the user response.
+ * Function YesOrCancelDialog
+ * displays a warning dialog with \a aMessage and returns the user response.
  *
  * @param aParent is the parent window.  NULL can be used if the parent is the top level window.
- * @param aPrimaryMessage is the message to display in the top part of the dialog box using
- *                        a bold font.
- * @param aSecondaryMessage is the message to display in the lower part of the dialog box
- *                          using the default system UI font.
- * @param aYesButtonText is the text to display in the yes button when defined.
- * @param aNoButtonText is the text to display in the no button when defiend.
- * @param aCancelButtonText is the text to display in the cancel button when defined.
+ * @param aWarning is the warning to display in the top part of the dialog box using a bold font.
+ * @param aMessage is the message to display in the lower part of the dialog box using the
+ *                 default system UI font.
+ * @param aOKLabel is the text to display in the OK button.
+ * @param aCancelLabel is the text to display in the cancel button.
  *
- * @return wxID_YES, wxID_NO, or wxID_CANCEL depending on the button the user selected.
+ * @return wxID_YES or wxID_CANCEL depending on the button the user selected.
  */
-int YesNoCancelDialog( wxWindow*       aParent,
-                       const wxString& aPrimaryMessage,
-                       const wxString& aSecondaryMessage,
-                       const wxString& aYesButtonText = wxEmptyString,
-                       const wxString& aNoButtonText = wxEmptyString,
-                       const wxString& aCancelButtonText = wxEmptyString );
+int YesOrCancelDialog( wxWindow* aParent, const wxString& aWarning, const wxString& aMessage,
+                       const wxString& aOKLabel, const wxString& aCancelLabel,
+                       bool* aApplyToAll = nullptr );
 
 
 
@@ -166,22 +175,5 @@ int YesNoCancelDialog( wxWindow*       aParent,
  */
 int SelectSingleOption( wxWindow* aParent, const wxString& aTitle, const wxString& aMessage,
         const wxArrayString& aOptions );
-
-/**
- * Displays a dialog with checkboxes asking the user to select one or more options.
- *
- * @param aParent is the parent window.
- * @param aTitle is the dialog title.
- * @param aMessage is a text label displayed in the first row of the dialog.
- * @param aOptions is a vector of possible options.
- * @param aDefaultState is the default state for the checkboxes.
- * @return Pair containing a boolean value equal to true when the selection has been confirmed and
- *         an integer array containing indices of the selected options.
- */
-std::pair<bool, wxArrayInt> SelectMultipleOptions( wxWindow* aParent, const wxString& aTitle,
-        const wxString& aMessage, const wxArrayString& aOptions, bool aDefaultState = false );
-
-std::pair<bool, wxArrayInt> SelectMultipleOptions( wxWindow* aParent, const wxString& aTitle,
-        const wxString& aMessage, const std::vector<std::string>& aOptions, bool aDefaultState = false );
 
 #endif /* __INCLUDE__CONFIRM_H__ */

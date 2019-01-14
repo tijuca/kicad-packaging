@@ -268,7 +268,7 @@ bool isKeySpecialCode( int aKeyCode )
 
     bool isInList = false;
 
-    for( unsigned ii = 0; ii < DIM( special_keys ) && !isInList; ii++ )
+    for( unsigned ii = 0; ii < arrayDim( special_keys ) && !isInList; ii++ )
     {
         if( special_keys[ii] == aKeyCode )
             isInList = true;
@@ -312,6 +312,7 @@ void TOOL_DISPATCHER::DispatchWxEvent( wxEvent& aEvent )
     bool motion = false, buttonEvents = false;
     OPT<TOOL_EVENT> evt;
     int key = 0;    // key = 0 if the event is not a key event
+    int unicode = 0;
     bool keyIsSpecial = false;  // True if the key is a special key code
 
     int type = aEvent.GetEventType();
@@ -369,6 +370,7 @@ void TOOL_DISPATCHER::DispatchWxEvent( wxEvent& aEvent )
         wxKeyEvent* ke = static_cast<wxKeyEvent*>( &aEvent );
         key = ke->GetKeyCode();
         keyIsSpecial = isKeySpecialCode( key );
+        unicode = ke->GetUnicodeKey();
 
         wxLogTrace( kicadTraceKeyEvent, "TOOL_DISPATCHER::DispatchWxEvent %s", dump( *ke ) );
 
@@ -395,7 +397,16 @@ void TOOL_DISPATCHER::DispatchWxEvent( wxEvent& aEvent )
             // char events for ASCII letters in this case carry codes corresponding to the ASCII
             // value of Ctrl-Latter, i.e. 1 for Ctrl-A, 2 for Ctrl-B and so on until 26 for Ctrl-Z.
             // They are remapped here to be more easy to handle in code
+            // Note also on OSX wxWidgets has a differnt behavior and the mapping is made
+            // only for ctrl+'A' to ctlr+'Z' (unicode code return 'A' to 'Z').
+            // Others OS return WXK_CONTROL_A to WXK_CONTROL_Z, and Ctrl+'M' returns the same code as
+            // the return key, so the remapping does not use the unicode key value.
+#ifdef __APPLE__
+            if( unicode >= 'A' && unicode <= 'Z' && key >= WXK_CONTROL_A && key <= WXK_CONTROL_Z )
+#else
+            (void) unicode; //not used: avoid compil warning
             if( key >= WXK_CONTROL_A && key <= WXK_CONTROL_Z )
+#endif
                 key += 'A' - 1;
         }
 

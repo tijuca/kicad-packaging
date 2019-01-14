@@ -26,26 +26,41 @@
 #define __UNIT_BINDER_H_
 
 #include <common.h>
-#include <wx/spinbutt.h>
+#include <base_units.h>
+#include <base_struct.h>
+#include <libeval/numeric_evaluator.h>
+
 
 class wxTextEntry;
 class wxSpinButton;
 class wxStaticText;
 
-class UNIT_BINDER
+
+class UNIT_BINDER : public wxEvtHandler
 {
 public:
 
     /**
      * Constructor.
-     * @param aParent is the parent window.
-     * @param aTextInput is the text input widget used to edit the given value (wxTextCtrl, wxComboBox, ...).
-     * @param aUnitLabel is the units label displayed next to the text field.
-     * @param aSpinButton is an optional spin button (for adjusting the input value)
+     * @param aParent is the parent EDA_DRAW_FRAME.
+     * @param aLabel is the static text used to label the text input widget (note: the label
+     *               text, trimmed of its colon, will also be used in error messages)
+     * @param aValue is the control used to edit or display the given value (wxTextCtrl,
+     *               wxComboBox, wxStaticText, etc.).
+     * @param aUnitLabel is the units label displayed after the text input widget
+     * @param aUseMils specifies the use of mils for imperial units (instead of inches)
+     * @param aAllowEval indicates \a aTextInput's content should be eval'ed before storing
      */
-    UNIT_BINDER( wxWindow* aParent, wxTextEntry* aTextInput, wxStaticText* aUnitLabel, wxSpinButton* aSpinButton = NULL );
+    UNIT_BINDER( EDA_DRAW_FRAME* aParent,
+                 wxStaticText* aLabel, wxWindow* aValue, wxStaticText* aUnitLabel,
+                 bool aUseMils = false, bool aAllowEval = true );
 
-    virtual ~UNIT_BINDER();
+    /**
+     * Function SetUnits
+     * Normally not needed (as the UNIT_BINDER inherits from the parent frame), but can be
+     * used to set to DEGREES for angular controls.
+     */
+    virtual void SetUnits( EDA_UNITS_T aUnits, bool aUseMils = false );
 
     /**
      * Function SetValue
@@ -54,44 +69,77 @@ public:
      */
     virtual void SetValue( int aValue );
 
+    void SetValue( wxString aValue );
+
+    /**
+     * Function ChangeValue
+     * Changes the value (in Internal Units) for the text field, taking care of units conversion
+     * but does not trigger the update routine
+     * @param aValue is the new value.
+     */
+    virtual void ChangeValue( int aValue );
+
+    void ChangeValue( wxString aValue );
+
     /**
      * Function GetValue
      * Returns the current value in Internal Units.
      */
-    virtual int GetValue() const;
+    virtual int GetValue();
 
     /**
-     * Function Valid
-     * Returns true if the text control contains a real number.
+     * Function IsIndeterminate
+     * Returns true if the control holds the indeterminate value (for instance, if it
+     * represents a multiple selection of differing values).
      */
-    bool Valid() const;
+    bool IsIndeterminate() const;
+
+    /**
+     * Function Validate
+     * Validates the control against the given range, informing the user of any errors found.
+     *
+     * @param aMin a minimum value (in internal units) for validation
+     * @param aMax a maximum value (in internal units) for validation
+     * @return false on error.
+     */
+    virtual bool Validate( int aMin, int aMax, bool setFocusOnError = true );
+
+    void SetLabel( const wxString& aLabel );
 
     /**
      * Function Enable
-     * Enables/diasables the binded widgets
+     * Enables/diasables the label, widget and units label.
      */
     void Enable( bool aEnable );
 
+    /**
+     * Function Show
+     * Shows/hides the label, widget and units label.
+     */
+    void Show( bool aShow );
+
 protected:
 
-    void onTextChanged( wxEvent& aEvent );
+    void onSetFocus( wxFocusEvent& aEvent );
+    void onKillFocus( wxFocusEvent& aEvent );
+    void delayedFocusHandler( wxCommandEvent& aEvent );
 
-    ///> Text input control.
-    wxTextEntry*   m_textEntry;
-
-    ///> Label showing currently used units.
-    wxStaticText* m_unitLabel;
+    ///> The bound widgets
+    wxStaticText*     m_label;
+    wxWindow*         m_value;
+    wxStaticText*     m_unitLabel;
 
     ///> Currently used units.
-    EDA_UNITS_T   m_units;
+    EDA_UNITS_T       m_units;
+    bool              m_useMils;
 
-    ///> Step size (added/subtracted difference if spin buttons are used).
-    int m_step;
-    int m_min;
-    int m_max;
+    ///> Validation support.
+    wxString          m_errorMessage;
 
-    ///> Default value (or non-specified)
-    static const wxString DEFAULT_VALUE;
+    ///> Evaluator
+    NUMERIC_EVALUATOR m_eval;
+    bool              m_allowEval;
+    bool              m_needsEval;
 };
 
 #endif /* __UNIT_BINDER_H_ */

@@ -26,7 +26,6 @@
  */
 
 #include <fctsys.h>
-#include <pgm_base.h>
 #include <kiface_i.h>
 #include <kiway.h>
 #include <project.h>
@@ -41,6 +40,7 @@
 #include <fp_lib_table.h>
 #include <bitmaps.h>
 #include <gal/graphics_abstraction_layer.h>
+#include <eda_dockart.h>
 
 #include <class_board.h>
 #include <class_module.h>
@@ -48,8 +48,6 @@
 #include <pcbnew.h>
 #include <pcbnew_id.h>
 #include <hotkeys.h>
-#include <dialogs/dialog_modedit_display_options.h>
-#include <dialog_hotkeys_editor.h>
 #include <footprint_edit_frame.h>
 #include <footprint_viewer_frame.h>
 #include <wildcards_and_files_ext.h>
@@ -61,6 +59,19 @@
 #include <tool/tool_dispatcher.h>
 #include <tool/zoom_tool.h>
 
+#include <footprint_tree_pane.h>
+#include <widgets/lib_tree.h>
+#include <fp_lib_table.h>
+#include <footprint_info_impl.h>
+
+#include <widgets/paged_dialog.h>
+#include <dialogs/panel_modedit_settings.h>
+#include <dialogs/panel_modedit_defaults.h>
+#include <dialogs/panel_modedit_display_options.h>
+#include <dialog_configure_paths.h>
+
+#include <tools/position_relative_tool.h>
+#include <widgets/progress_reporter.h>
 #include "tools/selection_tool.h"
 #include "tools/edit_tool.h"
 #include "tools/drawing_tool.h"
@@ -72,12 +83,6 @@
 #include "tools/pad_tool.h"
 #include "tools/pcb_actions.h"
 
-///@{
-/// \ingroup config
-
-static const wxString IconScaleEntry =          "PcbIconScale";
-
-///@}
 
 BEGIN_EVENT_TABLE( FOOTPRINT_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_MENU_RANGE( ID_POPUP_PCB_ITEM_SELECTION_START, ID_POPUP_PCB_ITEM_SELECTION_END,
@@ -87,32 +92,33 @@ BEGIN_EVENT_TABLE( FOOTPRINT_EDIT_FRAME, PCB_BASE_FRAME )
 
     EVT_SIZE( FOOTPRINT_EDIT_FRAME::OnSize )
 
-    EVT_CHOICE( ID_ON_ZOOM_SELECT, FOOTPRINT_EDIT_FRAME::OnSelectZoom )
-    EVT_CHOICE( ID_ON_GRID_SELECT, FOOTPRINT_EDIT_FRAME::OnSelectGrid )
+    EVT_COMBOBOX( ID_ON_ZOOM_SELECT, FOOTPRINT_EDIT_FRAME::OnSelectZoom )
+    EVT_COMBOBOX( ID_ON_GRID_SELECT, FOOTPRINT_EDIT_FRAME::OnSelectGrid )
 
-    EVT_TOOL( ID_MODEDIT_SELECT_CURRENT_LIB, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
-
-    EVT_TOOL( ID_MODEDIT_SAVE_LIBRARY_AS, FOOTPRINT_EDIT_FRAME::OnSaveLibraryAs )
-
-    EVT_TOOL( ID_MODEDIT_SAVE_LIBMODULE, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
+    EVT_TOOL( ID_MODEDIT_SAVE, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
+    EVT_TOOL( ID_MODEDIT_SAVE_AS, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
+    EVT_TOOL( ID_MODEDIT_REVERT_PART, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_TOOL( ID_OPEN_MODULE_VIEWER, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
+    EVT_TOOL( ID_MODEDIT_SAVE_PNG, FOOTPRINT_EDIT_FRAME::OnSaveFootprintAsPng )
 
+    EVT_TOOL( ID_MODEDIT_CUT_PART, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
+    EVT_TOOL( ID_MODEDIT_COPY_PART, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
+    EVT_TOOL( ID_MODEDIT_PASTE_PART, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_TOOL( ID_MODEDIT_DELETE_PART, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_TOOL( ID_MODEDIT_NEW_MODULE, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_TOOL( ID_MODEDIT_NEW_MODULE_FROM_WIZARD, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_TOOL( ID_MODEDIT_IMPORT_PART, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_TOOL( ID_MODEDIT_EXPORT_PART, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
-    EVT_TOOL( ID_MODEDIT_CREATE_NEW_LIB_AND_SAVE_CURRENT_PART,
-              FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
+    EVT_TOOL( ID_MODEDIT_CREATE_NEW_LIB, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
+    EVT_TOOL( ID_MODEDIT_ADD_LIBRARY, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_TOOL( ID_MODEDIT_SHEET_SET, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
-    EVT_TOOL( ID_GEN_IMPORT_DXF_FILE, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
+    EVT_TOOL( ID_GEN_IMPORT_GRAPHICS_FILE, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_TOOL( wxID_PRINT, FOOTPRINT_EDIT_FRAME::ToPrinter )
-    EVT_TOOL( ID_MODEDIT_LOAD_MODULE, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
+    EVT_TOOL( ID_MODEDIT_EDIT_MODULE, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_TOOL( ID_MODEDIT_CHECK, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_TOOL( ID_MODEDIT_PAD_SETTINGS, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_TOOL( ID_MODEDIT_LOAD_MODULE_FROM_BOARD, FOOTPRINT_EDIT_FRAME::LoadModuleFromBoard )
     EVT_TOOL( ID_MODEDIT_INSERT_MODULE_IN_BOARD, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
-    EVT_TOOL( ID_MODEDIT_UPDATE_MODULE_IN_BOARD, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_TOOL( ID_MODEDIT_EDIT_MODULE_PROPERTIES, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_TOOL( wxID_UNDO, FOOTPRINT_EDIT_FRAME::RestoreCopyFromUndoList )
     EVT_TOOL( wxID_REDO, FOOTPRINT_EDIT_FRAME::RestoreCopyFromRedoList )
@@ -128,21 +134,14 @@ BEGIN_EVENT_TABLE( FOOTPRINT_EDIT_FRAME, PCB_BASE_FRAME )
     // ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH id is managed in PCB_BASE_FRAME
     // ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH id is managed in PCB_BASE_FRAME
     EVT_TOOL( ID_TB_OPTIONS_SHOW_HIGH_CONTRAST_MODE, FOOTPRINT_EDIT_FRAME::OnSelectOptionToolbar )
+    EVT_TOOL( ID_MODEDIT_SHOW_HIDE_SEARCH_TREE, FOOTPRINT_EDIT_FRAME::OnToggleSearchTree )
 
     // Preferences and option menus
-    EVT_MENU( ID_PREFERENCES_HOTKEY_EXPORT_CONFIG,
-              FOOTPRINT_EDIT_FRAME::ProcessPreferences )
-    EVT_MENU( ID_PREFERENCES_HOTKEY_IMPORT_CONFIG,
-              FOOTPRINT_EDIT_FRAME::ProcessPreferences )
-    EVT_MENU( ID_PREFERENCES_HOTKEY_SHOW_EDITOR,
-              FOOTPRINT_EDIT_FRAME::ProcessPreferences )
     EVT_MENU( ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST,
               FOOTPRINT_EDIT_FRAME::ProcessPreferences )
     EVT_MENU( ID_PCB_LIB_TABLE_EDIT,
               FOOTPRINT_EDIT_FRAME::ProcessPreferences )
     EVT_MENU( wxID_PREFERENCES,
-              FOOTPRINT_EDIT_FRAME::ProcessPreferences )
-    EVT_MENU( ID_PCB_DISPLAY_OPTIONS_SETUP,
               FOOTPRINT_EDIT_FRAME::ProcessPreferences )
     EVT_MENU( ID_PREFERENCES_CONFIGURE_PATHS, FOOTPRINT_EDIT_FRAME::OnConfigurePaths )
 
@@ -159,16 +158,13 @@ BEGIN_EVENT_TABLE( FOOTPRINT_EDIT_FRAME, PCB_BASE_FRAME )
               FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_MENU( ID_POPUP_MODEDIT_EDIT_LAYER_ALL_EDGE,
               FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
-    EVT_MENU( ID_POPUP_MODEDIT_ENTER_EDGE_WIDTH, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
 
     // Module transformations
     EVT_MENU( ID_MODEDIT_MODULE_ROTATE, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_MENU( ID_MODEDIT_MODULE_MIRROR, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
     EVT_MENU( ID_MODEDIT_MODULE_MOVE_EXACT, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
 
-    EVT_MENU( ID_PCB_DRAWINGS_WIDTHS_SETUP, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
-    EVT_MENU( ID_PCB_PAD_SETUP, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
-    EVT_MENU( ID_PCB_USER_GRID_SETUP, FOOTPRINT_EDIT_FRAME::Process_Special_Functions )
+    EVT_MENU( ID_PCB_USER_GRID_SETUP, FOOTPRINT_EDIT_FRAME::OnGridSettings )
 
     // Menu Help
     EVT_MENU( wxID_HELP, EDA_DRAW_FRAME::GetKicadHelp )
@@ -180,40 +176,42 @@ BEGIN_EVENT_TABLE( FOOTPRINT_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_MENU( ID_MENU_PCB_SHOW_3D_FRAME, FOOTPRINT_EDIT_FRAME::Show3D_Frame )
 
     // Switching canvases
-    EVT_MENU( ID_MENU_CANVAS_LEGACY, PCB_BASE_FRAME::OnSwitchCanvas )
-    EVT_MENU( ID_MENU_CANVAS_CAIRO, PCB_BASE_FRAME::OnSwitchCanvas )
-    EVT_MENU( ID_MENU_CANVAS_OPENGL, PCB_BASE_FRAME::OnSwitchCanvas )
+    EVT_MENU( ID_MENU_CANVAS_LEGACY, FOOTPRINT_EDIT_FRAME::OnSwitchCanvas )
+    EVT_MENU( ID_MENU_CANVAS_CAIRO, FOOTPRINT_EDIT_FRAME::OnSwitchCanvas )
+    EVT_MENU( ID_MENU_CANVAS_OPENGL, FOOTPRINT_EDIT_FRAME::OnSwitchCanvas )
 
     // UI update events.
-    EVT_UPDATE_UI( ID_MODEDIT_DELETE_PART, FOOTPRINT_EDIT_FRAME::OnUpdateLibSelected )
-    EVT_UPDATE_UI( ID_MODEDIT_SELECT_CURRENT_LIB, FOOTPRINT_EDIT_FRAME::OnUpdateSelectCurrentLib )
-    EVT_UPDATE_UI( ID_MODEDIT_EXPORT_PART, FOOTPRINT_EDIT_FRAME::OnUpdateModuleSelected )
-    EVT_UPDATE_UI( ID_MODEDIT_CREATE_NEW_LIB_AND_SAVE_CURRENT_PART,
-                   FOOTPRINT_EDIT_FRAME::OnUpdateModuleSelected )
-    EVT_UPDATE_UI( ID_MODEDIT_SAVE_LIBMODULE, FOOTPRINT_EDIT_FRAME::OnUpdateModuleSelected )
+    EVT_UPDATE_UI( ID_MODEDIT_EXPORT_PART, FOOTPRINT_EDIT_FRAME::OnUpdateSaveAs )
+    EVT_UPDATE_UI( ID_MODEDIT_SAVE, FOOTPRINT_EDIT_FRAME::OnUpdateSave )
+    EVT_UPDATE_UI( ID_MODEDIT_SAVE_AS, FOOTPRINT_EDIT_FRAME::OnUpdateSaveAs )
+    EVT_UPDATE_UI( ID_MODEDIT_REVERT_PART, FOOTPRINT_EDIT_FRAME::OnUpdateSave )
+    EVT_UPDATE_UI( ID_MODEDIT_DELETE_PART, FOOTPRINT_EDIT_FRAME::OnUpdateModuleTargeted )
     EVT_UPDATE_UI( ID_MODEDIT_LOAD_MODULE_FROM_BOARD,
                    FOOTPRINT_EDIT_FRAME::OnUpdateLoadModuleFromBoard )
     EVT_UPDATE_UI( ID_MODEDIT_INSERT_MODULE_IN_BOARD,
                    FOOTPRINT_EDIT_FRAME::OnUpdateInsertModuleInBoard )
-    EVT_UPDATE_UI( ID_MODEDIT_UPDATE_MODULE_IN_BOARD,
-                   FOOTPRINT_EDIT_FRAME::OnUpdateReplaceModuleInBoard )
     EVT_UPDATE_UI( ID_NO_TOOL_SELECTED, FOOTPRINT_EDIT_FRAME::OnUpdateSelectTool )
     EVT_UPDATE_UI( ID_ZOOM_SELECTION, FOOTPRINT_EDIT_FRAME::OnUpdateSelectTool )
 
     EVT_UPDATE_UI_RANGE( ID_MODEDIT_PAD_TOOL, ID_MODEDIT_MEASUREMENT_TOOL,
                          FOOTPRINT_EDIT_FRAME::OnUpdateVerticalToolbar )
 
+    EVT_UPDATE_UI( ID_MODEDIT_EDIT_MODULE_PROPERTIES, FOOTPRINT_EDIT_FRAME::OnUpdateModuleSelected )
+    EVT_UPDATE_UI( ID_MODEDIT_PAD_SETTINGS, FOOTPRINT_EDIT_FRAME::OnUpdateModuleSelected )
+
     // Option toolbar:
     EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_HIGH_CONTRAST_MODE,
                    FOOTPRINT_EDIT_FRAME::OnUpdateOptionsToolbar )
+    EVT_UPDATE_UI( ID_MODEDIT_SHOW_HIDE_SEARCH_TREE,
+                   FOOTPRINT_EDIT_FRAME::OnUpdateOptionsToolbar )
 
-    EVT_UPDATE_UI( ID_GEN_IMPORT_DXF_FILE,
-                   FOOTPRINT_EDIT_FRAME::OnUpdateModuleSelected )
+    EVT_UPDATE_UI( ID_GEN_IMPORT_GRAPHICS_FILE, FOOTPRINT_EDIT_FRAME::OnUpdateModuleSelected )
 
 END_EVENT_TABLE()
 
 
-FOOTPRINT_EDIT_FRAME::FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
+FOOTPRINT_EDIT_FRAME::FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent,
+                                            EDA_DRAW_PANEL_GAL::GAL_TYPE aBackend ) :
     PCB_BASE_EDIT_FRAME( aKiway, aParent, FRAME_PCB_MODULE_EDITOR, wxEmptyString,
                          wxDefaultPosition, wxDefaultSize,
                          KICAD_DEFAULT_DRAWFRAME_STYLE, GetFootprintEditorFrameName() )
@@ -222,22 +220,21 @@ FOOTPRINT_EDIT_FRAME::FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     m_showAxis = true;                   // true to show X and Y axis on screen
     m_showGridAxis = true;               // show the grid origin axis
     m_hotkeysDescrList = g_Module_Editor_Hotkeys_Descr;
+    m_FrameSize = ConvertDialogToPixels( wxSize( 500, 350 ) );    // default in case of no prefs
 
     // Give an icon
     wxIcon icon;
     icon.CopyFromBitmap( KiBitmap( icon_modedit_xpm ) );
     SetIcon( icon );
-    m_iconScale = -1;
-
-    // Show a title (frame title + footprint name):
-    updateTitle();
 
     // Create GAL canvas
-    bool boardEditorWasRunning = Kiway().Player( FRAME_PCB, false ) != nullptr;
-    PCB_BASE_FRAME* pcbFrame = static_cast<PCB_BASE_FRAME*>( Kiway().Player( FRAME_PCB, true ) );
+    if( aBackend == EDA_DRAW_PANEL_GAL::GAL_TYPE_UNKNOWN )
+        m_canvasType = LoadCanvasTypeSetting();
+    else
+        m_canvasType = aBackend;
+
     PCB_DRAW_PANEL_GAL* drawPanel = new PCB_DRAW_PANEL_GAL( this, -1, wxPoint( 0, 0 ), m_FrameSize,
-                                                            GetGalDisplayOptions(),
-                                                            pcbFrame->GetGalCanvas()->GetBackend() );
+                                                            GetGalDisplayOptions(), m_canvasType );
     SetGalCanvas( drawPanel );
 
     SetBoard( new BOARD() );
@@ -283,80 +280,52 @@ FOOTPRINT_EDIT_FRAME::FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     SetPageSettings( PAGE_INFO( PAGE_INFO::A4 ) );
 
     SetSize( m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y );
-    ReCreateMenuBar();
+
+    initLibraryTree();
+    m_treePane = new FOOTPRINT_TREE_PANE( this );
+
+    // ReCreateMenuBar();       // UseGalCanvas() will do this for us.
     ReCreateHToolbar();
-    ReCreateAuxiliaryToolbar();
     ReCreateVToolbar();
     ReCreateOptToolbar();
+
+    m_Layers->ReFill();
+    m_Layers->ReFillRender();
+
+    GetScreen()->m_Active_Layer = F_SilkS;
+    m_Layers->SelectLayer( F_SilkS );
+    m_Layers->OnLayerSelected();
 
     if( m_canvas )
         m_canvas->SetEnableBlockCommands( true );
 
     m_auimgr.SetManagedWindow( this );
+    m_auimgr.SetArtProvider( new EDA_DOCKART( this ) );
 
-    EDA_PANEINFO horiz;
-    horiz.HorizontalToolbarPane();
+    // Horizontal items; layers 4 - 6
+    m_auimgr.AddPane( m_mainToolBar, EDA_PANE().HToolbar().Name( "MainToolbar" ).Top().Layer(6) );
+    m_auimgr.AddPane( m_messagePanel, EDA_PANE().Messages().Name( "MsgPanel" ).Bottom().Layer(6) );
 
-    EDA_PANEINFO vert;
-    vert.VerticalToolbarPane();
+    // Vertical items; layers 1 - 3
+    m_auimgr.AddPane( m_optionsToolBar, EDA_PANE().VToolbar().Name( "OptToolbar" ).Left().Layer(3) );
+    m_auimgr.AddPane( m_treePane, EDA_PANE().Palette().Name( "Footprints" ).Left().Layer(1)
+                      .Caption( _( "Libraries" ) ).MinSize( 250, 400 ) );
 
-    EDA_PANEINFO mesg_pane;
-    mesg_pane.MessageToolbarPane();
+    m_auimgr.AddPane( m_drawToolBar, EDA_PANE().VToolbar().Name( "ToolsToolbar" ).Right().Layer(1) );
+    m_auimgr.AddPane( m_Layers, EDA_PANE().Palette().Name( "LayersManager" ).Right().Layer(3)
+                      .Caption( _( "Layers Manager" ) ).PaneBorder( false )
+                      .MinSize( 80, -1 ).BestSize( m_Layers->GetBestSize() ) );
 
-    // Create a wxAuiPaneInfo for the Layers Manager, not derived from the template.
-    // LAYER_WIDGET is floatable, but initially docked at far right
-    EDA_PANEINFO   lyrs;
-    lyrs.LayersToolbarPane();
-    lyrs.MinSize( m_Layers->GetBestSize() );    // updated in ReFillLayerWidget
-    lyrs.BestSize( m_Layers->GetBestSize() );
-    lyrs.Caption( _( "Visibles" ) );
-
-    m_auimgr.AddPane( m_mainToolBar,
-                      wxAuiPaneInfo( horiz ).Name( "m_mainToolBar" ).Top(). Row( 0 ) );
-
-    m_auimgr.AddPane( m_auxiliaryToolBar,
-                      wxAuiPaneInfo( horiz ).Name( "m_auxiliaryToolBar" ).Top().Row( 1 ) );
-
-    // The main right vertical toolbar
-    m_auimgr.AddPane( m_drawToolBar,
-                      wxAuiPaneInfo( vert ).Name( "m_VToolBar" ).Right().Layer(1) );
-
-    // Add the layer manager ( most right side of pcbframe )
-    m_auimgr.AddPane( m_Layers, lyrs.Name( "m_LayersManagerToolBar" ).Right().Layer( 2 ) );
-    // Layers manager is visible
-    m_auimgr.GetPane( "m_LayersManagerToolBar" ).Show( true );
-
-    // The left vertical toolbar (fast acces to display options)
-    m_auimgr.AddPane( m_optionsToolBar,
-                      wxAuiPaneInfo( vert ).Name( "m_optionsToolBar" ). Left().Layer(1) );
-
-    m_auimgr.AddPane( m_canvas,
-                      wxAuiPaneInfo().Name( "DrawFrame" ).CentrePane() );
-    m_auimgr.AddPane( (wxWindow*) GetGalCanvas(),
-                      wxAuiPaneInfo().Name( "DrawFrameGal" ).CentrePane().Hide() );
-
-    m_auimgr.AddPane( m_messagePanel,
-                      wxAuiPaneInfo( mesg_pane ).Name( "MsgPanel" ).Bottom().Layer(10) );
+    m_auimgr.AddPane( m_canvas, EDA_PANE().Canvas().Name( "DrawFrame" ).Center() );
+    m_auimgr.AddPane( GetGalCanvas(), EDA_PANE().Canvas().Name( "DrawFrameGal" ).Center().Hide() );
 
     // Create the manager and dispatcher & route draw panel events to the dispatcher
     setupTools();
     GetGalCanvas()->GetGAL()->SetAxesEnabled( true );
-    UseGalCanvas( pcbFrame->IsGalCanvasActive() );
-
-    if( m_auimgr.GetPane( "m_LayersManagerToolBar" ).IsShown() )
-    {
-        m_Layers->ReFill();
-        m_Layers->ReFillRender();
-
-        GetScreen()->m_Active_Layer = F_SilkS;
-        m_Layers->SelectLayer( F_SilkS );
-        m_Layers->OnLayerSelected();
-    }
-
-    if( !boardEditorWasRunning )
-        pcbFrame->Destroy();
+    UseGalCanvas( m_canvasType != EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE );
 
     m_auimgr.Update();
+    updateTitle();
 
     Raise();            // On some window managers, this is needed
     Show( true );
@@ -374,42 +343,76 @@ FOOTPRINT_EDIT_FRAME::~FOOTPRINT_EDIT_FRAME()
 }
 
 
+
+void FOOTPRINT_EDIT_FRAME::OnSwitchCanvas( wxCommandEvent& aEvent )
+{
+    // switches currently used canvas (default / Cairo / OpenGL).
+    PCB_BASE_FRAME::OnSwitchCanvas( aEvent );
+
+    // The base class method *does not reinit* the layers manager.
+    // We must upate the layer widget to match board visibility states,
+    // both layers and render columns, and and some settings dependent on the canvas.
+    UpdateUserInterface();
+}
+
+
+void FOOTPRINT_EDIT_FRAME::OnToggleSearchTree( wxCommandEvent& event )
+{
+    auto& treePane = m_auimgr.GetPane( m_treePane );
+    treePane.Show( !IsSearchTreeShown() );
+    m_auimgr.Update();
+}
+
+
+bool FOOTPRINT_EDIT_FRAME::IsSearchTreeShown()
+{
+    return m_auimgr.GetPane( m_treePane ).IsShown();
+}
+
+
 BOARD_ITEM_CONTAINER* FOOTPRINT_EDIT_FRAME::GetModel() const
 {
     return GetBoard()->m_Modules;
 }
 
 
-const wxString FOOTPRINT_EDIT_FRAME::getLibPath()
+LIB_ID FOOTPRINT_EDIT_FRAME::getTargetFPID() const
 {
-    try
-    {
-        const wxString& nickname = GetCurrentLib();
+    LIB_ID   id = m_treePane->GetLibTree()->GetSelectedLibId();
+    wxString nickname = id.GetLibNickname();
 
-        const FP_LIB_TABLE_ROW* row = Prj().PcbFootprintLibs()->FindRow( nickname );
+    if( nickname.IsEmpty() )
+        return GetLoadedFPID();
 
-        return row->GetFullURI( true );
-    }
-    catch( const IO_ERROR& )
-    {
-        return wxEmptyString;
-    }
+    return id;
 }
 
 
-const wxString FOOTPRINT_EDIT_FRAME::GetCurrentLib() const
+LIB_ID FOOTPRINT_EDIT_FRAME::GetLoadedFPID() const
 {
-    return Prj().GetRString( PROJECT::PCB_LIB_NICKNAME );
+    MODULE* module = GetBoard()->m_Modules;
+
+    if( module )
+        return LIB_ID( module->GetFPID().GetLibNickname(), m_footprintNameWhenLoaded );
+    else
+        return LIB_ID();
+}
+
+
+bool FOOTPRINT_EDIT_FRAME::IsCurrentFPFromBoard() const
+{
+    MODULE* module = GetBoard()->m_Modules;
+
+    return ( module && module->GetLink() > 0 );
 }
 
 
 void FOOTPRINT_EDIT_FRAME::retainLastFootprint()
 {
-    MODULE* module = GetBoard()->m_Modules;
+    LIB_ID id = GetLoadedFPID();
 
-    if( module )
+    if( id.IsValid() )
     {
-        LIB_ID id = module->GetFPID();
         Prj().SetRString( PROJECT::PCB_FOOTPRINT_EDITOR_NICKNAME, id.GetLibNickname() );
         Prj().SetRString( PROJECT::PCB_FOOTPRINT_EDITOR_FPNAME, id.GetLibItemName() );
     }
@@ -430,8 +433,21 @@ void FOOTPRINT_EDIT_FRAME::restoreLastFootprint()
         MODULE* module = loadFootprint( id );
 
         if( module )
-            GetBoard()->Add( module );
+            AddModuleToBoard( module );
     }
+}
+
+
+void FOOTPRINT_EDIT_FRAME::AddModuleToBoard( MODULE* aFootprint )
+{
+    m_revertModule.reset( (MODULE*) aFootprint->Clone() );
+
+    m_footprintNameWhenLoaded = aFootprint->GetFPID().GetLibItemName();
+
+    // Pads are always editable in Footprint Editor
+    aFootprint->SetPadsLocked( false );
+
+    PCB_BASE_EDIT_FRAME::AddModuleToBoard( aFootprint );
 }
 
 
@@ -525,22 +541,9 @@ void FOOTPRINT_EDIT_FRAME::OnCloseWindow( wxCloseEvent& Event )
 {
     if( GetScreen()->IsModify() && GetBoard()->m_Modules )
     {
-        int ii = DisplayExitDialog( this, _( "Save changes to footprint before closing?" ) );
-
-        switch( ii )
+        if( !HandleUnsavedChanges( this, _( "Save changes to footprint before closing?" ),
+                                   [&]()->bool { return SaveFootprint( GetBoard()->m_Modules ); } ) )
         {
-        case wxID_NO:
-            break;
-
-        case wxID_YES:
-            if( !SaveFootprintInLibrary( GetCurrentLib(), GetBoard()->m_Modules ) )
-            {
-                Event.Veto();
-                return;
-            }
-            break;
-
-        case wxID_CANCEL:
             Event.Veto();
             return;
         }
@@ -551,6 +554,11 @@ void FOOTPRINT_EDIT_FRAME::OnCloseWindow( wxCloseEvent& Event )
         GetGalCanvas()->SetEventDispatcher( NULL );
         GetGalCanvas()->StopDrawing();
     }
+
+    // Do not show the layer manager during closing to avoid flicker
+    // on some platforms (Windows) that generate useless redraw of items in
+    // the Layer Manger
+    m_auimgr.GetPane( "LayersManager" ).Show( false );
 
     Clear_Pcb( false );
 
@@ -594,6 +602,10 @@ void FOOTPRINT_EDIT_FRAME::OnUpdateOptionsToolbar( wxUpdateUIEvent& aEvent )
         state = displ_opts->m_ContrastModeDisplay;
         break;
 
+    case ID_MODEDIT_SHOW_HIDE_SEARCH_TREE:
+        state = IsSearchTreeShown();
+        break;
+
     default:
         wxMessageBox( "FOOTPRINT_EDIT_FRAME::OnUpdateOptionsToolbar error" );
         break;
@@ -603,17 +615,31 @@ void FOOTPRINT_EDIT_FRAME::OnUpdateOptionsToolbar( wxUpdateUIEvent& aEvent )
 }
 
 
-void FOOTPRINT_EDIT_FRAME::OnUpdateLibSelected( wxUpdateUIEvent& aEvent )
-{
-    bool enable = getLibPath() != wxEmptyString;
-    aEvent.Enable( enable );
-    GetMenuBar()->Enable( ID_MODEDIT_SAVE_LIBRARY_AS, enable );
-}
-
-
 void FOOTPRINT_EDIT_FRAME::OnUpdateModuleSelected( wxUpdateUIEvent& aEvent )
 {
     aEvent.Enable( GetBoard()->m_Modules != NULL );
+}
+
+
+void FOOTPRINT_EDIT_FRAME::OnUpdateModuleTargeted( wxUpdateUIEvent& aEvent )
+{
+    aEvent.Enable( getTargetFPID().IsValid() );
+}
+
+
+void FOOTPRINT_EDIT_FRAME::OnUpdateSave( wxUpdateUIEvent& aEvent )
+{
+    aEvent.Enable( GetBoard()->m_Modules && GetScreen()->IsModify() );
+}
+
+
+void FOOTPRINT_EDIT_FRAME::OnUpdateSaveAs( wxUpdateUIEvent& aEvent )
+{
+    LIB_ID libId = getTargetFPID();
+    const wxString& libName = libId.GetLibNickname();
+    const wxString& partName = libId.GetLibItemName();
+
+    aEvent.Enable( !libName.IsEmpty() || !partName.IsEmpty() );
 }
 
 
@@ -652,37 +678,52 @@ void FOOTPRINT_EDIT_FRAME::OnUpdateInsertModuleInBoard( wxUpdateUIEvent& aEvent 
 }
 
 
-void FOOTPRINT_EDIT_FRAME::OnUpdateReplaceModuleInBoard( wxUpdateUIEvent& aEvent )
+void FOOTPRINT_EDIT_FRAME::ReFillLayerWidget()
 {
-    PCB_EDIT_FRAME* frame = (PCB_EDIT_FRAME*) Kiway().Player( FRAME_PCB, false );
 
-    MODULE* module_in_edit = GetBoard()->m_Modules;
-    bool canReplace = frame && module_in_edit && module_in_edit->GetLink();
+    m_Layers->Freeze();
+    m_Layers->ReFill();
+    m_Layers->Thaw();
 
-    if( canReplace ) // this is not a new module, but verify if the source is still on board
-    {
-        BOARD*  mainpcb = frame->GetBoard();
-        MODULE* source_module = mainpcb->m_Modules;
+    wxAuiPaneInfo& lyrs = m_auimgr.GetPane( m_Layers );
 
-        // search if the source module was not deleted:
-        for( ; source_module != NULL; source_module = source_module->Next() )
-        {
-            if( module_in_edit->GetLink() == source_module->GetTimeStamp() )
-                break;
-        }
+    wxSize bestz = m_Layers->GetBestSize();
 
-        canReplace = ( source_module != NULL );
-    }
+    lyrs.MinSize( bestz );
+    lyrs.BestSize( bestz );
+    lyrs.FloatingSize( bestz );
 
-    aEvent.Enable( canReplace );
+    if( lyrs.IsDocked() )
+        m_auimgr.Update();
+    else
+        m_Layers->SetSize( bestz );
 }
 
 
-void FOOTPRINT_EDIT_FRAME::OnUpdateSelectCurrentLib( wxUpdateUIEvent& aEvent )
+void FOOTPRINT_EDIT_FRAME::ShowChangedLanguage()
 {
-    FP_LIB_TABLE* fptbl = Prj().PcbFootprintLibs();
+    // call my base class
+    PCB_BASE_EDIT_FRAME::ShowChangedLanguage();
 
-    aEvent.Enable( fptbl && !fptbl->IsEmpty() );
+    // We have 2 panes to update.
+    // For some obscure reason, the AUI manager hides the first modified pane.
+    // So force show panes
+    wxAuiPaneInfo& tree_pane_info = m_auimgr.GetPane( m_treePane );
+    bool tree_shown = tree_pane_info.IsShown();
+    tree_pane_info.Caption( _( "Libraries" ) );
+
+    wxAuiPaneInfo& lm_pane_info = m_auimgr.GetPane( m_Layers );
+    bool lm_shown = lm_pane_info.IsShown();
+    lm_pane_info.Caption( _( "Layers Manager" ) );
+
+    // update the layer manager
+    m_Layers->SetLayersManagerTabsText();
+    UpdateUserInterface();
+
+    // Now restore the visibility:
+    lm_pane_info.Show( lm_shown );
+    tree_pane_info.Show( tree_shown );
+    m_auimgr.Update();
 }
 
 
@@ -732,48 +773,67 @@ void FOOTPRINT_EDIT_FRAME::OnModify()
 {
     PCB_BASE_FRAME::OnModify();
     Update3DView();
+    m_treePane->GetLibTree()->Refresh();
 }
 
 
 void FOOTPRINT_EDIT_FRAME::updateTitle()
 {
-    wxString nickname = GetCurrentLib();
-    wxString nickname_display = _( "no active library" );
-    bool writable = true;
+    wxString title = _( "Footprint Editor" );
+    LIB_ID   fpid = GetLoadedFPID();
+    bool     writable = true;
 
-    if( !!nickname )
+    if( IsCurrentFPFromBoard() )
+    {
+        title += wxString::Format( wxT( " \u2014 %s [from %s.%s]" ),
+                                   GetBoard()->m_Modules->GetReference(),
+                                   Prj().GetProjectName(), PcbFileExtension );
+    }
+    else if( fpid.IsValid() )
     {
         try
         {
-            writable = Prj().PcbFootprintLibs()->IsFootprintLibWritable( nickname );
-
-            nickname_display = nickname;
+            writable = Prj().PcbFootprintLibs()->IsFootprintLibWritable( fpid.GetLibNickname() );
         }
         catch( const IO_ERROR& )
         {
-            // user may be bewildered as to why after selecting a library it is not showing up
-            // in the title, we could show an error message, but that should have been done at time
-            // of libary selection UI.
+            // best efforts...
         }
-    }
 
-    wxString path_display;
-    if( nickname.size() )
+        // Note: don't used GetLoadedFPID(); footprint name may have been edited
+        title += wxString::Format( wxT( " \u2014 %s %s" ),
+                                   FROM_UTF8( GetBoard()->m_Modules->GetFPID().Format().c_str() ),
+                                   writable ? wxString( wxEmptyString ) : _( "[Read Only]" ) );
+    }
+    else if( !fpid.GetLibItemName().empty() )
     {
-        FP_LIB_TABLE* libtable = Prj().PcbFootprintLibs();
-        const FP_LIB_TABLE_ROW* row = libtable->FindRow( nickname );
-
-        if( row )
-            path_display = L" \u2014 " + row->GetFullURI( true );
+        // Note: don't used GetLoadedFPID(); footprint name may have been edited
+        title += wxString::Format( wxT( " \u2014 %s %s" ),
+                                   FROM_UTF8( GetBoard()->m_Modules->GetFPID().GetLibItemName().c_str() ),
+                                   _( "[Unsaved]" ) );
     }
-
-    wxString title;
-    title.Printf( _( "Footprint Editor" ) + wxT( " \u2014 %s%s%s" ),
-                  nickname_display,
-                  writable ? wxString( wxEmptyString ) : _( " [Read Only]" ),
-                  path_display );
 
     SetTitle( title );
+}
+
+
+void FOOTPRINT_EDIT_FRAME::UpdateUserInterface()
+{
+    // Update the layer manager and other widgets from the board setup
+    // (layer and items visibility, colors ...)
+
+    // Update the layer manager
+    m_Layers->Freeze();
+    ReFillLayerWidget();
+    m_Layers->ReFillRender();
+
+    // update the layer widget to match board visibility states.
+    m_Layers->SyncLayerVisibilities();
+    static_cast<PCB_DRAW_PANEL_GAL*>( GetGalCanvas() )->SyncLayersVisibility( m_Pcb );
+    m_Layers->SelectLayer( GetActiveLayer() );
+    m_Layers->OnLayerSelected();
+
+    m_Layers->Thaw();
 }
 
 
@@ -784,6 +844,69 @@ void FOOTPRINT_EDIT_FRAME::updateView()
     dp->DisplayBoard( GetBoard() );
     m_toolManager->ResetTools( TOOL_BASE::MODEL_RELOAD );
     m_toolManager->RunAction( ACTIONS::zoomFitScreen, true );
+    updateTitle();
+}
+
+
+void FOOTPRINT_EDIT_FRAME::initLibraryTree()
+{
+    FP_LIB_TABLE*   fpTable = Prj().PcbFootprintLibs();
+
+    WX_PROGRESS_REPORTER progressReporter( this, _( "Loading Footprint Libraries" ), 2 );
+    GFootprintList.ReadFootprintFiles( fpTable, NULL, &progressReporter );
+    progressReporter.Show( false );
+
+    if( GFootprintList.GetErrorCount() )
+        GFootprintList.DisplayErrors( this );
+
+    m_adapter = FP_TREE_SYNCHRONIZING_ADAPTER::Create( this, fpTable );
+    auto adapter = static_cast<FP_TREE_SYNCHRONIZING_ADAPTER*>( m_adapter.get() );
+
+    adapter->AddLibraries();
+}
+
+
+void FOOTPRINT_EDIT_FRAME::SyncLibraryTree( bool aProgress )
+{
+    FP_LIB_TABLE* fpTable = Prj().PcbFootprintLibs();
+    auto          adapter = static_cast<FP_TREE_SYNCHRONIZING_ADAPTER*>( m_adapter.get() );
+    LIB_ID        target = getTargetFPID();
+    bool          targetSelected = ( target == m_treePane->GetLibTree()->GetSelectedLibId() );
+
+    // Sync FOOTPRINT_INFO list to the libraries on disk
+    if( aProgress )
+    {
+        WX_PROGRESS_REPORTER progressReporter( this, _( "Updating Footprint Libraries" ), 2 );
+        GFootprintList.ReadFootprintFiles( fpTable, NULL, &progressReporter );
+        progressReporter.Show( false );
+    }
+    else
+    {
+        GFootprintList.ReadFootprintFiles( fpTable, NULL, NULL );
+    }
+
+    // Sync the LIB_TREE to the FOOTPRINT_INFO list
+    adapter->Sync();
+
+    m_treePane->GetLibTree()->Unselect();
+    m_treePane->Regenerate();
+
+    if( target.IsValid() )
+    {
+        if( adapter->FindItem( target ) )
+        {
+            if( targetSelected )
+                m_treePane->GetLibTree()->SelectLibId( target );
+            else
+                m_treePane->GetLibTree()->CenterLibId( target );
+        }
+        else
+        {
+            // Try to focus on parent
+            target.SetLibItemName( wxEmptyString );
+            m_treePane->GetLibTree()->CenterLibId( target );
+        }
+    }
 }
 
 
@@ -826,82 +949,18 @@ void FOOTPRINT_EDIT_FRAME::ProcessPreferences( wxCommandEvent& event )
     switch( id )
     {
     // Hotkey IDs
-    case ID_PREFERENCES_HOTKEY_EXPORT_CONFIG:
-        ExportHotkeyConfigToFile( g_Module_Editor_Hotkeys_Descr, "pcbnew" );
-        break;
-
-    case ID_PREFERENCES_HOTKEY_IMPORT_CONFIG:
-        ImportHotkeyConfigFromFile( g_Module_Editor_Hotkeys_Descr, "pcbnew" );
-        break;
-
-    case ID_PREFERENCES_HOTKEY_SHOW_EDITOR:
-        InstallHotkeyFrame( this, g_Pcbnew_Editor_Hotkeys_Descr, g_Module_Editor_Hotkeys_Descr );
-        break;
-
     case ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST:
         // Display current hotkey list for the footprint editor.
         DisplayHotkeyList( this, g_Module_Editor_Hotkeys_Descr );
         break;
 
     case ID_PCB_LIB_TABLE_EDIT:
-        {
-            bool tableChanged = false;
-            int r = InvokePcbLibTableEditor( this, &GFootprintTable, Prj().PcbFootprintLibs() );
-
-            if( r & 1 )
-            {
-                try
-                {
-                    FILE_OUTPUTFORMATTER sf( FP_LIB_TABLE::GetGlobalTableFileName() );
-
-                    GFootprintTable.Format( &sf, 0 );
-                    tableChanged = true;
-                }
-                catch( const IO_ERROR& ioe )
-                {
-                    wxString msg = wxString::Format( _(
-                        "Error occurred saving the global footprint library "
-                        "table:\n\n%s" ),
-                        GetChars( ioe.What().GetData() )
-                        );
-                    wxMessageBox( msg, _( "File Save Error" ), wxOK | wxICON_ERROR );
-                }
-            }
-
-            if( r & 2 )
-            {
-                wxString tblName = Prj().FootprintLibTblName();
-
-                try
-                {
-                    Prj().PcbFootprintLibs()->Save( tblName );
-                    tableChanged = true;
-                }
-                catch( const IO_ERROR& ioe )
-                {
-                    wxString msg = wxString::Format( _(
-                        "Error occurred saving project specific footprint library "
-                        "table:\n\n%s" ),
-                        GetChars( ioe.What() )
-                        );
-                    wxMessageBox( msg, _( "File Save Error" ), wxOK | wxICON_ERROR );
-                }
-            }
-
-            FOOTPRINT_VIEWER_FRAME* viewer;
-            viewer = (FOOTPRINT_VIEWER_FRAME*)Kiway().Player( FRAME_PCB_MODULE_VIEWER, false );
-
-            if( tableChanged && viewer != NULL )
-                viewer->ReCreateLibraryList();
-        }
+        InvokePcbLibTableEditor( &Kiway(), this );
         break;
 
     case wxID_PREFERENCES:
-        InvokeFPEditorPrefsDlg( this );
-        break;
-
-    case ID_PCB_DISPLAY_OPTIONS_SETUP:
-        DIALOG_MODEDIT_DISPLAY_OPTIONS::Invoke( *this );
+        ShowPreferences( g_Pcbnew_Editor_Hotkeys_Descr, g_Module_Editor_Hotkeys_Descr,
+                         wxT( "pcbnew" ) );
         break;
 
     default:
@@ -910,9 +969,20 @@ void FOOTPRINT_EDIT_FRAME::ProcessPreferences( wxCommandEvent& event )
 }
 
 
+void FOOTPRINT_EDIT_FRAME::InstallPreferences( PAGED_DIALOG* aParent )
+{
+    wxTreebook* book = aParent->GetTreebook();
+
+    book->AddPage( new PANEL_MODEDIT_SETTINGS( this, aParent ), _( "Footprint Editor" ) );
+    book->AddSubPage( new PANEL_MODEDIT_DISPLAY_OPTIONS( this, aParent ), _( "Display Options" ) );
+    book->AddSubPage( new PANEL_MODEDIT_DEFAULTS( this, aParent ), _( "Default Values" ) );
+}
+
+
 void FOOTPRINT_EDIT_FRAME::OnConfigurePaths( wxCommandEvent& aEvent )
 {
-    Pgm().ConfigurePaths( this );
+    DIALOG_CONFIGURE_PATHS dlg( this, Prj().Get3DCacheManager()->GetResolver() );
+    dlg.ShowModal();
 }
 
 
@@ -940,6 +1010,7 @@ void FOOTPRINT_EDIT_FRAME::setupTools()
     m_toolManager->RegisterTool( new MODULE_EDITOR_TOOLS );
     m_toolManager->RegisterTool( new ALIGN_DISTRIBUTE_TOOL );
     m_toolManager->RegisterTool( new PICKER_TOOL );
+    m_toolManager->RegisterTool( new POSITION_RELATIVE_TOOL );
 
     m_toolManager->GetTool<PAD_TOOL>()->SetEditModules( true );
     m_toolManager->GetTool<SELECTION_TOOL>()->SetEditModules( true );
@@ -964,14 +1035,18 @@ void FOOTPRINT_EDIT_FRAME::UseGalCanvas( bool aEnable )
     }
 
     ReCreateMenuBar();
+
+    // Ensure the m_Layers settings are using the canvas type:
+    UpdateUserInterface();
 }
 
 
-int FOOTPRINT_EDIT_FRAME::GetIconScale()
+void FOOTPRINT_EDIT_FRAME::CommonSettingsChanged()
 {
-    int scale = 0;
-    Kiface().KifaceSettings()->Read( IconScaleEntry, &scale, 0 );
-    return scale;
+    PCB_BASE_EDIT_FRAME::CommonSettingsChanged();
+
+    Layout();
+    SendSizeEvent();
 }
 
 
@@ -988,10 +1063,39 @@ void FOOTPRINT_EDIT_FRAME::UpdateMsgPanel()
 
     if( item )
     {
-        item->GetMsgPanelInfo( items );
+        item->GetMsgPanelInfo( m_UserUnits, items );
         SetMsgPanel( items );
     }
     else
         ClearMsgPanel();
 }
 
+
+void FOOTPRINT_EDIT_FRAME::OnSaveFootprintAsPng( wxCommandEvent& event )
+{
+    wxString   fullFileName;
+
+    LIB_ID id = GetLoadedFPID();
+
+    if( id.empty() )
+    {
+        wxMessageBox( _( "No footprint selected." ) );
+        return;
+    }
+
+    wxFileName fn( id.GetLibItemName() );
+    fn.SetExt( "png" );
+
+    wxString projectPath = wxPathOnly( Prj().GetProjectFullName() );
+
+    wxFileDialog dlg( this, _( "Footprint Image File Name" ), projectPath,
+                      fn.GetFullName(), PngFileWildcard(), wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
+
+    if( dlg.ShowModal() == wxID_CANCEL || dlg.GetPath().IsEmpty() )
+        return;
+
+    // calling wxYield is mandatory under Linux, after closing the file selector dialog
+    // to refresh the screen before creating the PNG or JPEG image from screen
+    wxYield();
+    saveCanvasImageToFile( dlg.GetPath() );
+}

@@ -8,8 +8,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: 0.1\n"
-"POT-Creation-Date: 2018-06-25 10:55+0200\n"
-"PO-Revision-Date: 2018-07-07 11:10+0200\n"
+"POT-Creation-Date: 2019-01-03 11:36+0100\n"
+"PO-Revision-Date: 2018-12-16 04:02+0100\n"
 "Last-Translator: Marco Ciampa <ciampix@posteo.net>\n"
 "Language-Team: Italian <it@li.org>\n"
 "Language: it\n"
@@ -4351,7 +4351,7 @@ msgid ""
 "In fact all detected errors must be checked and then corrected before "
 "proceeding as normal. The quality of the ERC is directly related to the care "
 "taken in declaring electrical pin properties during symbol library creation. "
-"ERC output is reported as \"errors\" or \"warnings\"."
+"ERC output is reported as ``errors'' or ``warnings''."
 msgstr ""
 "In pratica tutti gli errori rilevati devono essere controllati e corretti "
 "prima di poter procedere. La qualità dell'ERC è direttamente proporzionale "
@@ -5501,7 +5501,7 @@ msgstr ""
 #. type: Plain text
 #: eeschema_generic_commands.adoc:47
 msgid ""
-"Holding \"Shift\", \"Ctrl\", or \"Shift + Ctrl\" during selection "
+"Holding ``Shift'', ``Ctrl'', or ``Shift + Ctrl'' during selection "
 "respectively performs copying, dragging and deletion:"
 msgstr ""
 "Mantenendo premuti ``Maiusc'', ``Ctrl'', o ``Maiusc + Ctrl'' durante la "
@@ -12606,7 +12606,7 @@ msgstr "Tutti questi simboli si trovano della libreria di simboli ``power''."
 #. type: Title ====
 #: eeschema_schematic_creation_and_editing.adoc:339
 #, no-wrap
-msgid "\"No Connect\" flag"
+msgid "``No Connect'' flag"
 msgstr "Indicatore ``Non connesso''"
 
 #. type: Plain text
@@ -12821,7 +12821,9 @@ msgstr "Simulatore"
 msgid ""
 "Eeschema provides an embedded electrical circuit simulator using http://"
 "ngspice.sourceforge.net[ngspice] as the simulation engine."
-msgstr "Eeschema incorpora un simulatore di circuiti elettronici che usa http://ngspice.sourceforge.net[ngspice] come motore di simulazione."
+msgstr ""
+"Eeschema incorpora un simulatore di circuiti elettronici che usa http://"
+"ngspice.sourceforge.net[ngspice] come motore di simulazione."
 
 #. type: Plain text
 #: eeschema_simulator.adoc:12
@@ -13009,7 +13011,13 @@ msgid ""
 "the reference and value fields are not taken into account during simulation. "
 "It may lead to a confusing situation when assigned model value does not "
 "match the one displayed on a schematic sheet."
-msgstr "I modelli di dispositivi passivi esplicitamente definiti hanno la priorità su quelli assegnati implicitamente. Questo significa che una volta che un modello di dispositivo passivo viene assegnato, i campi di riferimento e valore non sono presi in considerazione durante la simulazione. Ciò può portare ad una situazione di confusione dove il valore del modello assegnato non corrisponde con quello mostrato sullo schema elettrico."
+msgstr ""
+"I modelli di dispositivi passivi esplicitamente definiti hanno la priorità "
+"su quelli assegnati implicitamente. Questo significa che una volta che un "
+"modello di dispositivo passivo viene assegnato, i campi di riferimento e "
+"valore non sono presi in considerazione durante la simulazione. Ciò può "
+"portare ad una situazione di confusione dove il valore del modello assegnato "
+"non corrisponde con quello mostrato sullo schema elettrico."
 
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: eeschema_simulator.adoc:81
@@ -13720,7 +13728,11 @@ msgid ""
 "Each symbol in a schematic is uniquely identified by a full name that is "
 "composed of a library nickname and a symbol name. An example is `Audio:"
 "AD1853`."
-msgstr "Le librerie di simboli contengono raccolte di simboli utilizzati durante la creazione degli schemi elettrici. Ogni simbolo in uno schema è identificato in modo univoco da un nome completo composto da un nickname di libreria e da un nome di simbolo. Un esempio è `Audio: AD1853`."
+msgstr ""
+"Le librerie di simboli contengono raccolte di simboli utilizzati durante la "
+"creazione degli schemi elettrici. Ogni simbolo in uno schema è identificato "
+"in modo univoco da un nome completo composto da un nickname di libreria e da "
+"un nome di simbolo. Un esempio è `Audio: AD1853`."
 
 #. type: Title ===
 #: eeschema_symbol_library_table.adoc:7
@@ -13734,14 +13746,21 @@ msgid ""
 "The symbol library table holds a list of all library files KiCad knows "
 "about.  The symbol library table is constructed from the global symbol "
 "library table file and the project specific symbol library table file."
-msgstr "La tabella della libreria dei simboli contiene un elenco di tutti i file della libreria che KiCad conosce. La tabella della libreria dei simboli è composta dal file della tabella delle librerie di simboli globali e dal file della tabella delle librerie di simboli specifici del progetto."
+msgstr ""
+"La tabella della libreria dei simboli contiene un elenco di tutti i file "
+"della libreria che KiCad conosce. La tabella della libreria dei simboli è "
+"composta dal file della tabella delle librerie di simboli globali e dal file "
+"della tabella delle librerie di simboli specifici del progetto."
 
 #. type: Plain text
 #: eeschema_symbol_library_table.adoc:15
 msgid ""
 "When a symbol is loaded, Eeschema uses the library nickname, `Audio` in our "
 "example, to lookup the library location in the symbol library table."
-msgstr "Quando viene caricato un simbolo, Eeschema usa il denominatore della libreria, `Audio` nel nostro esempio, per cercare la posizione della libreria nella tabella della libreria dei simboli."
+msgstr ""
+"Quando viene caricato un simbolo, Eeschema usa il denominatore della "
+"libreria, `Audio` nel nostro esempio, per cercare la posizione della "
+"libreria nella tabella della libreria dei simboli."
 
 #. type: Plain text
 #: eeschema_symbol_library_table.adoc:19

@@ -27,8 +27,6 @@
  * @brief methods to show available net names and select and highligth a net
  */
 
-#include <wx/grid.h>
-
 #include <fctsys.h>
 #include <kicad_string.h>
 #include <kicad_device_context.h>
@@ -42,10 +40,7 @@
 #include <view/view.h>
 #include <view/view_controls.h>
 #include <pcb_painter.h>
-#include <connectivity_data.h>
-
-#define COL_NETNAME 0
-#define COL_NETINFO 1
+#include <connectivity/connectivity_data.h>
 
 class DIALOG_SELECT_NET_FROM_LIST: public DIALOG_SELECT_NET_FROM_LIST_BASE
 {
@@ -59,25 +54,25 @@ public:
 
     /**
      * Visually highlights a net.
-     * @param aEnabled true to enable highlight mode, false to disable.
-     * @param aNetName is the name of net to be highlighted.
+     * @param aNetName is the name of net to be highlighted.  An empty string will unhighlight
+     * any currently highlighted net.
      */
-    void HighlightNet( bool aEnabled, const wxString& aNetName );
+    void HighlightNet( const wxString& aNetName );
 
 private:
-    void onCellClick( wxGridEvent& event ) override;
+    void onSelChanged( wxDataViewEvent& event ) override;
     void onFilterChange( wxCommandEvent& event ) override;
-    void onColumnResize( wxGridSizeEvent& event ) override;
-    void onSelectCell( wxGridEvent& event ) override;
-    void updateSize( wxSizeEvent& event ) override;
+    void onListSize( wxSizeEvent& event ) override;
 
-    void setColumnSize();
     void buildNetsList();
+    wxString getListColumnHeaderNet() { return _( "Net" ); };
+    wxString getListColumnHeaderName() { return _( "Name" ); };
+    wxString getListColumnHeaderCount() { return _( "Pad Count" ); };
+    void adjustListColumns( int aWidth );
 
-    wxString m_selection;
-    int m_firstWidth;
-    bool m_wasSelected;
-    BOARD* m_brd;
+    wxString        m_selection;
+    bool            m_wasSelected;
+    BOARD*          m_brd;
     PCB_EDIT_FRAME* m_frame;
 };
 
@@ -90,7 +85,7 @@ void PCB_EDIT_FRAME::ListNetsAndSelect( wxCommandEvent& event )
     if( dlg.ShowModal() == wxID_CANCEL )
     {
         // Clear highlight
-        dlg.HighlightNet( false, "" );
+        dlg.HighlightNet( "" );
     }
 }
 
@@ -101,27 +96,32 @@ DIALOG_SELECT_NET_FROM_LIST::DIALOG_SELECT_NET_FROM_LIST( PCB_EDIT_FRAME* aParen
     m_brd = aParent->GetBoard();
     m_wasSelected = false;
 
-    // Choose selection mode
-    m_netsListGrid->SetSelectionMode( wxGrid::wxGridSelectRows );
+    m_netsList->AppendTextColumn( getListColumnHeaderNet(),   wxDATAVIEW_CELL_INERT, 0, wxALIGN_LEFT, 0 );
+    m_netsList->AppendTextColumn( getListColumnHeaderName(),  wxDATAVIEW_CELL_INERT, 0, wxALIGN_LEFT, 0 );
+    m_netsList->AppendTextColumn( getListColumnHeaderCount(), wxDATAVIEW_CELL_INERT, 0, wxALIGN_CENTER, 0 );
+
+    // The fact that we're a list should keep the control from reserving space for the
+    // expander buttons... but it doesn't.  Fix by forcing the indent to 0.
+    m_netsList->SetIndent( 0 );
+
     buildNetsList();
 
-    m_sdbSizerOK->SetDefault();
-    GetSizer()->SetSizeHints( this );
-    Center();
+    adjustListColumns( wxCOL_WIDTH_AUTOSIZE );
 
-    m_firstWidth = m_netsListGrid->GetColSize( 0 );
-    setColumnSize();
+    m_sdbSizerOK->SetDefault();
+
+    FinishDialogSettings();
 }
 
 
 void DIALOG_SELECT_NET_FROM_LIST::buildNetsList()
 {
-    wxString netFilter = m_textCtrlFilter->GetValue();
+    wxString                   netFilter = m_textCtrlFilter->GetValue();
     EDA_PATTERN_MATCH_WILDCARD filter;
-    filter.SetPattern( netFilter.MakeUpper() );
-    wxString txt;
 
-    int row_idx = 0;
+    filter.SetPattern( netFilter.MakeUpper() );
+
+    m_netsList->DeleteAllItems();
 
     // Populate the nets list with nets names matching the filters:
     // Note: the filtering is case insensitive.
@@ -141,50 +141,39 @@ void DIALOG_SELECT_NET_FROM_LIST::buildNetsList()
         if( !m_cbShowZeroPad->IsChecked() && nodes == 0 )
             continue;
 
-        if( m_netsListGrid->GetNumberRows() <= row_idx )
-            m_netsListGrid->AppendRows( 1 );
+        wxVector<wxVariant> dataLine;
 
-        txt.Printf( _( "net %.3d" ), net->GetNet() );
-        m_netsListGrid->SetRowLabelValue( row_idx, txt );
-
-        m_netsListGrid->SetCellValue( row_idx, COL_NETNAME, net->GetNetname() );
+        dataLine.push_back( wxVariant( wxString::Format( "%.3d", netcode ) ) );
+        dataLine.push_back( wxVariant( net->GetNetname() ) );
 
         if( netcode )
-        {
-            txt.Printf( wxT( "%u" ), nodes );
-            m_netsListGrid->SetCellValue( row_idx, COL_NETINFO, txt );
-        }
+            dataLine.push_back( wxVariant( wxString::Format( "%u", nodes ) ) );
         else    // For the net 0 (unconnected pads), the pad count is not known
-            m_netsListGrid->SetCellValue( row_idx, COL_NETINFO, "---" );
+            dataLine.push_back( wxVariant( wxT( "---" ) ) );
 
-        row_idx++;
+        m_netsList->AppendItem( dataLine );
     }
 
-    // Remove extra rows, if any:
-    int extra_row_idx = m_netsListGrid->GetNumberRows() - row_idx;
-
-    if( extra_row_idx > 0 )
-        m_netsListGrid->DeleteRows( row_idx, extra_row_idx );
-
-    m_netsListGrid->SetColLabelSize( wxGRID_AUTOSIZE );
-    m_netsListGrid->SetRowLabelSize( wxGRID_AUTOSIZE );
-
-    m_netsListGrid->ClearSelection();
     m_wasSelected = false;
 }
 
 
-void DIALOG_SELECT_NET_FROM_LIST::HighlightNet( bool aEnabled, const wxString& aNetName )
+void DIALOG_SELECT_NET_FROM_LIST::HighlightNet( const wxString& aNetName )
 {
-    // Search for the net selected.
-    NETINFO_ITEM* net = aEnabled ? m_brd->FindNet( aNetName ) : nullptr;
-    int netCode = net ? net->GetNet() : -1;
+    NETINFO_ITEM* net = nullptr;
+    int           netCode = -1;
+
+    if( !aNetName.IsEmpty() )
+    {
+        net = m_brd->FindNet( aNetName );
+        netCode = net->GetNet();
+    }
 
     if( m_frame->IsGalCanvasActive() )
     {
         auto galCanvas = m_frame->GetGalCanvas();
         KIGFX::RENDER_SETTINGS* render = galCanvas->GetView()->GetPainter()->GetSettings();
-        render->SetHighlight( aEnabled, netCode );
+        render->SetHighlight( netCode >= 0, netCode );
 
         galCanvas->GetView()->UpdateAllLayersColor();
         galCanvas->Refresh();
@@ -201,13 +190,6 @@ void DIALOG_SELECT_NET_FROM_LIST::HighlightNet( bool aEnabled, const wxString& a
     }
 }
 
-void DIALOG_SELECT_NET_FROM_LIST::setColumnSize()
-{
-    auto size = m_netsListGrid->GetGridWindow()->GetSize();
-
-    m_netsListGrid->SetColSize( 0, m_firstWidth );
-    m_netsListGrid->SetColSize( 1, size.x - m_firstWidth );
-}
 
 DIALOG_SELECT_NET_FROM_LIST::~DIALOG_SELECT_NET_FROM_LIST()
 {
@@ -220,46 +202,71 @@ void DIALOG_SELECT_NET_FROM_LIST::onFilterChange( wxCommandEvent& event )
 }
 
 
-void DIALOG_SELECT_NET_FROM_LIST::updateSize( wxSizeEvent& event )
+void DIALOG_SELECT_NET_FROM_LIST::onSelChanged( wxDataViewEvent&  )
 {
-    setColumnSize();
-    this->Refresh();
-    event.Skip();
+    int selected_row = m_netsList->GetSelectedRow();
+
+    if( selected_row >= 0 )
+    {
+        m_selection = m_netsList->GetTextValue( selected_row, 1 );
+        m_wasSelected = true;
+
+        HighlightNet( m_selection );
+    }
+    else
+    {
+        HighlightNet( "" );
+        m_wasSelected = false;
+    }
 }
 
 
-void DIALOG_SELECT_NET_FROM_LIST::onColumnResize( wxGridSizeEvent& event )
+void DIALOG_SELECT_NET_FROM_LIST::adjustListColumns( int aWidth )
 {
-    m_firstWidth = m_netsListGrid->GetColSize( 0 );
-    setColumnSize();
+    int w0, w1, w2;
+
+    if( aWidth == wxCOL_WIDTH_AUTOSIZE )
+    {
+        /**
+         * Calculating optimal width of the first (Net) and
+         * the last (Pad Count) columns. That width must be
+         * enough to fit column header label and be not less
+         * than width of four chars (0000).
+         */
+
+        wxClientDC dc( GetParent() );
+        int h, minw;
+
+        aWidth = m_netsList->GetRect().GetWidth();
+
+        dc.GetTextExtent( getListColumnHeaderNet(), &w0, &h );
+        dc.GetTextExtent( getListColumnHeaderCount(), &w2, &h );
+        dc.GetTextExtent( "0000", &minw, &h );
+
+        // Considering left and right margins.
+        // For wxRanderGeneric it is 5px.
+        w0 = std::max( w0+10, minw);
+        w2 = std::max( w2+10, minw);
+
+        m_netsList->GetColumn( 0 )->SetWidth( w0 );
+        m_netsList->GetColumn( 2 )->SetWidth( w2 );
+    }
+    else
+    {
+        w0 = m_netsList->GetColumn( 0 )->GetWidth();
+        w2 = m_netsList->GetColumn( 2 )->GetWidth();
+    }
+
+    // At resizing of the list the width of middle column (Name) changes only.
+    w1 = aWidth - w0 - w2;
+
+    m_netsList->GetColumn( 1 )->SetWidth( w1 );
 }
 
 
-void DIALOG_SELECT_NET_FROM_LIST::onSelectCell( wxGridEvent& event )
+void DIALOG_SELECT_NET_FROM_LIST::onListSize( wxSizeEvent& aEvent )
 {
-
-    int selected_row = event.GetRow();
-    m_selection = m_netsListGrid->GetCellValue( selected_row, COL_NETNAME );
-
-    // Select the full row when clicking on any cell off the row
-    m_netsListGrid->SelectRow( selected_row, false );
-
-    HighlightNet( true, m_selection );
-}
-
-
-void DIALOG_SELECT_NET_FROM_LIST::onCellClick( wxGridEvent& event )
-{
-    int selected_row = event.GetRow();
-
-    m_selection = m_netsListGrid->GetCellValue( selected_row, COL_NETNAME );
-    m_wasSelected = true;
-
-    // Select the full row when clicking on any cell off the row
-    m_netsListGrid->SelectRow( selected_row, false );
-    m_netsListGrid->SetGridCursor(selected_row, COL_NETNAME );
-
-    HighlightNet( true, m_selection );
+    adjustListColumns( aEvent.GetSize().GetX() );
 }
 
 

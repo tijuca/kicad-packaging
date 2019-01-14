@@ -28,6 +28,7 @@
 
 #include <view/view.h>
 #include <view/wx_view_controls.h>
+#include <view/zoom_controller.h>
 #include <gal/graphics_abstraction_layer.h>
 #include <tool/tool_dispatcher.h>
 
@@ -35,9 +36,26 @@ using namespace KIGFX;
 
 const wxEventType WX_VIEW_CONTROLS::EVT_REFRESH_MOUSE = wxNewEventType();
 
+
+static std::unique_ptr<ZOOM_CONTROLLER> GetZoomControllerForPlatform()
+{
+#ifdef __WXMAC__
+    // On Apple pointer devices, wheel events occur frequently and with
+    // smaller rotation values.  For those devices, let's handle zoom
+    // based on the rotation amount rather than the time difference.
+    return std::make_unique<CONSTANT_ZOOM_CONTROLLER>( CONSTANT_ZOOM_CONTROLLER::MAC_SCALE );
+#elif __WXGTK3__
+    // GTK3 is similar, but the scale constant is smaller
+    return std::make_unique<CONSTANT_ZOOM_CONTROLLER>( CONSTANT_ZOOM_CONTROLLER::GTK3_SCALE );
+#else
+    return std::make_unique<ACCELERATING_ZOOM_CONTROLLER>();
+#endif
+}
+
+
 WX_VIEW_CONTROLS::WX_VIEW_CONTROLS( VIEW* aView, wxScrolledCanvas* aParentPanel ) :
     VIEW_CONTROLS( aView ), m_state( IDLE ), m_parentPanel( aParentPanel ),
-    m_scrollScale( 1.0, 1.0 ), m_cursorPos( 0, 0 ), m_updateCursor( true )
+    m_scrollScale( 1.0, 1.0 ), m_lastTimestamp( 0 ), m_cursorPos( 0, 0 ), m_updateCursor( true )
 {
     m_parentPanel->Connect( wxEVT_MOTION,
                             wxMouseEventHandler( WX_VIEW_CONTROLS::onMotion ), NULL, this );
@@ -72,9 +90,29 @@ WX_VIEW_CONTROLS::WX_VIEW_CONTROLS( VIEW* aView, wxScrolledCanvas* aParentPanel 
     m_parentPanel->Connect( wxEVT_SCROLLWIN_PAGEDOWN,
                             wxScrollWinEventHandler( WX_VIEW_CONTROLS::onScroll ), NULL, this );
 
+    m_parentPanel->Connect( wxEVT_SCROLLWIN_BOTTOM,
+                            wxScrollWinEventHandler( WX_VIEW_CONTROLS::onScroll ), NULL, this );
+    m_parentPanel->Connect( wxEVT_SCROLLWIN_TOP,
+                            wxScrollWinEventHandler( WX_VIEW_CONTROLS::onScroll ), NULL, this );
+    m_parentPanel->Connect( wxEVT_SCROLLWIN_LINEUP,
+                            wxScrollWinEventHandler( WX_VIEW_CONTROLS::onScroll ), NULL, this );
+    m_parentPanel->Connect( wxEVT_SCROLLWIN_LINEDOWN,
+                            wxScrollWinEventHandler( WX_VIEW_CONTROLS::onScroll ), NULL, this );
+
+    m_zoomController = GetZoomControllerForPlatform();
+
+    m_cursorWarped = false;
+
     m_panTimer.SetOwner( this );
     this->Connect( wxEVT_TIMER,
                    wxTimerEventHandler( WX_VIEW_CONTROLS::onTimer ), NULL, this );
+
+    m_settings.m_lastKeyboardCursorPositionValid = false;
+}
+
+
+WX_VIEW_CONTROLS::~WX_VIEW_CONTROLS()
+{
 }
 
 
@@ -110,7 +148,16 @@ void WX_VIEW_CONTROLS::onMotion( wxMouseEvent& aEvent )
 void WX_VIEW_CONTROLS::onWheel( wxMouseEvent& aEvent )
 {
     const double wheelPanSpeed = 0.001;
-    const double zoomLevelScale = 1.2;      // The minimal step value when changing the current zoom level
+
+#ifdef __WXGTK3__
+    if( aEvent.GetTimestamp() == m_lastTimestamp )
+    {
+        aEvent.Skip( false );
+        return;
+    }
+
+    m_lastTimestamp = aEvent.GetTimestamp();
+#endif
 
     // mousewheelpan disabled:
     //      wheel + ctrl    -> horizontal scrolling;
@@ -153,46 +200,8 @@ void WX_VIEW_CONTROLS::onWheel( wxMouseEvent& aEvent )
     }
     else
     {
-        // Zooming
-        wxLongLong  timeStamp   = wxGetLocalTimeMillis();
-        double      timeDiff    = timeStamp.ToDouble() - m_timeStamp.ToDouble();
-        int         rotation    = aEvent.GetWheelRotation();
-        double      zoomScale = 1.0;
-
-#ifdef __WXMAC__
-        // On Apple pointer devices, wheel events occur frequently and with
-        // smaller rotation values.  For those devices, let's handle zoom
-        // based on the rotation amount rather than the time difference.
-
-        // Unused
-        ( void )timeDiff;
-
-        rotation = ( rotation > 0 ) ? std::min( rotation , 100 )
-                                    : std::max( rotation , -100 );
-
-        double dscale = rotation * 0.01;
-        zoomScale = ( rotation > 0 ) ? (1 + dscale)  : 1/(1 - dscale);
-
-#else
-
-        m_timeStamp = timeStamp;
-
-        // Set scaling speed depending on scroll wheel event interval
-        if( timeDiff < 500 && timeDiff > 0 )
-        {
-            zoomScale = 2.05 - timeDiff / 500;
-
-            // be sure zoomScale value is significant
-            zoomScale = std::max( zoomScale, zoomLevelScale );
-
-            if( rotation < 0 )
-                zoomScale = 1.0 / zoomScale;
-        }
-        else
-        {
-            zoomScale = ( rotation > 0 ) ? zoomLevelScale : 1/zoomLevelScale;
-        }
-#endif
+        int    rotation = aEvent.GetWheelRotation();
+        double zoomScale = m_zoomController->GetScaleForRotation( rotation );
 
         if( IsCursorWarpingEnabled() )
         {
@@ -206,7 +215,10 @@ void WX_VIEW_CONTROLS::onWheel( wxMouseEvent& aEvent )
         }
     }
 
-    aEvent.Skip();
+    // Do not skip this event, otherwise wxWidgets will fire
+    // 3 wxEVT_SCROLLWIN_LINEUP or wxEVT_SCROLLWIN_LINEDOWN (normal wxWidgets behavior)
+    // and we do not want that.
+    m_parentPanel->Refresh();
 }
 
 
@@ -345,8 +357,8 @@ void WX_VIEW_CONTROLS::onScroll( wxScrollWinEvent& aEvent )
 
     if( type == wxEVT_SCROLLWIN_THUMBTRACK )
     {
-        VECTOR2D center = m_view->GetCenter();
-        const BOX2I& boundary = m_view->GetBoundary();
+        auto center = m_view->GetCenter();
+        const auto& boundary = m_view->GetBoundary();
 
         // Flip scroll direction in flipped view
         const double xstart = ( m_view->IsMirroredX() ?
@@ -443,9 +455,23 @@ VECTOR2D WX_VIEW_CONTROLS::GetCursorPosition( bool aEnableSnapping ) const
 }
 
 
-void WX_VIEW_CONTROLS::SetCursorPosition( const VECTOR2D& aPosition, bool aWarpView )
+void WX_VIEW_CONTROLS::SetCursorPosition( const VECTOR2D& aPosition, bool aWarpView,
+        bool aTriggeredByArrows )
 {
     m_updateCursor = false;
+
+    if( aTriggeredByArrows )
+    {
+        m_settings.m_lastKeyboardCursorPositionValid = true;
+        m_settings.m_lastKeyboardCursorPosition = aPosition;
+        m_cursorWarped = false;
+    }
+    else
+    {
+        m_settings.m_lastKeyboardCursorPositionValid = false;
+        m_cursorWarped = true;
+    }
+
     WarpCursor( aPosition, true, aWarpView );
     m_cursorPos = aPosition;
 }
@@ -459,10 +485,8 @@ void WX_VIEW_CONTROLS::SetCrossHairCursorPosition( const VECTOR2D& aPosition, bo
     BOX2I screen( VECTOR2I( 0, 0 ), screenSize );
     VECTOR2D screenPos = m_view->ToScreen( aPosition );
 
-    if( !screen.Contains( screenPos ) )
-    {
+    if( aWarpView && !screen.Contains( screenPos ) )
         m_view->SetCenter( aPosition );
-    }
 
     m_cursorPos = aPosition;
 }
@@ -514,13 +538,27 @@ void WX_VIEW_CONTROLS::CenterOnCursor() const
 
 bool WX_VIEW_CONTROLS::handleAutoPanning( const wxMouseEvent& aEvent )
 {
-    VECTOR2D p( aEvent.GetX(), aEvent.GetY() );
+    VECTOR2I p( aEvent.GetX(), aEvent.GetY() );
+    VECTOR2I pKey( m_view->ToScreen(m_settings.m_lastKeyboardCursorPosition ) );
+
+    if( m_cursorWarped || (m_settings.m_lastKeyboardCursorPositionValid && (p == pKey)) )
+    {
+        // last cursor move event came from keyboard cursor control. If auto-panning is enabled and
+        // the next position is inside the autopan zone, check if it really came from a mouse event, otherwise
+        // disable autopan temporarily. Also temporaly disable autopan if the cursor is in the autopan zone
+        // because the application warped the cursor.
+
+        m_cursorWarped = false;
+        return true;
+    }
+
+    m_cursorWarped = false;
 
     // Compute areas where autopanning is active
-    double borderStart = std::min( m_settings.m_autoPanMargin * m_view->GetScreenPixelSize().x,
+    int borderStart = std::min( m_settings.m_autoPanMargin * m_view->GetScreenPixelSize().x,
                                    m_settings.m_autoPanMargin * m_view->GetScreenPixelSize().y );
-    double borderEndX = m_view->GetScreenPixelSize().x - borderStart;
-    double borderEndY = m_view->GetScreenPixelSize().y - borderStart;
+    int borderEndX = m_view->GetScreenPixelSize().x - borderStart;
+    int borderEndY = m_view->GetScreenPixelSize().y - borderStart;
 
     if( p.x < borderStart )
         m_panDirection.x = -( borderStart - p.x );
@@ -608,8 +646,14 @@ wxPoint WX_VIEW_CONTROLS::getMouseScreenPosition() const
 
 void WX_VIEW_CONTROLS::UpdateScrollbars()
 {
+#ifdef __WXGTK3__
+    // Until we can handle the repaint events from scroll bar hide/show
+    // todo: Implement area mapping for re-painting scrollbars
+    return;
+#endif
+
     const BOX2D viewport = m_view->GetViewport();
-    const BOX2I& boundary = m_view->GetBoundary();
+    const BOX2D& boundary = m_view->GetBoundary();
 
     m_scrollScale.x = 2e3 / viewport.GetWidth();    // TODO it does not have to be updated so often
     m_scrollScale.y = 2e3 / viewport.GetHeight();
@@ -641,4 +685,10 @@ void WX_VIEW_CONTROLS::UpdateScrollbars()
 
         m_scrollPos = newScroll;
     }
+}
+
+void WX_VIEW_CONTROLS::ForceCursorPosition( bool aEnabled, const VECTOR2D& aPosition )
+{
+    m_settings.m_forceCursorPosition = aEnabled;
+    m_settings.m_forcedPosition = aPosition;
 }

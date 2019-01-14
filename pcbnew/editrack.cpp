@@ -40,7 +40,7 @@
 #include <class_board.h>
 #include <class_track.h>
 #include <class_zone.h>
-#include <connectivity_data.h>
+#include <connectivity/connectivity_data.h>
 
 
 static void Abort_Create_Track( EDA_DRAW_PANEL* panel, wxDC* DC );
@@ -51,7 +51,7 @@ static void DeleteNullTrackSegments( BOARD* pcb, DLIST<TRACK>& aTrackList );
 static void EnsureEndTrackOnPad( D_PAD* Pad );
 
 // A PICKED_ITEMS_LIST to store tracks  which are modified/added/deleted
-// during a track edition:
+// during a track editing:
 static PICKED_ITEMS_LIST s_ItemsListPicker;
 
 

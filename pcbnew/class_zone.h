@@ -36,7 +36,6 @@
 #include <class_board_item.h>
 #include <board_connected_item.h>
 #include <layers_id_colors_and_visibility.h>
-#include <PolyLine.h>
 #include <geometry/shape_poly_set.h>
 #include <zone_settings.h>
 
@@ -106,7 +105,7 @@ public:
      */
     unsigned GetPriority() const { return m_priority; }
 
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
+    void GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList ) override;
 
     void SetLayerSet( LSET aLayerSet );
 
@@ -207,8 +206,10 @@ public:
     int GetSelectedCorner() const
     {
         // Transform relative indices to global index
-        int globalIndex;
-        m_Poly->GetGlobalIndex( *m_CornerSelection, globalIndex );
+        int globalIndex = -1;
+
+        if( m_CornerSelection )
+            m_Poly->GetGlobalIndex( *m_CornerSelection, globalIndex );
 
         return globalIndex;
     }
@@ -231,7 +232,7 @@ public:
 
     ///
     // Like HitTest but selects the current corner to be operated on
-    void SetSelectedCorner( const wxPoint& aPosition );
+    void SetSelectedCorner( const wxPoint& aPosition, int aAccuracy );
 
     int GetLocalFlags() const { return m_localFlgs; }
     void SetLocalFlags( int aFlags ) { m_localFlgs = aFlags; }
@@ -305,48 +306,69 @@ public:
                                                         int aMinClearanceValue,
                                                         bool aUseNetClearance ) const;
 
+    /**
+     * Function TransformShapeWithClearanceToPolygon
+     * Convert the zone shape to a closed polygon
+     * Used in filling zones calculations
+     * Circles and arcs are approximated by segments
+     * @param aCornerBuffer = a buffer to store the polygon
+     * @param aClearanceValue = the clearance around the pad
+     * @param aCircleToSegmentsCount = the number of segments to approximate a circle
+     * @param aCorrectionFactor = the correction to apply to circles radius to keep
+     * clearance when the circle is approximated by segment bigger or equal
+     * to the real clearance value (usually near from 1.0)
+     * @param ignoreLineWidth = used for edge cut items where the line width is only
+     * for visualization
+     */
     void TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
                                                int aClearanceValue,
                                                int aCircleToSegmentsCount,
-                                               double aCorrectionFactor ) const override;
+                                               double aCorrectionFactor,
+                                               bool ignoreLineWidth = false ) const override;
 
     /**
      * Function HitTestForCorner
      * tests if the given wxPoint is near a corner.
      * @param  refPos     is the wxPoint to test.
+     * @param  aAccuracy  increase the item bounding box by this amount.
      * @param  aCornerHit [out] is the index of the closest vertex found, useless when return
      *                    value is false.
      * @return bool - true if some corner was found to be closer to refPos than aClearance; false
      *              otherwise.
      */
-    bool HitTestForCorner( const wxPoint& refPos, SHAPE_POLY_SET::VERTEX_INDEX& aCornerHit ) const;
+    bool HitTestForCorner( const wxPoint& refPos, int aAccuracy,
+                           SHAPE_POLY_SET::VERTEX_INDEX& aCornerHit ) const;
 
     /**
      * Function HitTestForCorner
      * tests if the given wxPoint is near a corner.
      * @param  refPos     is the wxPoint to test.
+     * @param  aAccuracy  increase the item bounding box by this amount.
      * @return bool - true if some corner was found to be closer to refPos than aClearance; false
      *              otherwise.
      */
-    bool HitTestForCorner( const wxPoint& refPos ) const;
+    bool HitTestForCorner( const wxPoint& refPos, int aAccuracy ) const;
 
     /**
      * Function HitTestForEdge
      * tests if the given wxPoint is near a segment defined by 2 corners.
      * @param  refPos     is the wxPoint to test.
+     * @param  aAccuracy  increase the item bounding box by this amount.
      * @param  aCornerHit [out] is the index of the closest vertex found, useless when return
      *                    value is false.
      * @return bool - true if some edge was found to be closer to refPos than aClearance.
      */
-    bool HitTestForEdge( const wxPoint& refPos, SHAPE_POLY_SET::VERTEX_INDEX& aCornerHit ) const;
+    bool HitTestForEdge( const wxPoint& refPos, int aAccuracy,
+                         SHAPE_POLY_SET::VERTEX_INDEX& aCornerHit ) const;
 
     /**
      * Function HitTestForEdge
      * tests if the given wxPoint is near a segment defined by 2 corners.
      * @param  refPos     is the wxPoint to test.
+     * @param  aAccuracy  increase the item bounding box by this amount.
      * @return bool - true if some edge was found to be closer to refPos than aClearance.
      */
-    bool HitTestForEdge( const wxPoint& refPos ) const;
+    bool HitTestForEdge( const wxPoint& refPos, int aAccuracy ) const;
 
     /** @copydoc BOARD_ITEM::HitTest(const EDA_RECT& aRect,
      *                               bool aContained = true, int aAccuracy ) const
@@ -534,14 +556,14 @@ public:
      * returns a reference to the list of filled polygons.
      * @return Reference to the list of filled polygons.
      */
-
-    //TODO - This should be called for each layer on which the zone exists
-
     const SHAPE_POLY_SET& GetFilledPolysList() const
     {
         return m_FilledPolysList;
     }
 
+    /** (re)create a list of triangles that "fill" the solid areas.
+     * used for instance to draw these solid areas on opengl
+     */
     void CacheTriangulation();
 
    /**
@@ -596,7 +618,7 @@ public:
         return m_RawPolysList;
     }
 
-    wxString GetSelectMenuText() const override;
+    wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
 
     BITMAP_DEF GetMenuImage() const override;
 
@@ -704,7 +726,7 @@ private:
     int                   m_ZoneMinThickness;        ///< Minimum thickness value in filled areas.
 
     /** The number of segments to convert a circle to a polygon.  Valid values are
-        #ARC_APPROX_SEGMENTS_COUNT_LOW_DEF or #ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF. */
+        #ARC_APPROX_SEGMENTS_COUNT_LOW_DEF or #ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF. */
     int                   m_ArcToSegmentsCount;
 
     /** True when a zone was filled, false after deleting the filled areas. */

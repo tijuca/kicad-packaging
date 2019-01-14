@@ -74,11 +74,11 @@ public:
     int m_FastGrid2;                // 2nd fast grid setting (index in EDA_DRAW_FRAME::m_gridSelectBox)
 
 protected:
-    BOARD*              m_Pcb;
-    GENERAL_COLLECTOR*  m_Collector;
+    BOARD*               m_Pcb;
+    GENERAL_COLLECTOR*   m_Collector;
+
     PCB_GENERAL_SETTINGS m_configSettings;
 
-    void updateGridSelectBox();
     void updateZoomSelectBox();
     virtual void unitsChangeRefresh() override;
 
@@ -126,16 +126,6 @@ public:
     MODULE* LoadFootprint( const LIB_ID& aFootprintId );
 
     /**
-     * Check to see if a footprint is available
-     * Note that this is more strict than LoadFootprint as it also checks to see that
-     * the footprint's library is enabled in the fpTable.
-     *
-     * @param aFootprintId
-     * @return true if \a aFootprintId is available and can be loaded
-     */
-    bool CheckFootprint( const LIB_ID& aFootprintId );
-
-    /**
      * Function GetBoardBoundingBox
      * calculates the bounding box containing all board items (or board edge segments).
      * @param aBoardEdgesOnly is true if we are interested in board edge segments only.
@@ -163,6 +153,8 @@ public:
      */
     virtual BOARD_DESIGN_SETTINGS& GetDesignSettings() const;
     virtual void SetDesignSettings( const BOARD_DESIGN_SETTINGS& aSettings );
+
+    void SetDrawBgColor( COLOR4D aColor ) override;
 
     /**
      * Function GetDisplayOptions
@@ -213,6 +205,8 @@ public:
 
     PCB_SCREEN* GetScreen() const override { return (PCB_SCREEN*) EDA_DRAW_FRAME::GetScreen(); }
 
+    void UpdateGridSelectBox();
+
     /**
      * Function BestZoom
      * @return the "best" zoom to show the entire board or footprint on the screen.
@@ -243,17 +237,6 @@ public:
      * @return true if it is shown with me as owner
      */
     virtual bool CreateAndShow3D_Frame( bool aForceRecreateIfNotOwner );
-
-    // Read/write functions:
-    EDA_ITEM* ReadDrawSegmentDescr( LINE_READER* aReader );
-    int ReadListeSegmentDescr( LINE_READER* aReader,
-                               TRACK*       PtSegm,
-                               int          StructType,
-                               int          NumSegm );
-
-    int ReadSetup( LINE_READER* aReader );
-    int ReadGeneralDescrPcb( LINE_READER* aReader );
-
 
     /**
      * Function PcbGeneralLocateAndDisplay
@@ -297,17 +280,6 @@ public:
      *configuration options.
      */
     GENERAL_COLLECTORS_GUIDE GetCollectorsGuide();
-
-    /**
-     * Useful to focus on a particular location, in find functions
-     * Move the graphic cursor (crosshair cursor) at a given coordinate and reframes
-     * the drawing if the requested point is out of view or if center on location is requested.
-     * @param aPos is the point to go to.
-     * @param aWarpMouseCursor is true if the pointer should be warped to the new position.
-     * @param aCenterView is true if the new cursor position should be centered on canvas.
-     */
-    void FocusOnLocation( const wxPoint& aPos, bool aWarpMouseCursor = true,
-                          bool aCenterView = false );
 
     /**
      * Function SelectLibrary
@@ -382,21 +354,7 @@ public:
      */
     void ResetTextSize( BOARD_ITEM* aItem, wxDC* aDC );
 
-    /**
-     * Function ResetModuleTextSizes
-     * resets text size and width of all module text fields of given field
-     * type to current settings in Preferences->Dimensions->Texts and Drawings.
-     * @param aFilter is a filter: footprint names must match this filter.
-     *        an empty filter, or "*" do not filter anything.
-     * @param aRef = true to modify the reference of footprints.
-     * @param aValue = true to modify the value of footprints.
-     * @param aOthers = true to modify the other fields of footprints.
-     */
-    void ResetModuleTextSizes( const wxString & aFilter, bool aRef,
-                               bool aValue, bool aOthers );
-
-    void InstallPadOptionsFrame( D_PAD*         pad );
-    void InstallTextModOptionsFrame( TEXTE_MODULE* TextMod, wxDC* DC );
+    void InstallPadOptionsFrame( D_PAD* pad );
 
     void AddPad( MODULE* Module, bool draw );
 
@@ -420,72 +378,42 @@ public:
      */
     void StartMovePad( D_PAD* aPad, wxDC* aDC, bool aDragConnectedTracks );
 
-    void RotatePad( D_PAD* Pad, wxDC* DC );
     void PlacePad( D_PAD* Pad, wxDC* DC );
     void Export_Pad_Settings( D_PAD* aPad );
     void Import_Pad_Settings( D_PAD* aPad, bool aDraw );
 
     /**
-     * Function GlobalChange_PadSettings
-     * Function to change pad caracteristics for the given footprint
-     * or all footprints which look like the given footprint
+     * Function DoPushPadProperties
+     * Function to change pad settings for the given footprint or all identical footprints
      * @param aPad is the pattern. The given footprint is the parent of this pad
      * @param aSameFootprints: if true, make changes on all identical footprints
      * @param aPadShapeFilter: if true, make changes only on pads having the same shape as aPad
      * @param aPadOrientFilter: if true, make changes only on pads having the same orientation as aPad
      * @param aPadLayerFilter: if true, make changes only on pads having the same layers as aPad
-     * @param aRedraw: if true: redraws the footprint
      * @param aSaveForUndo: if true: create an entry in the Undo/Redo list
      *        (usually: true in Schematic editor, false in Module editor)
      */
-    void GlobalChange_PadSettings( D_PAD* aPad,
-                                   bool   aSameFootprints,
-                                   bool   aPadShapeFilter,
-                                   bool   aPadOrientFilter,
-                                   bool   aPadLayerFilter,
-                                   bool   aRedraw,
-                                   bool   aSaveForUndo );
+    void DoPushPadProperties( D_PAD* aPad,
+                              bool aSameFootprints,
+                              bool aPadShapeFilter,
+                              bool aPadOrientFilter,
+                              bool aPadLayerFilter,
+                              bool aSaveForUndo );
 
     /**
-     * Function SelectFootprint
-     * displays a list of modules found in all libraries or a given library
-     *
-     *  @param aWindow = the current window ( parent window )
-     *
-     *  @param aLibraryName = library to list (if aLibraryFullFilename is empty, then list all modules).
-     *           This is a nickname for the FP_LIB_TABLE build.
-     *
-     *  @param aMask = Display filter (wildcart)( Mask = wxEmptyString if not used )
-     *
-     *  @param aKeyWord = keyword list, to display a filtered list of module
-     *                    having one (or more) of these keywords in their
-     *                    keyword list ( aKeyWord = wxEmptyString if not used )
-     *
-     *  @param aTable is the #FP_LIB_TABLE to search.
-     *
-     *  @return wxEmptyString if abort or fails, or the selected module name if Ok
-     */
-    wxString SelectFootprint( EDA_DRAW_FRAME* aWindow,
-                              const wxString& aLibraryName,
-                              const wxString& aMask,
-                              const wxString& aKeyWord,
-                              FP_LIB_TABLE*   aTable );
-
-    /**
-     * Function LoadModuleFromLibrary
+     * Function SelectFootprintFromLibTree
      * opens a dialog to select a footprint.
      *
-     * @param aLibrary = the library name to use, or empty string to search all libraries
      * @param aUseFootprintViewer = true to allow selection by the footprint viewer
      */
-    MODULE* LoadModuleFromLibrary( const wxString& aLibrary, bool aUseFootprintViewer = true );
+    MODULE* SelectFootprintFromLibTree( bool aUseFootprintViewer = true );
 
     /**
      * Adds the given module to the board.
      * @param module
      * @param aDC (can be NULL ) = the current Device Context, to draw the new footprint
      */
-    void AddModuleToBoard( MODULE* module, wxDC* aDC = nullptr );
+    virtual void AddModuleToBoard( MODULE* module );
 
     /**
      * Function SelectFootprintFromLibBrowser
@@ -525,12 +453,6 @@ public:
     void TraceModuleRatsNest( wxDC* aDC );
 
     /**
-     * Function Build_Board_Ratsnest.
-     * Calculates the full ratsnest depending only on pads.
-     */
-    void Build_Board_Ratsnest();
-
-    /**
      *  function Displays the general ratsnest
      *  Only ratsnest with the status bit CH_VISIBLE is set are displayed
      * @param aDC = the current device context (can be NULL)
@@ -563,30 +485,6 @@ public:
                                    int aNet );
 
     /**
-     * Function TestForActiveLinksInRatsnest
-     * Explores the full rats nest list (which must exist) to determine
-     * the ACTIVE links in the full rats nest list
-     * When tracks exist between pads, a link can connect 2 pads already connected by a track
-     * and the link is said inactive.
-     * When a link connects 2 pads not already connected by a track, the link is said active.
-     * @param aNetCode = net code to test. If 0, test all nets
-     */
-    void TestForActiveLinksInRatsnest( int aNetCode );
-
-    /**
-     * Function TestConnections
-     * tests the connections relative to all nets.
-     * <p>
-     * This function update the status of the ratsnest ( flag CH_ACTIF = 0 if a connection
-     * is found, = 1 else) track segments are assumed to be sorted by net codes.
-     * This is the case because when a new track is added, it is inserted in the linked list
-     * according to its net code. and when nets are changed (when a new netlist is read)
-     * tracks are sorted before using this function.
-     * </p>
-     */
-    void TestConnections();
-
-    /**
      * Function TestNetConnection
      * tests the connections relative to \a aNetCode.  Track segments are assumed to be
      * sorted by net codes.
@@ -594,13 +492,6 @@ public:
      * @param aNetCode The net code to test
      */
     void TestNetConnection( wxDC* aDC, int aNetCode );
-
-    /**
-     * Function RecalculateAllTracksNetcode
-     * search connections between tracks and pads and propagate pad net codes to the track
-     * segments.
-     */
-    void ComputeLegacyConnections();
 
     /* Functions relative to Undo/redo commands:
      */
@@ -671,7 +562,7 @@ public:
     void LoadSettings( wxConfigBase* aCfg ) override;
     void SaveSettings( wxConfigBase* aCfg ) override;
 
-    bool InvokeDialogGrid();
+    void CommonSettingsChanged() override;
 
     void OnTogglePolarCoords( wxCommandEvent& aEvent );
     void OnTogglePadDrawMode( wxCommandEvent& aEvent );
@@ -687,7 +578,6 @@ public:
     void OnUpdateGraphicDrawMode( wxUpdateUIEvent& aEvent );
     void OnUpdateEdgeDrawMode( wxUpdateUIEvent& aEvent );
     void OnUpdateTextDrawMode( wxUpdateUIEvent& aEvent );
-    void OnUpdateSelectGrid( wxUpdateUIEvent& aEvent );
     void OnUpdateSelectZoom( wxUpdateUIEvent& aEvent );
 
     virtual void OnUpdateLayerAlpha( wxUpdateUIEvent& aEvent ) {}
@@ -718,8 +608,6 @@ public:
      */
     void SetPrevGrid() override;
 
-    void ClearSelection();
-
     ///> @copydoc EDA_DRAW_FRAME::UseGalCanvas
     virtual void UseGalCanvas( bool aEnable ) override;
 
@@ -733,14 +621,9 @@ public:
         return m_configSettings;
     }
 
-    const PCB_GENERAL_SETTINGS& CSettings() const
-    {
-        return m_configSettings;
-    }
-
-
     ///> Key in KifaceSettings to store the canvas type.
-    static const wxChar CANVAS_TYPE_KEY[];
+    static const wxChar AUTO_ZOOM_KEY[];
+    static const wxChar ZOOM_KEY[];
 
     DECLARE_EVENT_TABLE()
 };

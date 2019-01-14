@@ -46,7 +46,7 @@ using namespace std::placeholders;
 #include <class_edge_mod.h>
 #include <origin_viewitem.h>
 
-#include <connectivity_data.h>
+#include <connectivity/connectivity_data.h>
 
 #include <tools/selection_tool.h>
 #include <tools/pcbnew_control.h>
@@ -322,9 +322,7 @@ void PCB_BASE_EDIT_FRAME::SaveCopyInUndoList( const PICKED_ITEMS_LIST& aItemsLis
 
         default:
         {
-            wxString msg;
-            msg.Printf( wxT( "SaveCopyInUndoList() error (unknown code %X)" ), command );
-            wxMessageBox( msg );
+            wxLogDebug( wxT( "SaveCopyInUndoList() error (unknown code %X)" ), command );
         }
         break;
 
@@ -570,24 +568,24 @@ void PCB_BASE_EDIT_FRAME::PutDataInPreviousState( PICKED_ITEMS_LIST* aList, bool
 
         default:
         {
-            wxString msg;
-            msg.Printf( wxT( "PutDataInPreviousState() error (unknown code %X)" ),
+            wxLogDebug( wxT( "PutDataInPreviousState() error (unknown code %X)" ),
                         aList->GetPickedItemStatus( ii ) );
-            wxMessageBox( msg );
         }
         break;
         }
     }
 
     if( not_found )
-        wxMessageBox( wxT( "Incomplete undo/redo operation: some items not found" ) );
-
+        wxMessageBox( _( "Incomplete undo/redo operation: some items not found" ) );
+    
     // Rebuild pointers and connectivity that can be changed.
     // connectivity can be rebuilt only in the board editor frame
     if( IsType( FRAME_PCB ) && ( reBuild_ratsnest || deep_reBuild_ratsnest ) )
     {
         Compile_Ratsnest( NULL, false );
     }
+
+    GetBoard()->SanitizeNetcodes();
 }
 
 

@@ -29,7 +29,6 @@
  */
 
 #include <fctsys.h>
-#include <PolyLine.h>
 #include <trigo.h>
 #include <macros.h>
 #include <msgpanel.h>
@@ -123,6 +122,14 @@ LSET D_PAD::UnplatedHoleMask()
     return saved;
 }
 
+
+LSET D_PAD::ApertureMask()
+{
+    static LSET saved = LSET( 1, F_Paste );
+    return saved;
+}
+
+
 bool D_PAD::IsFlipped() const
 {
     if( GetParent() &&  GetParent()->GetLayer() == B_Cu )
@@ -193,6 +200,15 @@ int D_PAD::GetRoundRectCornerRadius( const wxSize& aSize ) const
     r = int( r * m_padRoundRectRadiusScale );
 
     return r;
+}
+
+
+void D_PAD::SetRoundRectCornerRadius( double aRadius )
+{
+    int min_r = std::min( m_Size.x, m_Size.y );
+
+    if( min_r > 0 )
+        SetRoundRectRadiusRatio( aRadius / min_r );
 }
 
 
@@ -700,10 +716,10 @@ int D_PAD::GetThermalGap() const
 }
 
 
-void D_PAD::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM>& aList )
+void D_PAD::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM>& aList )
 {
     MODULE*     module;
-    wxString    Line;
+    wxString    msg;
     BOARD*      board;
 
     module = (MODULE*) m_Parent;
@@ -723,45 +739,46 @@ void D_PAD::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM>& aList )
 
     aList.push_back( MSG_PANEL_ITEM( ShowPadShape(), ShowPadAttr(), DARKGREEN ) );
 
-    Line = ::CoordinateToString( m_Size.x );
-    aList.push_back( MSG_PANEL_ITEM( _( "Width" ), Line, RED ) );
+    msg = MessageTextFromValue( aUnits, m_Size.x, true );
+    aList.push_back( MSG_PANEL_ITEM( _( "Width" ), msg, RED ) );
 
-    Line = ::CoordinateToString( m_Size.y );
-    aList.push_back( MSG_PANEL_ITEM( _( "Height" ), Line, RED ) );
+    msg = MessageTextFromValue( aUnits, m_Size.y, true );
+    aList.push_back( MSG_PANEL_ITEM( _( "Height" ), msg, RED ) );
 
-    Line = ::CoordinateToString( (unsigned) m_Drill.x );
+    msg = MessageTextFromValue( aUnits, m_Drill.x, true );
 
     if( GetDrillShape() == PAD_DRILL_SHAPE_CIRCLE )
     {
-        aList.push_back( MSG_PANEL_ITEM( _( "Drill" ), Line, RED ) );
+        aList.push_back( MSG_PANEL_ITEM( _( "Drill" ), msg, RED ) );
     }
     else
     {
-        Line = ::CoordinateToString( (unsigned) m_Drill.x );
-        wxString msg;
-        msg = ::CoordinateToString( (unsigned) m_Drill.y );
-        Line += wxT( "/" ) + msg;
-        aList.push_back( MSG_PANEL_ITEM( _( "Drill X / Y" ), Line, RED ) );
+        msg = MessageTextFromValue( aUnits, m_Drill.x, true )
+               + wxT( "/" )
+               + MessageTextFromValue( aUnits, m_Drill.y, true );
+        aList.push_back( MSG_PANEL_ITEM( _( "Drill X / Y" ), msg, RED ) );
     }
 
     double module_orient_degrees = module ? module->GetOrientationDegrees() : 0;
 
     if( module_orient_degrees != 0.0 )
-        Line.Printf( wxT( "%3.1f(+%3.1f)" ),
-                     GetOrientationDegrees() - module_orient_degrees,
-                     module_orient_degrees );
+        msg.Printf( wxT( "%3.1f(+%3.1f)" ),
+                    GetOrientationDegrees() - module_orient_degrees,
+                    module_orient_degrees );
     else
-        Line.Printf( wxT( "%3.1f" ), GetOrientationDegrees() );
+        msg.Printf( wxT( "%3.1f" ), GetOrientationDegrees() );
 
-    aList.push_back( MSG_PANEL_ITEM( _( "Angle" ), Line, LIGHTBLUE ) );
+    aList.push_back( MSG_PANEL_ITEM( _( "Angle" ), msg, LIGHTBLUE ) );
 
-    Line = ::CoordinateToString( m_Pos.x ) + wxT( ", " ) + ::CoordinateToString( m_Pos.y );
-    aList.push_back( MSG_PANEL_ITEM( _( "Position" ), Line, LIGHTBLUE ) );
+    msg = MessageTextFromValue( aUnits, m_Pos.x )
+           + wxT( ", " )
+           + MessageTextFromValue( aUnits, m_Pos.y );
+    aList.push_back( MSG_PANEL_ITEM( _( "Position" ), msg, LIGHTBLUE ) );
 
     if( GetPadToDieLength() )
     {
-        Line = ::CoordinateToString( GetPadToDieLength() );
-        aList.push_back( MSG_PANEL_ITEM( _( "Length in package" ), Line, CYAN ) );
+        msg = MessageTextFromValue( aUnits, GetPadToDieLength(), true );
+        aList.push_back( MSG_PANEL_ITEM( _( "Length in package" ), msg, CYAN ) );
     }
 }
 
@@ -867,7 +884,7 @@ bool D_PAD::HitTest( const wxPoint& aPosition ) const
     {
         // Check for hit in polygon
         SHAPE_POLY_SET outline;
-        const int segmentToCircleCount = 32;
+        const int segmentToCircleCount = ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF;
         TransformRoundRectToPolygon( outline, wxPoint(0,0), GetSize(), m_Orient,
                                  GetRoundRectCornerRadius(), segmentToCircleCount );
 
@@ -1199,26 +1216,21 @@ wxString D_PAD::ShowPadAttr() const
 }
 
 
-wxString D_PAD::GetSelectMenuText() const
+wxString D_PAD::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
-    wxString text;
-    wxString padlayers( LayerMaskDescribe( GetBoard(), m_layerMask ) );
-    wxString padname( GetName() );
-
-    if( padname.IsEmpty() )
+    if( GetName().IsEmpty() )
     {
-        text.Printf( _( "Pad on %s of %s" ),
-                     GetChars( padlayers ),
-                     GetChars(GetParent()->GetReference() ) );
+        return wxString::Format( _( "Pad of %s on %s" ),
+                                 GetParent()->GetReference(),
+                                 LayerMaskDescribe( GetBoard(), m_layerMask ) );
     }
     else
     {
-        text.Printf( _( "Pad %s on %s of %s" ),
-                     GetChars(GetName() ), GetChars( padlayers ),
-                     GetChars(GetParent()->GetReference() ) );
+        return wxString::Format( _( "Pad %s of %s on %s" ),
+                                 GetName(),
+                                 GetParent()->GetReference(),
+                                 LayerMaskDescribe( GetBoard(), m_layerMask ) );
     }
-
-    return text;
 }
 
 
@@ -1295,6 +1307,9 @@ void D_PAD::ViewGetLayers( int aLayers[], int& aCount ) const
 
 unsigned int D_PAD::ViewGetLOD( int aLayer, KIGFX::VIEW* aView ) const
 {
+    if( aView->GetPrintMode() > 0 )  // In printing mode the pad is always drawable
+        return 0;
+
     const int HIDE = std::numeric_limits<unsigned int>::max();
     BOARD* board = GetBoard();
 
@@ -1329,7 +1344,7 @@ unsigned int D_PAD::ViewGetLOD( int aLayer, KIGFX::VIEW* aView ) const
         if( divisor == 0 )
             return HIDE;
 
-        return ( Millimeter2iu( 100 ) / divisor );
+        return ( Millimeter2iu( 10 ) / divisor );
     }
 
     // Other layers are shown without any conditions
@@ -1355,38 +1370,34 @@ const BOX2I D_PAD::ViewBBox() const
 
 wxString LayerMaskDescribe( const BOARD *aBoard, LSET aMask )
 {
-    // Try the single or no- layer case (easy)
-    PCB_LAYER_ID layer = aMask.ExtractLayer();
+    // Try to be smart and useful.  Check all copper first.
+    if( aMask[F_Cu] && aMask[B_Cu] )
+        return _( "All copper layers" );
 
-    switch( (int) layer )
+    // Check for copper.
+    auto layer = aBoard->GetEnabledLayers().AllCuMask() & aMask;
+
+    for( int i = 0; i < 2; i++ )
     {
-    case UNSELECTED_LAYER:
-        return _( "No layers" );
+        for( int bit = PCBNEW_LAYER_ID_START; bit < PCB_LAYER_ID_COUNT; ++bit )
+        {
+            if( layer[ bit ] )
+            {
+                wxString layerInfo = aBoard->GetLayerName( static_cast<PCB_LAYER_ID>( bit ) );
 
-    case UNDEFINED_LAYER:
-        break;
+                if( aMask.count() > 1 )
+                    layerInfo << _( " and others" );
 
-    default:
-        return aBoard->GetLayerName( layer );
+                return layerInfo;
+            }
+        }
+
+        // No copper; check for technicals.
+        layer = aBoard->GetEnabledLayers().AllTechMask() & aMask;
     }
 
-    // Try to be smart and useful, starting with outer copper
-    // (which are more important than internal ones)
-    wxString layerInfo;
-
-    if( aMask[F_Cu] )
-        AccumulateDescription( layerInfo, aBoard->GetLayerName( F_Cu ) );
-
-    if( aMask[B_Cu] )
-        AccumulateDescription( layerInfo, aBoard->GetLayerName( B_Cu ) );
-
-    if( ( aMask & LSET::InternalCuMask() ).any() )
-        AccumulateDescription( layerInfo, _("Internal" ) );
-
-    if( ( aMask & LSET::AllNonCuMask() ).any() )
-        AccumulateDescription( layerInfo, _("Non-copper" ) );
-
-    return layerInfo;
+    // No copper, no technicals: no layer
+    return _( "no layers" );
 }
 
 
@@ -1443,6 +1454,16 @@ void D_PAD::ImportSettingsFromMaster( const D_PAD& aMasterPad )
     default:
         ;
     }
+
+    // copy also local settings:
+    SetLocalClearance( aMasterPad.GetLocalClearance() );
+    SetLocalSolderMaskMargin( aMasterPad.GetLocalSolderMaskMargin() );
+    SetLocalSolderPasteMargin( aMasterPad.GetLocalSolderPasteMargin() );
+    SetLocalSolderPasteMarginRatio( aMasterPad.GetLocalSolderPasteMarginRatio() );
+
+    SetZoneConnection( aMasterPad.GetZoneConnection() );
+    SetThermalWidth( aMasterPad.GetThermalWidth() );
+    SetThermalGap( aMasterPad.GetThermalGap() );
 
     // Add or remove custom pad shapes:
     SetPrimitives( aMasterPad.GetPrimitives() );

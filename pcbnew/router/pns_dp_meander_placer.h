@@ -100,7 +100,7 @@ public:
 
     int totalLength();
 
-    const wxString TuningInfo() const override;
+    const wxString TuningInfo( EDA_UNITS_T aUnits ) const override;
     TUNING_STATUS TuningStatus() const override;
 
     bool CheckFit( MEANDER_SHAPE* aShape ) override;
@@ -115,7 +115,8 @@ private:
 //    void addCorner ( const VECTOR2I& aP );
 
     const SEG baselineSegment( const DIFF_PAIR::COUPLED_SEGMENTS& aCoupledSegs );
-
+    bool pairOrientation( const DIFF_PAIR::COUPLED_SEGMENTS& aPair );
+    
     void setWorld( NODE* aWorld );
     void release();
 

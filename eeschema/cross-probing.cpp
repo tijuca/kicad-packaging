@@ -33,7 +33,7 @@
 #include <kiway_express.h>
 #include <macros.h>
 #include <eda_dde.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 
 #include <sch_edit_frame.h>
 #include <general.h>
@@ -42,6 +42,7 @@
 #include <lib_pin.h>
 #include <sch_component.h>
 #include <sch_sheet.h>
+#include <sch_view.h>
 
 
 /**
@@ -57,6 +58,7 @@
  * \li \c \$PART: \c "reference" \c \$VAL: \c "value" Put cursor on component value.
  * \li \c \$PART: \c "reference" \c \$PAD: \c "pin name" Put cursor on the component pin.
  * \li \c \$NET: \c "netname" Highlight a specified net
+ * \li \c \$CLEAR: \c "HIGHLIGHTED" Clear components highlight
  * <p>
  * @param cmdline = received command from Pcbnew
  */
@@ -80,9 +82,26 @@ void SCH_EDIT_FRAME::ExecuteRemoteCommand( const char* cmdline )
             m_SelectedNetName = FROM_UTF8( text );
 
             SetStatusText( _( "Selected net: " ) + m_SelectedNetName );
-            SetCurrentSheetHighlightFlags();
-            m_canvas->Refresh();
+            std::vector<EDA_ITEM*> itemsToRedraw;
+            SetCurrentSheetHighlightFlags( &itemsToRedraw );
+
+            // Be sure hightlight change will be redrawn
+            KIGFX::VIEW* view = GetGalCanvas()->GetView();
+
+            for( auto item : itemsToRedraw )
+                view->Update( (KIGFX::VIEW_ITEM*)item, KIGFX::VIEW_UPDATE_FLAGS::REPAINT );
+
+            //view->MarkTargetDirty( KIGFX::TARGET_NONCACHED );
+            GetGalCanvas()->Refresh();
         }
+
+        return;
+    }
+
+    if( strcmp( idcmd, "$CLEAR:" ) == 0 )
+    {
+        if( text && strcmp( text, "HIGHLIGHTED" ) == 0 )
+            GetCanvas()->GetView()->HighlightItem( nullptr, nullptr );
 
         return;
     }
@@ -98,9 +117,10 @@ void SCH_EDIT_FRAME::ExecuteRemoteCommand( const char* cmdline )
     /* look for a complement */
     idcmd = strtok( NULL, " \n\r" );
 
-    if( idcmd == NULL )    // component only
+    if( idcmd == NULL )    // Highlight component only (from Cvpcb or Pcbnew)
     {
-        FindComponentAndItem( part_ref, true, FIND_COMPONENT_ONLY, wxEmptyString, false );
+        // Highlight component part_ref, or clear Highlight, if part_ref is not existing
+        FindComponentAndItem( part_ref, true, FIND_COMPONENT_ONLY, wxEmptyString );
         return;
     }
 
@@ -113,19 +133,19 @@ void SCH_EDIT_FRAME::ExecuteRemoteCommand( const char* cmdline )
 
     if( strcmp( idcmd, "$REF:" ) == 0 )
     {
-        FindComponentAndItem( part_ref, true, FIND_REFERENCE, msg, false );
+        FindComponentAndItem( part_ref, true, FIND_REFERENCE, msg );
     }
     else if( strcmp( idcmd, "$VAL:" ) == 0 )
     {
-        FindComponentAndItem( part_ref, true, FIND_VALUE, msg, false );
+        FindComponentAndItem( part_ref, true, FIND_VALUE, msg );
     }
     else if( strcmp( idcmd, "$PAD:" ) == 0 )
     {
-        FindComponentAndItem( part_ref, true, FIND_PIN, msg, false );
+        FindComponentAndItem( part_ref, true, FIND_PIN, msg );
     }
     else
     {
-        FindComponentAndItem( part_ref, true, FIND_COMPONENT_ONLY, wxEmptyString, false );
+        FindComponentAndItem( part_ref, true, FIND_COMPONENT_ONLY, wxEmptyString );
     }
 }
 
@@ -138,8 +158,7 @@ std::string FormatProbeItem( EDA_ITEM* aItem, SCH_COMPONENT* aPart )
     case SCH_FIELD_T:
     case LIB_FIELD_T:
         if( aPart )
-            return StrPrintf( "$PART: %s",
-                              TO_UTF8( aPart->GetField( REFERENCE )->GetText() ) );
+            return StrPrintf( "$PART: %s", TO_UTF8( aPart->GetField( REFERENCE )->GetText() ) );
         break;
 
     case SCH_COMPONENT_T:
@@ -233,10 +252,8 @@ void SCH_EDIT_FRAME::KiwayMailIn( KIWAY_EXPRESS& mail )
         break;
 
     case MAIL_SCH_PCB_UPDATE_REQUEST:
-    {
         doUpdatePcb( payload );
         break;
-    }
 
     case MAIL_BACKANNOTATE_FOOTPRINTS:
         try
@@ -250,9 +267,15 @@ void SCH_EDIT_FRAME::KiwayMailIn( KIWAY_EXPRESS& mail )
         break;
 
     case MAIL_SCH_REFRESH:
+    {
+        SCH_SCREENS schematic;
+        schematic.UpdateSymbolLinks();
+        schematic.TestDanglingEnds();
+
+        GetCanvas()->GetView()->UpdateAllItems( KIGFX::ALL );
         GetCanvas()->Refresh();
         break;
-
+    }
     case MAIL_IMPORT_FILE:
     {
         // Extract file format type and path (plugin type and path separated with \n)
@@ -279,13 +302,8 @@ void SCH_EDIT_FRAME::KiwayMailIn( KIWAY_EXPRESS& mail )
         break;
 
     case MAIL_SCH_SAVE:
-    {
-        wxCommandEvent dummyEvent;
-        OnSaveProject( dummyEvent );
-
-        if( !isAutoSaveRequired() )     // proxy for save completed
+        if( SaveProject() )
             Kiway().ExpressMail( FRAME_CVPCB, MAIL_STATUS, _( "Schematic saved" ).ToStdString() );
-    }
         break;
 
     default:

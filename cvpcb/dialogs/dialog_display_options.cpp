@@ -21,17 +21,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-/**
- * @file  cvpcb/dialogs/dialog_display_options.cpp
- */
-
 #include <fctsys.h>
 
-//#include <wxstruct.h>
 #include <common.h>
 #include <cvpcb.h>
 #include <class_drawpanel.h>
-#include <listboxes.h>
 #include <display_footprints_frame.h>
 
 #include <dialog_display_options.h>
@@ -39,33 +33,28 @@
 
 void DISPLAY_FOOTPRINTS_FRAME::InstallOptionsDisplay( wxCommandEvent& event )
 {
-    DIALOG_FOOTPRINTS_DISPLAY_OPTIONS* OptionWindow =
-        new DIALOG_FOOTPRINTS_DISPLAY_OPTIONS( this );
+    DIALOG_FOOTPRINTS_DISPLAY_OPTIONS OptionWindow( this );
 
-    OptionWindow->ShowModal();
-    OptionWindow->Destroy();
+    OptionWindow.ShowModal();
 }
 
 
-DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::DIALOG_FOOTPRINTS_DISPLAY_OPTIONS( PCB_BASE_FRAME* parent )
+DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::DIALOG_FOOTPRINTS_DISPLAY_OPTIONS( DISPLAY_FOOTPRINTS_FRAME* parent )
     : DIALOG_FOOTPRINTS_DISPLAY_OPTIONS_BASE( parent )
 {
     m_Parent = parent;
 
     initDialog();
-    m_sdbSizer1OK->SetDefault();
-    GetSizer()->SetSizeHints( this );
-    Centre();
+    m_sdbSizerOK->SetDefault();
+
+    FinishDialogSettings();;
 }
+
 
 DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::~DIALOG_FOOTPRINTS_DISPLAY_OPTIONS( )
 {
 }
 
-
-/*!
- * Control creation for DIALOG_FOOTPRINTS_DISPLAY_OPTIONS
- */
 
 void DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::initDialog()
 {
@@ -79,16 +68,9 @@ void DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::initDialog()
     m_ShowPadSketch->SetValue( not displ_opts->m_DisplayPadFill );
     m_ShowPadNum->SetValue( displ_opts->m_DisplayPadNum );
 
-    m_enableZoomNoCenter->SetValue( not m_Parent->GetCanvas()->GetEnableZoomNoCenter() );
-    m_enableMousewheelPan->SetValue( m_Parent->GetCanvas()->GetEnableMousewheelPan() );
-    m_enableAutoPan->SetValue( m_Parent->GetCanvas()->GetEnableAutoPan() );
+    m_autoZoomOption->SetValue( m_Parent->GetAutoZoom() );
 }
 
-
-
-/*!
- * Update settings related to edges, text strings, and pads
- */
 
 void DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::UpdateObjectSettings( void )
 {
@@ -98,39 +80,18 @@ void DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::UpdateObjectSettings( void )
     displ_opts->m_DisplayModTextFill = not m_TextDisplayOption->GetValue();
     displ_opts->m_DisplayPadNum  = m_ShowPadNum->GetValue();
     displ_opts->m_DisplayPadFill = not m_ShowPadSketch->GetValue();
+    m_Parent->ApplyDisplaySettingsToGAL();
 
-    m_Parent->GetCanvas()->SetEnableZoomNoCenter( not m_enableZoomNoCenter->GetValue() );
-    m_Parent->GetCanvas()->SetEnableMousewheelPan( m_enableMousewheelPan->GetValue() );
-    m_Parent->GetCanvas()->SetEnableAutoPan( m_enableAutoPan->GetValue() );
-
-    m_Parent->GetCanvas()->Refresh();
+    m_Parent->SetAutoZoom( m_autoZoomOption->GetValue() );
 }
 
 
-/*!
- * wxEVT_COMMAND_BUTTON_CLICKED event handler for wxID_OK
- */
-
-void DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::OnOkClick( wxCommandEvent& event )
+bool DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::TransferDataFromWindow()
 {
     UpdateObjectSettings();
-    EndModal( 1 );
+    return true;
 }
 
-
-/*!
- * wxEVT_COMMAND_BUTTON_CLICKED event handler for wxID_CANCEL
- */
-
-void DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::OnCancelClick( wxCommandEvent& event )
-{
-    EndModal( -1 );
-}
-
-
-/*!
- * wxEVT_COMMAND_BUTTON_CLICKED event handler for wxID_APPLY
- */
 
 void DIALOG_FOOTPRINTS_DISPLAY_OPTIONS::OnApplyClick( wxCommandEvent& event )
 {

@@ -37,7 +37,7 @@ class NETLIST_OBJECT_LIST;
 class SCH_NO_CONNECT : public SCH_ITEM
 {
     wxPoint m_pos;                 ///< Position of the no connect object.
-    wxSize  m_size;                ///< Size of the no connect object.
+    int     m_size;                ///< Size of the no connect object.
 
 public:
     SCH_NO_CONNECT( const wxPoint& pos = wxPoint( 0, 0 ) );
@@ -51,9 +51,16 @@ public:
         return wxT( "SCH_NO_CONNECT" );
     }
 
+    int GetSize() const
+    {
+        return std::max( m_size, KiROUND( GetDefaultLineThickness() * 3 ) );
+    }
+
     int GetPenSize() const override;
 
     void SwapData( SCH_ITEM* aItem ) override;
+
+    void ViewGetLayers( int aLayers[], int& aCount ) const override;
 
     void Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aOffset,
                GR_DRAWMODE aDrawMode, COLOR4D aColor = COLOR4D::UNSPECIFIED ) override;
@@ -87,7 +94,10 @@ public:
 
     void GetConnectionPoints( std::vector< wxPoint >& aPoints ) const override;
 
-    wxString GetSelectMenuText() const override { return wxString( _( "No Connect" ) ); }
+    wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override
+    {
+        return wxString( _( "No Connect" ) );
+    }
 
     BITMAP_DEF GetMenuImage() const override;
 

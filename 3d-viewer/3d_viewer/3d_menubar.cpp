@@ -138,12 +138,6 @@ void EDA_3D_VIEWER::CreateMenuBar()
 
     menuBar->Append( prefsMenu, _( "&Preferences" ) );
 
-    AddMenuItem( prefsMenu, ID_MENU3D_MOUSEWHEEL_PANNING,
-                _( "Use Touchpad to Pan" ),
-                KiBitmap( tools_xpm ), wxITEM_CHECK );
-
-    prefsMenu->AppendSeparator();
-
     AddMenuItem( prefsMenu, ID_TOOL_SET_VISIBLE_ITEMS,
                  _( "Display Options" ),
                  KiBitmap( read_setup_xpm ) );
@@ -180,7 +174,7 @@ void EDA_3D_VIEWER::CreateMenuBar()
 
     materialsList->AppendRadioItem( ID_MENU3D_FL_RENDER_MATERIAL_MODE_DIFFUSE_ONLY,
                                     _( "Use Diffuse Only" ),
-                                    _( "Use only the diffuse color property from model 3D model file " ) );
+                                    _( "Use only the diffuse color property from model 3D model file" ) );
 
     materialsList->AppendRadioItem( ID_MENU3D_FL_RENDER_MATERIAL_MODE_CAD_MODE,
                                     _( "CAD Color Style" ),
@@ -368,10 +362,6 @@ void EDA_3D_VIEWER::SetMenuBarOptionsState()
 
     wxMenuItem* item;
     // Set the state of toggle menus according to the current display options
-    item = menuBar->FindItem( ID_MENU3D_MOUSEWHEEL_PANNING );
-    item->Check( m_settings.GetFlag( FL_MOUSEWHEEL_PANNING ) );
-
-
     item = menuBar->FindItem( ID_MENU3D_ENGINE_OPENGL_LEGACY );
     item->Check( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY );
 

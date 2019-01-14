@@ -28,6 +28,7 @@
  */
 
 #include <Python.h>
+#undef HAVE_CLOCK_GETTIME  // macro is defined in Python.h and causes redefine warning
 
 #include <pcbnew_scripting_helpers.h>
 #include <pcbnew.h>
@@ -77,7 +78,12 @@ BOARD* LoadBoard( wxString& aFileName, IO_MGR::PCB_FILE_T aFormat )
     BOARD* brd = IO_MGR::Load( aFormat, aFileName );
 
     if( brd )
+    {
         brd->BuildConnectivity();
+        brd->BuildListOfNets();
+        brd->SynchronizeNetsAndNetClasses();
+    }
+
 
     return brd;
 }
@@ -126,7 +132,7 @@ void Refresh()
 
 void WindowZoom( int xl, int yl, int width, int height )
 {
-    EDA_RECT Rect( wxPoint( xl, yl ), wxSize( width, height )) ;
+    EDA_RECT Rect( wxPoint( xl, yl ), wxSize( width, height ) );
 
     if( s_PcbEditFrame )
         s_PcbEditFrame->Window_Zoom( Rect );

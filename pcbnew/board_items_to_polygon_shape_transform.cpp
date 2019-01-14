@@ -33,6 +33,7 @@
 #include <vector>
 
 #include <fctsys.h>
+#include <bezier_curves.h>
 #include <base_units.h>     // for IU_PER_MM
 #include <draw_graphic_text.h>
 #include <pcbnew.h>
@@ -79,7 +80,7 @@ static void addTextSegmToPoly( int x0, int y0, int xf, int yf, void* aData )
 void BOARD::ConvertBrdLayerToPolygonalContours( PCB_LAYER_ID aLayer, SHAPE_POLY_SET& aOutlines )
 {
     // Number of segments to convert a circle to a polygon
-    const int       segcountforcircle   = 18;
+    const int       segcountforcircle   = ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF;
     double          correctionFactor    = GetCircletoPolyCorrectionFactor( segcountforcircle );
 
     // convert tracks and vias:
@@ -406,8 +407,8 @@ void ZONE_CONTAINER::TransformSolidAreasShapesToPolygonSet(
  * @param aCornerBuffer = a buffer to store the polygon
  * @param aClearanceValue = the clearance around the text bounding box
  */
-void TEXTE_PCB::TransformBoundingBoxWithClearanceToPolygon(
-                    SHAPE_POLY_SET& aCornerBuffer,
+void EDA_TEXT::TransformBoundingBoxWithClearanceToPolygon(
+                    SHAPE_POLY_SET* aCornerBuffer,
                     int             aClearanceValue ) const
 {
     // Oh dear.  When in UTF-8 mode, wxString puts string iterators in a linked list, and
@@ -430,13 +431,13 @@ void TEXTE_PCB::TransformBoundingBoxWithClearanceToPolygon(
     corners[3].y = corners[2].y;
     corners[3].x = corners[0].x;
 
-    aCornerBuffer.NewOutline();
+    aCornerBuffer->NewOutline();
 
     for( int ii = 0; ii < 4; ii++ )
     {
         // Rotate polygon
         RotatePoint( &corners[ii].x, &corners[ii].y, GetTextPos().x, GetTextPos().y, GetTextAngle() );
-        aCornerBuffer.Append( corners[ii].x, corners[ii].y );
+        aCornerBuffer->Append( corners[ii].x, corners[ii].y );
     }
 }
 
@@ -509,14 +510,19 @@ void TEXTE_PCB::TransformShapeWithClearanceToPolygonSet(
  * @param aCorrectionFactor = the correction to apply to circles radius to keep
  * clearance when the circle is approxiamted by segment bigger or equal
  * to the real clearance value (usually near from 1.0)
+ * @param ignoreLineWidth = used for edge cut items where the line width is only
+ * for visualization
  */
 void DRAWSEGMENT::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
                                                         int             aClearanceValue,
                                                         int             aCircleToSegmentsCount,
-                                                        double          aCorrectionFactor ) const
+                                                        double          aCorrectionFactor,
+                                                        bool            ignoreLineWidth ) const
 {
     // The full width of the lines to create:
-    int linewidth = m_Width + (2 * aClearanceValue);
+    int linewidth = ignoreLineWidth ? 0 : m_Width;
+
+    linewidth += 2 * aClearanceValue;
 
     // Creating a reliable clearance shape for circles and arcs is not so easy, due to
     // the error created by segment approximation.
@@ -572,6 +578,20 @@ void DRAWSEGMENT::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerB
                 poly[ii] += offset;
             }
 
+            // If the polygon is not filled, treat it as a closed set of lines
+            if( !IsPolygonFilled() )
+            {
+                for( size_t ii = 1; ii < poly.size(); ii++ )
+                {
+                    TransformOvalClearanceToPolygon( aCornerBuffer, poly[ii - 1], poly[ii],
+                            linewidth, aCircleToSegmentsCount, aCorrectionFactor );
+                }
+
+                TransformOvalClearanceToPolygon( aCornerBuffer, poly.back(), poly.front(),
+                        linewidth, aCircleToSegmentsCount, aCorrectionFactor );
+                break;
+            }
+
             // Generate polygons for the outline + clearance
             // This code is compatible with a polygon with holes linked to external outline
             // by overlapping segments.
@@ -602,7 +622,19 @@ void DRAWSEGMENT::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerB
         }
         break;
 
-    case S_CURVE:       // Bezier curve (TODO: not yet in use)
+    case S_CURVE:       // Bezier curve
+        {
+            std::vector<wxPoint> ctrlPoints = { m_Start, m_BezierC1, m_BezierC2, m_End };
+            BEZIER_POLY converter( ctrlPoints );
+            std::vector< wxPoint> poly;
+            converter.GetPoly( poly, m_Width );
+
+            for( unsigned ii = 1; ii < poly.size(); ii++ )
+            {
+                TransformRoundedEndsSegmentToPolygon( aCornerBuffer,
+                        poly[ii-1], poly[ii], aCircleToSegmentsCount, linewidth );
+            }
+        }
         break;
 
     default:
@@ -622,12 +654,17 @@ void DRAWSEGMENT::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerB
  * @param aCorrectionFactor = the correction to apply to circles radius to keep
  * clearance when the circle is approximated by segment bigger or equal
  * to the real clearance value (usually near from 1.0)
+ * @param ignoreLineWidth = used for edge cut items where the line width is only
+ * for visualization
  */
 void TRACK::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
                                                    int  aClearanceValue,
                                                    int  aCircleToSegmentsCount,
-                                                   double aCorrectionFactor ) const
+                                                   double aCorrectionFactor,
+                                                   bool ignoreLineWidth ) const
 {
+    wxASSERT_MSG( !ignoreLineWidth, "IgnoreLineWidth has no meaning for tracks." );
+
     switch( Type() )
     {
     case PCB_VIA_T:
@@ -658,12 +695,17 @@ void TRACK::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
  * aCorrectionFactor = the correction to apply to circles radius to keep
  * clearance when the circle is approximated by segment bigger or equal
  * to the real clearance value (usually near from 1.0)
+ * @param ignoreLineWidth = used for edge cut items where the line width is only
+ * for visualization
  */
 void D_PAD::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
                                                    int             aClearanceValue,
                                                    int             aCircleToSegmentsCount,
-                                                   double          aCorrectionFactor ) const
+                                                   double          aCorrectionFactor,
+                                                   bool            ignoreLineWidth ) const
 {
+    wxASSERT_MSG( !ignoreLineWidth, "IgnoreLineWidth has no meaning for pads." );
+
     double  angle = m_Orient;
     int     dx = (m_Size.x / 2) + aClearanceValue;
     int     dy = (m_Size.y / 2) + aClearanceValue;
@@ -1261,7 +1303,7 @@ void    CreateThermalReliefPadPolygon( SHAPE_POLY_SET& aCornerBuffer,
 
         stub.NewOutline();
 
-        for( unsigned ii = 0; ii < DIM( stubBuffer ); ii++ )
+        for( unsigned ii = 0; ii < arrayDim( stubBuffer ); ii++ )
         {
             wxPoint cpos = stubBuffer[ii];
             RotatePoint( &cpos, aPad.GetOrientation() );
@@ -1283,7 +1325,7 @@ void    CreateThermalReliefPadPolygon( SHAPE_POLY_SET& aCornerBuffer,
         stub.RemoveAllContours();
         stub.NewOutline();
 
-        for( unsigned ii = 0; ii < DIM( stubBuffer ); ii++ )
+        for( unsigned ii = 0; ii < arrayDim( stubBuffer ); ii++ )
         {
             wxPoint cpos = stubBuffer[ii];
             RotatePoint( &cpos, aPad.GetOrientation() );
@@ -1308,8 +1350,11 @@ void    CreateThermalReliefPadPolygon( SHAPE_POLY_SET& aCornerBuffer,
 void ZONE_CONTAINER::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
                                                         int             aClearanceValue,
                                                         int             aCircleToSegmentsCount,
-                                                        double          aCorrectionFactor ) const
+                                                        double          aCorrectionFactor,
+                                                        bool            ignoreLineWidth ) const
 {
+    wxASSERT_MSG( !ignoreLineWidth, "IgnoreLineWidth has no meaning for zones." );
+
     aCornerBuffer = m_FilledPolysList;
     aCornerBuffer.Simplify( SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
 }

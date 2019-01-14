@@ -79,11 +79,7 @@ void FOOTPRINT_EDIT_FRAME::Place_EdgeMod( EDGE_MODULE* aEdge )
     if( aEdge == NULL )
         return;
 
-    aEdge->SetStart( aEdge->GetStart() - MoveVector );
-    aEdge->SetEnd(   aEdge->GetEnd()   - MoveVector );
-
-    aEdge->SetStart0( aEdge->GetStart0() - MoveVector );
-    aEdge->SetEnd0(   aEdge->GetEnd0()   - MoveVector );
+    aEdge->Move( -MoveVector );
 
     aEdge->ClearFlags();
     m_canvas->SetMouseCapture( NULL, NULL );
@@ -168,19 +164,17 @@ void FOOTPRINT_EDIT_FRAME::Edit_Edge_Width( EDGE_MODULE* aEdge )
 
     if( aEdge == NULL )
     {
-        aEdge = (EDGE_MODULE*) (BOARD_ITEM*) module->GraphicalItemsList();
-
         for( BOARD_ITEM *item = module->GraphicalItemsList(); item; item = item->Next() )
         {
             aEdge = dyn_cast<EDGE_MODULE*>( item );
 
             if( aEdge )
-                aEdge->SetWidth( GetDesignSettings().m_ModuleSegmentWidth );
+                aEdge->SetWidth( GetDesignSettings().GetLineThickness( aEdge->GetLayer() ) );
         }
     }
     else
     {
-        aEdge->SetWidth( GetDesignSettings().m_ModuleSegmentWidth );
+        aEdge->SetWidth( GetDesignSettings().GetLineThickness( aEdge->GetLayer() ) );
     }
 
     OnModify();
@@ -247,29 +241,6 @@ void FOOTPRINT_EDIT_FRAME::Edit_Edge_Layer( EDGE_MODULE* aEdge )
 }
 
 
-void FOOTPRINT_EDIT_FRAME::Enter_Edge_Width( EDGE_MODULE* aEdge )
-{
-    wxString buffer;
-
-    buffer = StringFromValue( g_UserUnit, GetDesignSettings().m_ModuleSegmentWidth );
-    WX_TEXT_ENTRY_DIALOG dlg( this, _( "New Width:" ), _( "Edge Width" ), buffer );
-
-    if( dlg.ShowModal() != wxID_OK )
-        return; // canceled by user
-
-    buffer = dlg.GetValue( );
-    GetDesignSettings().m_ModuleSegmentWidth = ValueFromString( g_UserUnit, buffer );
-
-    if( aEdge )
-    {
-        MODULE* module = GetBoard()->m_Modules;
-        aEdge->SetWidth( GetDesignSettings().m_ModuleSegmentWidth );
-        module->CalculateBoundingBox();
-        OnModify();
-    }
-}
-
-
 void FOOTPRINT_EDIT_FRAME::Delete_Edge_Module( EDGE_MODULE* aEdge )
 {
     if( aEdge == NULL )
@@ -277,7 +248,7 @@ void FOOTPRINT_EDIT_FRAME::Delete_Edge_Module( EDGE_MODULE* aEdge )
 
     if( aEdge->Type() != PCB_MODULE_EDGE_T )
     {
-        DisplayError( this, wxT( "StructType error: PCB_MODULE_EDGE_T expected" ) );
+        wxLogDebug( wxT( "StructType error: PCB_MODULE_EDGE_T expected" ) );
         return;
     }
 
@@ -347,7 +318,7 @@ EDGE_MODULE* FOOTPRINT_EDIT_FRAME::Begin_Edge_Module( EDGE_MODULE* aEdge,
         if( aEdge->GetShape() == S_ARC )
             aEdge->SetAngle( ArcValue );
 
-        aEdge->SetWidth( GetDesignSettings().m_ModuleSegmentWidth );
+        aEdge->SetWidth( GetDesignSettings().GetLineThickness( GetActiveLayer() ) );
         aEdge->SetLayer( GetActiveLayer() );
 
         // Initialize the starting point of the new segment or arc
@@ -387,7 +358,7 @@ EDGE_MODULE* FOOTPRINT_EDIT_FRAME::Begin_Edge_Module( EDGE_MODULE* aEdge,
                 aEdge = newedge;     // point now new item
 
                 aEdge->SetFlags( IS_NEW );
-                aEdge->SetWidth( GetDesignSettings().m_ModuleSegmentWidth );
+                aEdge->SetWidth( GetDesignSettings().GetLineThickness( aEdge->GetLayer() ) );
                 aEdge->SetStart( GetCrossHairPosition() );
                 aEdge->SetEnd( aEdge->GetStart() );
 
@@ -409,7 +380,7 @@ EDGE_MODULE* FOOTPRINT_EDIT_FRAME::Begin_Edge_Module( EDGE_MODULE* aEdge,
         }
         else
         {
-            wxMessageBox( wxT( "Begin_Edge() error" ) );
+            wxLogDebug( wxT( "Begin_Edge() error" ) );
         }
     }
 

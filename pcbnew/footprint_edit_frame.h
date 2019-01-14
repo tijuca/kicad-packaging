@@ -29,10 +29,13 @@
 #include <pcb_base_edit_frame.h>
 #include <io_mgr.h>
 #include <config_params.h>
+#include <fp_tree_synchronizing_adapter.h>
 
 class PCB_LAYER_WIDGET;
 class FP_LIB_TABLE;
 class EDGE_MODULE;
+class FOOTPRINT_TREE_PANE;
+class LIB_MANAGER;
 
 namespace PCB { struct IFACE; }     // A KIFACE_I coded in pcbnew.c
 
@@ -40,6 +43,13 @@ namespace PCB { struct IFACE; }     // A KIFACE_I coded in pcbnew.c
 class FOOTPRINT_EDIT_FRAME : public PCB_BASE_EDIT_FRAME
 {
     friend struct PCB::IFACE;
+
+    FOOTPRINT_TREE_PANE*        m_treePane;
+    LIB_TREE_MODEL_ADAPTER::PTR m_adapter;
+
+    std::unique_ptr<MODULE>     m_copiedModule;
+    std::unique_ptr<MODULE>     m_revertModule;
+    wxString                    m_footprintNameWhenLoaded;
 
 public:
 
@@ -55,6 +65,8 @@ public:
     ///> @copydoc PCB_BASE_EDIT_FRAME::GetModel()
     BOARD_ITEM_CONTAINER* GetModel() const override;
 
+    bool IsCurrentFPFromBoard() const;
+
     BOARD_DESIGN_SETTINGS& GetDesignSettings() const override;
     void SetDesignSettings( const BOARD_DESIGN_SETTINGS& aSettings ) override;
 
@@ -67,8 +79,7 @@ public:
     double BestZoom() override;
 
     /**
-     * Function GetConfigurationSettings
-     * returns the footpr�int editor settings list.
+     * Return the footprint editor settings list.
      *
      * Currently, only the settings that are needed at start
      * up by the main window are defined here.  There are other locally used
@@ -80,44 +91,50 @@ public:
      */
     PARAM_CFG_ARRAY& GetConfigurationSettings();
 
-    void InstallOptionsFrame( const wxPoint& pos );
-
     void OnCloseWindow( wxCloseEvent& Event ) override;
     void CloseModuleEditor( wxCommandEvent& Event );
+
+    /**
+     * switches currently used canvas (default / Cairo / OpenGL).
+     * It also reinit the layers manager that slightly changes with canvases
+     */
+    virtual void OnSwitchCanvas( wxCommandEvent& aEvent ) override;
+
+    /**
+     * Update the layer manager and other widgets from the board setup
+     * (layer and items visibility, colors ...)
+     */
+    void UpdateUserInterface();
 
     void Process_Special_Functions( wxCommandEvent& event );
 
     void ProcessPreferences( wxCommandEvent& event );
 
     /**
-     * Function RedrawActiveWindoow
-     * draws the footprint editor BOARD, and others elements such as axis and grid.
+     * Draw the footprint editor BOARD, and others elements such as axis and grid.
      */
     void RedrawActiveWindow( wxDC* DC, bool EraseBg ) override;
 
     /**
-     * Function ReCreateHToolbar
-     * create the main horizontal toolbar for the footprint editor
+     * Create the main horizontal toolbar for the footprint editor.
      */
     void ReCreateHToolbar() override;
 
     void ReCreateVToolbar() override;
     void ReCreateOptToolbar() override;
-    void ReCreateAuxiliaryToolbar() override;
     void OnLeftClick( wxDC* DC, const wxPoint& MousePos ) override;
 
     /**
-     * Function OnLeftDClick
-     * handles the double click in the footprint editor:
+     * Handle the double click in the footprint editor.
+     *
      * If the double clicked item is editable: call the corresponding editor.
      */
     void OnLeftDClick( wxDC* DC, const wxPoint& MousePos ) override;
 
     /**
-     * Function OnRightClick
-     * handles the right mouse click in the footprint editor:
-     * Create the pop up menu
-     * After this menu is built, the standard ZOOM menu is added
+     * Handle the right mouse click in the footprint editor.
+     *
+     * Create the pop up menu.  After this menu is built, the standard ZOOM menu is added
      */
     bool OnRightClick( const wxPoint& MousePos, wxMenu* PopMenu ) override;
 
@@ -132,22 +149,25 @@ public:
     void ToolOnRightClick( wxCommandEvent& event ) override;
     void OnSelectOptionToolbar( wxCommandEvent& event );
     void OnConfigurePaths( wxCommandEvent& aEvent );
+    void OnToggleSearchTree( wxCommandEvent& event );
+
+    void OnSaveFootprintAsPng( wxCommandEvent& event );
+
+    bool IsSearchTreeShown();
 
     /**
-     * Function OnSaveLibraryAs
-     * saves the current library to a new name and/or library type.
+     * Save a library to a new name and/or library type.
      *
      * @note Saving as a new library type requires the plug-in to support saving libraries
      * @see PLUGIN::FootprintSave and PLUGIN::FootprintLibCreate
      */
-    void OnSaveLibraryAs( wxCommandEvent& aEvent );
+    bool SaveLibraryAs( const wxString& aLibraryPath );
 
     ///> @copydoc EDA_DRAW_FRAME::GetHotKeyDescription()
     EDA_HOTKEY* GetHotKeyDescription( int aCommand ) const override;
 
     /**
-     * Function OnHotKey
-     * handle hot key events.
+     * Handle hot key events.
      * <p>
      * Some commands are relative to the item under the mouse cursor.  Commands are
      * case insensitive
@@ -165,8 +185,7 @@ public:
     bool OnHotkeyDuplicateItem( int aIdCommand );
 
     /**
-     * Function Show3D_Frame
-     * displays 3D view of the footprint (module) being edited.
+     * Display 3D view of the footprint (module) being edited.
      */
     void Show3D_Frame( wxCommandEvent& event ) override;
 
@@ -174,43 +193,50 @@ public:
     void OnVerticalToolbar( wxCommandEvent& aEvent );
 
     /**
-     * handle ID_ZOOM_SELECTION and ID_NO_TOOL_SELECTED tools
+     * Handle ID_ZOOM_SELECTION and ID_NO_TOOL_SELECTED tools
      */
     void OnUpdateSelectTool( wxUpdateUIEvent& aEvent );
 
     /**
-     * handle most of tools og the vertical right toolbar ("Tools" toolbar)
+     * Handle most of tools og the vertical right toolbar ("Tools" toolbar)
      */
     void OnUpdateVerticalToolbar( wxUpdateUIEvent& aEvent );
 
     void OnUpdateOptionsToolbar( wxUpdateUIEvent& aEvent );
-    void OnUpdateLibSelected( wxUpdateUIEvent& aEvent );
     void OnUpdateModuleSelected( wxUpdateUIEvent& aEvent );
+    void OnUpdateModuleTargeted( wxUpdateUIEvent& aEvent );
+    void OnUpdateSave( wxUpdateUIEvent& aEvent );
+    void OnUpdateSaveAs( wxUpdateUIEvent& aEvent );
     void OnUpdateLoadModuleFromBoard( wxUpdateUIEvent& aEvent );
     void OnUpdateInsertModuleInBoard( wxUpdateUIEvent& aEvent );
-    void OnUpdateReplaceModuleInBoard( wxUpdateUIEvent& aEvent );
-    void OnUpdateSelectCurrentLib( wxUpdateUIEvent& aEvent );
 
     ///> @copydoc PCB_BASE_EDIT_FRAME::OnEditItemRequest()
     void OnEditItemRequest( wxDC* aDC, BOARD_ITEM* aItem ) override;
 
     /**
-     * Function LoadModuleFromBoard
-     * called from the main toolbar to load a footprint from board mainly to edit it.
+     * Called from the main toolbar to load a footprint from board mainly to edit it.
      */
     void LoadModuleFromBoard( wxCommandEvent& event );
 
+    void LoadModuleFromLibrary( LIB_ID aFPID );
+
     /**
-     * Function SaveFootprintInLibrary
-     * Save in an existing library a given footprint
-     * @param activeLibrary = default library if the footprint has none
+     * Returns the adapter object that provides the stored data.
+     */
+    LIB_TREE_MODEL_ADAPTER::PTR& GetLibTreeAdapter() { return m_adapter; }
+
+    /**
+     * Save in an existing library a given footprint.
+     *
      * @param aModule = the given footprint
      * @return : true if OK, false if abort
      */
-    bool SaveFootprintInLibrary( wxString activeLibrary, MODULE* aModule );
+    bool SaveFootprint( MODULE* aModule );
+    bool SaveFootprintAs( MODULE* aModule );
+    bool SaveFootprintToBoard( bool aAddNew );
+    bool RevertFootprint();
 
     /**
-     * Virtual Function OnModify()
      * Must be called after a footprint change
      * in order to set the "modify" flag of the current screen
      * and prepare, if needed the refresh of the 3D frame showing the footprint
@@ -219,28 +245,15 @@ public:
     virtual void OnModify() override;
 
     /**
-     * Function ToPrinter
      * Install the print dialog
      */
     void ToPrinter( wxCommandEvent& event );
 
-    /**
-     * Function PrintPage
-     * is used to print a page. Prints the page pointed by ActiveScreen,
-     * set by the calling print function.
-     * @param aDC = wxDC given by the calling print function
-     * @param aPrintMaskLayer = not used here
-     * @param aPrintMirrorMode = not used here (Set when printing in mirror mode)
-     * @param aData = a pointer on an auxiliary data (NULL if not used)
-     */
-    virtual void PrintPage( wxDC* aDC, LSET aPrintMaskLayer, bool aPrintMirrorMode,
-                            void * aData = NULL) override;
-
     // BOARD handling
 
     /**
-     * Function Clear_Pcb
-     * delete all and reinitialize the current board
+     * Delete all and reinitialize the current board.
+     *
      * @param aQuery = true to prompt user for confirmation, false to initialize silently
      */
     bool Clear_Pcb( bool aQuery );
@@ -249,8 +262,8 @@ public:
     virtual int BlockCommand( EDA_KEY key ) override;
 
     /**
-     * Function HandleBlockPlace
-     * handles the BLOCK PLACE command
+     * Handle the BLOCK PLACE command.
+     *
      *  Last routine for block operation for:
      *  - block move & drag
      *  - block copy & paste
@@ -258,7 +271,6 @@ public:
     virtual void HandleBlockPlace( wxDC* DC ) override;
 
     /**
-     * Function HandleBlockEnd( )
      * Handle the "end"  of a block command,
      * i.e. is called at the end of the definition of the area of a block.
      * depending on the current block command, this command is executed
@@ -271,22 +283,23 @@ public:
 
     BOARD_ITEM* ModeditLocateAndDisplay( int aHotKeyCode = 0 );
 
-    /// Return the current library nickname.
-    const wxString GetCurrentLib() const;
+    /// Return the LIB_ID of the part selected in the footprint or the part being edited.
+    LIB_ID getTargetFPID() const;
 
-    // Footprint edition
+    /// Return the LIB_ID of the part being edited.
+    LIB_ID GetLoadedFPID() const;
+
     void RemoveStruct( EDA_ITEM* Item );
 
     /**
-     * Function Transform
-     * performs a geometric transform on the current footprint.
+     * Perform a geometric transform on the current footprint.
      */
     void Transform( MODULE* module, int transform );
 
     // importing / exporting Footprint
     /**
-     * Function Export_Module
      * Create a file containing only one footprint.
+     *
      * Used to export a footprint
      * Exported files  have the standard ext .emp
      * This is the same format as .mod files but restricted to only one footprint
@@ -297,46 +310,37 @@ public:
     void Export_Module( MODULE* aModule );
 
     /**
-     * Function Import_Module
      * Read a file containing only one footprint.
+     *
      * Used to import (after exporting) a footprint
      * Exported files  have the standard ext .emp
      * This is the same format as .mod files but restricted to only one footprint
      * The import function can also read gpcb footprint file, in Newlib format
      * (One footprint per file, Newlib files have no special ext.)
      */
-     MODULE* Import_Module( const wxString& aName = wxT("") );
-
-
-    /**
-     * Function SaveCurrentModule
-     * saves the module which is currently being edited into aLibPath or into the
-     * currently selected library if aLibPath is NULL.
-     * @return bool - true if successfully saved, else false because abort or error.
-     */
-    bool SaveCurrentModule( const wxString* aLibPath = NULL );
+    MODULE* Import_Module( const wxString& aName = wxT("") );
 
     /**
-     * Function Load_Module_From_BOARD
-     * load in Modedit a footprint from the main board
+     * Load in Modedit a footprint from the main board.
+     *
      * @param Module = the module to load. If NULL, a module reference will we asked to user
      * @return true if a module isloaded, false otherwise.
      */
     bool Load_Module_From_BOARD( MODULE* Module );
 
     /**
-     * Function SelectFootprint
-     * Display the list of modules currently existing on the BOARD
+     * Display the list of modules currently existing on the BOARD.
+     *
      * @return a pointer to a module if this module is selected or NULL otherwise
      * @param aPcb = the board from modules can be loaded
      */
-    MODULE* SelectFootprint( BOARD* aPcb );
+    MODULE* SelectFootprintFromBoard( BOARD* aPcb );
 
     // functions to edit footprint edges
 
     /**
-     * Function Edit_Edge_Width
-     * changes the width of module perimeter lines, EDGE_MODULEs.
+     * Change the width of module perimeter lines, EDGE_MODULEs.
+     *
      * param ModuleSegmentWidth (global) = new width
      * @param aEdge = edge to edit, or NULL.  If aEdge == NULL change
      *               the width of all footprint's edges
@@ -344,25 +348,24 @@ public:
     void Edit_Edge_Width( EDGE_MODULE* aEdge );
 
     /**
-     * Function Edit_Edge_Layer
-     * changes the EDGE_MODULE Edge layer,  (The new layer will be asked)
+     * Change the EDGE_MODULE Edge layer,  (The new layer will be asked)
      * if Edge == NULL change the layer of the entire footprint edges
+     *
      * @param Edge = edge to edit, or NULL
      */
     void Edit_Edge_Layer( EDGE_MODULE* Edge );
 
     /**
-     * Function Delete_Edge_Module
-     * deletes EDGE_MODULE Edge
+     * Delete EDGE_MODULE ddge.
+     *
      * @param Edge = edge to delete
      */
     void Delete_Edge_Module( EDGE_MODULE* Edge );
 
     /**
-     * Function Begin_Edge_Module
-     * creates a new edge item (line, arc ..).
-     * @param Edge = if NULL: create new edge else terminate edge and create a
-     *                new edge
+     * Creates a new edge item (line, arc ..).
+     *
+     * @param Edge = if NULL: create new edge else terminate edge and create a new edge
      * @param DC = current Device Context
      * @param type_edge = S_SEGMENT,S_ARC ..
      * @return the new created edge.
@@ -370,20 +373,9 @@ public:
     EDGE_MODULE* Begin_Edge_Module( EDGE_MODULE* Edge, wxDC* DC, STROKE_T type_edge );
 
     /**
-     * Function End_Edge_Module
-     * terminates a move or create edge function
+     * Terminate a move or create edge function.
      */
     void End_Edge_Module( EDGE_MODULE* Edge );
-
-    /**
-     * Function Enter_Edge_Width
-     * Edition of width of module outlines
-     * Ask for a new width.
-     * Change the width of EDGE_MODULE Edge if aEdge != NULL
-     * @param aEdge = edge to edit, or NULL
-     * changes ModuleSegmentWidth (global) = new width
-     */
-    void Enter_Edge_Width( EDGE_MODULE* aEdge );
 
     /// Function to initialize the move function params of a graphic item type DRAWSEGMENT
     void Start_Move_EdgeMod( EDGE_MODULE* drawitem, wxDC* DC );
@@ -392,31 +384,23 @@ public:
     void Place_EdgeMod( EDGE_MODULE* drawitem );
 
     /**
-     * Function InstallFootprintBodyItemPropertiesDlg
-     * Install a dialog to edit a graphic item of a footprint body.
-     * @param aItem = a pointer to the graphic item to edit
-     */
-    void InstallFootprintBodyItemPropertiesDlg( EDGE_MODULE* aItem );
-
-    /**
-     * Function DlgGlobalChange_PadSettings
-     * changes pad characteristics for the given footprint
+     * Change pad characteristics for the given footprint
      * or all footprints which look like the given footprint.
      * Options are set by the opened dialog.
      * @param aPad is the pattern. The given footprint is the parent of this pad
      */
-    void DlgGlobalChange_PadSettings( D_PAD* aPad );
+    void PushPadProperties( D_PAD* aPad );
 
     /**
-     * Function DeleteModuleFromCurrentLibrary
-     * prompts user for footprint name, then deletes it from current library.
+     * Delete the given module from its library.
      */
-    bool DeleteModuleFromCurrentLibrary();
+    bool DeleteModuleFromLibrary( const LIB_ID& aFPID, bool aConfirm );
 
     /**
-     * Function IsElementVisible
-     * tests whether a given element category is visible. Keep this as an
-     * inline function.
+     * Test whether a given element category is visible.
+     *
+     * Keep this as an inline function.
+     *
      * @param aElement is from the enum by the same name
      * @return bool - true if the element is visible.
      * @see enum PCB_LAYER_ID
@@ -433,13 +417,11 @@ public:
     void SetElementVisibility( GAL_LAYER_ID aElement, bool aNewState );
 
     /**
-     * Function IsGridVisible() , virtual
      * @return true if the grid must be shown
      */
     virtual bool IsGridVisible() const override;
 
     /**
-     * Function SetGridVisibility() , virtual
      * It may be overloaded by derived classes
      * if you want to store/retrieve the grid visibility in configuration.
      * @param aVisible = true if the grid must be shown
@@ -447,7 +429,6 @@ public:
     virtual void SetGridVisibility( bool aVisible ) override;
 
     /**
-     * Function GetGridColor() , virtual
      * @return the color of the grid
      */
     virtual COLOR4D GetGridColor() override;
@@ -462,8 +443,7 @@ public:
     virtual void UseGalCanvas( bool aEnable ) override;
 
     /**
-     * Function OpenProjectFiles    (was LoadOnePcbFile)
-     * loads a KiCad board (.kicad_pcb) from \a aFileName.
+     * Load a KiCad board (.kicad_pcb) from \a aFileName.
      *
      * @param aFileSet - hold the BOARD file to load, a vector of one element.
      *
@@ -477,43 +457,72 @@ public:
      */
     bool OpenProjectFiles( const std::vector<wxString>& aFileSet, int aCtl = 0 ) override;
 
-    int GetIconScale() override;
+    /**
+     * Override from PCB_BASE_EDIT_FRAME which adds a module to the editor's dummy board,
+     * NOT to the user's PCB.
+     */
+    void AddModuleToBoard( MODULE* module ) override;
 
     /**
-     * redraws the message panel.
+     * Allows Modedit to install its preferences panel into the preferences dialog.
+     */
+    void InstallPreferences( PAGED_DIALOG* aParent ) override;
+
+    void ReFillLayerWidget();
+
+    /**
+     * Update visible items after a language change.
+     */
+    void ShowChangedLanguage() override;
+
+    /**
+     * Called after the preferences dialog is run.
+     */
+    void CommonSettingsChanged() override;
+
+    /**
+     * Synchronize the footprint library tree to the current state of the footprint library
+     * table.
+     * @param aProgress
+     */
+    void SyncLibraryTree( bool aProgress );
+
+    /**
+     * Redraw the message panel.
+     *
      * If a item is currently selected, displays the item info.
      * If nothing selected, display the current footprint info, or
      * clear the message panel if nothing is edited
      */
     void UpdateMsgPanel() override;
 
+    void KiwayMailIn( KIWAY_EXPRESS& mail ) override;
 
     DECLARE_EVENT_TABLE()
 
 protected:
 
     /// protected so only friend PCB::IFACE::CreateWindow() can act as sole factory.
-    FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent );
+    FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent, EDA_DRAW_PANEL_GAL::GAL_TYPE aBackend );
 
     PCB_LAYER_WIDGET* m_Layers;     ///< the layer manager
 
     /// List of footprint editor configuration parameters.
     PARAM_CFG_ARRAY   m_configParams;
 
-    /// Pretty much what it says on the tin.
-    int               m_iconScale;
+    /**
+     * Make sure the footprint info list is loaded (with a progress dialog) and then initialize
+     * the footprint library tree.
+     */
+    void initLibraryTree();
 
     /**
-     * Function UpdateTitle
-     * updates window title according to getLibNickName().
+     * Updates window title according to getLibNickName().
      */
     void updateTitle();
 
     /// Reloads displayed items and sets view.
     void updateView();
-
-    /// The libPath is not publicly visible, grab it from the FP_LIB_TABLE if we must.
-    const wxString getLibPath();
 
     void restoreLastFootprint();
     void retainLastFootprint();
@@ -529,15 +538,21 @@ protected:
 private:
 
     /**
-     * Function moveExact
+     * Run the Footprint Properties dialog and handle changes made in it.
+     */
+    void editFootprintProperties( MODULE* aFootprint );
+
+    bool saveFootprintInLibrary( MODULE* aModule, const wxString& aLibraryName );
+
+    /**
      * Move the selected item exactly, popping up a dialog to allow the
      * user the enter the move delta
      */
     void moveExact();
 
     /**
-     * Function duplicateItems
      * Duplicate the item under the cursor
+     *
      * @param aIncrement increment the number of pad (if that is what is selected)
      */
     void duplicateItems( bool aIncrement ) override;

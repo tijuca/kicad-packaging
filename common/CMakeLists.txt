@@ -3,6 +3,8 @@ if( COMPILER_SUPPORTS_WSHADOW )
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WSHADOW_FLAGS}")
 endif()
 
+add_subdirectory( libeval )
+
 include_directories( BEFORE ${INC_BEFORE} )
 include_directories(
     ./dialogs
@@ -44,7 +46,9 @@ set( GAL_SRCS
     gal/stroke_font.cpp
     geometry/hetriang.cpp
     view/view_controls.cpp
+    view/view_overlay.cpp
     view/wx_view_controls.cpp
+    view/zoom_controller.cpp
 
     # OpenGL GAL
     gal/opengl/opengl_gal.cpp
@@ -66,15 +70,35 @@ set( GAL_SRCS
     # Cairo GAL
     gal/cairo/cairo_gal.cpp
     gal/cairo/cairo_compositor.cpp
+    gal/cairo/cairo_print.cpp
+    )
+
+set( LEGACY_GAL_SRCS
+    legacy_gal/block.cpp
+    legacy_gal/eda_draw_frame.cpp
+    legacy_gal/other.cpp
+    )
+
+set( LEGACY_WX_SRCS
+    legacy_wx/block.cpp
+    legacy_wx/eda_draw_frame.cpp
+    legacy_wx/eda_draw_panel.cpp
+    legacy_wx/other.cpp
     )
 
 add_library( gal STATIC ${GAL_SRCS} )
+add_library( legacy_gal STATIC ${LEGACY_GAL_SRCS} )
+add_library( legacy_wx STATIC ${LEGACY_WX_SRCS} )
+
+target_include_directories( legacy_wx PUBLIC ../include/legacy_wx )
+target_include_directories( legacy_gal PUBLIC ../include/legacy_gal )
 
 target_link_libraries( gal
     ${GLEW_LIBRARIES}
     ${CAIRO_LIBRARIES}
     ${PIXMAN_LIBRARIES}
     ${OPENGL_LIBRARIES}
+    ${GDI_PLUS_LIBRARIES}
 )
 
 
@@ -154,39 +178,53 @@ set( COMMON_ABOUT_DLG_SRCS
     )
 
 set( COMMON_DLG_SRCS
+    dialogs/dialog_color_picker.cpp
+    dialogs/dialog_color_picker_base.cpp
+    dialogs/dialog_configure_paths.cpp
+    dialogs/dialog_configure_paths_base.cpp
     dialogs/dialog_display_info_HTML_base.cpp
-    dialogs/dialog_env_var_config.cpp
-    dialogs/dialog_env_var_config_base.cpp
+    dialogs/dialog_edit_library_tables.cpp
     dialogs/dialog_exit_base.cpp
     dialogs/dialog_file_dir_picker.cpp
-    dialogs/dialog_hotkeys_editor.cpp
-    dialogs/dialog_hotkeys_editor_base.cpp
+    dialogs/dialog_hotkey_list.cpp
     dialogs/dialog_image_editor.cpp
     dialogs/dialog_image_editor_base.cpp
     dialogs/dialog_list_selector_base.cpp
     dialogs/dialog_page_settings_base.cpp
     dialogs/dialog_text_entry_base.cpp
+    dialogs/dialog_print_generic.cpp
+    dialogs/dialog_print_generic_base.cpp
     dialogs/dialog_text_entry.cpp
+    dialogs/panel_common_settings.cpp
+    dialogs/panel_common_settings_base.cpp
+    dialogs/panel_hotkeys_editor.cpp
     dialogs/wx_html_report_panel.cpp
     dialogs/wx_html_report_panel_base.cpp
     )
 
 set( COMMON_WIDGET_SRCS
-    widgets/color4Dpickerdlg.cpp
-    widgets/color4Dpickerdlg_base.cpp
+    widgets/button_row_panel.cpp
     widgets/color_swatch.cpp
     widgets/footprint_choice.cpp
     widgets/footprint_preview_widget.cpp
     widgets/footprint_select_widget.cpp
     widgets/gal_options_panel.cpp
+    widgets/grid_combobox.cpp
+    widgets/grid_icon_text_helpers.cpp
+    widgets/grid_text_button_helpers.cpp
     widgets/indicator_icon.cpp
+    widgets/layer_box_selector.cpp
+    widgets/lib_tree.cpp
     widgets/mathplot.cpp
+    widgets/paged_dialog.cpp
     widgets/progress_reporter.cpp
+    widgets/stepped_slider.cpp
     widgets/text_ctrl_eval.cpp
     widgets/two_column_tree_list.cpp
+    widgets/ui_common.cpp
     widgets/unit_binder.cpp
     widgets/widget_hotkey_list.cpp
-    widgets/stepped_slider.cpp
+    widgets/wx_grid.cpp
     )
 
 set( COMMON_PAGE_LAYOUT_SRCS
@@ -231,12 +269,13 @@ set( COMMON_SRCS
     ${COMMON_PAGE_LAYOUT_SRCS}
     ${COMMON_PREVIEW_ITEMS_SRCS}
     ${PLOTTERS_CONTROL_SRCS}
+    advanced_config.cpp
     base_struct.cpp
     bezier_curves.cpp
     bin_mod.cpp
     bitmap.cpp
     bitmap_base.cpp
-    block_commande.cpp
+    board_printout.cpp
     build_version.cpp
     colors_design_settings.cpp
     colors.cpp
@@ -245,22 +284,22 @@ set( COMMON_SRCS
     config_params.cpp
     confirm.cpp
     convert_basic_shapes_to_polygon.cpp
-    copy_to_clipboard.cpp
     dialog_shim.cpp
     displlst.cpp
-    draw_frame.cpp
-    draw_panel.cpp
     draw_graphic_text.cpp
     dsnlexer.cpp
     eagle_parser.cpp
     eda_base_frame.cpp
     eda_dde.cpp
     eda_doc.cpp
+    eda_dockart.cpp
     eda_pattern_match.cpp
-    eda_graphic_text_ctrl.cpp
+    eda_size_ctrl.cpp
     env_paths.cpp
+    env_vars.cpp
     exceptions.cpp
     executable_names.cpp
+    filename_resolver.cpp
     filter_reader.cpp
     footprint_filter.cpp
     footprint_info.cpp
@@ -270,6 +309,7 @@ set( COMMON_SRCS
     gr_basic.cpp
     grid_tricks.cpp
     hash_eda.cpp
+    hotkey_store.cpp
     hotkeys_basic.cpp
     html_messagebox.cpp
     incremental_text_ctrl.cpp
@@ -278,10 +318,11 @@ set( COMMON_SRCS
     kiway_express.cpp
     kiway_holder.cpp
     kiway_player.cpp
-    layer_box_selector.cpp
     lib_id.cpp
     lib_table_base.cpp
     lib_table_keywords.cpp
+    lib_tree_model.cpp
+    lib_tree_model_adapter.cpp
     lockfile.cpp
     marker_base.cpp
     md5_hash.cpp
@@ -289,6 +330,7 @@ set( COMMON_SRCS
     netlist_keywords.cpp
     observable.cpp
     prependpath.cpp
+    printout.cpp
     project.cpp
     properties.cpp
     ptree.cpp
@@ -301,7 +343,6 @@ set( COMMON_SRCS
     status_popup.cpp
     systemdirsappend.cpp
     trace_helpers.cpp
-    trigo.cpp
     undo_redo_container.cpp
     utf8.cpp
     validators.cpp
@@ -309,7 +350,6 @@ set( COMMON_SRCS
     worksheet.cpp
     wxdataviewctrl_helpers.cpp
     xnode.cpp
-    zoom.cpp
     )
 
 if( TRUE OR NOT USE_KIWAY_DLLS )
@@ -323,13 +363,16 @@ if( NOT HAVE_STRTOKR )
     list( APPEND COMMON_SRCS strtok_r.c )
 endif()
 
+if( BUILD_GITHUB_PLUGIN )
+    list( APPEND COMMON_SRCS
+        kicad_curl/kicad_curl.cpp
+        kicad_curl/kicad_curl_easy.cpp
+    )
+endif()
 
 set( COMMON_SRCS
     ${COMMON_SRCS}
     system/libcontext.cpp
-
-    kicad_curl/kicad_curl.cpp
-    kicad_curl/kicad_curl_easy.cpp
 
     view/view.cpp
     view/view_item.cpp
@@ -363,6 +406,7 @@ set( COMMON_SRCS
     geometry/shape_file_io.cpp
     geometry/shape_line_chain.cpp
     geometry/shape_poly_set.cpp
+    geometry/trigo.cpp
 
     libeval/numeric_evaluator.cpp
     )
@@ -406,8 +450,9 @@ set( PCB_COMMON_SRCS
     ../pcbnew/class_track.cpp
     ../pcbnew/class_zone.cpp
     ../pcbnew/collectors.cpp
-    ../pcbnew/connectivity_algo.cpp
-    ../pcbnew/connectivity_data.cpp
+    ../pcbnew/connectivity/connectivity_algo.cpp
+    ../pcbnew/connectivity/connectivity_items.cpp
+    ../pcbnew/connectivity/connectivity_data.cpp
     ../pcbnew/convert_drawsegment_list_to_polygon.cpp
     ../pcbnew/drc_item.cpp
     ../pcbnew/eagle_plugin.cpp
@@ -435,7 +480,7 @@ set( PCB_COMMON_SRCS
     ../pcbnew/ratsnest_viewitem.cpp
     ../pcbnew/sel_layer.cpp
     ../pcbnew/zone_settings.cpp
-    widgets/widget_net_selector.cpp
+    widgets/net_selector.cpp
 )
 
 # add -DPCBNEW to compilation of these PCBNEW sources
@@ -444,6 +489,11 @@ set_source_files_properties( ${PCB_COMMON_SRCS} PROPERTIES
     )
 
 add_library( pcbcommon STATIC ${PCB_COMMON_SRCS} )
+
+target_include_directories( pcbcommon PUBLIC
+    ../include/legacy_wx
+)
+
 
 # auto-generate netlist_lexer.h and netlist_keywords.cpp
 make_lexer(

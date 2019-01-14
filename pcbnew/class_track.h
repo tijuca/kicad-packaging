@@ -60,6 +60,10 @@ enum VIATYPE_T
 
 #define MIN_VIA_DRAW_SIZE          4       /// Minimum size in pixel for full drawing
 
+// Used for tracks and vias for algorithmic safety, not to enforce constraints
+#define GEOMETRY_MIN_SIZE ( int )( 0.001 * IU_PER_MM )
+
+
 /**
  * Function GetTrack
  * is a helper function to locate a trace segment having an end point at \a aPosition
@@ -192,11 +196,14 @@ public:
      * @param aCorrectionFactor = the correction to apply to circles radius to keep
      * clearance when the circle is approximated by segment bigger or equal
      * to the real clearance value (usually near from 1.0)
+     * @param ignoreLineWidth = used for edge cut items where the line width is only
+     * for visualization
      */
     void TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
                                                int             aClearanceValue,
                                                int             aCircleToSegmentsCount,
-                                               double          aCorrectionFactor ) const override;
+                                               double          aCorrectionFactor,
+                                               bool            ignoreLineWidth = false ) const override;
     /**
      * Function IsPointOnEnds
      * returns STARTPOINT if point if near (dist = min_dist) start point, ENDPOINT if
@@ -212,13 +219,7 @@ public:
      */
     bool IsNull();
 
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
-
-    /**
-     * Function ShowWidth
-     * returns the width of the track in displayable user units.
-     */
-    wxString ShowWidth() const;
+    void GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList ) override;
 
     SEARCH_RESULT Visit( INSPECTOR inspector, void* testData, const KICAD_T scanTypes[] ) override;
 
@@ -294,7 +295,7 @@ public:
      */
     virtual int GetClearance( BOARD_CONNECTED_ITEM* aItem = NULL ) const override;
 
-    virtual wxString GetSelectMenuText() const override;
+    virtual wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
 
     BITMAP_DEF GetMenuImage() const override;
 
@@ -326,12 +327,12 @@ protected:
      * Display info about the track segment only, and does not calculate the full track length
      * @param aList A list of #MSG_PANEL_ITEM objects to add status information.
      */
-    virtual void GetMsgPanelInfoBase( std::vector< MSG_PANEL_ITEM >& aList );
+    virtual void GetMsgPanelInfoBase( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList );
 
 
     /**
      * Helper function for the common panel info */
-    void GetMsgPanelInfoBase_Common( std::vector< MSG_PANEL_ITEM >& aList );
+    void GetMsgPanelInfoBase_Common( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList );
 
     /**
      * Helper for drawing the short netname in tracks */
@@ -365,7 +366,7 @@ public:
 
     SEGZONE* Next() const { return static_cast<SEGZONE*>( Pnext ); }
 
-    wxString GetSelectMenuText() const override;
+    wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
 
     void Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
                GR_DRAWMODE aDrawMode, const wxPoint& aOffset = ZeroOffset ) override;
@@ -375,7 +376,7 @@ public:
     EDA_ITEM* Clone() const override;
 
 protected:
-    virtual void GetMsgPanelInfoBase( std::vector< MSG_PANEL_ITEM >& aList ) override;
+    void GetMsgPanelInfoBase( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList ) override;
 };
 
 
@@ -441,7 +442,7 @@ public:
         return wxT( "VIA" );
     }
 
-    wxString GetSelectMenuText() const override;
+    wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
 
     BITMAP_DEF GetMenuImage() const override;
 
@@ -497,7 +498,7 @@ public:
     virtual void SwapData( BOARD_ITEM* aImage ) override;
 
 protected:
-    virtual void GetMsgPanelInfoBase( std::vector< MSG_PANEL_ITEM >& aList ) override;
+    void GetMsgPanelInfoBase( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList ) override;
 
 private:
     /// The bottom layer of the via (the top layer is in m_Layer)

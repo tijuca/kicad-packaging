@@ -42,7 +42,7 @@ class wxFindReplaceData;
 class PLOTTER;
 class NETLIST_OBJECT;
 class NETLIST_OBJECT_LIST;
-
+class EDA_DRAW_PANEL;
 
 enum DANGLING_END_T {
     UNKNOWN = 0,
@@ -170,6 +170,12 @@ public:
     void SetLayer( SCH_LAYER_ID aLayer )  { m_Layer = aLayer; }
 
     /**
+     * Function ViewGetLayers
+     * returns the layers the item is drawn on (which may be more than its "home" layer)
+     */
+    void ViewGetLayers( int aLayers[], int& aCount ) const override;
+
+    /**
      * Function GetPenSize virtual pure
      * @return the size of the "pen" that be used to draw or plot this item
      */
@@ -254,7 +260,7 @@ public:
      * @param aItemList - List of items to test item against.
      * @return True if the dangling state has changed from it's current setting.
      */
-    virtual bool IsDanglingStateChanged( std::vector< DANGLING_END_ITEM >& aItemList ) { return false; }
+    virtual bool UpdateDanglingState( std::vector<DANGLING_END_ITEM>& aItemList ) { return false; }
 
     virtual bool IsDangling() const { return false; }
 
@@ -373,31 +379,6 @@ public:
     virtual void SetPosition( const wxPoint& aPosition ) = 0;
 
     virtual bool operator <( const SCH_ITEM& aItem ) const;
-
-    /**
-     * Function FormatInternalUnits
-     * converts \a aValue from schematic internal units to a string appropriate for writing
-     * to file.
-     *
-     * @param aValue A coordinate value to convert.
-     * @return A std::string object containing the converted value.
-     */
-    static std::string FormatInternalUnits( int aValue );
-
-    /**
-     * Function FormatAngle
-     * converts \a aAngle from board units to a string appropriate for writing to file.
-     *
-     * @note Internal angles for board items can be either degrees or tenths of degree
-     *       on how KiCad is built.
-     * @param aAngle A angle value to convert.
-     * @return A std::string object containing the converted angle.
-     */
-    static std::string FormatAngle( double aAngle );
-
-    static std::string FormatInternalUnits( const wxPoint& aPoint );
-
-    static std::string FormatInternalUnits( const wxSize& aSize );
 
 private:
     /**

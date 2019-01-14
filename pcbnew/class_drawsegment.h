@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2018 Jean-Pierre Charras jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,7 +31,6 @@
 #define CLASS_DRAWSEGMENT_H_
 
 #include <class_board_item.h>
-#include <PolyLine.h>
 #include <math_for_graphics.h>
 #include <trigo.h>
 #include <common.h>
@@ -75,6 +74,11 @@ public:
     {
         return aItem && PCB_LINE_T == aItem->Type();
     }
+
+    /** Polygonal shape is not always filled.
+     * For now it is filled on all layers but Edge_Cut layer
+     */
+    bool IsPolygonFilled() const { return m_Layer != Edge_Cuts; }
 
     void SetWidth( int aWidth )             { m_Width = aWidth; }
     int GetWidth() const                    { return m_Width; }
@@ -194,18 +198,30 @@ public:
         m_BezierPoints = aPoints;
     }
 
+    /** Rebuild the m_BezierPoints vertex list that approximate the Bezier curve
+     * by a list of segments
+     * Has meaning only for S_CURVE DRAW_SEGMENT shape
+     * @param aMinSegLen is the min length of segments approximating the shape.
+     * the last segment can be shorter
+     * This param avoid having too many very short segment in list.
+     * a good value is m_Width/2 to m_Width
+     */
+    void RebuildBezierToSegmentsPointsList( int aMinSegLen );
+
     void SetPolyPoints( const std::vector<wxPoint>& aPoints );
 
     void Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
                GR_DRAWMODE aDrawMode, const wxPoint& aOffset = ZeroOffset ) override;
 
-    virtual void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
+    virtual void GetMsgPanelInfo( EDA_UNITS_T aUnits,
+                                  std::vector< MSG_PANEL_ITEM >& aList ) override;
 
     virtual const EDA_RECT GetBoundingBox() const override;
 
     virtual bool HitTest( const wxPoint& aPosition ) const override;
 
-    bool HitTest( const EDA_RECT& aRect, bool aContained = true, int aAccuracy = 0 ) const override;
+    bool HitTest( const EDA_RECT& aRect, bool aContained = true,
+                  int aAccuracy = 0 ) const override;
 
     wxString GetClass() const override
     {
@@ -230,7 +246,7 @@ public:
 
     /**
      * Function TransformShapeWithClearanceToPolygon
-     * Convert the track shape to a closed polygon
+     * Convert the draw segment to a closed polygon
      * Used in filling zones calculations
      * Circles and arcs are approximated by segments
      * @param aCornerBuffer = a buffer to store the polygon
@@ -239,13 +255,16 @@ public:
      * @param aCorrectionFactor = the correction to apply to circles radius to keep
      * clearance when the circle is approximated by segment bigger or equal
      * to the real clearance value (usually near from 1.0)
+     * @param ignoreLineWidth = used for edge cut items where the line width is only
+     * for visualization
      */
     void TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
                                                int             aClearanceValue,
                                                int             aCircleToSegmentsCount,
-                                               double          aCorrectionFactor ) const override;
+                                               double          aCorrectionFactor,
+                                               bool            ignoreLineWidth = false ) const override;
 
-    virtual wxString GetSelectMenuText() const override;
+    virtual wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
 
     virtual BITMAP_DEF GetMenuImage() const override;
 

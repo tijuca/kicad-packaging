@@ -61,6 +61,7 @@
 #include <footprint_preview_panel.h>
 #include <footprint_info_impl.h>
 #include <gl_context_mgr.h>
+#include "invoke_pcb_dialog.h"
 
 extern bool IsWxPythonLoaded();
 
@@ -127,17 +128,30 @@ static struct IFACE : public KIFACE_I
         }
 
         case FRAME_PCB_MODULE_EDITOR:
-            return new FOOTPRINT_EDIT_FRAME( aKiway, aParent );
-
         case FRAME_PCB_MODULE_VIEWER:
         case FRAME_PCB_MODULE_VIEWER_MODAL:
-            return new FOOTPRINT_VIEWER_FRAME( aKiway, aParent, FRAME_T( aClassId ) );
+        {
+            switch( aClassId )
+            {
+            case FRAME_PCB_MODULE_EDITOR:
+                return new FOOTPRINT_EDIT_FRAME( aKiway, aParent, EDA_DRAW_PANEL_GAL::GAL_TYPE_UNKNOWN );
+            case FRAME_PCB_MODULE_VIEWER:
+            case FRAME_PCB_MODULE_VIEWER_MODAL:
+                return new FOOTPRINT_VIEWER_FRAME( aKiway, aParent, FRAME_T( aClassId ) );
+            }
+        }
 
-        case FRAME_PCB_FOOTPRINT_WIZARD_MODAL:
+        case FRAME_PCB_FOOTPRINT_WIZARD:
             return new FOOTPRINT_WIZARD_FRAME( aKiway, aParent, FRAME_T( aClassId ) );
 
         case FRAME_PCB_FOOTPRINT_PREVIEW:
             return dynamic_cast< wxWindow* >( FOOTPRINT_PREVIEW_PANEL::New( aKiway, aParent ) );
+
+        case DIALOG_PCB_LIBRARY_TABLE:
+            InvokePcbLibTableEditor( aKiway, aParent );
+
+            // Dialog has completed; nothing to return.
+            return nullptr;
 
         default:
             return nullptr;
