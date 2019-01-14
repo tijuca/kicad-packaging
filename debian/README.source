@@ -14,18 +14,26 @@ to handle those files for importing into the git tree as also for extracting
 the correct component tarballs later if needed. For the recreation of the
 orig*.tar.xz pristine-tar is doing the correct action.
 
-The helper script debian/create_kicad_upstream_tarballs.sh will create all the
-tarballs if a new version is released. The script will create the following
-files in /tmp/kicad-tmp
+The source tarball and the additional component tarballs are currently created
+manually from cloned upstream git repositories. Normally the following calls
+are used to create the tarballs.
 
-   kicad_<version>+dfsg<x>.orig.tar.xz
-   kicad_<version>+dfsg<x>.orig-doc.tar.xz
-   kicad_<version>+dfsg<x>.orig-i18n.tar.xz
+ $ cd /path/to/kicad-tree
+ $ git archive --format=tar.xz --output ~/Downloads/kicad_5.0.2.orig.tar.xz 5.0.2
 
-Please call the script without any option or with option '-h' to see how the
-script should be called.
-The helper script will remove files that are not DFSG clean like sourceless PDF
-and SVG/CPP filesi, if there are any, without a DFSG compatible license.
+ $ cd /path/to/kicad-doc-tree
+ $ git archive --format=tar.xz --output ~/Downloads/kicad_5.0.2.orig-doc.tar.xz 5.0.2
+
+ $ cd /path/to/kicad-i18n-tree
+ $ git archive --format=tar.xz --output ~/Downloads/kicad_5.0.2.orig-i18n.tar.xz 5.0.2
+
+Importing new source tarballs is done by git-buildpackage with adding the
+suffix 'dfsg<x>' to the version to import.
+
+ $ gbp import-orig --verbose --sign-tags --pristine-tar /path/to/kicad_5.0.2.orig.tar.xz
+ ...
+ What is the upstream version? [5.0.2] 5.0.2+dfsg1
+ ...
 
 The multi tarballs will be extracted to the following folders while importing
 the new version:
@@ -33,4 +41,4 @@ the new version:
   *.orig-doc.tar.xz    ->  doc/
   *.orig-i18n.tar.xz   ->  i18n/
 
- -- Carsten Schönert <c.schoenert@t-online.de>, Wed, 7 Mar 2018 17:05:00 +0100
+ -- Carsten Schoenert <c.schoenert@t-online.de>, Mon, 14 Jan 2019 12:50:00 +0100
