@@ -81,7 +81,7 @@ Architecture: any-amd64 any-i386 arm64 armhf
 Depends:
  libngspice0,
  ${misc:Depends},
- ${python:Depends},
+ ${python3:Depends},
  ${shlibs:Depends},
 Suggests:
  extra-xdg-menus,
