@@ -66,7 +66,7 @@ $(PREPROCESS_FILES:.in=): %: %.in
 	sed -e 's,/@DEB_HOST_MULTIARCH@,$(DEB_HOST_MULTIARCH:%=/%),g' $< > $@
 
 %:
-	dh $@ --with-python2
+	dh $@ --with-python3
 
 override_dh_auto_configure:
 	sed -i 's/@REVDATE@/$(REVDATE)/' $(ASCIIDOCFILES)
@@ -97,7 +97,7 @@ override_dh_auto_install: $(PREPROCESS_FILES:.in=)
 	################################
 	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR) --builddirectory=$(DEB_BUILD_DIR)
 	# Removing a potentially added RUNPATH from the Pcbnew Python library.
-	chrpath --delete $(CURDIR)/debian/tmp/usr/lib/python2.7/dist-packages/_pcbnew.so
+	chrpath --delete $(CURDIR)/debian/tmp/usr/lib/python3/dist-packages/_pcbnew.so
 	###############################################
 	# building and installing KiCad documentation #
 	###############################################
@@ -121,7 +121,7 @@ override_dh_auto_install: $(PREPROCESS_FILES:.in=)
 
 override_dh_install:
 	dh_install
-	dh_python2
+	dh_python3
 
 override_dh_fixperms-arch:
 	dh_fixperms
