@@ -1,0 +1,82 @@
+From: Carsten Schoenert <c.schoenert@t-online.de>
+Date: Mon, 14 Jan 2019 14:11:28 +0100
+Subject: spelling: fix 'allows to' -> 'allows one to'
+
+Trivial fixes for 'allow to'.
+---
+ common/widgets/grid_combobox.cpp          | 2 +-
+ common/widgets/grid_icon_text_helpers.cpp | 2 +-
+ eeschema/sch_edit_frame.h                 | 6 +++---
+ pcbnew/grid_layer_box_helpers.cpp         | 2 +-
+ pcbnew/python/plugins/qfn_wizard.py       | 2 +-
+ 5 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/common/widgets/grid_combobox.cpp b/common/widgets/grid_combobox.cpp
+index cfde2fa..9ecd5d5 100644
+--- a/common/widgets/grid_combobox.cpp
++++ b/common/widgets/grid_combobox.cpp
+@@ -87,7 +87,7 @@ void GRID_CELL_COMBOBOX::BeginEdit( int aRow, int aCol, wxGrid* aGrid )
+     // This is a work around for the combobox being simply dismissed when a
+     // choice is made in it under OS X. The bug is almost certainly due to a
+     // problem in focus events generation logic but it's not obvious to fix and
+-    // for now this at least allows to use wxGrid.
++    // for now this at least allows one to use wxGrid.
+     Combo()->Popup();
+ #endif
+ 
+diff --git a/common/widgets/grid_icon_text_helpers.cpp b/common/widgets/grid_icon_text_helpers.cpp
+index b1f949e..bd4d6d2 100644
+--- a/common/widgets/grid_icon_text_helpers.cpp
++++ b/common/widgets/grid_icon_text_helpers.cpp
+@@ -187,7 +187,7 @@ void GRID_CELL_ICON_TEXT_POPUP::BeginEdit( int aRow, int aCol, wxGrid* aGrid )
+     // This is a work around for the combobox being simply dismissed when a
+     // choice is made in it under OS X. The bug is almost certainly due to a
+     // problem in focus events generation logic but it's not obvious to fix and
+-    // for now this at least allows to use wxGrid.
++    // for now this at least allows one to use wxGrid.
+     Combo()->Popup();
+ #endif
+ 
+diff --git a/eeschema/sch_edit_frame.h b/eeschema/sch_edit_frame.h
+index c4d11cd..8d81c76 100644
+--- a/eeschema/sch_edit_frame.h
++++ b/eeschema/sch_edit_frame.h
+@@ -877,9 +877,9 @@ private:
+     void OnRescueProject( wxCommandEvent& event );
+     void OnRemapSymbols( wxCommandEvent& aEvent );
+ 
+-    // a helper function to run the dialog that allows to rename the symbol library Id of
+-    // groups of components, for instance after a symbol has moved from a library to
+-    // another library
++    // a helper function to run the dialog that allows one to rename the symbol
++    // library Id of groups of components, for instance after a symbol has moved
++    // from a library to another library
+     void OnEditComponentSymbolsId( wxCommandEvent& aEvent );
+     void OnPreferencesOptions( wxCommandEvent& event );
+     void OnCancelCurrentCommand( wxCommandEvent& aEvent );
+diff --git a/pcbnew/grid_layer_box_helpers.cpp b/pcbnew/grid_layer_box_helpers.cpp
+index 6872db6..f12d5d9 100644
+--- a/pcbnew/grid_layer_box_helpers.cpp
++++ b/pcbnew/grid_layer_box_helpers.cpp
+@@ -150,7 +150,7 @@ void GRID_CELL_LAYER_SELECTOR::BeginEdit( int aRow, int aCol, wxGrid* aGrid )
+     // This is a work around for the combobox being simply dismissed when a
+     // choice is made in it under OS X. The bug is almost certainly due to a
+     // problem in focus events generation logic but it's not obvious to fix and
+-    // for now this at least allows to use wxGrid.
++    // for now this at least allows one to use wxGrid.
+     if( !LayerBox()->IsPopupShown() )
+         LayerBox()->Popup();
+ #endif
+diff --git a/pcbnew/python/plugins/qfn_wizard.py b/pcbnew/python/plugins/qfn_wizard.py
+index 18a3db0..658c284 100644
+--- a/pcbnew/python/plugins/qfn_wizard.py
++++ b/pcbnew/python/plugins/qfn_wizard.py
+@@ -82,7 +82,7 @@ class QFNWizard(FootprintWizardBase.FootprintWizard):
+ 
+         pad_pitch = self.pads["pitch"]
+         pad_length = self.pads["length"]
+-        # Fillet allows to define how much of the pad is outside of the package
++        # Fillet allows one to define how much of the pad is outside of the package
+         pad_fillet = self.pads["fillet"]
+         pad_width = self.pads["width"]
+ 

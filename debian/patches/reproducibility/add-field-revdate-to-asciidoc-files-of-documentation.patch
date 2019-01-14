@@ -21,7 +21,7 @@ with the date from the changelog file.
  11 files changed, 11 insertions(+)
 
 diff --git a/doc/src/cvpcb/cvpcb.adoc b/doc/src/cvpcb/cvpcb.adoc
-index 036b644..bd834a5 100644
+index 7d1eb8e..6f5a1b0 100644
 --- a/doc/src/cvpcb/cvpcb.adoc
 +++ b/doc/src/cvpcb/cvpcb.adoc
 @@ -1,5 +1,6 @@
@@ -65,7 +65,7 @@ index 1379b63..dd1b8ae 100644
  :ascii-ids:
  
 diff --git a/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc b/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc
-index f5aa447..546cf2a 100644
+index cc98132..7e9b15d 100644
 --- a/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc
 +++ b/doc/src/getting_started_in_kicad/getting_started_in_kicad.adoc
 @@ -1,5 +1,6 @@
@@ -98,7 +98,7 @@ index 57e3e9e..d99bec7 100644
  :ascii-ids:
  
 diff --git a/doc/src/kicad/kicad.adoc b/doc/src/kicad/kicad.adoc
-index 8aa72d9..8d5e853 100644
+index bde27d7..9bf0135 100644
 --- a/doc/src/kicad/kicad.adoc
 +++ b/doc/src/kicad/kicad.adoc
 @@ -1,5 +1,6 @@

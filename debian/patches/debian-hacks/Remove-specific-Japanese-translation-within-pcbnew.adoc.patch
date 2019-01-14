@@ -11,10 +11,10 @@ packages for kicad-doc-*.
  1 file changed, 2 deletions(-)
 
 diff --git a/doc/src/pcbnew/po/ja.po b/doc/src/pcbnew/po/ja.po
-index 02fa5a7..cb43d58 100644
+index 10d72f2..3375155 100644
 --- a/doc/src/pcbnew/po/ja.po
 +++ b/doc/src/pcbnew/po/ja.po
-@@ -2835,8 +2835,6 @@ msgid ""
+@@ -3815,8 +3815,6 @@ msgid ""
  "Keyboard (Function keys `F1`, `F2`, `F3`, `F4`, `Shift`, `Delete`, `+`, `-`, `Page Up`, `Page "
  "Down` and `Space bar`). The `Escape` key generally cancels an operation in progress."
  msgstr ""
