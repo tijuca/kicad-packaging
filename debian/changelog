@@ -1,3 +1,61 @@
+kicad (5.1~20190114.a0a4e5e+dfsg1-1) experimental; urgency=medium
+
+  * [597c5e5] d/gbp.conf: adjust to debian/experimental
+    + Update configuration for git-buildpackage so it acts on the correct
+      folders and branches.
+  * [7f68717] New upstream version 5.1~20190114.a0a4e5e+dfsg1
+    + Snapshot from 14th January 2019 from the KiCad master branch from
+      commit ID a0a4e5e.
+  * [654f720] rebuild patch queue from patch-queue branch
+    + removed patch (applied upstream)
+      fixes/Add-German-translations-entries-to-appdata.xml.patch
+    + added patch:
+      fixes/spelling-fix-allows-to-allows-one-to.patch
+  * [ab28ad4] d/rules: (re)enable SCRIPTING_WXPYTHON{,-PHOENIX}
+    + Turn on again the compile option for SCRIPTING_WXPYTHON and also adding
+      an new option for SCRIPTING_WXPYTHON_PHOENIX so the build will use
+      wxpython4.0 functions.
+  * [e86dd61] d/rules: use Python3 for scripting interface
+    + Switch on the option for using Python3 mostly everywhere inside KiCad.
+  * [9e3dbd0] d/rules: prefer OCE over OCC for OpenCASCADE support
+    + Due changes within the build environment of KiCad we need to use this
+      compile option explicitly now for using OCE.
+  * [ecaa9ca] d/control: updating B-D for upcoming version 5.1
+    + As the usage and move over to GTK+3 backend is a main goal for Kicad 5.1
+      we need to switch some build dependencies like the GTK+3 version of
+      libwxgtk3.0 and wxgtk (aka wxpython4 / Phoenix). Also we need the
+      Python3 version of some packages.
+  * [f1988cd] d/rules: needed updates due move over to Python3
+    + For handling Python3 package build and installation uses dh_python3 now.
+  * [c590ec8] d/control: adjust ${python:Depends} -> ${python3:Depends}
+    + The binary package kicad includes now Python3 based files and folders so
+      we need to use ${python3:Depends} in the Depends field accordingly.
+  * [ee3db40] kicad: more minor adjustments due Python3 usage
+    + Update of the install sequencer file for the kicad package due Python3
+      files and folders now.
+  * [c9bba13] README.Debian: remove part about GTK+3 restrictions
+    + Starting with this version KiCad does not have any GTK+3 related
+      restrictions any more and we can remove this old information.
+  * [6c773b4] copyright: adopt upstream changes
+    + Update copyright information due changes within the source files.
+  * [f3d1db7] d/control: increase Standards-Version to 4.3.0
+    + No further changes needed.
+  * [d6ac004] README.source: update information
+    + Also update the information about generating the tarballs and the import
+      of them.
+  * [eac00f1] remove helper scripts no longer used or needed
+    + Remove older helper script which aren't used for a long time and never
+      will be.
+  * [86eeabd] kicad.lintian-overrides: one more entry for 'Busses'
+    + Ignore the word 'Busses' which is used in a test file.
+  * [bf2a58a] autopkgtest: update test due Python3 change
+    + Now we use Python 3 mostly everywhere. ;)
+  * [2d8d4ec] kicad: (re)adding versioned Depends for python-wxgtk3.0
+    + Due the re enabled wxPython based scripting interface we need to add
+      again the package python-wxgtk3.0 as an dependency.
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Mon, 14 Jan 2019 16:34:23 +0100
+
 kicad (5.0.2+dfsg1-1) unstable; urgency=medium
 
   * [9272615] New upstream version 5.0.2+dfsg1
