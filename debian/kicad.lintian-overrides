@@ -7,7 +7,7 @@ kicad: binary-without-manpage usr/bin/_pcbnew.kiface
 kicad: binary-without-manpage usr/bin/_pl_editor.kiface
 # Lintian doesn't check that with much intelligence
 kicad: spelling-error-in-binary usr/lib/kicad/_pcbnew.kiface allows to allows one to
-kicad: spelling-error-in-binary usr/lib/python2.7/dist-packages/_pcbnew.*.so aCount account
+kicad: spelling-error-in-binary usr/lib/python3/dist-packages/_pcbnew.*.so aCount account
 kicad: spelling-error-in-binary usr/lib/kicad/_eeschema.kiface VerticalY Vertically
 kicad: spelling-error-in-binary usr/lib/kicad/_pcbnew.kiface aCount account
 # KiCad upstream has no dev package currently nor intend to create one

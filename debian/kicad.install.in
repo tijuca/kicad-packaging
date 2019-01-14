@@ -19,7 +19,7 @@ usr/bin/pcbnew
 usr/bin/pl_editor
 usr/lib/@DEB_HOST_MULTIARCH@/kicad/plugins/3d
 usr/lib/@DEB_HOST_MULTIARCH@/libkicad*
-usr/lib/python2.7/dist-packages
+usr/lib/python3/dist-packages
 usr/share/applications
 usr/share/icons
 usr/share/kicad/plugins
