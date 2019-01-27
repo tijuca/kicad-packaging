@@ -1,3 +1,16 @@
+kicad (5.1~20190127.4fc692f+dfsg1-1) experimental; urgency=medium
+
+  * [a2ab50a] New upstream version 5.1~20190127.4fc692f+dfsg1
+    + Snapshot from 27th January 2019 from the KiCad master branch from
+      commit ID 4fc692f.
+  * [b50c400] d/control: no Dutch documentation will get build any more
+    + The Dutch translation of the KiCad documentation was removed by
+      upstream so removing the respective package in Debian too, the
+      translation wasn't maintenanced in any way.
+  * [cbeecae] d/copyright: small update to the copyright file
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sun, 27 Jan 2019 11:32:57 +0100
+
 kicad (5.1~20190114.a0a4e5e+dfsg1-1) experimental; urgency=medium
 
   * [597c5e5] d/gbp.conf: adjust to debian/experimental
