@@ -86,7 +86,7 @@ Depends:
  ${shlibs:Depends},
 Suggests:
  extra-xdg-menus,
- kicad-doc-ca | kicad-doc-de | kicad-doc-en | kicad-doc-es | kicad-doc-fr | kicad-doc-id | kicad-doc-it | kicad-doc-ja | kicad-doc-nl | kicad-doc-pl | kicad-doc-ru | kicad-doc-zh,
+ kicad-doc-ca | kicad-doc-de | kicad-doc-en | kicad-doc-es | kicad-doc-fr | kicad-doc-id | kicad-doc-it | kicad-doc-ja | kicad-doc-pl | kicad-doc-ru | kicad-doc-zh,
  kicad-packages3d,
 Recommends:
  kicad-libraries,
@@ -299,18 +299,6 @@ Description: Kicad help files (Japanese)
   * Pcbnew - The printed circuit board software tool
   * PlEditor - The layout editor for custom title block
   * Plugins - Introduction to the KiCad plugin system
-
-Package: kicad-doc-nl
-Section: doc
-Architecture: all
-Multi-Arch: foreign
-Depends:
- ${misc:Depends},
-Description: Kicad help files (Dutch)
- This package provides various documentation files for KiCad in Dutch, like
- the EPUB and the PDF files and also the OnLine HTML documentation for:
- .
-  * GSIK - Getting Started in KiCad
 
 Package: kicad-doc-pl
 Section: doc
