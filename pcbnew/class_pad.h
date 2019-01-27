@@ -348,6 +348,13 @@ public:
     void FlipPrimitives();
 
     /**
+     * Mirror the primitives about a coordinate
+     *
+     * @param aX the x coordinate about which to mirror
+     */
+    void MirrorXPrimitives( int aX );
+
+    /**
      * Import to the basic shape list
      * @return true if OK, false if issues
      * (more than one polygon to build the polygon shape list)
@@ -680,6 +687,7 @@ public:
     ///> Set absolute coordinates.
     void SetDrawCoord();
 
+    //todo: Remove SetLocalCoord along with m_pos
     ///> Set relative coordinates.
     void SetLocalCoord();
 
@@ -788,6 +796,7 @@ private:    // Private variable members:
 
     wxString    m_name;
 
+    // TODO: Remove m_Pos from Pad or make private.  View positions calculated from m_Pos0
     wxPoint     m_Pos;              ///< pad Position on board
 
     PAD_SHAPE_T m_padShape;         ///< Shape: PAD_SHAPE_CIRCLE, PAD_SHAPE_RECT,

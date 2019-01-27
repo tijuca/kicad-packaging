@@ -977,8 +977,12 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::OnTableCellClick( wxGridEvent& event )
 {
     if( event.GetCol() == REFERENCE )
     {
+        m_grid->ClearSelection();
+        m_grid->SetGridCursor( event.GetRow(), event.GetCol() );
+
         // Clear highligted symbols, if any
         m_parent->GetCanvas()->GetView()->HighlightItem( nullptr, nullptr );
+        m_parent->GetCanvas()->Refresh();
 
         m_dataModel->ExpandCollapseRow( event.GetRow() );
         std::vector<SCH_REFERENCE> refs = m_dataModel->GetRowReferences( event.GetRow() );

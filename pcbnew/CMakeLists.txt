@@ -100,6 +100,7 @@ set( PCBNEW_DIALOGS
     dialogs/dialog_global_edit_tracks_and_vias_base.cpp
     dialogs/dialog_global_edit_text_and_graphics.cpp
     dialogs/dialog_global_edit_text_and_graphics_base.cpp
+    dialogs/dialog_global_fp_lib_table_config.cpp
     dialogs/dialog_push_pad_properties.cpp
     dialogs/dialog_push_pad_properties_base.cpp
     dialogs/dialog_graphic_item_properties.cpp
@@ -210,10 +211,17 @@ set( PCBNEW_MICROWAVE_SRCS
     microwave/microwave_inductor.cpp
     )
 
+set( PCBNEW_DRC_SRCS
+    drc/courtyard_overlap.cpp
+    drc/drc_marker_factory.cpp
+    drc/drc_provider.cpp
+    )
+
 set( PCBNEW_CLASS_SRCS
     ${PCBNEW_DIALOGS}
     ${PCBNEW_EXPORTERS}
     ${PCBNEW_IMPORT_GFX}
+    ${PCBNEW_DRC_SRCS}
 
     autorouter/rect_placement/rect_placement.cpp
     autorouter/spread_footprints.cpp
@@ -237,7 +245,6 @@ set( PCBNEW_CLASS_SRCS
     dragsegm.cpp
     drc.cpp
     drc_clearance_test_functions.cpp
-    drc_marker_functions.cpp
     edgemod.cpp
     edit.cpp
     edit_pcb_text.cpp

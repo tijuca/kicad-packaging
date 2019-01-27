@@ -2,6 +2,7 @@
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
  * Copyright (C) 2013-2017 CERN
+ * Copyright (C) 2018-2019 KiCad Developers, see AUTHORS.txt for contributors.
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  *
@@ -212,7 +213,7 @@ public:
      * @param aTypes allows one to filter by item types.
      */
     const std::vector<BOARD_CONNECTED_ITEM*> GetConnectedItems( const BOARD_CONNECTED_ITEM* aItem,
-            const KICAD_T aTypes[] ) const;
+            const KICAD_T aTypes[], bool aIgnoreNetcodes = false ) const;
 
     /**
      * Function GetNetItems()
