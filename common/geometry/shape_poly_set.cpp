@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2015-2017 CERN
+ * Copyright (C) 2015-2019 CERN
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  * @author Alejandro García Montoro <alejandro.garciamontoro@gmail.com>
  *
@@ -1593,7 +1593,7 @@ int SHAPE_POLY_SET::Distance( VECTOR2I aPoint )
 int SHAPE_POLY_SET::Distance( const SEG& aSegment, int aSegmentWidth )
 {
     int currentDistance;
-    int minDistance = DistanceToPolygon( aSegment, 0 );
+    int minDistance = DistanceToPolygon( aSegment, 0, aSegmentWidth );
 
     // Iterate through all the polygons and get the minimum distance.
     for( unsigned int polygonIdx = 1; polygonIdx < m_polys.size(); polygonIdx++ )
@@ -1871,27 +1871,23 @@ void SHAPE_POLY_SET::CacheTriangulation()
     m_triangulatedPolys.clear();
     m_triangulationValid = true;
 
-    for( int i = 0; i < tmpSet.OutlineCount(); i++ )
+    while( tmpSet.OutlineCount() > 0 )
     {
         m_triangulatedPolys.push_back( std::make_unique<TRIANGULATED_POLYGON>() );
         PolygonTriangulation tess( *m_triangulatedPolys.back() );
 
         // If the tesselation fails, we re-fracture the polygon, which will
         // first simplify the system before fracturing and removing the holes
-        if( !tess.TesselatePolygon( tmpSet.Polygon( i ).front() ) )
+        // This may result in multiple, disjoint polygons.
+        if( !tess.TesselatePolygon( tmpSet.Polygon( 0 ).front() ) )
         {
             tmpSet.Fracture( PM_FAST );
-
-            // After fracturing, we may have zero or one polygon
-            // Check for zero polygons before tesselating and break regardless
-            if( !tmpSet.OutlineCount() ||  !tess.TesselatePolygon( tmpSet.Polygon( i ).front() ) )
-            {
-                m_triangulatedPolys.pop_back();
-                m_triangulationValid = false;
-            }
-
-            break;
+            m_triangulationValid = false;
+            continue;
         }
+
+        tmpSet.DeletePolygon( 0 );
+        m_triangulationValid = true;
     }
 
     if( m_triangulationValid )
