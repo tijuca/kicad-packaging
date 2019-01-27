@@ -2691,7 +2691,6 @@ Copyright: 2015, 2017, 2018, KiCad Developers, see change_log.txt for contributo
 License: GPL-2+
 
 Files: pcbnew/drc_clearance_test_functions.cpp
- pcbnew/drc_marker_functions.cpp
 Copyright: 2018, KiCad Developers, see AUTHORS.txt for contributors.
  2007, 2010, Dick Hollenbeck, dick@softplc.com
  2004-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
