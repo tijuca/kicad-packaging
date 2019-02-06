@@ -8,6 +8,7 @@ Uploaders:
 Build-Depends:
  asciidoc-base,
  asciidoc-dblatex,
+ clang,
  cmake,
  chrpath,
  dblatex,
