@@ -3240,12 +3240,15 @@ Copyright: 2007-2017, KiCad Developers, see CHANGELOG.TXT for contributors.
  2007-2016, Jean-Pierre Charras, jp.charras at wanadoo.fr
 License: GPL-2+
 
-Files: polygon/SutherlandHodgmanClipPoly.h
+Files: polygon/clipper.cpp
+Copyright: 2010-2017, Angus Johnson
+License: BSL-1.0
+
+Files: polygon/include/SutherlandHodgmanClipPoly.h
 Copyright: 2004, Sjaak Priester
 License: GPL-2+
 
-Files: polygon/clipper.cpp
- polygon/clipper.hpp
+Files: polygon/include/clipper.hpp
 Copyright: 2010-2017, Angus Johnson
 License: BSL-1.0
 
