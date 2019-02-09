@@ -31,6 +31,7 @@
 #include <bitmaps.h>
 #include <grid_tricks.h>
 #include <kicad_string.h>
+#include <refdes_utils.h>
 #include <build_version.h>
 #include <general.h>
 #include <sch_view.h>
@@ -104,6 +105,13 @@ protected:
 
         if( event.GetId() >= GRIDTRICKS_FIRST_SHOWHIDE && event.GetId() < GRIDTRICKS_LAST_ID )
         {
+            if( !m_grid->IsColShown( REFERENCE ) )
+            {
+                DisplayError( m_dlg, _( "The Reference column cannot be hidden." ) );
+
+                m_grid->ShowCol( REFERENCE );
+            }
+
             // Refresh Show checkboxes from grid columns
             for( int i = 0; i < m_fieldsCtrl->GetItemCount(); ++i )
                 m_fieldsCtrl->SetToggleValue( m_grid->IsColShown( i ), i, 1 );
@@ -182,6 +190,7 @@ public:
             m_frame( aFrame ),
             m_componentRefs( aComponentList ),
             m_edited( false ),
+            m_sortColumn( 0 ),
             m_sortAscending( false )
     {
         m_componentRefs.SplitReferences();
@@ -262,6 +271,10 @@ public:
             {
                 timestamp_t compID = ref.GetComp()->GetTimeStamp();
 
+                if( !m_dataStore.count( compID ) ||
+                        !m_dataStore[ compID ].count( m_fieldNames[ aCol ] ) )
+                    return INDETERMINATE;
+
                 if( &ref == &group.m_Refs.front() )
                     fieldValue = m_dataStore[ compID ][ m_fieldNames[ aCol ] ];
                 else if ( fieldValue != m_dataStore[ compID ][ m_fieldNames[ aCol ] ] )
@@ -277,7 +290,7 @@ public:
                        {
                            wxString l_ref( l.GetRef() << l.GetRefNumber() );
                            wxString r_ref( r.GetRef() << r.GetRefNumber() );
-                           return RefDesStringCompare( l_ref, r_ref ) < 0;
+                           return UTIL::RefDesStringCompare( l_ref, r_ref ) < 0;
                        } );
 
             auto logicalEnd = std::unique( references.begin(), references.end(),
@@ -345,7 +358,7 @@ public:
         {
             wxString lhRef = lhGroup.m_Refs[ 0 ].GetRef() + lhGroup.m_Refs[ 0 ].GetRefNumber();
             wxString rhRef = rhGroup.m_Refs[ 0 ].GetRef() + rhGroup.m_Refs[ 0 ].GetRefNumber();
-            retVal = RefDesStringCompare( lhRef, rhRef ) < 0;
+            retVal = UTIL::RefDesStringCompare( lhRef, rhRef ) < 0;
         }
         else
             retVal = ValueStringCompare( lhs, rhs ) < 0;
@@ -807,8 +820,8 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::AddField( const wxString& aName,
 
     wxVector<wxVariant> fieldsCtrlRow;
 
-    m_config->Read("SymbolFieldEditor/Show/" + aName, &defaultShow);
-    m_config->Read("SymbolFieldEditor/GroupBy/" + aName, &defaultSortBy);
+    m_config->Read( "SymbolFieldEditor/Show/" + aName, &defaultShow );
+    m_config->Read( "SymbolFieldEditor/GroupBy/" + aName, &defaultSortBy );
 
     fieldsCtrlRow.push_back( wxVariant( aName ) );
     fieldsCtrlRow.push_back( wxVariant( defaultShow ) );
@@ -833,6 +846,9 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::LoadFieldNames()
         for( int j = MANDATORY_FIELDS; j < comp->GetFieldCount(); ++j )
             userFieldNames.insert( comp->GetField( j )->GetName() );
     }
+
+    // Force References to always be shown
+    m_config->Write( "SymbolFieldEditor/Show/Reference", true );
 
     AddField( _( "Reference" ), true, true  );
     AddField( _( "Value" ),     true, true  );
@@ -909,6 +925,15 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::OnColumnItemToggled( wxDataViewEvent& event )
     case SHOW_FIELD_COLUMN:
     {
         bool value = m_fieldsCtrl->GetToggleValue( row, col );
+
+        if( row == REFERENCE && !value )
+        {
+            DisplayError( this, _( "The Reference column cannot be hidden." ) );
+
+            value = true;
+            m_fieldsCtrl->SetToggleValue( value, row, col );
+        }
+
         wxString fieldName = m_fieldsCtrl->GetTextValue( row, FIELD_NAME_COLUMN );
         m_config->Write( "SymbolFieldEditor/Show/" + fieldName, value );
 

@@ -801,6 +801,8 @@ void ROUTER_TOOL::performRouting()
         // Don't crash if we missed an operation that cancelled routing.
         wxCHECK2( m_router->RoutingInProgress(), break );
 
+        handleCommonEvents( *evt );
+
         if( evt->IsMotion() )
         {
             m_router->SetOrthoMode( evt->Modifier( MD_CTRL ) );
@@ -1172,7 +1174,7 @@ int ROUTER_TOOL::InlineDrag( const TOOL_EVENT& aEvent )
             return 0;
     }
 
-    VECTOR2I p0 = controls()->GetCursorPosition();
+    VECTOR2I p0 = controls()->GetCursorPosition( false );
 
     int dragMode = aEvent.Parameter<int64_t> ();
 

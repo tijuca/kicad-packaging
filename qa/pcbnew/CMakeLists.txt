@@ -42,6 +42,7 @@ add_executable( qa_pcbnew
     drc/drc_test_utils.cpp
 
     # test compilation units (start test_)
+    test_array_pad_name_provider.cpp
     test_graphics_import_mgr.cpp
     test_pad_naming.cpp
 
@@ -60,12 +61,9 @@ target_link_libraries( qa_pcbnew
     pcbcommon
     pnsrouter
     pcad2kicadpcb
-    bitmaps
     common
     pcbcommon
     legacy_wx
-    polygon
-    bitmaps
     gal
     qa_utils
     lib_dxf
