@@ -1,3 +1,16 @@
+kicad (5.1~rc1+dfsg1-1) experimental; urgency=medium
+
+  * [bb3b42f] New upstream version 5.1~rc1+dfsg1
+    (Closes: #921259)
+  * [ad86f08] d/control: adding clang to Build-Depends
+  * [86ed0bc] d/rules: setting the clang compiler explicitly
+    + Due the version 0.9.9.3 of GLM we can't use GCC for building the source
+      and need to switch over to CLang. This happen because of some different
+      interpreted C++11 Standards between GCC and CLang in GLM.
+  * [fed316f] d/copyright: small update to the copyright file
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sat, 09 Feb 2019 09:11:10 +0100
+
 kicad (5.1~20190127.4fc692f+dfsg1-1) experimental; urgency=medium
 
   * [a2ab50a] New upstream version 5.1~20190127.4fc692f+dfsg1
