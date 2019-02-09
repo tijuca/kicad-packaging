@@ -36,10 +36,14 @@ set( common_srcs
     ../../common/colors.cpp
     ../../common/observable.cpp
 
+    test_array_options.cpp
     test_color4d.cpp
     test_coroutine.cpp
     test_format_units.cpp
     test_hotkey_store.cpp
+    test_lib_table.cpp
+    test_kicad_string.cpp
+    test_refdes_utils.cpp
     test_title_block.cpp
     test_utf8.cpp
     test_wildcards_and_files_ext.cpp
@@ -47,16 +51,18 @@ set( common_srcs
     libeval/test_numeric_evaluator.cpp
 
     geometry/test_fillet.cpp
+    geometry/test_segment.cpp
     geometry/test_shape_arc.cpp
+    geometry/test_shape_poly_set_collision.cpp
+    geometry/test_shape_poly_set_distance.cpp
+    geometry/test_shape_poly_set_iterator.cpp
 
     view/test_zoom_controller.cpp
 )
 
-set( common_libs 
+set( common_libs
     common
     legacy_gal
-    polygon
-    bitmaps
     gal
     qa_utils
     unit_test_utils
@@ -83,7 +89,6 @@ include_directories(
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/pcbnew
     ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/polygon
     ${INC_AFTER}
 )
 

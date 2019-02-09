@@ -17,7 +17,6 @@ include_directories(
     ${CURL_INCLUDE_DIRS}
     ../3d-viewer
     ../pcbnew
-    ../polygon
     ${INC_AFTER}
     ${OCE_INCLUDE_DIRS}
     ${OCC_INCLUDE_DIR}
@@ -93,7 +92,12 @@ add_library( legacy_wx STATIC ${LEGACY_WX_SRCS} )
 target_include_directories( legacy_wx PUBLIC ../include/legacy_wx )
 target_include_directories( legacy_gal PUBLIC ../include/legacy_gal )
 
+target_link_libraries( legacy_wx PRIVATE bitmaps polygon )
+target_link_libraries( legacy_gal PRIVATE bitmaps polygon )
+
 target_link_libraries( gal
+    polygon
+    bitmaps
     ${GLEW_LIBRARIES}
     ${CAIRO_LIBRARIES}
     ${PIXMAN_LIBRARIES}
@@ -225,6 +229,7 @@ set( COMMON_WIDGET_SRCS
     widgets/two_column_tree_list.cpp
     widgets/ui_common.cpp
     widgets/unit_binder.cpp
+    widgets/widget_save_restore.cpp
     widgets/widget_hotkey_list.cpp
     widgets/wx_grid.cpp
     )
@@ -272,6 +277,7 @@ set( COMMON_SRCS
     ${COMMON_PREVIEW_ITEMS_SRCS}
     ${PLOTTERS_CONTROL_SRCS}
     advanced_config.cpp
+    array_options.cpp
     base_struct.cpp
     bezier_curves.cpp
     bin_mod.cpp
@@ -336,6 +342,7 @@ set( COMMON_SRCS
     project.cpp
     properties.cpp
     ptree.cpp
+    refdes_utils.cpp
     reporter.cpp
     richio.cpp
     search_stack.cpp
@@ -416,6 +423,7 @@ add_library( common STATIC ${COMMON_SRCS} )
 add_dependencies( common version_header )
 target_link_libraries( common
     bitmaps
+    polygon
     gal
     ${Boost_LIBRARIES}
     ${CURL_LIBRARIES}
@@ -495,6 +503,10 @@ add_library( pcbcommon STATIC ${PCB_COMMON_SRCS} )
 
 target_include_directories( pcbcommon PUBLIC
     ../include/legacy_wx
+)
+
+target_link_libraries( pcbcommon PUBLIC
+    common
 )
 
 
@@ -600,7 +612,7 @@ add_dependencies( common page_layout_lexer_source_files )
 add_executable( dsntest EXCLUDE_FROM_ALL dsnlexer.cpp )
 target_link_libraries( dsntest common ${wxWidgets_LIBRARIES} rt )
 
-target_link_libraries( pcbcommon )
+target_link_libraries( pcbcommon PUBLIC bitmaps )
 
 
 # _kiway.so
@@ -643,7 +655,6 @@ if( false ) # future
 
     swig_link_libraries( kiway
         common
-        bitmaps
         ${wxWidgets_LIBRARIES}
         ${PYTHON_LIBRARIES}
         )

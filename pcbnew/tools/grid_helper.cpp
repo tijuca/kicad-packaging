@@ -2,6 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2014 CERN
+ * Copyright (C) 2018-2019 KiCad Developers, see AUTHORS.txt for contributors.
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  *
  * This program is free software; you can redistribute it and/or
@@ -186,7 +187,7 @@ VECTOR2I GRID_HELPER::AlignToSegment( const VECTOR2I& aPoint, const SEG& aSeg )
 VECTOR2I GRID_HELPER::BestDragOrigin( const VECTOR2I &aMousePos, BOARD_ITEM* aItem )
 {
     clearAnchors();
-    computeAnchors( aItem, aMousePos );
+    computeAnchors( aItem, aMousePos, true );
 
     double worldScale = m_frame->GetGalCanvas()->GetGAL()->GetWorldScale();
     double lineSnapMinCornerDistance = 50.0 / worldScale;
@@ -324,7 +325,7 @@ BOARD_ITEM* GRID_HELPER::GetSnapped( void ) const
 }
 
 
-void GRID_HELPER::computeAnchors( BOARD_ITEM* aItem, const VECTOR2I& aRefPos )
+void GRID_HELPER::computeAnchors( BOARD_ITEM* aItem, const VECTOR2I& aRefPos, const bool aFrom )
 {
     VECTOR2I origin;
 
@@ -336,7 +337,8 @@ void GRID_HELPER::computeAnchors( BOARD_ITEM* aItem, const VECTOR2I& aRefPos )
 
             for( auto pad : mod->Pads() )
             {
-                if( pad->GetBoundingBox().Contains( wxPoint( aRefPos.x, aRefPos.y ) ) )
+                if( ( aFrom || m_frame->Settings().m_magneticPads == CAPTURE_ALWAYS ) &&
+                        pad->GetBoundingBox().Contains( wxPoint( aRefPos.x, aRefPos.y ) ) )
                 {
                     addAnchor( pad->GetPosition(), CORNER | SNAPPABLE, pad );
                     break;
@@ -350,14 +352,21 @@ void GRID_HELPER::computeAnchors( BOARD_ITEM* aItem, const VECTOR2I& aRefPos )
 
         case PCB_PAD_T:
         {
-            D_PAD* pad = static_cast<D_PAD*>( aItem );
-            addAnchor( pad->GetPosition(), CORNER | SNAPPABLE, pad );
+            if( aFrom || m_frame->Settings().m_magneticPads == CAPTURE_ALWAYS )
+            {
+                D_PAD* pad = static_cast<D_PAD*>( aItem );
+                addAnchor( pad->GetPosition(), CORNER | SNAPPABLE, pad );
+            }
+
             break;
         }
 
         case PCB_MODULE_EDGE_T:
         case PCB_LINE_T:
         {
+            if( !m_frame->Settings().m_magneticGraphics )
+                break;
+
             DRAWSEGMENT* dseg = static_cast<DRAWSEGMENT*>( aItem );
             VECTOR2I start = dseg->GetStart();
             VECTOR2I end = dseg->GetEnd();
@@ -418,22 +427,33 @@ void GRID_HELPER::computeAnchors( BOARD_ITEM* aItem, const VECTOR2I& aRefPos )
 
         case PCB_TRACE_T:
         {
-            TRACK* track = static_cast<TRACK*>( aItem );
-            VECTOR2I start = track->GetStart();
-            VECTOR2I end = track->GetEnd();
-            origin.x = start.x + ( start.x - end.x ) / 2;
-            origin.y = start.y + ( start.y - end.y ) / 2;
-            addAnchor( start, CORNER | SNAPPABLE, track );
-            addAnchor( end, CORNER | SNAPPABLE, track );
-            addAnchor( origin, ORIGIN, track);
+            if( aFrom || m_frame->Settings().m_magneticTracks == CAPTURE_ALWAYS )
+            {
+                TRACK* track = static_cast<TRACK*>( aItem );
+                VECTOR2I start = track->GetStart();
+                VECTOR2I end = track->GetEnd();
+                origin.x = start.x + ( start.x - end.x ) / 2;
+                origin.y = start.y + ( start.y - end.y ) / 2;
+                addAnchor( start, CORNER | SNAPPABLE, track );
+                addAnchor( end, CORNER | SNAPPABLE, track );
+                addAnchor( origin, ORIGIN, track);
+            }
+
             break;
         }
 
         case PCB_MARKER_T:
         case PCB_TARGET_T:
-        case PCB_VIA_T:
             addAnchor( aItem->GetPosition(), ORIGIN | CORNER | SNAPPABLE, aItem );
             break;
+
+        case PCB_VIA_T:
+        {
+            if( aFrom || m_frame->Settings().m_magneticTracks == CAPTURE_ALWAYS )
+                addAnchor( aItem->GetPosition(), ORIGIN | CORNER | SNAPPABLE, aItem );
+
+            break;
+        }
 
         case PCB_ZONE_AREA_T:
         {
