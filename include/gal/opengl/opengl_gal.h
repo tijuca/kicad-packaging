@@ -236,6 +236,8 @@ public:
     /// @copydoc GAL::SetNegativeDrawMode()
     virtual void SetNegativeDrawMode( bool aSetting ) override {}
 
+    virtual void ComputeWorldScreenMatrix() override;
+
     // -------
     // Cursor
     // -------
@@ -322,6 +324,8 @@ private:
     bool                    isContextLocked;            ///< Used for assertion checking
     int                     lockClientCookie;
     GLint                   ufm_worldPixelSize;
+    GLint                   ufm_screenPixelSize;
+    GLint                   ufm_pixelSizeMultiplier;
 
     std::unique_ptr<GL_BITMAP_CACHE>         bitmapCache;
 
@@ -476,6 +480,9 @@ private:
     }
 
     double getWorldPixelSize() const;
+
+    VECTOR2D getScreenPixelSize() const;
+
 
     /**
      * @brief Basic OpenGL initialization.

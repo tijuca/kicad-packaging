@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2004-2009 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2009 Dick Hollenbeck, dick@softplc.com
- * Copyright (C) 2009-2018 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2009-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -64,14 +64,28 @@ PANEL_SETUP_NETCLASSES::PANEL_SETUP_NETCLASSES( PAGED_DIALOG* aParent, PCB_EDIT_
     m_netclassesDirty = true;
 
     m_originalColWidths = new int[ m_netclassGrid->GetNumberCols() ];
+    // Calculate a min best size to handle longest usual numeric values:
+    // (The 'M' large char is used to give a margin)
+    int min_best_width = m_netclassGrid->GetTextExtent( "555,555555 milsM" ).x;
 
     for( int i = 0; i < m_netclassGrid->GetNumberCols(); ++i )
-        m_originalColWidths[ i ] = m_netclassGrid->GetColSize( i );
+    {
+        // We calculate the column min size only from texts sizes, not using the initial col width
+        // as this initial width is sometimes strange depending on the language (wxGrid bug?)
+        int min_width =  m_netclassGrid->GetVisibleWidth( i, true, true, false );
+        m_netclassGrid->SetColMinimalWidth( i, min_width );
+        // We use a "best size" >= min_best_width
+        m_originalColWidths[ i ] = std::max( min_width, min_best_width );
+        m_netclassGrid->SetColSize( i, m_originalColWidths[ i ] );
+    }
+
+    // Be sure the column labels are readable
+    m_netclassGrid->EnsureColLabelsVisible();
 
     // Membership combobox editors require a bit more room, so increase the row size of
     // all our grids for consistency
-    m_netclassGrid->SetDefaultRowSize(    m_netclassGrid->GetDefaultRowSize()    + 4 );
-    m_membershipGrid->SetDefaultRowSize(  m_membershipGrid->GetDefaultRowSize()  + 4 );
+    m_netclassGrid->SetDefaultRowSize( m_netclassGrid->GetDefaultRowSize() + 4 );
+    m_membershipGrid->SetDefaultRowSize( m_membershipGrid->GetDefaultRowSize() + 4 );
 
     m_netclassGrid->PushEventHandler( new GRID_TRICKS( m_netclassGrid ) );
     m_membershipGrid->PushEventHandler( new GRID_TRICKS( m_membershipGrid ) );

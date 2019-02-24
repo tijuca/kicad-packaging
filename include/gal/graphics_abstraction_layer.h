@@ -141,6 +141,8 @@ public:
      * DrawArc() draws a "pie piece" when fill is turned on, and a thick stroke when fill is off.
      * DrawArcSegment() with fill *on* behaves like DrawArc() with fill *off*.
      * DrawArcSegment() with fill *off* draws the outline of what it would have drawn with fill on.
+	 *
+	 * TODO: Unify Arc routines
      *
      * @param aCenterPoint  is the center point of the arc.
      * @param aRadius       is the arc radius.
@@ -944,7 +946,7 @@ public:
     }
 
     ///> @brief Draw the grid
-    virtual void DrawGrid();
+    virtual void DrawGrid() {};
 
     /**
      * Function GetGridPoint()
@@ -1130,14 +1132,6 @@ protected:
      * @return the minimum spacing to use for drawing the grid
      */
     double computeMinGridSpacing() const;
-
-    /**
-     * @brief Draw a grid line (usually a simplified line function).
-     *
-     * @param aStartPoint is the start point of the line.
-     * @param aEndPoint is the end point of the line.
-     */
-    virtual void drawGridLine( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint ) {};
 
     /// Possible depth range
     static const int MIN_DEPTH;

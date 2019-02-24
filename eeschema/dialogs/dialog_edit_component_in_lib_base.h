@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Nov 23 2018)
+// C++ code generated with wxFormBuilder (version Nov 10 2018)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -105,10 +105,12 @@ class DIALOG_EDIT_COMPONENT_IN_LIBRARY_BASE : public DIALOG_SHIM
 		virtual void OnSizeAliasGrid( wxSizeEvent& event ) { event.Skip(); }
 		virtual void OnAliasNameKillFocus( wxFocusEvent& event ) { event.Skip(); }
 		virtual void OnAliasNameText( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnAddFootprintFilter( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnFilterDClick( wxMouseEvent& event ) { event.Skip(); }
 		virtual void OnEditFootprintFilter( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnAddFootprintFilter( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnDeleteFootprintFilter( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnEditSpiceModel( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnCancelButtonClick( wxCommandEvent& event ) { event.Skip(); }
 
 
 	public:

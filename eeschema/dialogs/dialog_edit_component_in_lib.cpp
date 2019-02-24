@@ -5,7 +5,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -724,6 +724,26 @@ void DIALOG_EDIT_COMPONENT_IN_LIBRARY::OnDeleteAlias( wxCommandEvent& event )
 
     wxCommandEvent dummy;
     OnSelectAlias( dummy );
+}
+
+
+void DIALOG_EDIT_COMPONENT_IN_LIBRARY::OnFilterDClick( wxMouseEvent& event)
+{
+    int idx = m_FootprintFilterListBox->HitTest( event.GetPosition() );
+    wxCommandEvent dummy;
+
+    if( idx >= 0 )
+        OnEditFootprintFilter( dummy );
+    else
+        OnAddFootprintFilter( dummy );
+}
+
+
+void DIALOG_EDIT_COMPONENT_IN_LIBRARY::OnCancelButtonClick( wxCommandEvent& event )
+{
+    // Running the Footprint Browser gums up the works and causes the automatic cancel
+    // stuff to no longer work.  So we do it here ourselves.
+    EndQuasiModal( wxID_CANCEL );
 }
 
 
