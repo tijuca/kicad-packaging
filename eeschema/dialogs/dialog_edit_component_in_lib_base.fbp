@@ -2929,6 +2929,8 @@
                                                             <property name="window_extra_style"></property>
                                                             <property name="window_name"></property>
                                                             <property name="window_style"></property>
+                                                            <event name="OnLeftDClick">OnFilterDClick</event>
+                                                            <event name="OnListBoxDClick">OnEditFootprintFilter</event>
                                                         </object>
                                                     </object>
                                                     <object class="sizeritem" expanded="1">
@@ -3298,6 +3300,7 @@
                                 <property name="minimum_size"></property>
                                 <property name="name">m_stdSizerButton</property>
                                 <property name="permission">protected</property>
+                                <event name="OnCancelButtonClick">OnCancelButtonClick</event>
                             </object>
                         </object>
                     </object>

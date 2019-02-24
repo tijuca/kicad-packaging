@@ -158,8 +158,11 @@ GLuint GL_BITMAP_CACHE::cacheBitmap( const BITMAP_BASE* aBitmap )
 
             if( imgData->HasAlpha() )
                 p[3] = imgData->GetAlpha( x, y );
+            else if( imgData->HasMask() && p[0] == imgData->GetMaskRed() &&
+                     p[1] == imgData->GetMaskGreen() && p[2] == imgData->GetMaskBlue() )
+                p[3] = wxALPHA_TRANSPARENT;
             else
-                p[3] = 255;
+                p[3] = wxALPHA_OPAQUE;
         }
     }
 
@@ -259,7 +262,7 @@ OPENGL_GAL::OPENGL_GAL( GAL_DISPLAY_OPTIONS& aDisplayOptions, wxWindow* aParent,
 #endif
 
     SetSize( aParent->GetClientSize() );
-    screenSize = VECTOR2I( aParent->GetClientSize() );
+    screenSize = VECTOR2I( GetNativePixelSize() );
 
     // Grid color settings are different in Cairo and OpenGL
     SetGridColor( COLOR4D( 0.8, 0.8, 0.8, 0.1 ) );
@@ -343,11 +346,20 @@ bool OPENGL_GAL::updatedGalDisplayOptions( const GAL_DISPLAY_OPTIONS& aOptions )
     return refresh;
 }
 
+
 double OPENGL_GAL::getWorldPixelSize() const
 {
     auto matrix = GetScreenWorldMatrix();
     return std::min( std::abs( matrix.GetScale().x ), std::abs( matrix.GetScale().y ) );
 }
+
+
+VECTOR2D OPENGL_GAL::getScreenPixelSize() const
+{
+    auto sf = GetBackingScaleFactor();
+    return VECTOR2D( 2.0 / (double) ( screenSize.x * sf ), 2.0 / (double) ( screenSize.y * sf ) );
+}
+
 
 void OPENGL_GAL::beginDrawing()
 {
@@ -457,6 +469,8 @@ void OPENGL_GAL::beginDrawing()
         GLint ufm_fontTexture       = shader->AddParameter( "fontTexture" );
         GLint ufm_fontTextureWidth  = shader->AddParameter( "fontTextureWidth" );
         ufm_worldPixelSize          = shader->AddParameter( "worldPixelSize" );
+        ufm_screenPixelSize         = shader->AddParameter( "screenPixelSize" );
+        ufm_pixelSizeMultiplier     = shader->AddParameter( "pixelSizeMultiplier" );
 
         shader->Use();
         shader->SetParameter( ufm_fontTexture,       (int) FONT_TEXTURE_UNIT  );
@@ -468,7 +482,10 @@ void OPENGL_GAL::beginDrawing()
     }
 
     shader->Use();
-    shader->SetParameter( ufm_worldPixelSize, (float) getWorldPixelSize() );
+    shader->SetParameter( ufm_worldPixelSize, (float) getWorldPixelSize() / GetBackingScaleFactor() );
+    shader->SetParameter( ufm_screenPixelSize, getScreenPixelSize() );
+    double pixelSizeMultiplier = compositor->GetAntialiasSupersamplingFactor();
+    shader->SetParameter( ufm_pixelSizeMultiplier, (float) pixelSizeMultiplier );
     shader->Deactivate();
 
     // Something betreen BeginDrawing and EndDrawing seems to depend on
@@ -600,6 +617,7 @@ void OPENGL_GAL::DrawSegment( const VECTOR2D& aStartPoint, const VECTOR2D& aEndP
         // Outlined tracks
         double lineLength = startEndVector.EuclideanNorm();
 
+        SetLineWidth( 1.0 );
         currentManager->Color( strokeColor.r, strokeColor.g, strokeColor.b, strokeColor.a );
 
         Save();
@@ -633,24 +651,21 @@ void OPENGL_GAL::DrawCircle( const VECTOR2D& aCenterPoint, double aRadius )
          *  Parameters given to Shader() are indices of the triangle's vertices
          *  (if you want to understand more, check the vertex shader source [shader.vert]).
          *  Shader uses this coordinates to determine if fragments are inside the circle or not.
+         *  Does the calculations in the vertex shader now (pixel alignment)
          *       v2
          *       /\
          *      //\\
          *  v0 /_\/_\ v1
          */
-        currentManager->Shader( SHADER_FILLED_CIRCLE, 1.0 );
-        currentManager->Vertex( aCenterPoint.x - aRadius * sqrt( 3.0f ),            // v0
-                                aCenterPoint.y - aRadius, layerDepth );
+        currentManager->Shader( SHADER_FILLED_CIRCLE, 1.0, aRadius );
+        currentManager->Vertex( aCenterPoint.x, aCenterPoint.y, layerDepth );
 
-        currentManager->Shader( SHADER_FILLED_CIRCLE, 2.0 );
-        currentManager->Vertex( aCenterPoint.x + aRadius * sqrt( 3.0f),             // v1
-                                aCenterPoint.y - aRadius, layerDepth );
+        currentManager->Shader( SHADER_FILLED_CIRCLE, 2.0, aRadius );
+        currentManager->Vertex( aCenterPoint.x, aCenterPoint.y, layerDepth );
 
-        currentManager->Shader( SHADER_FILLED_CIRCLE, 3.0 );
-        currentManager->Vertex( aCenterPoint.x, aCenterPoint.y + aRadius * 2.0f,    // v2
-                                layerDepth );
+        currentManager->Shader( SHADER_FILLED_CIRCLE, 3.0, aRadius );
+        currentManager->Vertex( aCenterPoint.x, aCenterPoint.y, layerDepth );
     }
-
     if( isStrokeEnabled )
     {
         currentManager->Reserve( 3 );
@@ -666,17 +681,16 @@ void OPENGL_GAL::DrawCircle( const VECTOR2D& aCenterPoint, double aRadius )
          *      //\\
          *  v0 /_\/_\ v1
          */
-        double outerRadius = aRadius + ( lineWidth / 2 );
         currentManager->Shader( SHADER_STROKED_CIRCLE, 1.0, aRadius, lineWidth );
-        currentManager->Vertex( aCenterPoint.x - outerRadius * sqrt( 3.0f ),            // v0
-                                aCenterPoint.y - outerRadius, layerDepth );
+        currentManager->Vertex( aCenterPoint.x,            // v0
+                                aCenterPoint.y, layerDepth );
 
         currentManager->Shader( SHADER_STROKED_CIRCLE, 2.0, aRadius, lineWidth );
-        currentManager->Vertex( aCenterPoint.x + outerRadius * sqrt( 3.0f ),            // v1
-                                aCenterPoint.y - outerRadius, layerDepth );
+        currentManager->Vertex( aCenterPoint.x,            // v1
+                                aCenterPoint.y, layerDepth );
 
         currentManager->Shader( SHADER_STROKED_CIRCLE, 3.0, aRadius, lineWidth );
-        currentManager->Vertex( aCenterPoint.x, aCenterPoint.y + outerRadius * 2.0f,    // v2
+        currentManager->Vertex( aCenterPoint.x, aCenterPoint.y,    // v2
                                 layerDepth );
     }
 }
@@ -1236,29 +1250,33 @@ void OPENGL_GAL::DrawGrid()
     if( !gridVisibility )
         return;
 
-    int gridScreenSizeDense  = KiROUND( gridSize.x * worldScale );
-    int gridScreenSizeCoarse = KiROUND( gridSize.x * static_cast<double>( gridTick ) * worldScale );
+    int gridScreenSizeDense  = gridSize.x;
+    int gridScreenSizeCoarse = KiROUND( gridSize.x * static_cast<double>( gridTick ) );
 
-    const double gridThreshold = computeMinGridSpacing();
+    double gridThreshold = KiROUND( computeMinGridSpacing() / worldScale );
 
-    // Check if the grid would not be too dense
-    if( std::max( gridScreenSizeDense, gridScreenSizeCoarse ) < gridThreshold )
-        return;
+    if( gridStyle == GRID_STYLE::SMALL_CROSS )
+        gridThreshold *= 2.0;
+
+    // If we cannot display the grid density, scale down by a tick size and
+    // try again.  Eventually, we get some representation of the grid
+    while( std::min( gridScreenSizeDense, gridScreenSizeCoarse ) <= gridThreshold )
+    {
+        gridScreenSizeCoarse *= gridTick;
+        gridScreenSizeDense *= gridTick;
+    }
 
     // Compute grid staring and ending indexes to draw grid points on the
     // visible screen area
     // Note: later any point coordinate will be offsetted by gridOrigin
-    int gridStartX = KiROUND( ( worldStartPoint.x - gridOrigin.x ) / gridSize.x );
-    int gridEndX = KiROUND( ( worldEndPoint.x - gridOrigin.x ) / gridSize.x );
-    int gridStartY = KiROUND( ( worldStartPoint.y - gridOrigin.y ) / gridSize.y );
-    int gridEndY = KiROUND( ( worldEndPoint.y - gridOrigin.y ) / gridSize.y );
+    int gridStartX = KiROUND( ( worldStartPoint.x - gridOrigin.x ) / gridScreenSizeDense );
+    int gridEndX = KiROUND( ( worldEndPoint.x - gridOrigin.x ) / gridScreenSizeDense );
+    int gridStartY = KiROUND( ( worldStartPoint.y - gridOrigin.y ) / gridScreenSizeDense );
+    int gridEndY = KiROUND( ( worldEndPoint.y - gridOrigin.y ) / gridScreenSizeDense );
 
     // Ensure start coordinate > end coordinate
-    if( gridStartX > gridEndX )
-        std::swap( gridStartX, gridEndX );
-
-    if( gridStartY > gridEndY )
-        std::swap( gridStartY, gridEndY );
+    SWAP( gridStartX, >, gridStartX );
+    SWAP( gridStartY, >, gridEndY );
 
     // Ensure the grid fills the screen
     --gridStartX; ++gridEndX;
@@ -1283,32 +1301,23 @@ void OPENGL_GAL::DrawGrid()
 
     if( gridStyle == GRID_STYLE::SMALL_CROSS )
     {
-        SetLineWidth( minorLineWidth );
-
-        // calculate a line len = 2 minorLineWidth, in internal unit value
-        // (in fact the size of cross is lineLen*2)
-        int lineLen = KiROUND( minorLineWidth * 2.0 );
 
         // Vertical positions
         for( int j = gridStartY; j <= gridEndY; j++ )
         {
-            if( ( j % gridTick == 0 && gridScreenSizeCoarse > gridThreshold )
-                || gridScreenSizeDense > gridThreshold )
+            bool tickY = ( j % gridTick == 0 );
+            int posY =  j * gridScreenSizeDense + gridOrigin.y;
+
+            // Horizontal positions
+            for( int i = gridStartX; i <= gridEndX; i++ )
             {
-                int posY =  j * gridSize.y + gridOrigin.y;
+                bool tickX = ( i % gridTick == 0 );
+                SetLineWidth( ( ( tickX && tickY ) ? majorLineWidth : minorLineWidth ) );
+                auto lineLen = 2.0 * GetLineWidth();
+                auto posX = i * gridScreenSizeDense + gridOrigin.x;
 
-                // Horizontal positions
-                for( int i = gridStartX; i <= gridEndX; i++ )
-                {
-                    if( ( i % gridTick == 0 && gridScreenSizeCoarse > gridThreshold )
-                        || gridScreenSizeDense > gridThreshold )
-                    {
-                        int posX = i * gridSize.x + gridOrigin.x;
-
-                        DrawLine( VECTOR2D( posX - lineLen, posY ), VECTOR2D( posX + lineLen, posY ) );
-                        DrawLine( VECTOR2D( posX, posY - lineLen ), VECTOR2D( posX, posY + lineLen ) );
-                    }
-                }
+                DrawLine( VECTOR2D( posX - lineLen, posY ), VECTOR2D( posX + lineLen, posY ) );
+                DrawLine( VECTOR2D( posX, posY - lineLen ), VECTOR2D( posX, posY + lineLen ) );
             }
         }
 
@@ -1319,25 +1328,17 @@ void OPENGL_GAL::DrawGrid()
         // Vertical lines
         for( int j = gridStartY; j <= gridEndY; j++ )
         {
-            const double y = j * gridSize.y + gridOrigin.y;
+            const double y = j * gridScreenSizeDense + gridOrigin.y;
 
             // If axes are drawn, skip the lines that would cover them
             if( axesEnabled && y == 0 )
                 continue;
 
-            if( j % gridTick == 0 && gridScreenSizeDense > gridThreshold )
-                SetLineWidth( majorLineWidth );
-            else
-                SetLineWidth( minorLineWidth );
+            SetLineWidth( ( j % gridTick == 0 ) ? majorLineWidth : minorLineWidth );
+            VECTOR2D a ( gridStartX * gridScreenSizeDense + gridOrigin.x, y );
+            VECTOR2D b ( gridEndX * gridScreenSizeDense + gridOrigin.x, y );
 
-            if( ( j % gridTick == 0 && gridScreenSizeCoarse > gridThreshold )
-                || gridScreenSizeDense > gridThreshold )
-            {
-                VECTOR2D a ( gridStartX * gridSize.x + gridOrigin.x, y );
-                VECTOR2D b ( gridEndX * gridSize.x + gridOrigin.x, y );
-
-                DrawLine( a, b );
-            }
+            DrawLine( a, b );
         }
 
         nonCachedManager->EndDrawing();
@@ -1352,24 +1353,16 @@ void OPENGL_GAL::DrawGrid()
         // Horizontal lines
         for( int i = gridStartX; i <= gridEndX; i++ )
         {
-            const double x = i * gridSize.x + gridOrigin.x;
+            const double x = i * gridScreenSizeDense + gridOrigin.x;
 
             // If axes are drawn, skip the lines that would cover them
             if( axesEnabled && x == 0 )
                 continue;
 
-            if( i % gridTick == 0 && gridScreenSizeDense > gridThreshold )
-                SetLineWidth( majorLineWidth );
-            else
-                SetLineWidth( minorLineWidth );
-
-            if( ( i % gridTick == 0 && gridScreenSizeCoarse > gridThreshold )
-                || gridScreenSizeDense > gridThreshold )
-            {
-                VECTOR2D a ( x, gridStartY * gridSize.y + gridOrigin.y );
-                VECTOR2D b ( x, gridEndY * gridSize.y + gridOrigin.y );
-                DrawLine( a, b );
-            }
+            SetLineWidth( ( i % gridTick == 0 ) ? majorLineWidth : minorLineWidth );
+            VECTOR2D a ( x, gridStartY * gridScreenSizeDense + gridOrigin.y );
+            VECTOR2D b ( x, gridEndY * gridScreenSizeDense + gridOrigin.y );
+            DrawLine( a, b );
         }
 
         nonCachedManager->EndDrawing();
@@ -1629,43 +1622,27 @@ void OPENGL_GAL::drawLineQuad( const VECTOR2D& aStartPoint, const VECTOR2D& aEnd
     auto v1  = currentManager->GetTransformation() * glm::vec4( aStartPoint.x, aStartPoint.y, 0.0, 0.0 );
     auto v2  = currentManager->GetTransformation() * glm::vec4( aEndPoint.x, aEndPoint.y, 0.0, 0.0 );
 
-    VECTOR2D startEndVector( v2.x - v1.x, v2.y - v1.y );
-
-    double lineLength     = startEndVector.EuclideanNorm();
-
-    VECTOR2D vs ( startEndVector );
-    float aspect;
-
-    if ( lineWidth == 0.0 ) // pixel-width line
-    {
-        vs = vs.Resize( 0.5 );
-        aspect = ( lineLength + 1.0 );
-    }
-    else
-    {
-        vs = vs.Resize( 0.5 * lineWidth );
-        aspect = ( lineLength + lineWidth ) / lineWidth;
-    }
+    VECTOR2D vs( v2.x - v1.x, v2.y - v1.y );
 
     currentManager->Reserve( 6 );
 
     // Line width is maintained by the vertex shader
-    currentManager->Shader( SHADER_LINE_A, aspect, vs.x, vs.y );
+    currentManager->Shader( SHADER_LINE_A, lineWidth, vs.x, vs.y );
     currentManager->Vertex( aStartPoint, layerDepth );
 
-    currentManager->Shader( SHADER_LINE_B, aspect, vs.x, vs.y );
+    currentManager->Shader( SHADER_LINE_B, lineWidth, vs.x, vs.y );
     currentManager->Vertex( aStartPoint, layerDepth );
 
-    currentManager->Shader( SHADER_LINE_C, aspect, vs.x, vs.y );
+    currentManager->Shader( SHADER_LINE_C, lineWidth, vs.x, vs.y );
     currentManager->Vertex( aEndPoint, layerDepth );
 
-    currentManager->Shader( SHADER_LINE_D, aspect, vs.x, vs.y );
+    currentManager->Shader( SHADER_LINE_D, lineWidth, vs.x, vs.y );
     currentManager->Vertex( aEndPoint, layerDepth );
 
-    currentManager->Shader( SHADER_LINE_E, aspect, vs.x, vs.y );
+    currentManager->Shader( SHADER_LINE_E, lineWidth, vs.x, vs.y );
     currentManager->Vertex( aEndPoint, layerDepth );
 
-    currentManager->Shader( SHADER_LINE_F, aspect, vs.x, vs.y );
+    currentManager->Shader( SHADER_LINE_F, lineWidth, vs.x, vs.y );
     currentManager->Vertex( aStartPoint, layerDepth );
 }
 
@@ -2121,3 +2098,21 @@ void OPENGL_GAL::EnableDepthTest( bool aEnabled )
     nonCachedManager->EnableDepthTest( aEnabled );
     overlayManager->EnableDepthTest( aEnabled );
 }
+
+
+static double roundr( double f, double r )
+{
+    return floor(f / r + 0.5) * r;
+}
+
+
+void OPENGL_GAL::ComputeWorldScreenMatrix()
+{
+    auto pixelSize = worldScale;
+
+    lookAtPoint.x = roundr( lookAtPoint.x, pixelSize );
+    lookAtPoint.y = roundr( lookAtPoint.y, pixelSize );
+
+    GAL::ComputeWorldScreenMatrix();
+}
+

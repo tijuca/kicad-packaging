@@ -218,6 +218,26 @@ void LIB_EDIT_FRAME::ReCreateMenuBar()
                  _( "Grid Settings..." ), wxEmptyString,
                  KiBitmap( grid_xpm ) );
 
+    // Units submenu
+    wxMenu* unitsSubMenu = new wxMenu;
+    AddMenuItem( unitsSubMenu, ID_TB_OPTIONS_SELECT_UNIT_INCH,
+                 _( "&Imperial" ), _( "Use imperial units" ),
+                 KiBitmap( unit_inch_xpm ), wxITEM_RADIO );
+
+    AddMenuItem( unitsSubMenu, ID_TB_OPTIONS_SELECT_UNIT_MM,
+                 _( "&Metric" ), _( "Use metric units" ),
+                 KiBitmap( unit_mm_xpm ), wxITEM_RADIO );
+
+    AddMenuItem( viewMenu, unitsSubMenu,
+                 -1, _( "&Units" ),
+                 _( "Select which units are displayed" ),
+                 KiBitmap( unit_mm_xpm ) );
+
+    AddMenuItem( viewMenu, ID_TB_OPTIONS_SELECT_CURSOR,
+                 _( "Full &Window Crosshair" ),
+                 _( "Change cursor shape" ),
+                 KiBitmap( cursor_shape_xpm ), wxITEM_CHECK );
+
     // Separator
     viewMenu->AppendSeparator();
 
@@ -317,6 +337,22 @@ void LIB_EDIT_FRAME::ReCreateMenuBar()
 
     // Language submenu
     Pgm().AddMenuLanguageList( preferencesMenu );
+
+    preferencesMenu->AppendSeparator();
+
+    text = AddHotkeyName( _( "Modern Toolset (&Accelerated)" ), g_Libedit_Hokeys_Descr,
+                          HK_CANVAS_OPENGL );
+    AddMenuItem( preferencesMenu, ID_MENU_CANVAS_OPENGL, text,
+                 _( "Use Modern Toolset with hardware-accelerated graphics (recommended)" ),
+                 KiBitmap( tools_xpm ), wxITEM_RADIO );
+
+    text = AddHotkeyName( _( "Modern Toolset (Fallba&ck)" ), g_Libedit_Hokeys_Descr,
+                          HK_CANVAS_CAIRO );
+    AddMenuItem( preferencesMenu, ID_MENU_CANVAS_CAIRO, text,
+                 _( "Use Modern Toolset with software graphics (fall-back)" ),
+                 KiBitmap( tools_xpm ), wxITEM_RADIO );
+
+
 
     // Menu Help:
     wxMenu* helpMenu = new wxMenu;

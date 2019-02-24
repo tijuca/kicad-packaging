@@ -75,7 +75,6 @@ int LIB_EDIT_FRAME::           m_convert = 1;
 LIB_ITEM* LIB_EDIT_FRAME::m_lastDrawItem = NULL;
 
 bool LIB_EDIT_FRAME::          m_showDeMorgan    = false;
-wxSize LIB_EDIT_FRAME::        m_clientSize      = wxSize( -1, -1 );
 int LIB_EDIT_FRAME::           m_textSize        = -1;
 double LIB_EDIT_FRAME::        m_current_text_angle = TEXT_ANGLE_HORIZ;
 int LIB_EDIT_FRAME::           m_drawLineWidth   = 0;
@@ -147,6 +146,8 @@ BEGIN_EVENT_TABLE( LIB_EDIT_FRAME, EDA_DRAW_FRAME )
     EVT_MENU( ID_HELP_GET_INVOLVED, EDA_DRAW_FRAME::GetKicadContribute )
     EVT_MENU( wxID_ABOUT, EDA_BASE_FRAME::GetKicadAbout )
     EVT_MENU( ID_GRID_SETTINGS, SCH_BASE_FRAME::OnGridSettings )
+    EVT_MENU( ID_MENU_CANVAS_CAIRO, LIB_EDIT_FRAME::OnSwitchCanvas )
+    EVT_MENU( ID_MENU_CANVAS_OPENGL, LIB_EDIT_FRAME::OnSwitchCanvas )
 
     EVT_MENU( wxID_PREFERENCES, LIB_EDIT_FRAME::OnPreferencesOptions )
 
@@ -191,6 +192,8 @@ BEGIN_EVENT_TABLE( LIB_EDIT_FRAME, EDA_DRAW_FRAME )
                          LIB_EDIT_FRAME::OnUpdateEditingPart )
     EVT_UPDATE_UI( ID_LIBEDIT_SHOW_ELECTRICAL_TYPE, LIB_EDIT_FRAME::OnUpdateElectricalType )
     EVT_UPDATE_UI( ID_LIBEDIT_SHOW_HIDE_SEARCH_TREE, LIB_EDIT_FRAME::OnUpdateSearchTreeTool )
+    EVT_UPDATE_UI( ID_MENU_CANVAS_CAIRO, LIB_EDIT_FRAME::OnUpdateSwitchCanvas )
+    EVT_UPDATE_UI( ID_MENU_CANVAS_OPENGL, LIB_EDIT_FRAME::OnUpdateSwitchCanvas )
 
 END_EVENT_TABLE()
 
@@ -262,7 +265,8 @@ LIB_EDIT_FRAME::LIB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
 
     m_auimgr.AddPane( m_optionsToolBar, EDA_PANE().VToolbar().Name( "OptToolbar" ).Left().Layer(3) );
     m_auimgr.AddPane( m_treePane, EDA_PANE().Palette().Name( "ComponentTree" ).Left().Layer(1)
-                      .Caption( _( "Libraries" ) ).MinSize( 250, -1 ).Resizable() );
+                      .Caption( _( "Libraries" ) ).MinSize( 250, -1 )
+                      .BestSize( m_defaultLibWidth, -1 ).Resizable() );
     m_auimgr.AddPane( m_drawToolBar, EDA_PANE().VToolbar().Name( "ToolsToolbar" ).Right().Layer(1) );
 
     m_auimgr.AddPane( m_canvas->GetWindow(), wxAuiPaneInfo().Name( "DrawFrame" ).CentrePane() );

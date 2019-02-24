@@ -2,7 +2,7 @@
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
  * Copyright (C) 2012 Torsten Hueter, torstenhtr <at> gmx.de
- * Copyright (C) 2012 Kicad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2012-2019 Kicad Developers, see change_log.txt for contributors.
  * Copyright (C) 2017-2018 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
@@ -214,7 +214,16 @@ public:
 
     virtual void EnableDepthTest( bool aEnabled = false ) override;
 
+    ///> @copydoc GAL::DrawGrid()
+    virtual void DrawGrid() override;
+
+
 protected:
+    const double xform( double x );
+    const VECTOR2D xform( double x, double y );
+    const VECTOR2D xform( const VECTOR2D& aP );
+    const double angle_xform( const double aAngle );
+
     /// @copydoc GAL::BeginDrawing()
     virtual void beginDrawing() override;
 
@@ -223,7 +232,16 @@ protected:
 
     void resetContext();
 
-    virtual void drawGridLine( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint ) override;
+    /**
+     * @brief Draw a grid line (usually a simplified line function).
+     *
+     * @param aStartPoint is the start point of the line.
+     * @param aEndPoint is the end point of the line.
+     */
+    void drawGridLine( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint );
+    void drawGridCross( const VECTOR2D& aPoint );
+    void drawGridPoint( const VECTOR2D& aPoint, double aSize );
+    void drawAxes( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint );
 
     /// Super class definition
     typedef GAL super;
@@ -270,10 +288,19 @@ protected:
     unsigned int                groupCounter;       ///< Counter used for generating keys for groups
     GROUP*                      currentGroup;       ///< Currently used group
 
+    double lineWidth;
+    double linePixelWidth;
+    double lineWidthInPixels;
+    bool lineWidthIsOdd;
+
     cairo_matrix_t      cairoWorldScreenMatrix; ///< Cairo world to screen transformation matrix
+    cairo_matrix_t      currentXform;
+    cairo_matrix_t      currentWorld2Screen;
     cairo_t*            currentContext;         ///< Currently used Cairo context for drawing
     cairo_t*            context;                ///< Cairo image
     cairo_surface_t*    surface;                ///< Cairo surface
+
+    std::vector<cairo_matrix_t> xformStack;
 
     void flushPath();
     void storePath();                           ///< Store the actual path
@@ -294,6 +321,11 @@ protected:
      * @return An unique group number that is not used by any other group.
      */
     unsigned int getNewGroupNumber();
+
+    void syncLineWidth( bool aForceWidth = false, double aWidth = 0.0 );
+    void updateWorldScreenMatrix();
+    const VECTOR2D roundp( const VECTOR2D& v );
+
 
     /// Format used to store pixels
     static constexpr cairo_format_t GAL_FORMAT = CAIRO_FORMAT_RGB24;

@@ -50,9 +50,6 @@ enum {
 // Globals to remember control settings during a session
 static bool         g_modifyTracks = true;
 static bool         g_modifyVias = true;
-
-// These settings go with a particular board, so we save the boardID.
-static timestamp_t  g_boardID;
 static bool         g_filterByNetclass;
 static wxString     g_netclassFilter;
 static bool         g_filterByNet;
@@ -117,8 +114,8 @@ DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS::DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS( PCB_EDIT
 
     buildFilterLists();
 
-    m_parent->UpdateTrackWidthSelectBox( m_trackWidthSelectBox );
-    m_parent->UpdateViaSizeSelectBox( m_viaSizesSelectBox );
+    m_parent->UpdateTrackWidthSelectBox( m_trackWidthSelectBox, false );
+    m_parent->UpdateViaSizeSelectBox( m_viaSizesSelectBox, false );
 
     m_layerBox->SetBoardFrame( m_parent );
     m_layerBox->SetLayersHotkeys( false );
@@ -141,7 +138,6 @@ DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS::DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS( PCB_EDIT
 
 DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS::~DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS()
 {
-    g_boardID = m_brd->GetTimeStamp();
     g_modifyTracks = m_tracks->GetValue();
     g_modifyVias = m_vias->GetValue();
     g_filterByNetclass = m_netclassFilterOpt->GetValue();
@@ -227,15 +223,12 @@ bool DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS::TransferDataToWindow()
     m_tracks->SetValue( g_modifyTracks );
     m_vias->SetValue( g_modifyVias );
 
-    if( g_filterByNetclass && g_boardID == m_brd->GetTimeStamp() )
-    {
-        m_netclassFilter->SetStringSelection( g_netclassFilter );
+    if( g_filterByNetclass && m_netclassFilter->SetStringSelection( g_netclassFilter ) )
         m_netclassFilterOpt->SetValue( true );
-    }
     else if( item )
         m_netclassFilter->SetStringSelection( item->GetNet()->GetClassName() );
 
-    if( g_filterByNet && g_boardID == m_brd->GetTimeStamp() )
+    if( g_filterByNet && m_brd->FindNet( g_netFilter ) != NULL )
     {
         m_netFilter->SetSelectedNet( g_netFilter );
         m_netFilterOpt->SetValue( true );
@@ -243,11 +236,8 @@ bool DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS::TransferDataToWindow()
     else if( item )
         m_netFilter->SetSelectedNetcode( item->GetNetCode() );
 
-    if( g_filterByLayer && g_boardID == m_brd->GetTimeStamp() )
-    {
-        m_layerFilter->SetLayerSelection( g_layerFilter );
+    if( g_filterByLayer && m_layerFilter->SetLayerSelection( g_layerFilter ) != wxNOT_FOUND )
         m_layerFilterOpt->SetValue( true );
-    }
     else if( item )
         m_layerFilter->SetLayerSelection( item->GetLayer() );
 
@@ -280,7 +270,7 @@ void DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS::processItem( PICKED_ITEMS_LIST* aUndoLi
             brdSettings.SetTrackWidthIndex( (unsigned) m_trackWidthSelectBox->GetSelection() );
             brdSettings.SetViaSizeIndex( (unsigned) m_viaSizesSelectBox->GetSelection() );
 
-            if( !m_parent->SetTrackSegmentWidth( aItem, aUndoList, false ) )
+            if( m_parent->SetTrackSegmentWidth( aItem, aUndoList, false ) == TRACK_ACTION_DRC_ERROR )
                 m_failedDRC = true;
         }
         brdSettings.SetTrackWidthIndex( prevTrackWidthIndex );
@@ -301,7 +291,7 @@ void DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS::processItem( PICKED_ITEMS_LIST* aUndoLi
     }
     else
     {
-        if( !m_parent->SetTrackSegmentWidth( aItem, aUndoList, true ) )
+        if( m_parent->SetTrackSegmentWidth( aItem, aUndoList, true ) == TRACK_ACTION_DRC_ERROR )
             m_failedDRC = true;
     }
 }
