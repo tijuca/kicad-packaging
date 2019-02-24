@@ -1,3 +1,15 @@
+kicad (5.1.0~rc1+20190224+dfsg1-1) experimental; urgency=medium
+
+  * [9753ede] New upstream version 5.1.0~rc1+20190224+dfsg1
+    + Snapshot from 24th February 2019 from the KiCad master branch from
+      commit ID 30612ca.
+  * [b10b8f4] d/kicad-doc-zh.doc-base: add new installed files
+    + Documentation for Chinese now includes files for EEschema and Getting
+      started in KiCad (GSiK).
+  * [7458dc7] d/control: adjust kicad-doc-zh description
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sun, 24 Feb 2019 10:49:13 +0100
+
 kicad (5.1~rc1+dfsg1-1) experimental; urgency=medium
 
   * [bb3b42f] New upstream version 5.1~rc1+dfsg1
