@@ -12,3 +12,5 @@ Files: /usr/share/doc/kicad/help/zh/*.html
 
 Format: PDF
 Files: /usr/share/doc/kicad/help/zh/cvpcb.pdf.gz
+       /usr/share/doc/kicad/help/zh/eeschema.pdf.gz
+       /usr/share/doc/kicad/help/zh/getting_started_in_kicad.pdf.gz
