@@ -351,6 +351,8 @@ Description: Kicad help files (Chinese)
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
   * CvPcb - Component association of Footprints
+  * Eeschema -schematic capture editor
+  * GSIK - Getting Started in KiCad
 
 Package: kicad-libraries
 Architecture: all
