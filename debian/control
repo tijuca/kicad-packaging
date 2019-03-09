@@ -278,6 +278,7 @@ Description: Kicad help files (Italian)
   * GSIK - Getting Started in KiCad
   * IDF Exporter - Export tool for IDFv3 boards and libraries
   * KiCad - The main project editor
+  * PcbCalculator - A tool for typical calculations while PCB designing
   * Pcbnew - The printed circuit board software tool
   * PlEditor - The layout editor for custom title block
 
