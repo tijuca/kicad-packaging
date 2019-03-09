@@ -14,3 +14,10 @@ Format: PDF
 Files: /usr/share/doc/kicad/help/zh/cvpcb.pdf.gz
        /usr/share/doc/kicad/help/zh/eeschema.pdf.gz
        /usr/share/doc/kicad/help/zh/getting_started_in_kicad.pdf.gz
+       /usr/share/doc/kicad/help/zh/gui_translation_howto.pdf.gz
+       /usr/share/doc/kicad/help/zh/idf_exporter.pdf.gz
+       /usr/share/doc/kicad/help/zh/kicad.pdf.gz
+       /usr/share/doc/kicad/help/zh/pcb_calculator.pdf.gz
+       /usr/share/doc/kicad/help/zh/pcbnew.pdf.gz
+       /usr/share/doc/kicad/help/zh/pl_editor.pdf.gz
+       /usr/share/doc/kicad/help/zh/plugins.pdf.gz
