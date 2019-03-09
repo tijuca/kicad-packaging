@@ -18,6 +18,7 @@ Files: /usr/share/doc/kicad/help/en/cvpcb.pdf.gz
        /usr/share/doc/kicad/help/en/gui_translation_howto.pdf.gz
        /usr/share/doc/kicad/help/en/idf_exporter.pdf.gz
        /usr/share/doc/kicad/help/en/kicad.pdf.gz
+       /usr/share/doc/kicad/help/en/pcb_calculator.pdf.gz
        /usr/share/doc/kicad/help/en/pcbnew.pdf.gz
        /usr/share/doc/kicad/help/en/pl_editor.pdf.gz
        /usr/share/doc/kicad/help/en/plugins.pdf.gz
