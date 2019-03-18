@@ -2,7 +2,7 @@
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
  * Copyright (C) 2012 Torsten Hueter, torstenhtr <at> gmx.de
- * Copyright (C) 2012-2019 Kicad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2012-2019 Kicad Developers, see AUTHORS.txt for contributors.
  * Copyright (C) 2017-2018 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
@@ -904,14 +904,16 @@ void CAIRO_GAL_BASE::resetContext()
 void CAIRO_GAL_BASE::drawAxes( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint )
 {
     syncLineWidth();
+
     auto p0 = roundp( xform( aStartPoint ) );
     auto p1 = roundp( xform( aEndPoint ) );
+    auto org = roundp( xform( VECTOR2D( 0.0, 0.0 ) ) );     // Axis origin = 0,0 coord
 
-    cairo_move_to( currentContext, p0.x, 0.0);
-    cairo_line_to( currentContext, p1.x, 0.0 );
-    cairo_move_to( currentContext, 0.0, p0.y );
-    cairo_line_to( currentContext, 0.0, p1.y );
     cairo_set_source_rgba( currentContext, axesColor.r, axesColor.g, axesColor.b, axesColor.a );
+    cairo_move_to( currentContext, p0.x, org.y);
+    cairo_line_to( currentContext, p1.x, org.y );
+    cairo_move_to( currentContext, org.x, p0.y );
+    cairo_line_to( currentContext, org.x, p1.y );
     cairo_stroke( currentContext );
 }
 
@@ -1521,7 +1523,7 @@ void CAIRO_GAL_BASE::DrawGrid()
         gridScreenSizeDense *= gridTick;
     }
 
-    // Compute grid staring and ending indexes to draw grid points on the
+    // Compute grid starting and ending indexes to draw grid points on the
     // visible screen area
     // Note: later any point coordinate will be offsetted by gridOrigin
     int gridStartX = KiROUND( ( worldStartPoint.x - gridOrigin.x ) / gridScreenSizeDense );
@@ -1531,7 +1533,7 @@ void CAIRO_GAL_BASE::DrawGrid()
 
     // Ensure start coordinate > end coordinate
 
-    SWAP( gridStartX, >, gridStartX );
+    SWAP( gridStartX, >, gridEndX );
     SWAP( gridStartY, >, gridEndY );
 
     // Ensure the grid fills the screen

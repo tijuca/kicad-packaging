@@ -9,8 +9,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: 0.1\n"
-"POT-Creation-Date: 2019-02-13 13:54+0200\n"
-"PO-Revision-Date: 2019-02-13 14:17+0200\n"
+"POT-Creation-Date: 2019-02-28 15:10+0200\n"
+"PO-Revision-Date: 2019-02-28 15:13+0200\n"
 "Last-Translator: Baranovskiy Konstantin <baranovskiykonstantin@gmail.com>\n"
 "Language-Team: Russian\n"
 "Language: ru\n"
@@ -4187,11 +4187,8 @@ msgstr "Документация KiCad в Интернете"
 #. type: Plain text
 #: getting_started_in_kicad.adoc:1608
 msgid ""
-"Latest KiCad documentations are available in multiple languages on the Web."
+"The latest version of KiCad documentation can be found in multiple languages "
+"at http://docs.kicad-pcb.org"
 msgstr ""
-"Последние версии документации KiCad доступны для разных языков в Интернете."
-
-#. type: Plain text
-#: getting_started_in_kicad.adoc:1610
-msgid "http://kicad-pcb.org/help/documentation/"
-msgstr "http://kicad-pcb.org/help/documentation/"
+"Последнюю версию документации KiCad на разных языках можно найти по адресу "
+"http://docs.kicad-pcb.org"
