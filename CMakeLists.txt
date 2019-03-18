@@ -64,7 +64,7 @@ option( USE_WX_GRAPHICS_CONTEXT
     "Use wxGraphicsContext for rendering (default OFF).  Warning, this is experimental" )
 
 option( USE_WX_OVERLAY
-    "Use wxOverlay: Always ON for MAC (default OFF).  Warning, this is experimental" )
+    "Use wxOverlay: Always ON for MAC and GTK3 (default OFF)." )
 
 option( KICAD_SCRIPTING
     "Build the Python scripting support inside KiCad binaries (default ON)."
@@ -266,7 +266,7 @@ endif(USE_CCACHE)
 
 
 #================================================
-# Provide access to CCACHE
+# Provide access to DISTCC
 #================================================
 if (USE_DISTCC)
   find_program(DISTCC_FOUND distcc)
@@ -287,18 +287,9 @@ endif(USE_DISTCC)
 
 if( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
 
-    execute_process( COMMAND ${CMAKE_C_COMPILER} -dumpversion
-        OUTPUT_VARIABLE GCC_VERSION
-        OUTPUT_STRIP_TRAILING_WHITESPACE )
-
-    if( CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
-        set( TO_LINKER -XLinker )
-    else()
-        set( TO_LINKER -Wl )
-        # Set 32-bit flag for GCC to prevent excess precision
-        if( CMAKE_SIZEOF_VOID_P EQUAL 4 )
-            set( CMAKE_CXX_FLAGS "-ffloat-store ${CMAKE_CXX_FLAGS}" )
-        endif()
+    # Set 32-bit flag for GCC to prevent excess precision
+    if( CMAKE_SIZEOF_VOID_P EQUAL 4 )
+        set( CMAKE_CXX_FLAGS "-ffloat-store ${CMAKE_CXX_FLAGS}" )
     endif()
 
     # Establish -Wall early, so specialized relaxations of this may come
@@ -347,28 +338,20 @@ if( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
         # snprintf
         add_definitions(-D__USE_MINGW_ANSI_STDIO=1)
 
-    else()
-        if( NOT APPLE )
-            # Thou shalt not link vaporware and tell us it's a valid DSO (apple ld doesn't support it)
-            set( CMAKE_SHARED_LINKER_FLAGS "${TO_LINKER},--no-undefined" )
-            set( CMAKE_MODULE_LINKER_FLAGS "${TO_LINKER},--no-undefined" )
+    elseif( NOT APPLE )
+        # Thou shalt not link vaporware and tell us it's a valid DSO (apple ld doesn't support it)
+        set( CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined" )
+        set( CMAKE_MODULE_LINKER_FLAGS "-Wl,--no-undefined" )
 
-            set( CMAKE_EXE_LINKER_FLAGS_RELEASE "-s" )
+        set( CMAKE_EXE_LINKER_FLAGS_RELEASE "-s" )
 
-            # Defeat ELF's ability to use the GOT to replace locally implemented functions
-            # with ones from another module.
-            # https://bugs.launchpad.net/kicad/+bug/1322354
-            set( CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${TO_LINKER},-Bsymbolic" )
-            set( CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} ${TO_LINKER},-Bsymbolic" )
-        endif()
+        # Defeat ELF's ability to use the GOT to replace locally implemented functions
+        # with ones from another module.
+        # https://bugs.launchpad.net/kicad/+bug/1322354
+        set( CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-Bsymbolic" )
+        set( CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -Wl,-Bsymbolic" )
 
     endif()
-
-    # quiet GCC while in boost
-    if( GCC_VERSION VERSION_GREATER 4.8 OR GCC_VERSION VERSION_EQUAL 4.8 OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
-        set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-local-typedefs" )
-    endif()
-    set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-strict-aliasing" )
 
     if( APPLE )
         set( CMAKE_LD_FLAGS "${CMAKE_LD_FLAGS} -headerpad_max_install_names") # needed by fixbundle
@@ -781,6 +764,10 @@ find_package( wxWidgets ${wxWidgets_REQ_VERSION} COMPONENTS gl aui adv html core
 # Include wxWidgets macros.
 include( ${wxWidgets_USE_FILE} )
 
+# Check for GTK3 libraries - These do not have XOR, so we need overlay (Page layout editor)
+if( wxWidgets_LIBRARIES MATCHES "gtk3" )
+    add_definitions( -DUSE_WX_OVERLAY )
+endif()
 
 if( KICAD_SCRIPTING_WXPYTHON AND NOT KICAD_SCRIPTING_WXPYTHON_PHOENIX )
     # wxPython appears to be installed and valid so make sure the headers are available.
