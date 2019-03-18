@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: kicad
-Source: lp:kicad/4.0 or https://github.com/KiCad/kicad-source-mirror
+Source: lp:kicad/5.1 or https://github.com/KiCad/kicad-source-mirror
  https://github.com/KiCad/kicad-doc
  https://github.com/KiCad/kicad-i18qn
 Comment: The source contains two PDF files were no source is available for
@@ -3355,7 +3355,7 @@ License: BSD-3-clause
 Files: debian/*
 Copyright: (C) 2006-2010 Richard A Burton <richardaburton@gmail.com>
            (C) 2015-2016 Georges Khaznadar <georgesk@debian.org>
-           (C) 2016-2018 Carsten schoenert <c.schoenert@t-online.de>
+           (C) 2016-2019 Carsten schoenert <c.schoenert@t-online.de>
 License: GPL-2+
 
 Files: debian/kicad-packages-relations.dia
