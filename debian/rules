@@ -59,6 +59,16 @@ DEB_DOC_CMAKE_OPTS := \
 	-DCMAKE_INSTALL_PREFIX=/usr \
 	$(NULL)
 
+DEB_DOC_MAIN_CMAKE_OPTS := \
+	$(DEB_DOC_CMAKE_OPTS) \
+	-DLANGUAGES="ca;de;en;es;ja;fr;id;it;ru;zh" \
+	$(NULL)
+
+DEB_DOC_PL_CMAKE_OPTS := \
+	$(DEB_DOC_CMAKE_OPTS) \
+	-DLANGUAGES="pl" \
+	$(NULL)
+
 DEB_I18N_CMAKE_OPTS := \
 	-DCMAKE_INSTALL_PREFIX=/usr \
 	-DKICAD_I18N_UNIX_STRICT_PATH=ON \
@@ -80,7 +90,8 @@ override_dh_auto_configure:
 	###################################
 	# configuring KiCad documentation #
 	###################################
-	dh_auto_configure --sourcedirectory=$(CURDIR)/doc --builddirectory=$(DEB_BUILD_DIR)/doc -- $(DEB_DOC_CMAKE_OPTS)
+	dh_auto_configure --sourcedirectory=$(CURDIR)/doc --builddirectory=$(DEB_BUILD_DIR)/doc-main -- $(DEB_DOC_MAIN_CMAKE_OPTS)
+	dh_auto_configure --sourcedirectory=$(CURDIR)/doc --builddirectory=$(DEB_BUILD_DIR)/doc-pl -- $(DEB_DOC_PL_CMAKE_OPTS)
 	################################
 	# configuring KiCad i18n files #
 	################################
@@ -103,7 +114,8 @@ override_dh_auto_install: $(PREPROCESS_FILES:.in=)
 	###############################################
 	# building and installing KiCad documentation #
 	###############################################
-	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/doc --builddirectory=$(DEB_BUILD_DIR)/doc
+	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/doc --builddirectory=$(DEB_BUILD_DIR)/doc-main
+	dh_auto_install --destdir=$(INSTDIR) --sourcedirectory=$(CURDIR)/doc --builddirectory=$(DEB_BUILD_DIR)/doc-pl
 	###############################
 	# installing KiCad i18n files #
 	###############################
