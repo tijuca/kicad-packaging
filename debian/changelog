@@ -1,3 +1,28 @@
+kicad (5.1.0+dfsg1-1) unstable; urgency=medium
+
+  * [f91d5c6] New upstream version 5.1.0+dfsg1
+  * [cf6caf7] d/kicad-doc-en.doc-base: add new installed file
+  * [3b2adfc] d/control: adjust kicad-doc-en description
+  * [021773c] d/kicad-doc-it.doc-base: add new installed file
+  * [0f3a4f6] d/control: adjust kicad-doc-it description
+  * [9d673f9] d/kicad-doc-ru.doc-base: add new installed file
+  * [e3dfd86] d/control: adjust kicad-doc-ru description
+  * [4b89fe1] d/kicad-doc-zh.doc-base: add new installed files
+  * [0a57578] d/control: adjust kicad-doc-zh description
+  * [a25975a] d/copyright: update small misc data
+  * [7db2e8d] rebuild patch queue from patch-queue branch
+    + removed patch (useless due the newly added patch):
+      debian-hacks/Remove-specific-Japanese-translation-within-pcbnew.adoc.patch
+      added patch:
+      debian-hacks/Update-Japanese-translation-700.patch
+  * [33cd8fb] kicad-doc: split docu build into two runs
+    + Work around a broken build of the KiCad documentation which seems to
+      happen otherwise due some internal CMake build configuration issue which
+      mixes the build of the Polish EEschema with the dblatex used XML style
+      sheets which are used for Japanese.
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Wed, 20 Mar 2019 21:52:26 +0100
+
 kicad (5.1.0~rc1+20190224+dfsg1-1) experimental; urgency=medium
 
   * [9753ede] New upstream version 5.1.0~rc1+20190224+dfsg1
