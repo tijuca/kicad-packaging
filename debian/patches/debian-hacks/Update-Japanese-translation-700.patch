@@ -1,0 +1,27 @@
+From: starfort-jp <starfort@nifty.com>
+Date: Wed, 20 Mar 2019 00:44:31 +0900
+Subject: Update Japanese translation (#700)
+
+Update Japanese translation
+pcbnew : updated Japanese translation(added spaces for the compilation issue.)
+
+(cherry-picked from upstream b1a51c98e75d9157d560f4af0273be8519dbd8b5)
+---
+ doc/src/pcbnew/po/ja.po | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/doc/src/pcbnew/po/ja.po b/doc/src/pcbnew/po/ja.po
+index 821076f..1ee5093 100644
+--- a/doc/src/pcbnew/po/ja.po
++++ b/doc/src/pcbnew/po/ja.po
+@@ -2835,8 +2835,8 @@ msgid ""
+ "Keyboard (Function keys `F1`, `F2`, `F3`, `F4`, `Shift`, `Delete`, `+`, `-`, `Page Up`, `Page "
+ "Down` and `Space bar`). The `Escape` key generally cancels an operation in progress."
+ msgstr ""
+-"キーボード（ファンクションキー `F1`, `F2`, `F3`, `F4`, `Shift`, `Delete`, `+`, `-`, `Page Up`, "
+-"`Page Down` 及び `スペース バー`）。`エスケープ` キーは、一般的に進行中の操作を取り消します。"
++"キーボード（ファンクション キー `F1`, `F2`, `F3`, `F4`, `Shift`, `Delete`, `+`, `-`, `Page "
++"Up`, `Page Down` 及び `Space bar`). `Escape` キーは、一般的に進行中の操作を取り消します。"
+ 
+ #. type: Plain text
+ #: pcbnew_general_operations.adoc:27
