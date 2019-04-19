@@ -1,0 +1,37 @@
+From: Eugene Kilachkoff <ekilachkoff@gmail.com>
+Date: Mon, 29 Apr 2019 20:27:50 +0200
+Subject: Fix dblatex options within cmake file
+
+The logic for setting the options for dblatex on the various languages
+wasn't correct. The default option need to be set to an empty string
+which is expanded with the additional needed options later, otherwise
+previously added options won't get forgotten within the configuration
+run for the next language.
+---
+ doc/CMakeModules/KiCadDocumentation.cmake | 8 ++------
+ 1 file changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/doc/CMakeModules/KiCadDocumentation.cmake b/doc/CMakeModules/KiCadDocumentation.cmake
+index 445fd64..6211e89 100644
+--- a/doc/CMakeModules/KiCadDocumentation.cmake
++++ b/doc/CMakeModules/KiCadDocumentation.cmake
+@@ -123,17 +123,13 @@ macro( KiCadDocumentation DOCNAME )
+                 DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/po/${LANGUAGE}.po )
+ 
+             # Non-ascii languages needs some special treatments
++            set(DBLATEX_OPTIONS "")
++            set_dblatex_common_options()
+             if( "${LANGUAGE}" MATCHES "ja" )
+-                set(DBLATEX_OPTIONS "")
+-                set_dblatex_common_options()
+                 add_dblatex_option( -b xetex -p ${CMAKE_CURRENT_SOURCE_DIR}/../../xsl/dblatex-pdf-ja.xsl )
+             elseif( "${LANGUAGE}" MATCHES "ru" )
+-                set(DBLATEX_OPTIONS "")
+-                set_dblatex_common_options()
+                 add_dblatex_option( -b xetex -p ${CMAKE_CURRENT_SOURCE_DIR}/../../xsl/dblatex-pdf-ru.xsl )
+             elseif( "${LANGUAGE}" MATCHES "zh" )
+-                set(DBLATEX_OPTIONS "")
+-                set_dblatex_common_options()
+                 add_dblatex_option( -b xetex -p ${CMAKE_CURRENT_SOURCE_DIR}/../../xsl/dblatex-pdf-zh.xsl )
+             endif()
+ 

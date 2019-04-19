@@ -25,10 +25,10 @@ index cfde2fa..9ecd5d5 100644
  #endif
  
 diff --git a/common/widgets/grid_icon_text_helpers.cpp b/common/widgets/grid_icon_text_helpers.cpp
-index b1f949e..bd4d6d2 100644
+index 8a617d4..135d6fa 100644
 --- a/common/widgets/grid_icon_text_helpers.cpp
 +++ b/common/widgets/grid_icon_text_helpers.cpp
-@@ -187,7 +187,7 @@ void GRID_CELL_ICON_TEXT_POPUP::BeginEdit( int aRow, int aCol, wxGrid* aGrid )
+@@ -188,7 +188,7 @@ void GRID_CELL_ICON_TEXT_POPUP::BeginEdit( int aRow, int aCol, wxGrid* aGrid )
      // This is a work around for the combobox being simply dismissed when a
      // choice is made in it under OS X. The bug is almost certainly due to a
      // problem in focus events generation logic but it's not obvious to fix and
@@ -38,7 +38,7 @@ index b1f949e..bd4d6d2 100644
  #endif
  
 diff --git a/eeschema/sch_edit_frame.h b/eeschema/sch_edit_frame.h
-index c4d11cd..8d81c76 100644
+index 9445db3..49062e2 100644
 --- a/eeschema/sch_edit_frame.h
 +++ b/eeschema/sch_edit_frame.h
 @@ -877,9 +877,9 @@ private:
@@ -55,10 +55,10 @@ index c4d11cd..8d81c76 100644
      void OnPreferencesOptions( wxCommandEvent& event );
      void OnCancelCurrentCommand( wxCommandEvent& aEvent );
 diff --git a/pcbnew/grid_layer_box_helpers.cpp b/pcbnew/grid_layer_box_helpers.cpp
-index 6872db6..f12d5d9 100644
+index e4de221..535641b 100644
 --- a/pcbnew/grid_layer_box_helpers.cpp
 +++ b/pcbnew/grid_layer_box_helpers.cpp
-@@ -150,7 +150,7 @@ void GRID_CELL_LAYER_SELECTOR::BeginEdit( int aRow, int aCol, wxGrid* aGrid )
+@@ -149,7 +149,7 @@ void GRID_CELL_LAYER_SELECTOR::BeginEdit( int aRow, int aCol, wxGrid* aGrid )
      // This is a work around for the combobox being simply dismissed when a
      // choice is made in it under OS X. The bug is almost certainly due to a
      // problem in focus events generation logic but it's not obvious to fix and
@@ -68,15 +68,15 @@ index 6872db6..f12d5d9 100644
          LayerBox()->Popup();
  #endif
 diff --git a/pcbnew/python/plugins/qfn_wizard.py b/pcbnew/python/plugins/qfn_wizard.py
-index 18a3db0..658c284 100644
+index 97e5334..a70880e 100644
 --- a/pcbnew/python/plugins/qfn_wizard.py
 +++ b/pcbnew/python/plugins/qfn_wizard.py
 @@ -82,7 +82,7 @@ class QFNWizard(FootprintWizardBase.FootprintWizard):
  
          pad_pitch = self.pads["pitch"]
          pad_length = self.pads["length"]
--        # Fillet allows to define how much of the pad is outside of the package
-+        # Fillet allows one to define how much of the pad is outside of the package
-         pad_fillet = self.pads["fillet"]
+-        # offset allows to define how much of the pad is outside of the package
++        # offset allows one to define how much of the pad is outside of the package
+         pad_offset = self.pads["offset"]
          pad_width = self.pads["width"]
  
