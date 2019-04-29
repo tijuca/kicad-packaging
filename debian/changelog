@@ -1,3 +1,19 @@
+kicad (5.1.2+dfsg1-1) unstable; urgency=medium
+
+  * [7bb2a89] d/copyright: correct the license for kicad.appstream.xml
+  * [ccda3ca] New upstream version 5.1.2+dfsg1
+  * [fd774f7] rebuild patch queue from patch-queue branch
+    + added patch:
+      fixes/Fix-dblatex-options-within-cmake-file.patch
+    + removed patch (already included upstream):
+      debian-hacks/Update-Japanese-translation-700.patch
+  * [00e79ae] Revert "kicad-doc: split docu build into two runs"
+    + We can revert the modification for building the documentation which
+      was added for version 5.1.0+dfsg1-1 because the added patch for fixing
+      the dblatex options solves the build issues.
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Mon, 29 Apr 2019 21:21:44 +0200
+
 kicad (5.1.0+dfsg1-1) unstable; urgency=medium
 
   * [f91d5c6] New upstream version 5.1.0+dfsg1
