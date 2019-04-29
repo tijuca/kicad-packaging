@@ -252,7 +252,7 @@ static EDA_HOTKEY HkSwitchTrackWidthToNext( _HKI( "Switch Track Width To Next" )
 
 static EDA_HOTKEY HkSwitchTrackWidthToPrevious( _HKI( "Switch Track Width To Previous" ),
                                                 HK_SWITCH_TRACK_WIDTH_TO_PREVIOUS,
-                                                'W' + GR_KB_CTRL );
+                                                'W' + GR_KB_SHIFT );
 
 static EDA_HOTKEY HkSwitchGridToFastGrid1( _HKI( "Switch Grid To Fast Grid1" ),
                                            HK_SWITCH_GRID_TO_FASTGRID1, GR_KB_ALT + '1' );
@@ -292,7 +292,7 @@ static EDA_HOTKEY HkSelectCopper( _HKI( "Select Connected Tracks" ), HK_SEL_COPP
                                   'I' );
 
 static EDA_HOTKEY HkRoutingOptions( _HKI( "Routing Options" ), HK_ROUTING_OPTIONS,
-                                    ',' + GR_KB_CTRL );
+                                    ',' + GR_KB_CTRL + GR_KB_SHIFT );
 
 static EDA_HOTKEY HkCustomTrackWidth( _HKI( "Custom Track/Via Size" ), HK_CUSTOM_TRACK_WIDTH, 'Q' );
 
@@ -327,6 +327,8 @@ static EDA_HOTKEY HkRedo( _HKI( "Redo" ), HK_REDO,
 static EDA_HOTKEY HkEditCut( _HKI( "Cut" ), HK_EDIT_CUT, GR_KB_CTRL + 'X', (int) wxID_CUT );
 static EDA_HOTKEY HkEditCopy( _HKI( "Copy" ), HK_EDIT_COPY, GR_KB_CTRL + 'C', (int) wxID_COPY );
 static EDA_HOTKEY HkEditPaste( _HKI( "Paste" ), HK_EDIT_PASTE, GR_KB_CTRL + 'V', (int) wxID_PASTE );
+static EDA_HOTKEY HkPreferences( _HKI( "Preferences" ),
+                                 HK_PREFERENCES, GR_KB_CTRL + ',', (int) wxID_PREFERENCES );
 
 static EDA_HOTKEY HkToggleCursor( _HKI( "Toggle Cursor Display (Modern Toolset only)" ),
                                   HK_TOGGLE_CURSOR, 'X' + GR_KB_SHIFTCTRL );
@@ -342,8 +344,10 @@ EDA_HOTKEY* common_Hotkey_List[] =
     &HkNew,         &HkOpen,            &HkSave,          &HkSaveAs,        &HkPrint,
     &HkUndo,        &HkRedo,
     &HkEditCut,     &HkEditCopy,        &HkEditPaste,
-    &HkHelp,        &HkZoomIn,          &HkZoomOut,
-    &HkZoomRedraw,  &HkZoomCenter,      &HkZoomAuto,      &HkZoomSelection, &Hk3DViewer,
+    &HkHelp,        &HkPreferences,
+    &HkZoomIn,      &HkZoomOut,
+    &HkZoomRedraw,  &HkZoomCenter,      &HkZoomAuto,      &HkZoomSelection,
+    &Hk3DViewer,
     &HkSwitchUnits, &HkResetLocalCoord, &HkSetGridOrigin, &HkResetGridOrigin,
     &HkMouseLeftClick,
     &HkMouseLeftDClick,

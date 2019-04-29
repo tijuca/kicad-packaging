@@ -261,7 +261,7 @@ public:
      * already been populated and return a reference to the array to the caller.
      * </p>
      */
-    PARAM_CFG_ARRAY& GetProjectFileParametersList();
+    PARAM_CFG_ARRAY& GetProjectFileParameters();
 
     /**
      * Save changes to the project settings to the project (.pro) file.
@@ -1505,12 +1505,6 @@ public:
     virtual void SetScreen( BASE_SCREEN* aScreen ) override;
 
     virtual const BOX2I GetDocumentExtents() const override;
-
-    ///> Probe cursor, used by circuit simulator
-    const static wxCursor CURSOR_PROBE;
-
-    ///> Tuner cursor, used by circuit simulator
-    const static wxCursor CURSOR_TUNE;
 
     DECLARE_EVENT_TABLE()
 };

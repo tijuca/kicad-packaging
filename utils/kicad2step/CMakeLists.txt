@@ -7,6 +7,7 @@ include_directories( BEFORE
 include_directories( SYSTEM
     ${OCE_INCLUDE_DIRS}
     ${OCC_INCLUDE_DIR}
+    ${Boost_INCLUDE_DIR}
 )
 
 set( K2S_FILES

@@ -1,8 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2017 CERN
- * @author Alejandro García Montoro <alejandro.garciamontoro@gmail.com>
+ * Copyright (C) 2019 KiCad Developers, see CHANGELOG.TXT for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,28 +21,27 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <boost/test/unit_test.hpp>
-#include <boost/test/test_case_template.hpp>
-#include <sch_io_mgr.h>
-#include <kiway.h>
+#include "eeschema_test_utils.h"
 
-#include <data/fixtures_eagle_plugin.h>
-
-/**
- * Checks that the SCH_IO manager finds the Eagle plugin
- */
-BOOST_AUTO_TEST_CASE( FindPlugin )
+wxFileName KI_TEST::GetEeschemaTestDataDir()
 {
-    BOOST_CHECK( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_EAGLE ) != NULL );
-}
+    const char* env = std::getenv( "KICAD_TEST_EESCHEMA_DATA_DIR" );
+    wxString fn;
 
-/**
- *
- */
-BOOST_AUTO_TEST_CASE( Load )
-{
-    SCH_PLUGIN* pi = SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_EAGLE );
+    if( !env )
+    {
+        // Use the compiled-in location of the data dir
+        // (i.e. where the files were at build time)
+        fn << QA_EESCHEMA_DATA_LOCATION;
+    }
+    else
+    {
+        // Use whatever was given in the env var
+        fn << env;
+    }
 
-    pi->Load("/home/alejandro/Proyectos/kicad/kicad-alejandro/eeschema/qa/data/eagle_schematics/empty.sch",
-             NULL);
+    // Ensure the string ends in / to force a directory interpretation
+    fn << "/";
+
+    return wxFileName{ fn };
 }

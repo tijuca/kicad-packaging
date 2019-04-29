@@ -992,9 +992,8 @@ void PCB_BASE_FRAME::CommonSettingsChanged()
 
     if( viewer )
     {
-        bool option;
-        Pgm().CommonSettings()->Read( ENBL_MOUSEWHEEL_PAN_KEY, &option );
-        viewer->GetSettings().SetFlag( FL_MOUSEWHEEL_PANNING, option );
+        // The 3D viewer isn't in the Kiway, so send its update manually
+        viewer->CommonSettingsChanged();
     }
 }
 
@@ -1195,7 +1194,7 @@ void PCB_BASE_FRAME::OnUpdateSwitchCanvas( wxUpdateUIEvent& aEvent )
     for( auto ii: menuList )
     {
         wxMenuItem* item = menuBar->FindItem( ii.menuId );
-        if( ii.galType == canvasType )
+        if( item && ii.galType == canvasType )
             item->Check( true );
     }
 }

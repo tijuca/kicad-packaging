@@ -293,8 +293,10 @@ set( COMMON_SRCS
     config_params.cpp
     confirm.cpp
     convert_basic_shapes_to_polygon.cpp
+    cursor_store.cpp
     dialog_shim.cpp
     displlst.cpp
+    dpi_scaling.cpp
     draw_graphic_text.cpp
     dsnlexer.cpp
     eagle_parser.cpp
@@ -429,6 +431,7 @@ target_link_libraries( common
     ${Boost_LIBRARIES}
     ${CURL_LIBRARIES}
     ${OPENSSL_LIBRARIES}        # empty on Apple
+    ${wxWidgets_LIBRARIES}
     )
 
 

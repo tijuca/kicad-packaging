@@ -28,18 +28,22 @@
  */
 
 #include "eda_3d_viewer.h"
+
 #include "../3d_viewer_id.h"
-#include <project.h>
+#include "../common_ogl/cogl_att_list.h"
+
+#include <bitmaps.h>
+#include <dpi_scaling.h>
 #include <gestfich.h>
+#include <lru_cache.h>
+#include <pgm_base.h>
+#include <project.h>
 #include <wildcards_and_files_ext.h>
+
+#include <hotkeys_basic.h>
 #include <wx/colordlg.h>
 #include <wx/colourdata.h>
-#include <lru_cache.h>
-#include  "../common_ogl/cogl_att_list.h"
-#include <hotkeys_basic.h>
 #include <wx/toolbar.h>
-#include <bitmaps.h>
-#include <pgm_base.h>
 
 
 /**
@@ -168,10 +172,6 @@ EDA_3D_VIEWER::EDA_3D_VIEWER( KIWAY *aKiway, PCB_BASE_FRAME *aParent,
     icon.CopyFromBitmap( KiBitmap( icon_3d_xpm ) );
     SetIcon( icon );
 
-    bool option;
-    Pgm().CommonSettings()->Read( ENBL_MOUSEWHEEL_PAN_KEY, &option, false );
-    m_settings.SetFlag( FL_MOUSEWHEEL_PANNING, option );
-
     LoadSettings( config() );
     SetSize( m_FramePos.x, m_FramePos.y, m_FrameSize.x, m_FrameSize.y );
 
@@ -189,6 +189,9 @@ EDA_3D_VIEWER::EDA_3D_VIEWER( KIWAY *aKiway, PCB_BASE_FRAME *aParent,
 
     if( m_canvas )
         m_canvas->SetStatusBar( status_bar );
+
+    // Some settings need the canvas
+    loadCommonSettings();
 
     CreateMenuBar();
     ReCreateMainToolbar();
@@ -288,32 +291,62 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
 
     case ID_ROTATE3D_X_POS:
         m_settings.CameraGet().RotateX( glm::radians(ROT_ANGLE) );
-        m_canvas->Request_refresh();
+
+        if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
+            m_canvas->Request_refresh();
+        else
+            m_canvas->RenderRaytracingRequest();
+
         break;
 
     case ID_ROTATE3D_X_NEG:
         m_settings.CameraGet().RotateX( -glm::radians(ROT_ANGLE) );
-        m_canvas->Request_refresh();
+
+        if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
+            m_canvas->Request_refresh();
+        else
+            m_canvas->RenderRaytracingRequest();
+
         break;
 
     case ID_ROTATE3D_Y_POS:
         m_settings.CameraGet().RotateY( glm::radians(ROT_ANGLE) );
-        m_canvas->Request_refresh();
+
+        if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
+            m_canvas->Request_refresh();
+        else
+            m_canvas->RenderRaytracingRequest();
+
         break;
 
     case ID_ROTATE3D_Y_NEG:
         m_settings.CameraGet().RotateY( -glm::radians(ROT_ANGLE) );
-        m_canvas->Request_refresh();
+
+        if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
+            m_canvas->Request_refresh();
+        else
+            m_canvas->RenderRaytracingRequest();
+
         break;
 
     case ID_ROTATE3D_Z_POS:
         m_settings.CameraGet().RotateZ( glm::radians(ROT_ANGLE) );
-        m_canvas->Request_refresh();
+
+        if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
+            m_canvas->Request_refresh();
+        else
+            m_canvas->RenderRaytracingRequest();
+
         break;
 
     case ID_ROTATE3D_Z_NEG:
         m_settings.CameraGet().RotateZ( -glm::radians(ROT_ANGLE) );
-        m_canvas->Request_refresh();
+
+        if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
+            m_canvas->Request_refresh();
+        else
+            m_canvas->RenderRaytracingRequest();
+
         break;
 
     case ID_MOVE3D_LEFT:
@@ -869,6 +902,22 @@ void EDA_3D_VIEWER::SaveSettings( wxConfigBase *aCfg )
 }
 
 
+void EDA_3D_VIEWER::CommonSettingsChanged()
+{
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::CommonSettingsChanged" );
+
+    // Regen menu bars, etc
+    EDA_BASE_FRAME::CommonSettingsChanged();
+
+    // There is no base class that handles toolbars for this frame
+    ReCreateMainToolbar();
+
+    loadCommonSettings();
+
+    NewDisplay( true );
+}
+
+
 void EDA_3D_VIEWER::OnLeftClick( wxDC *DC, const wxPoint &MousePos )
 {
     wxLogTrace( m_logTrace, "EDA_3D_VIEWER::OnLeftClick" );
@@ -941,7 +990,7 @@ void EDA_3D_VIEWER::takeScreenshot( wxCommandEvent& event )
     }
 
     // Be sure we have the latest 3D view (remember 3D view is buffered)
-    Refresh();
+    m_canvas->Request_refresh( true );
     wxYield();
 
     // Build image from the 3D buffer
@@ -1224,4 +1273,23 @@ void EDA_3D_VIEWER::OnUpdateUIRayTracing( wxUpdateUIEvent& aEvent )
 void EDA_3D_VIEWER::OnUpdateUIAxis( wxUpdateUIEvent& aEvent )
 {
     aEvent.Check( m_settings.GetFlag( FL_AXIS ) );
+}
+
+
+void EDA_3D_VIEWER::loadCommonSettings()
+{
+    wxCHECK_RET( m_canvas, "Cannot load settings to null canvas" );
+
+    wxConfigBase& cmnCfg = *Pgm().CommonSettings();
+
+    {
+        const DPI_SCALING dpi{ &cmnCfg, this };
+        m_canvas->SetScaleFactor( dpi.GetScaleFactor() );
+    }
+
+    {
+        bool option;
+        cmnCfg.Read( ENBL_MOUSEWHEEL_PAN_KEY, &option, false );
+        m_settings.SetFlag( FL_MOUSEWHEEL_PANNING, option );
+    }
 }

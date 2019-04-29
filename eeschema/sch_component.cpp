@@ -193,8 +193,8 @@ SCH_COMPONENT::SCH_COMPONENT( const SCH_COMPONENT& aComponent ) :
 void SCH_COMPONENT::Init( const wxPoint& pos )
 {
     m_Pos     = pos;
-    m_unit    = 0;  // In multi unit chip - which unit to draw.
-    m_convert = 0;  // De Morgan Handling
+    m_unit    = 1;  // In multi unit chip - which unit to draw.
+    m_convert = LIB_ITEM::LIB_CONVERT::BASE;  // De Morgan Handling
 
     // The rotation/mirror transformation matrix. pos normal
     m_transform = TRANSFORM();
@@ -732,7 +732,7 @@ bool SCH_COMPONENT::IsReferenceStringValid( const wxString& aReferenceString )
     bool ok = true;
 
     // Try to unannotate this reference
-    while( !text.IsEmpty() && ( text.Last() == '?' || std::isdigit( text.Last().GetValue() ) ) )
+    while( !text.IsEmpty() && ( text.Last() == '?' || wxIsdigit( text.Last() ) ) )
         text.RemoveLast();
 
     if( text.IsEmpty() )
@@ -795,7 +795,7 @@ void SCH_COMPONENT::SetRef( const SCH_SHEET_PATH* sheet, const wxString& ref )
 
     if( IsReferenceStringValid( prefix ) )
     {
-        while( prefix.Last() == '?' || std::isdigit( prefix.Last().GetValue() ) )
+        while( prefix.Last() == '?' || wxIsdigit( prefix.Last() ) )
             prefix.RemoveLast();
     }
     else

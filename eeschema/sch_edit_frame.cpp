@@ -380,7 +380,7 @@ SCH_EDIT_FRAME::SCH_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ):
     m_printMonochrome = true;
     m_printSheetReference = true;
     SetShowPageLimits( true );
-    m_hotkeysDescrList = g_Schematic_Hokeys_Descr;
+    m_hotkeysDescrList = g_Schematic_Hotkeys_Descr;
     m_dlgFindReplace = NULL;
     m_findReplaceData = new wxFindReplaceData( wxFR_DOWN );
     m_findReplaceStatus = new wxString( wxEmptyString );
@@ -444,6 +444,8 @@ SCH_EDIT_FRAME::SCH_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ):
 
     Bind( wxEVT_COMMAND_MENU_SELECTED, &SCH_EDIT_FRAME::OnEditSymbolLibTable, this,
           ID_EDIT_SYM_LIB_TABLE );
+
+    UpdateTitle();
 }
 
 
@@ -687,8 +689,8 @@ void SCH_EDIT_FRAME::OnCloseWindow( wxCloseEvent& aEvent )
     {
         fn = Prj().AbsolutePath( screen->GetFileName() );
 
-        // Auto save file name is the normal file name prepended with AUTOSAVE_PREFIX_FILENAME.
-        fn.SetName( AUTOSAVE_PREFIX_FILENAME + fn.GetName() );
+        // Auto save file name is the normal file name prepended with GetAutoSaveFilePrefix().
+        fn.SetName( GetAutoSaveFilePrefix() + fn.GetName() );
 
         if( fn.FileExists() && fn.IsFileWritable() )
             wxRemoveFile( fn.GetFullPath() );
@@ -1291,11 +1293,7 @@ void SCH_EDIT_FRAME::OnPrint( wxCommandEvent& event )
     wxFileName fn = Prj().AbsolutePath( g_RootSheet->GetScreen()->GetFileName() );
 
     if( fn.GetName() != NAMELESS_PROJECT )
-    {
-        // was: wxGetApp().WriteProjectConfig( fn.GetFullPath(), GROUP, GetProjectFileParametersList() );
-        Prj().ConfigSave( Kiface().KifaceSearch(), GROUP_SCH_EDITOR,
-                          GetProjectFileParametersList() );
-    }
+        Prj().ConfigSave( Kiface().KifaceSearch(), GROUP_SCH_EDIT, GetProjectFileParameters() );
 }
 
 
@@ -1478,7 +1476,7 @@ void SCH_EDIT_FRAME::UpdateTitle()
 
     if( GetScreen()->GetFileName() == m_DefaultSchematicFileName )
     {
-        title.Printf( _( "Eeschema" ) + wxT( " \u2014 %s" ), GetChars( GetScreen()->GetFileName() ) );
+        title.Printf( _( "Eeschema" ) + wxT( " \u2014 %s" ), GetScreen()->GetFileName() );
     }
     else
     {
@@ -1486,9 +1484,8 @@ void SCH_EDIT_FRAME::UpdateTitle()
         wxFileName  fn = fileName;
 
         title.Printf( _( "Eeschema" ) + wxT( " \u2014 %s [%s] \u2014 %s" ),
-                      GetChars( fn.GetName() ),
-                      GetChars( m_CurrentSheet->PathHumanReadable() ),
-                      GetChars( fn.GetPath() ) );
+                      fn.GetFullName(), m_CurrentSheet->PathHumanReadable(),
+                      fn.GetPath() );
 
         if( fn.FileExists() )
         {
@@ -1560,4 +1557,3 @@ const BOX2I SCH_EDIT_FRAME::GetDocumentExtents() const
 
     return BOX2I( VECTOR2I(0, 0), VECTOR2I( sizeX, sizeY ) );
 }
-

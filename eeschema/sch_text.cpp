@@ -219,7 +219,14 @@ void SCH_TEXT::Rotate( wxPoint aPosition )
     RotatePoint( &pt, aPosition, 900 );
     SetTextPos( pt );
 
-    SetLabelSpinStyle( (GetLabelSpinStyle() + 1) % 4 );
+    int spin = GetLabelSpinStyle();
+
+    // Global and hierarchical labels spin backwards.  Fix here because
+    // changing SetLabelSpinStyle would break existing designs.
+    if( this->Type() == SCH_GLOBAL_LABEL_T || this->Type() == SCH_HIERARCHICAL_LABEL_T )
+        SetLabelSpinStyle( ( spin - 1 >= 0 ? ( spin - 1 ) : 3 ) );
+    else
+        SetLabelSpinStyle( ( spin + 1 ) % 4 );
 
     if( this->Type() == SCH_TEXT_T )
     {
@@ -315,8 +322,10 @@ void SCH_TEXT::Draw( EDA_DRAW_PANEL* panel, wxDC* DC, const wxPoint& aOffset,
 
     if( Color != COLOR4D::UNSPECIFIED )
         color = Color;
+    else if( panel->GetScreen() && !panel->GetScreen()->m_IsPrinting && GetState( BRIGHTENED ) )
+        color = GetLayerColor( LAYER_BRIGHTENED );
     else
-        color = GetLayerColor( GetState( BRIGHTENED ) ? LAYER_BRIGHTENED : m_Layer );
+        color = GetLayerColor( m_Layer );
 
     GRSetDrawMode( DC, DrawMode );
 
@@ -521,6 +530,7 @@ void SCH_TEXT::Plot( PLOTTER* aPlotter )
 {
     static std::vector <wxPoint> Poly;
     COLOR4D  color = GetLayerColor( GetLayer() );
+    int      tmp = GetThickness();
     int      thickness = GetPenSize();
 
     // Two thicknesses are set here:
@@ -563,12 +573,11 @@ void SCH_TEXT::Plot( PLOTTER* aPlotter )
 
     if( Poly.size() )
         aPlotter->PlotPoly( Poly, NO_FILL );
+
+    SetThickness( tmp );
 }
 
 
-/*
- * Display the type, shape, size and some other props to the Message panel
- */
 void SCH_TEXT::GetMsgPanelInfo( EDA_UNITS_T aUnits, MSG_PANEL_ITEMS& aList )
 {
     wxString msg;
@@ -803,8 +812,10 @@ void SCH_GLOBALLABEL::Draw( EDA_DRAW_PANEL* panel,
 
     if( Color != COLOR4D::UNSPECIFIED )
         color = Color;
+    else if( panel->GetScreen() && !panel->GetScreen()->m_IsPrinting && GetState( BRIGHTENED ) )
+        color = GetLayerColor( LAYER_BRIGHTENED );
     else
-        color = GetLayerColor( GetState( BRIGHTENED ) ? LAYER_BRIGHTENED : m_Layer );
+        color = GetLayerColor( m_Layer );
 
     GRSetDrawMode( DC, DrawMode );
 
@@ -1068,8 +1079,10 @@ void SCH_HIERLABEL::Draw( EDA_DRAW_PANEL* panel,
 
     if( Color != COLOR4D::UNSPECIFIED )
         color = Color;
+    else if( panel->GetScreen() && !panel->GetScreen()->m_IsPrinting && GetState( BRIGHTENED ) )
+        color = GetLayerColor( LAYER_BRIGHTENED );
     else
-        color = GetLayerColor( GetState( BRIGHTENED ) ? LAYER_BRIGHTENED : m_Layer );
+        color = GetLayerColor( m_Layer );
 
     GRSetDrawMode( DC, DrawMode );
 

@@ -501,6 +501,20 @@ void FOOTPRINT_VIEWER_FRAME::LoadSettings( wxConfigBase* aCfg )
 {
     PCB_BASE_FRAME::LoadSettings( aCfg );
 
+    // Fetch grid settings from Footprint Editor
+    wxString footprintEditor = FOOTPRINT_EDIT_FRAME_NAME;
+    bool     btmp;
+    COLOR4D  wtmp;
+
+    if( aCfg->Read( footprintEditor + ShowGridEntryKeyword, &btmp ) )
+        SetGridVisibility( btmp );
+
+    if( wtmp.SetFromWxString( aCfg->Read( footprintEditor + GridColorEntryKeyword, wxT( "NONE" ) ) ) )
+        SetGridColor( wtmp );
+
+    // Grid shape, etc.
+    GetGalDisplayOptions().ReadAppConfig( *aCfg, footprintEditor );
+
     m_configSettings.Load( aCfg );  // mainly, load the color config
 
     aCfg->Read( ConfigBaseName() + AUTO_ZOOM_KEY, &m_autoZoom, true );

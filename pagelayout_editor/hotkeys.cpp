@@ -99,6 +99,7 @@ static EDA_HOTKEY HkSave( _HKI( "Save" ), HK_SAVE, GR_KB_CTRL + 'S', (int) wxID_
 static EDA_HOTKEY HkSaveAs( _HKI( "Save As" ), HK_SAVEAS, GR_KB_CTRL + GR_KB_SHIFT + 'S',
                             (int) wxID_SAVEAS );
 static EDA_HOTKEY HkPrint( _HKI( "Print" ), HK_PRINT, GR_KB_CTRL + 'P', (int) wxID_PRINT );
+static EDA_HOTKEY HkPreferences( _HKI( "Preferences" ), HK_PREFERENCES, GR_KB_CTRL + ',', (int) wxID_PREFERENCES );
 
 // List of common hotkey descriptors
 EDA_HOTKEY* s_Common_Hotkey_List[] =
@@ -107,7 +108,7 @@ EDA_HOTKEY* s_Common_Hotkey_List[] =
     &HkUndo, &HkRedo,
     &HkZoomIn,    &HkZoomOut,      &HkZoomRedraw, &HkZoomCenter,
     &HkZoomAuto,  &HkZoomSelection, &HkResetLocalCoord,
-    &HkHelp,
+    &HkHelp, &HkPreferences,
     &HkMouseLeftClick,
     &HkMouseLeftDClick,
     NULL
@@ -130,7 +131,7 @@ static wxString commonSectionTitle( _HKI( "Common" ) );
 static wxString s_PlEditorSectionTag( wxT( "[pl_editor]" ) );
 static wxString s_PlEditorSectionTitle( _HKI( "Page Layout Editor" ) );
 
-struct EDA_HOTKEY_CONFIG PlEditorHokeysDescr[] =
+struct EDA_HOTKEY_CONFIG PlEditorHotkeysDescr[] =
 {
     { &g_CommonSectionTag,    s_Common_Hotkey_List,     &commonSectionTitle    },
     { &s_PlEditorSectionTag,  s_PlEditor_Hotkey_List,   &s_PlEditorSectionTitle  },
@@ -253,7 +254,12 @@ bool PL_EDITOR_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode,
         break;
 
     case HK_HELP:       // Display Current hotkey list
-        DisplayHotkeyList( this, PlEditorHokeysDescr );
+        DisplayHotkeyList( this, PlEditorHotkeysDescr );
+        break;
+
+    case HK_PREFERENCES:
+        cmd.SetId( wxID_PREFERENCES );
+        GetEventHandler()->ProcessEvent( cmd );
         break;
 
     case HK_SET_GRID_ORIGIN:

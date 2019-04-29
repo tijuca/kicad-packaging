@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2013-2018 CERN
+ * Copyright (C) 2013-2019 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
  * This program is free software; you can redistribute it and/or
@@ -46,6 +46,7 @@ using namespace std::placeholders;
 #include <class_board.h>
 #include <class_module.h>
 #include <connectivity/connectivity_data.h>
+#include <widgets/progress_reporter.h>
 
 #include "zone_filler.h"
 
@@ -638,6 +639,17 @@ void POINT_EDITOR::finishItem()
         if( zone->IsFilled() && m_refill )
         {
             ZONE_FILLER filler( board() );
+            // A progress reporter can be usefull. However it works fine only on Windows
+            // so enable it only on Windows.
+            // On Linux, the filled areas are incorrectly shown: the insulated islands
+            // remain displayed, although they are removed from the actual filled areas list
+            //
+            // Fix me: try to make it working on Linux.
+            //
+            #ifdef __WINDOWS__
+            WX_PROGRESS_REPORTER reporter( getEditFrame<PCB_BASE_FRAME>(), _( "Refill Zones" ), 4 );
+            filler.SetProgressReporter( &reporter );
+            #endif
             filler.Fill( { zone } );
         }
     }
@@ -1143,6 +1155,7 @@ int POINT_EDITOR::removeCorner( const TOOL_EVENT& aEvent )
         }
 
         setEditedPoint( nullptr );
+        updatePoints();
 
         if( valid )
             commit.Push( _( "Remove a zone/polygon corner" ) );

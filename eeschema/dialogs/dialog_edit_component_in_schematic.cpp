@@ -175,7 +175,7 @@ bool DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::TransferDataToWindow()
 
     if( m_part != nullptr && m_part->HasConversion() )
     {
-        if( m_cmp->GetConvert() > 1 )
+        if( m_cmp->GetConvert() > LIB_ITEM::LIB_CONVERT::BASE )
             m_cbAlternateSymbol->SetValue( true );
     }
     else
@@ -235,11 +235,43 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::OnBrowseLibrary( wxCommandEvent& event 
 
     m_libraryNameTextCtrl->SetValue( sel.LibId.Format() );
 
-    // Update the value field for Power symbols
     LIB_PART* entry = GetParent()->GetLibPart( sel.LibId );
 
-    if( entry && entry->IsPower() )
-        m_grid->SetCellValue( VALUE, FDC_VALUE, sel.LibId.GetLibItemName() );
+    if( entry )
+    {
+        // Update the value field for Power symbols
+        if( entry->IsPower() )
+            m_grid->SetCellValue( VALUE, FDC_VALUE, sel.LibId.GetLibItemName() );
+
+        // Update the units control
+        int unit = m_unitChoice->GetSelection();
+        m_unitChoice->Clear();
+
+        if( entry->GetUnitCount() > 1 )
+        {
+            for( int ii = 1; ii <= entry->GetUnitCount(); ii++ )
+                m_unitChoice->Append( LIB_PART::SubReference( ii, false ) );
+
+            if( unit < 0 || static_cast<unsigned>( unit )>= m_unitChoice->GetCount() )
+                unit = 0;
+
+            m_unitChoice->SetSelection( unit );
+            m_unitLabel->Enable( true );
+            m_unitChoice->Enable( true );
+        }
+        else
+        {
+            m_unitChoice->SetSelection( -1 );
+            m_unitLabel->Enable( false );
+            m_unitChoice->Enable( false );
+        }
+
+        // Update the deMorgan conversion controls
+        bool conversion = m_cbAlternateSymbol->GetValue();
+
+        m_cbAlternateSymbol->SetValue( conversion && entry->HasConversion() );
+        m_cbAlternateSymbol->Enable( entry->HasConversion() );
+    }
 }
 
 
@@ -373,17 +405,17 @@ bool DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::TransferDataFromWindow()
     m_cmp->SetLibId( id, Prj().SchSymbolLibTable(), Prj().SchLibs()->GetCacheLibrary() );
 
     // For symbols with multiple shapes (De Morgan representation) Set the selected shape:
-    if( m_cbAlternateSymbol->IsEnabled() )
-        m_cmp->SetConvert( m_cbAlternateSymbol->GetValue() ? 2 : 1 );
+    if( m_cbAlternateSymbol->IsEnabled() && m_cbAlternateSymbol->GetValue() )
+        m_cmp->SetConvert( LIB_ITEM::LIB_CONVERT::DEMORGAN );
+    else
+        m_cmp->SetConvert( LIB_ITEM::LIB_CONVERT::BASE );
 
     //Set the part selection in multiple part per package
-    if( m_cmp->GetUnitCount() > 1 )
-    {
-        int unit_selection = m_unitChoice->GetCurrentSelection() + 1;
-
-        m_cmp->SetUnitSelection( &GetParent()->GetCurrentSheet(), unit_selection );
-        m_cmp->SetUnit( unit_selection );
-    }
+    int unit_selection = m_unitChoice->IsEnabled()
+                            ? m_unitChoice->GetSelection() + 1
+                            : 1;
+    m_cmp->SetUnitSelection( &GetParent()->GetCurrentSheet(), unit_selection );
+    m_cmp->SetUnit( unit_selection );
 
     switch( m_rbOrientation->GetSelection() )
     {
@@ -606,6 +638,9 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::UpdateFieldsFromLibrary( wxCommandEvent
     components.push_back( &copy );
     InvokeDialogUpdateFields( GetParent(), components, false );
 
+    wxGridTableMessage clear( m_fields, wxGRIDTABLE_NOTIFY_ROWS_DELETED, 0, m_fields->size() );
+    m_grid->ProcessTableMessage( clear );
+
     // Copy fields from the component copy to the dialog buffer
     m_fields->clear();
     std::set<wxString> defined;
@@ -629,7 +664,8 @@ void DIALOG_EDIT_COMPONENT_IN_SCHEMATIC::UpdateFieldsFromLibrary( wxCommandEvent
         }
     }
 
-    m_grid->ForceRefresh();
+    wxGridTableMessage refresh( m_fields, wxGRIDTABLE_NOTIFY_ROWS_APPENDED, m_fields->size() );
+    m_grid->ProcessTableMessage( refresh );
 }
 
 

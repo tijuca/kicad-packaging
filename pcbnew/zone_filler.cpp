@@ -96,15 +96,19 @@ bool ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones, bool aCheck )
         if( zone->GetIsKeepout() )
             continue;
 
-        toFill.emplace_back( CN_ZONE_ISOLATED_ISLAND_LIST(zone) );
-    }
-
-    for( unsigned i = 0; i < toFill.size(); i++ )
-    {
         if( m_commit )
-        {
-            m_commit->Modify( toFill[i].m_zone );
-        }
+            m_commit->Modify( zone );
+
+        // calculate the hash value for filled areas. it will be used later
+        // to know if the current filled areas are up to date
+        zone->BuildHashValue();
+
+        // Add the zone to the list of zones to test or refill
+        toFill.emplace_back( CN_ZONE_ISOLATED_ISLAND_LIST(zone) );
+
+        // Remove existing fill first to prevent drawing invalid polygons
+        // on some platforms
+        zone->UnFill();
     }
 
     if( m_progressReporter )
@@ -127,20 +131,17 @@ bool ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones, bool aCheck )
         for( size_t i = nextItem++; i < toFill.size(); i = nextItem++ )
         {
             ZONE_CONTAINER* zone = toFill[i].m_zone;
+            SHAPE_POLY_SET rawPolys, finalPolys;
+            fillSingleZone( zone, rawPolys, finalPolys );
+
+            zone->SetRawPolysList( rawPolys );
+            zone->SetFilledPolysList( finalPolys );
 
             if( zone->GetFillMode() == ZFM_SEGMENTS )
             {
                 ZONE_SEGMENT_FILL segFill;
                 fillZoneWithSegments( zone, zone->GetFilledPolysList(), segFill );
                 zone->SetFillSegments( segFill );
-            }
-            else
-            {
-                SHAPE_POLY_SET rawPolys, finalPolys;
-                fillSingleZone( zone, rawPolys, finalPolys );
-
-                zone->SetRawPolysList( rawPolys );
-                zone->SetFilledPolysList( finalPolys );
             }
 
             zone->SetIsFilled( true );
@@ -186,26 +187,40 @@ bool ZONE_FILLER::Fill( std::vector<ZONE_CONTAINER*> aZones, bool aCheck )
     connectivity->SetProgressReporter( m_progressReporter );
     connectivity->FindIsolatedCopperIslands( toFill );
 
-    // Now remove insulated copper islands
+    // Now remove insulated copper islands and islands outside the board edge
     bool outOfDate = false;
+    SHAPE_POLY_SET boardOutline;
+    bool clip_to_brd_outlines = m_board->GetBoardPolygonOutlines( boardOutline );
 
     for( auto& zone : toFill )
     {
         std::sort( zone.m_islands.begin(), zone.m_islands.end(), std::greater<int>() );
         SHAPE_POLY_SET poly = zone.m_zone->GetFilledPolysList();
 
-        // only zones with net code > 0 can have islands to remove by definition
+        // Remove solid areas outside the board cutouts and the insulated islands
+        // only zones with net code > 0 can have insulated islands by definition
         if( zone.m_zone->GetNetCode() > 0 )
         {
+            // solid areas outside the board cutouts are also removed, because they are usually
+            // insulated islands
             for( auto idx : zone.m_islands )
             {
                 poly.DeletePolygon( idx );
             }
         }
+        // zones with no net can have areas outside the board cutouts.
+        // Please, use only this clipping for no nets zones: this is a very time consumming
+        // calculation (x 5 in a test case if made for all zones),
+        // mainly due to poly.Fracture
+        else if( clip_to_brd_outlines )
+        {
+            poly.BooleanIntersection( boardOutline, SHAPE_POLY_SET::PM_FAST );
+            poly.Fracture( SHAPE_POLY_SET::PM_FAST );
+        }
 
         zone.m_zone->SetFilledPolysList( poly );
 
-        if( aCheck && zone.m_lastPolys.GetHash() != poly.GetHash() )
+        if( aCheck && zone.m_zone->GetHashValue() != poly.GetHash() )
             outOfDate = true;
     }
 
@@ -750,21 +765,18 @@ void ZONE_FILLER::computeRawFilledAreas( const ZONE_CONTAINER* aZone,
     if( s_DumpZonesWhenFilling )
         dumper->Write( &solidAreas, "solid-areas-minus-holes" );
 
-    SHAPE_POLY_SET areas_fractured = solidAreas;
-    areas_fractured.Fracture( SHAPE_POLY_SET::PM_FAST );
-
-    if( s_DumpZonesWhenFilling )
-        dumper->Write( &areas_fractured, "areas_fractured" );
-
-    aFinalPolys = areas_fractured;
-
-    SHAPE_POLY_SET thermalHoles;
-
     // Test thermal stubs connections and add polygons to remove unconnected stubs.
     // (this is a refinement for thermal relief shapes)
+    // Note: we are using not fractured solid area polygons, to avoid a side effect of extra segments
+    // created by Fracture(): if a tested point used in buildUnconnectedThermalStubsPolygonList
+    // is on a extra segment, the tested point is seen outside the solid area, but it is inside.
+    // This is not a bug, just the fact when a point is on a polygon outline, it is hard to say
+    // if it is inside or outside the polygon.
+    SHAPE_POLY_SET thermalHoles;
+
     if( aZone->GetNetCode() > 0 )
     {
-        buildUnconnectedThermalStubsPolygonList( thermalHoles, aZone, aFinalPolys,
+        buildUnconnectedThermalStubsPolygonList( thermalHoles, aZone, solidAreas,
                 correctionFactor, s_thermalRot );
 
     }
@@ -789,6 +801,16 @@ void ZONE_FILLER::computeRawFilledAreas( const ZONE_CONTAINER* aZone,
             dumper->Write( &th_fractured, "th_fractured" );
 
         aFinalPolys = th_fractured;
+    }
+    else
+    {
+        SHAPE_POLY_SET areas_fractured = solidAreas;
+        areas_fractured.Fracture( SHAPE_POLY_SET::PM_FAST );
+
+        if( s_DumpZonesWhenFilling )
+            dumper->Write( &areas_fractured, "areas_fractured" );
+
+        aFinalPolys = areas_fractured;
     }
 
     aRawPolys = aFinalPolys;

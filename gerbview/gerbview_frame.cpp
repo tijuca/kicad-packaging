@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -16,10 +16,6 @@
  *
  * You should have received a copy of the GNU General Public License along
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-/**
- * @file gerbview_frame.cpp
  */
 
 #include <fctsys.h>
@@ -86,7 +82,7 @@ GERBVIEW_FRAME::GERBVIEW_FRAME( KIWAY* aKiway, wxWindow* aParent ):
 
     m_showAxis = true;                      // true to show X and Y axis on screen
     m_showBorderAndTitleBlock = false;      // true for reference drawings.
-    m_hotkeysDescrList = GerbviewHokeysDescr;
+    m_hotkeysDescrList = GerbviewHotkeysDescr;
     m_SelLayerBox   = NULL;
     m_DCodeSelector = NULL;
     m_SelComponentBox = nullptr;
@@ -120,7 +116,7 @@ GERBVIEW_FRAME::GERBVIEW_FRAME( KIWAY* aKiway, wxWindow* aParent ):
 
     SetLayout( new GBR_LAYOUT() );
 
-    SetVisibleLayers( -1 );         // All draw layers visible.
+    SetVisibleLayers( LSET::AllLayersMask() );         // All draw layers visible.
 
     SetScreen( new GBR_SCREEN( GetPageSettings().GetSizeIU() ) );
 
@@ -249,8 +245,8 @@ GERBVIEW_FRAME::~GERBVIEW_FRAME()
 
 void GERBVIEW_FRAME::OnCloseWindow( wxCloseEvent& Event )
 {
-    GetGalCanvas()->GetView()->Clear();
     GetGalCanvas()->StopDrawing();
+    GetGalCanvas()->GetView()->Clear();
 
     if( m_toolManager )
         m_toolManager->DeactivateTool();
@@ -303,11 +299,12 @@ bool GERBVIEW_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
             SetActiveLayer( layer );
 
             // Try to guess the type of file by its ext
-            // if it is .drl (Kicad files), it is a drill file
+            // if it is .drl (Kicad files), .nc or .xnc it is a drill file
             wxFileName fn( aFileSet[i] );
             wxString ext = fn.GetExt();
 
-            if( ext == DrillFileExtension )     // In Excellon format
+            if( ext == DrillFileExtension ||    // our Excellon format
+                ext == "nc" || ext == "xnc" )   // alternate ext for Excellon format
                 LoadExcellonFiles( aFileSet[i] );
             else if( ext == GerberJobFileExtension )
                 LoadGerberJobFile( aFileSet[i] );
@@ -660,8 +657,8 @@ void GERBVIEW_FRAME::UpdateDisplayOptions( const GBR_DISPLAY_OPTIONS& aOptions )
 
     if( update_flashed )
     {
-        view->UpdateAllItemsConditionally( KIGFX::REPAINT,
-                                           []( KIGFX::VIEW_ITEM* aItem ) {
+        view->UpdateAllItemsConditionally( KIGFX::REPAINT, []( KIGFX::VIEW_ITEM* aItem )
+        {
             auto item = static_cast<GERBER_DRAW_ITEM*>( aItem );
 
             switch( item->m_Shape )
@@ -680,8 +677,8 @@ void GERBVIEW_FRAME::UpdateDisplayOptions( const GBR_DISPLAY_OPTIONS& aOptions )
     }
     else if( update_lines )
     {
-        view->UpdateAllItemsConditionally( KIGFX::REPAINT,
-                                           []( KIGFX::VIEW_ITEM* aItem ) {
+        view->UpdateAllItemsConditionally( KIGFX::REPAINT, []( KIGFX::VIEW_ITEM* aItem )
+        {
             auto item = static_cast<GERBER_DRAW_ITEM*>( aItem );
 
             switch( item->m_Shape )
@@ -698,8 +695,8 @@ void GERBVIEW_FRAME::UpdateDisplayOptions( const GBR_DISPLAY_OPTIONS& aOptions )
     }
     else if( update_polygons )
     {
-        view->UpdateAllItemsConditionally( KIGFX::REPAINT,
-                                           []( KIGFX::VIEW_ITEM* aItem ) {
+        view->UpdateAllItemsConditionally( KIGFX::REPAINT, []( KIGFX::VIEW_ITEM* aItem )
+        {
             auto item = static_cast<GERBER_DRAW_ITEM*>( aItem );
 
             return ( item->m_Shape == GBR_POLYGON );
@@ -799,36 +796,27 @@ bool GERBVIEW_FRAME::IsElementVisible( int aLayerID ) const
 }
 
 
-long GERBVIEW_FRAME::GetVisibleLayers() const
+LSET GERBVIEW_FRAME::GetVisibleLayers() const
 {
-    long layerMask = 0;
+    LSET visible = LSET::AllLayersMask();
 
     if( auto canvas = GetGalCanvas() )
     {
-        // NOTE: This assumes max 32 drawlayers!
         for( int i = 0; i < GERBER_DRAWLAYERS_COUNT; i++ )
-        {
-            if( canvas->GetView()->IsLayerVisible( GERBER_DRAW_LAYER( i ) ) )
-                layerMask |= ( 1 << i );
-        }
+            visible[i] = canvas->GetView()->IsLayerVisible( GERBER_DRAW_LAYER( i ) );
+    }
 
-        return layerMask;
-    }
-    else
-    {
-        return -1;
-    }
+    return visible;
 }
 
 
-void GERBVIEW_FRAME::SetVisibleLayers( long aLayerMask )
+void GERBVIEW_FRAME::SetVisibleLayers( LSET aLayerMask )
 {
     if( auto canvas = GetGalCanvas() )
     {
-        // NOTE: This assumes max 32 drawlayers!
         for( int i = 0; i < GERBER_DRAWLAYERS_COUNT; i++ )
         {
-            bool v = ( aLayerMask & ( 1 << i ) );
+            bool v = aLayerMask[i];
             int layer = GERBER_DRAW_LAYER( i );
             canvas->GetView()->SetLayerVisible( layer, v );
             canvas->GetView()->SetLayerVisible( GERBER_DCODE_LAYER( layer ),
@@ -1047,13 +1035,6 @@ void GERBVIEW_FRAME::SetGridColor( COLOR4D aColor )
         GetGalCanvas()->GetGAL()->SetGridColor( aColor );
 
     m_gridColor = aColor;
-}
-
-
-EDA_RECT GERBVIEW_FRAME::GetGerberLayoutBoundingBox()
-{
-    GetGerberLayout()->ComputeBoundingBox();
-    return GetGerberLayout()->GetBoundingBox();
 }
 
 

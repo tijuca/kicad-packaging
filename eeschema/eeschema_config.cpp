@@ -133,7 +133,7 @@ void LIB_EDIT_FRAME::Process_Config( wxCommandEvent& event )
     {
     case ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST:
         // Display current hotkey list for LibEdit.
-        DisplayHotkeyList( this, g_Libedit_Hokeys_Descr );
+        DisplayHotkeyList( this, g_Libedit_Hotkeys_Descr );
         break;
 
     default:
@@ -158,9 +158,8 @@ void SCH_EDIT_FRAME::Process_Config( wxCommandEvent& event )
             fn = g_RootSheet->GetScreen()->GetFileName();
             fn.SetExt( ProjectFileExtension );
 
-            wxFileDialog dlg( this, _( "Load Project File" ), fn.GetPath(),
-                              fn.GetFullName(), ProjectFileWildcard(),
-                              wxFD_OPEN | wxFD_FILE_MUST_EXIST );
+            wxFileDialog dlg( this, _( "Load Project File" ), fn.GetPath(), fn.GetFullName(),
+                              ProjectFileWildcard(), wxFD_OPEN | wxFD_FILE_MUST_EXIST );
 
             if( dlg.ShowModal() == wxID_CANCEL )
                 break;
@@ -173,17 +172,17 @@ void SCH_EDIT_FRAME::Process_Config( wxCommandEvent& event )
             {
                 // Read library list and library path list
                 Prj().ConfigLoad( Kiface().KifaceSearch(), GROUP_SCH,
-                                  GetProjectFileParametersList() );
+                                  GetProjectFileParameters() );
                 // Read schematic editor setup
-                Prj().ConfigLoad( Kiface().KifaceSearch(), GROUP_SCH_EDITOR,
-                                  GetProjectFileParametersList() );
+                Prj().ConfigLoad( Kiface().KifaceSearch(), GROUP_SCH_EDIT,
+                                  GetProjectFileParameters() );
             }
         }
         break;
 
     case ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST:
         // Display current hotkey list for eeschema.
-        DisplayHotkeyList( this, g_Schematic_Hokeys_Descr );
+        DisplayHotkeyList( this, g_Schematic_Hotkeys_Descr );
         break;
 
     default:
@@ -194,7 +193,7 @@ void SCH_EDIT_FRAME::Process_Config( wxCommandEvent& event )
 
 void SCH_EDIT_FRAME::OnPreferencesOptions( wxCommandEvent& event )
 {
-    if( ShowPreferences( g_Eeschema_Hokeys_Descr, g_Schematic_Hokeys_Descr, wxT( "eeschema" ) ) )
+    if( ShowPreferences( g_Eeschema_Hotkeys_Descr, g_Schematic_Hotkeys_Descr, wxT( "eeschema" ) ) )
     {
         SaveSettings( config() );  // save values shared by eeschema applications.
         m_canvas->Refresh( true );
@@ -213,7 +212,7 @@ void SCH_EDIT_FRAME::InstallPreferences( PAGED_DIALOG* aParent )
 }
 
 
-PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetProjectFileParametersList()
+PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetProjectFileParameters()
 
 {
     if( !m_projectFileParams.empty() )
@@ -259,12 +258,10 @@ PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetProjectFileParametersList()
 bool SCH_EDIT_FRAME::LoadProjectFile()
 {
     // Read library list and library path list
-    bool isRead = Prj().ConfigLoad( Kiface().KifaceSearch(),
-                    GROUP_SCH, GetProjectFileParametersList() );
+    bool ret = Prj().ConfigLoad( Kiface().KifaceSearch(), GROUP_SCH, GetProjectFileParameters() );
 
     // Read schematic editor setup
-    isRead = isRead && Prj().ConfigLoad( Kiface().KifaceSearch(),
-                                         GROUP_SCH_EDITOR, GetProjectFileParametersList() );
+    ret &= Prj().ConfigLoad( Kiface().KifaceSearch(), GROUP_SCH_EDIT, GetProjectFileParameters() );
 
     // Verify some values, because the config file can be edited by hand,
     // and have bad values:
@@ -282,7 +279,7 @@ bool SCH_EDIT_FRAME::LoadProjectFile()
 
     pglayout.SetPageLayout( pg_fullfilename );
 
-    return isRead;
+    return ret;
 }
 
 
@@ -298,8 +295,7 @@ void SCH_EDIT_FRAME::SaveProjectSettings( bool aAskForSave )
 
     if( aAskForSave )
     {
-        wxFileDialog dlg( this, _( "Save Project File" ),
-                          fn.GetPath(), fn.GetFullName(),
+        wxFileDialog dlg( this, _( "Save Project File" ), fn.GetPath(), fn.GetFullName(),
                           ProjectFileWildcard(), wxFD_SAVE );
 
         if( dlg.ShowModal() == wxID_CANCEL )
@@ -308,7 +304,9 @@ void SCH_EDIT_FRAME::SaveProjectSettings( bool aAskForSave )
         fn = dlg.GetPath();
     }
 
-    prj.ConfigSave( Kiface().KifaceSearch(), GROUP_SCH_EDITOR, GetProjectFileParametersList() );
+    wxString path = fn.GetFullPath();
+
+    prj.ConfigSave( Kiface().KifaceSearch(), GROUP_SCH_EDIT, GetProjectFileParameters(), path );
 }
 
 ///@{
@@ -390,7 +388,7 @@ void SCH_EDIT_FRAME::LoadSettings( wxConfigBase* aCfg )
 
     long tmp;
 
-    ReadHotkeyConfig( SCH_EDIT_FRAME_NAME, g_Schematic_Hokeys_Descr );
+    ReadHotkeyConfig( SCH_EDIT_FRAME_NAME, g_Schematic_Hotkeys_Descr );
     wxConfigLoadSetups( aCfg, GetConfigurationSettings() );
 
     SetDefaultBusThickness( (int) aCfg->Read( DefaultBusWidthEntry, DEFAULTBUSTHICKNESS ) );
@@ -519,7 +517,7 @@ void LIB_EDIT_FRAME::LoadSettings( wxConfigBase* aCfg )
 {
     EDA_DRAW_FRAME::LoadSettings( aCfg );
 
-    ReadHotkeyConfig( LIB_EDIT_FRAME_NAME, g_Libedit_Hokeys_Descr );
+    ReadHotkeyConfig( LIB_EDIT_FRAME_NAME, g_Libedit_Hotkeys_Descr );
 
     SetDefaultLineThickness( (int) aCfg->Read( DefaultDrawLineWidthEntry, DEFAULTDRAWLINETHICKNESS ) );
     SetDefaultPinLength( (int) aCfg->Read( DefaultPinLengthEntry, DEFAULTPINLENGTH ) );
@@ -581,7 +579,7 @@ void LIB_EDIT_FRAME::SaveSettings( wxConfigBase* aCfg )
 
 void LIB_EDIT_FRAME::OnPreferencesOptions( wxCommandEvent& event )
 {
-    if( ShowPreferences( g_Eeschema_Hokeys_Descr, g_Libedit_Hokeys_Descr, wxT( "eeschema" ) ) )
+    if( ShowPreferences( g_Eeschema_Hotkeys_Descr, g_Libedit_Hotkeys_Descr, wxT( "eeschema" ) ) )
     {
         SaveSettings( config() );  // save values shared by eeschema applications.
         m_canvas->Refresh( true );

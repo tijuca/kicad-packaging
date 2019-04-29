@@ -116,6 +116,7 @@ static EDA_HOTKEY HkZoomOut( _HKI( "Zoom Out" ), HK_ZOOM_OUT, GR_KB_CTRL + '-', 
 #endif
 
 static EDA_HOTKEY HkHelp( _HKI( "List Hotkeys" ), HK_HELP, GR_KB_CTRL + WXK_F1 );
+static EDA_HOTKEY HkPreferences( _HKI( "Preferences" ), HK_PREFERENCES, GR_KB_CTRL + ',', (int) wxID_PREFERENCES );
 static EDA_HOTKEY HkResetLocalCoord( _HKI( "Reset Local Coordinates" ), HK_RESET_LOCAL_COORD, ' ' );
 static EDA_HOTKEY HkLeaveSheet( _HKI( "Leave Sheet" ), HK_LEAVE_SHEET, GR_KB_ALT + WXK_BACK,
                                 ID_POPUP_SCH_LEAVE_SHEET );
@@ -262,6 +263,7 @@ static EDA_HOTKEY* common_Hotkey_List[] =
     &HkUndo,        &HkRedo,
     &HkEditCut,     &HkEditCopy,        &HkEditPaste,
     &HkHelp,
+    &HkPreferences,
     &HkZoomIn,
     &HkZoomOut,
     &HkZoomRedraw,
@@ -367,7 +369,7 @@ static wxString libEditSectionTitle( _HKI( "Library Editor" ) );
 
 // list of sections and corresponding hotkey list for Eeschema (used to create
 // an hotkey config file)
-struct EDA_HOTKEY_CONFIG g_Eeschema_Hokeys_Descr[] =
+struct EDA_HOTKEY_CONFIG g_Eeschema_Hotkeys_Descr[] =
 {
     { &g_CommonSectionTag,    common_Hotkey_List,    &commonSectionTitle    },
     { &schematicSectionTag,   schematic_Hotkey_List, &schematicSectionTitle },
@@ -377,7 +379,7 @@ struct EDA_HOTKEY_CONFIG g_Eeschema_Hokeys_Descr[] =
 
 // list of sections and corresponding hotkey list for the schematic editor
 // (used to list current hotkeys)
-struct EDA_HOTKEY_CONFIG g_Schematic_Hokeys_Descr[] =
+struct EDA_HOTKEY_CONFIG g_Schematic_Hotkeys_Descr[] =
 {
     { &g_CommonSectionTag,    common_Hotkey_List,    &commonSectionTitle    },
     { &schematicSectionTag,   schematic_Hotkey_List, &schematicSectionTitle },
@@ -386,7 +388,7 @@ struct EDA_HOTKEY_CONFIG g_Schematic_Hokeys_Descr[] =
 
 // list of sections and corresponding hotkey list for the component editor
 // (used to list current hotkeys)
-struct EDA_HOTKEY_CONFIG g_Libedit_Hokeys_Descr[] =
+struct EDA_HOTKEY_CONFIG g_Libedit_Hotkeys_Descr[] =
 {
     { &g_CommonSectionTag,  common_Hotkey_List,   &commonSectionTitle  },
     { &libEditSectionTag,   libEdit_Hotkey_List,  &libEditSectionTitle },
@@ -395,7 +397,7 @@ struct EDA_HOTKEY_CONFIG g_Libedit_Hokeys_Descr[] =
 
 // list of sections and corresponding hotkey list for the component browser
 // (used to list current hotkeys)
-struct EDA_HOTKEY_CONFIG g_Viewlib_Hokeys_Descr[] =
+struct EDA_HOTKEY_CONFIG g_Viewlib_Hotkeys_Descr[] =
 {
     { &g_CommonSectionTag, common_basic_Hotkey_List, &commonSectionTitle },
     { NULL,                NULL,                 NULL }
@@ -459,7 +461,12 @@ bool SCH_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
         return false;
 
     case HK_HELP:       // Display Current hotkey list
-        DisplayHotkeyList( this, g_Schematic_Hokeys_Descr );
+        DisplayHotkeyList( this, g_Schematic_Hotkeys_Descr );
+        break;
+
+    case HK_PREFERENCES:
+        cmd.SetId( wxID_PREFERENCES );
+        GetEventHandler()->ProcessEvent( cmd );
         break;
 
     case HK_RESET_LOCAL_COORD:         // Reset the relative coord
@@ -707,7 +714,12 @@ bool LIB_EDIT_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
         return false;
 
     case HK_HELP:       // Display Current hotkey list
-        DisplayHotkeyList( this, g_Libedit_Hokeys_Descr );
+        DisplayHotkeyList( this, g_Libedit_Hotkeys_Descr );
+        break;
+
+    case HK_PREFERENCES:
+        cmd.SetId( wxID_PREFERENCES );
+        GetEventHandler()->ProcessEvent( cmd );
         break;
 
     case HK_RESET_LOCAL_COORD:         // Reset the relative coord
@@ -925,7 +937,7 @@ bool LIB_VIEW_FRAME::OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
         return false;
 
     case HK_HELP:                   // Display Current hotkey list
-        DisplayHotkeyList( this, g_Viewlib_Hokeys_Descr );
+        DisplayHotkeyList( this, g_Viewlib_Hotkeys_Descr );
         break;
 
     case HK_RESET_LOCAL_COORD:      // set local (relative) coordinate origin
