@@ -30,7 +30,7 @@
 #include <fctsys.h>
 #include <gr_basic.h>
 #include <macros.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <plotter.h>
 #include <trigo.h>
 #include <base_units.h>
@@ -157,14 +157,26 @@ void LIB_CIRCLE::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
     }
 
     bool already_filled = m_Fill == FILLED_WITH_BG_BODYCOLOR;
-    aPlotter->SetColor( GetLayerColor( LAYER_DEVICE ) );
-    aPlotter->Circle( pos, m_Radius * 2, already_filled ? NO_FILL : m_Fill, GetPenSize() );
+    auto pen_size = GetPenSize();
+
+    if( !already_filled || pen_size > 0 )
+    {
+        pen_size = std::max( 0, pen_size );
+        aPlotter->SetColor( GetLayerColor( LAYER_DEVICE ) );
+        aPlotter->Circle( pos, m_Radius * 2, already_filled ? NO_FILL : m_Fill, GetPenSize() );
+    }
 }
 
 
 int LIB_CIRCLE::GetPenSize() const
 {
-    return ( m_Width == 0 ) ? GetDefaultLineThickness() : m_Width;
+    if( m_Width > 0 )
+        return m_Width;
+
+    if( m_Width == 0 )
+       return GetDefaultLineThickness();
+
+    return -1;   // a value to use a minimal pen size
 }
 
 
@@ -229,18 +241,18 @@ const EDA_RECT LIB_CIRCLE::GetBoundingBox() const
 }
 
 
-void LIB_CIRCLE::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
+void LIB_CIRCLE::GetMsgPanelInfo( EDA_UNITS_T aUnits, MSG_PANEL_ITEMS& aList )
 {
     wxString msg;
     EDA_RECT bBox = GetBoundingBox();
 
-    LIB_ITEM::GetMsgPanelInfo( aList );
+    LIB_ITEM::GetMsgPanelInfo( aUnits, aList );
 
-    msg = StringFromValue( g_UserUnit, m_Width, true );
+    msg = MessageTextFromValue( aUnits, m_Width, true );
 
     aList.push_back( MSG_PANEL_ITEM(  _( "Line Width" ), msg, BLUE ) );
 
-    msg = StringFromValue( g_UserUnit, m_Radius, true );
+    msg = MessageTextFromValue( aUnits, m_Radius, true );
     aList.push_back( MSG_PANEL_ITEM( _( "Radius" ), msg, RED ) );
 
     msg.Printf( wxT( "(%d, %d, %d, %d)" ), bBox.GetOrigin().x,
@@ -250,12 +262,12 @@ void LIB_CIRCLE::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 }
 
 
-wxString LIB_CIRCLE::GetSelectMenuText() const
+wxString LIB_CIRCLE::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
     return wxString::Format( _( "Circle center (%s, %s), radius %s" ),
-                             GetChars( CoordinateToString( m_Pos.x ) ),
-                             GetChars( CoordinateToString( m_Pos.y ) ),
-                             GetChars( CoordinateToString( m_Radius ) ) );
+                             MessageTextFromValue( aUnits, m_Pos.x ),
+                             MessageTextFromValue( aUnits, m_Pos.y ),
+                             MessageTextFromValue( aUnits, m_Radius ) );
 }
 
 
@@ -278,11 +290,6 @@ void LIB_CIRCLE::BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition )
     {
         m_initialPos = m_Pos;
         m_initialCursorPos = aPosition;
-        SetEraseLastDrawItem();
-    }
-    else if( aEditMode == IS_RESIZED )
-    {
-        SetEraseLastDrawItem();
     }
 
     m_Flags = aEditMode;
@@ -303,18 +310,14 @@ void LIB_CIRCLE::EndEdit( const wxPoint& aPosition, bool aAbort )
     wxCHECK_RET( ( m_Flags & ( IS_NEW | IS_MOVED | IS_RESIZED ) ) != 0,
                    wxT( "Bad call to EndEdit().  LIB_CIRCLE is not being edited." ) );
 
-    SetEraseLastDrawItem( false );
     m_Flags = 0;
 }
 
 
-void LIB_CIRCLE::calcEdit( const wxPoint& aPosition )
+void LIB_CIRCLE::CalcEdit( const wxPoint& aPosition )
 {
     if( m_Flags == IS_NEW || m_Flags == IS_RESIZED )
     {
-        if( m_Flags == IS_NEW )
-            SetEraseLastDrawItem();
-
         m_Radius = KiROUND( GetLineLength( m_Pos, aPosition ) );
     }
     else

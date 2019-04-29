@@ -36,7 +36,7 @@ class CVPCB_MAINFRAME;
 class COMPONENT;
 class FOOTPRINT_LIST;
 
-#define LISTBOX_STYLE     ( wxSUNKEN_BORDER | wxLC_NO_HEADER | wxLC_REPORT | wxLC_VIRTUAL | \
+#define LISTBOX_STYLE     ( wxBORDER_NONE | wxLC_NO_HEADER | wxLC_REPORT | wxLC_VIRTUAL | \
                             wxVSCROLL | wxHSCROLL )
 
 /*********************************************************************/
@@ -110,6 +110,7 @@ public:
 
     int      GetCount();
     void     SetSelection( int index, bool State = true );
+    void     SetSelectedFootprint( const LIB_ID& aFPID );
     void     SetString( unsigned linecount, const wxString& text );
     void     AppendLine( const wxString& text );
 

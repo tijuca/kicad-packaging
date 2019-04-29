@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1992-2013 jp.charras at wanadoo.fr
  * Copyright (C) 2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2017 KiCad Developers
+ * Copyright (C) 1992-2018 KiCad Developers
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,10 +26,12 @@
 #ifndef NETLIST_EXPORT_GENERIC_H
 #define NETLIST_EXPORT_GENERIC_H
 
-#include <project.h>
 #include <netlist_exporter.h>
 
+#include <project.h>
 #include <xnode.h>      // also nests: <wx/xml/xml.h>
+
+#include <sch_edit_frame.h>
 
 class SYMBOL_LIB_TABLE;
 
@@ -57,7 +59,6 @@ enum GNL_T
 class NETLIST_EXPORTER_GENERIC : public NETLIST_EXPORTER
 {
 private:
-    SCH_EDIT_FRAME*       m_frame;
     std::set< wxString >  m_libraries;    ///< Set of library nicknames.
 
     SYMBOL_LIB_TABLE*     m_libTable;
@@ -65,7 +66,6 @@ private:
 public:
     NETLIST_EXPORTER_GENERIC( SCH_EDIT_FRAME* aFrame, NETLIST_OBJECT_LIST* aMasterList ) :
         NETLIST_EXPORTER( aMasterList ),
-        m_frame( aFrame ),
         m_libTable( aFrame->Prj().SchSymbolLibTable() )
     {}
 

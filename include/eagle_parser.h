@@ -698,6 +698,7 @@ struct EPAD : public EPAD_COMMON
 
     // for shape: (square | round | octagon | long | offset)
     enum {
+        UNDEF = -1,
         SQUARE,
         ROUND,
         OCTAGON,
@@ -913,6 +914,8 @@ struct EPART
     wxString device;
     opt_wxString technology;
     opt_wxString value;
+    std::map<std::string,std::string> attribute;
+    std::map<std::string,std::string> variant;
 
     EPART( wxXmlNode* aPart );
 };

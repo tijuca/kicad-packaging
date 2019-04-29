@@ -1,12 +1,11 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 19 2018)
+// C++ code generated with wxFormBuilder (version Dec  1 2018)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
-#ifndef __DIALOG_SELECT_NET_FROM_LIST_BASE_H__
-#define __DIALOG_SELECT_NET_FROM_LIST_BASE_H__
+#pragma once
 
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
@@ -21,8 +20,7 @@
 #include <wx/textctrl.h>
 #include <wx/checkbox.h>
 #include <wx/sizer.h>
-#include <wx/grid.h>
-#include <wx/statline.h>
+#include <wx/dataview.h>
 #include <wx/button.h>
 #include <wx/dialog.h>
 
@@ -35,30 +33,26 @@
 class DIALOG_SELECT_NET_FROM_LIST_BASE : public DIALOG_SHIM
 {
 	private:
-	
+
 	protected:
 		wxStaticText* m_staticTextFilter;
 		wxTextCtrl* m_textCtrlFilter;
 		wxCheckBox* m_cbShowZeroPad;
-		wxGrid* m_netsListGrid;
-		wxStaticLine* m_staticline;
+		wxDataViewListCtrl* m_netsList;
 		wxStdDialogButtonSizer* m_sdbSizer;
 		wxButton* m_sdbSizerOK;
 		wxButton* m_sdbSizerCancel;
-		
+
 		// Virtual event handlers, overide them in your derived class
-		virtual void updateSize( wxSizeEvent& event ) { event.Skip(); }
 		virtual void onFilterChange( wxCommandEvent& event ) { event.Skip(); }
-		virtual void onCellClick( wxGridEvent& event ) { event.Skip(); }
-		virtual void onColumnResize( wxGridSizeEvent& event ) { event.Skip(); }
-		virtual void onSelectCell( wxGridEvent& event ) { event.Skip(); }
-		
-	
+		virtual void onSelChanged( wxDataViewEvent& event ) { event.Skip(); }
+		virtual void onListSize( wxSizeEvent& event ) { event.Skip(); }
+
+
 	public:
-		
-		DIALOG_SELECT_NET_FROM_LIST_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Nets"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+
+		DIALOG_SELECT_NET_FROM_LIST_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Nets"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
 		~DIALOG_SELECT_NET_FROM_LIST_BASE();
-	
+
 };
 
-#endif //__DIALOG_SELECT_NET_FROM_LIST_BASE_H__

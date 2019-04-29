@@ -149,7 +149,7 @@ KIFACE*  KIWAY::KiFACE( FACE_T aFaceId, bool doLoad )
 {
     // Since this will be called from python, cannot assume that code will
     // not pass a bad aFaceId.
-    if( unsigned( aFaceId ) >= DIM( m_kiface ) )
+    if( unsigned( aFaceId ) >= arrayDim( m_kiface ) )
     {
         // @todo : throw an exception here for python's benefit, at least that
         // way it gets some explanatory text.
@@ -262,7 +262,7 @@ KIWAY::FACE_T KIWAY::KifaceType( FRAME_T aFrameType )
     case FRAME_PCB_MODULE_EDITOR:
     case FRAME_PCB_MODULE_VIEWER:
     case FRAME_PCB_MODULE_VIEWER_MODAL:
-    case FRAME_PCB_FOOTPRINT_WIZARD_MODAL:
+    case FRAME_PCB_FOOTPRINT_WIZARD:
     case FRAME_PCB_DISPLAY3D:
         return FACE_PCB;
 
@@ -428,7 +428,7 @@ void KIWAY::SetLanguage( int aLanguage )
     }
 }
 
-void KIWAY::ShowChangedIcons()
+void KIWAY::CommonSettingsChanged()
 {
 #if 1
     if( m_ctl & KFCTL_CPP_PROJECT_SUITE )
@@ -439,7 +439,7 @@ void KIWAY::ShowChangedIcons()
         EDA_BASE_FRAME* top = static_cast<EDA_BASE_FRAME*>( m_top );
 
         if( top )
-            top->ShowChangedIcons();
+            top->CommonSettingsChanged();
     }
 #endif
 
@@ -448,9 +448,7 @@ void KIWAY::ShowChangedIcons()
         KIWAY_PLAYER* frame = GetPlayerFrame( ( FRAME_T )i );
 
         if( frame )
-        {
-            frame->ShowChangedIcons();
-        }
+            frame->CommonSettingsChanged();
     }
 }
 
@@ -483,7 +481,7 @@ bool KIWAY::ProcessEvent( wxEvent& aEvent )
 
 void KIWAY::OnKiwayEnd()
 {
-    for( unsigned i=0;  i < DIM( m_kiface );  ++i )
+    for( unsigned i=0;  i < arrayDim( m_kiface );  ++i )
     {
         if( m_kiface[i] )
             m_kiface[i]->OnKifaceEnd();

@@ -71,6 +71,7 @@ TOOL_BASE::TOOL_BASE( const std::string& aToolName ) :
 
     m_startItem = nullptr;
     m_startLayer = 0;
+    m_startHighlight = false;
 
     m_endItem = nullptr;
     m_gridHelper = nullptr;
@@ -189,15 +190,12 @@ ITEM* TOOL_BASE::pickSingleItem( const VECTOR2I& aWhere, int aNet, int aLayer, b
             if( item && !item->Layers().Overlaps( tl ) )
                 item = NULL;
 
-        if( item )
+        if( item && ( aLayer < 0 || item->Layers().Overlaps( aLayer ) ) )
         {
             rv = item;
             break;
         }
     }
-
-    if( rv && aLayer >= 0 && !rv->Layers().Overlaps( aLayer ) )
-        rv = NULL;
 
     if( rv )
     {
@@ -213,9 +211,20 @@ void TOOL_BASE::highlightNet( bool aEnabled, int aNetcode )
     RENDER_SETTINGS* rs = getView()->GetPainter()->GetSettings();
 
     if( aNetcode >= 0 && aEnabled )
+    {
+        // If the user has previously set the current net to be highlighted,
+        // we assume they want to keep it highlighted after routing
+        m_startHighlight = ( rs->IsHighlightEnabled() && rs->GetHighlightNetCode() == aNetcode );
+
         rs->SetHighlight( true, aNetcode );
+    }
     else
-        rs->SetHighlight( false );
+    {
+        if( !m_startHighlight )
+            rs->SetHighlight( false );
+
+        m_startHighlight = false;
+    }
 
     getView()->UpdateAllLayersColor();
 }
@@ -248,13 +257,15 @@ bool TOOL_BASE::checkSnap( ITEM *aItem )
     return doSnap;
 }
 
-void TOOL_BASE::updateStartItem( TOOL_EVENT& aEvent, bool aIgnorePads )
+void TOOL_BASE::updateStartItem( const TOOL_EVENT& aEvent, bool aIgnorePads )
 {
     int tl = getView()->GetTopLayer();
-    VECTOR2I cp = controls()->GetCursorPosition();
+    VECTOR2I cp = controls()->GetCursorPosition( !aEvent.Modifier( MD_SHIFT ) );
     VECTOR2I p;
 
     controls()->ForceCursorPosition( false );
+    m_gridHelper->SetUseGrid( !aEvent.Modifier( MD_ALT ) );
+    m_gridHelper->SetSnap( !aEvent.Modifier( MD_SHIFT ) );
 
     bool snapEnabled = true;
 
@@ -275,7 +286,7 @@ void TOOL_BASE::updateStartItem( TOOL_EVENT& aEvent, bool aIgnorePads )
 
     m_startSnapPoint = snapToItem( snapEnabled, m_startItem, p );
 
-    if( checkSnap ( m_startItem ))
+    if( checkSnap ( m_startItem ) )
     {
         controls()->ForceCursorPosition( true, m_startSnapPoint );
     }
@@ -284,13 +295,13 @@ void TOOL_BASE::updateStartItem( TOOL_EVENT& aEvent, bool aIgnorePads )
 
 void TOOL_BASE::updateEndItem( const TOOL_EVENT& aEvent )
 {
-    controls()->ForceCursorPosition( false );
-
-    VECTOR2I mousePos = controls()->GetMousePosition();
-    VECTOR2I cursorPos = controls()->GetCursorPosition();
-
     int layer;
     bool snapEnabled = !aEvent.Modifier( MD_SHIFT );
+    m_gridHelper->SetUseGrid( !aEvent.Modifier( MD_ALT ) );
+    m_gridHelper->SetSnap( snapEnabled );
+
+    controls()->ForceCursorPosition( false );
+    VECTOR2I mousePos = controls()->GetMousePosition();
 
     if( m_router->Settings().Mode() != RM_MarkObstacles &&
         ( m_router->GetCurrentNets().empty() || m_router->GetCurrentNets().front() < 0 ) )
@@ -321,14 +332,14 @@ void TOOL_BASE::updateEndItem( const TOOL_EVENT& aEvent )
 
     if( checkSnap( endItem ) )
     {
-        VECTOR2I p = snapToItem( snapEnabled, endItem, mousePos );
-        controls()->ForceCursorPosition( true, p );
         m_endItem = endItem;
-        m_endSnapPoint = p;
+        m_endSnapPoint = snapToItem( snapEnabled, endItem, mousePos );
     } else {
         m_endItem = nullptr;
-        m_endSnapPoint = cursorPos;
+        m_endSnapPoint = m_gridHelper->Align( mousePos );
     }
+
+    controls()->ForceCursorPosition( true, m_endSnapPoint );
 
     if( m_endItem )
     {

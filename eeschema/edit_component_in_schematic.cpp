@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2016 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2008 Wayne Stambaugh <stambaughw@gmail.com>
- * Copyright (C) 2004-2017 KiCad Developers, see change_log.txt for contributors.
+ * Copyright (C) 2004-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,7 +30,7 @@
 
 #include <fctsys.h>
 #include <gr_basic.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <confirm.h>
 #include <sch_edit_frame.h>
 #include <msgpanel.h>
@@ -40,7 +40,8 @@
 #include <sch_component.h>
 #include <symbol_lib_table.h>
 
-#include <dialog_edit_one_field.h>
+#include <dialogs/dialog_edit_component_in_schematic.h>
+#include <dialogs/dialog_edit_one_field.h>
 
 
 void SCH_EDIT_FRAME::EditComponentFieldText( SCH_FIELD* aField )
@@ -79,16 +80,16 @@ void SCH_EDIT_FRAME::EditComponentFieldText( SCH_FIELD* aField )
     dlg.UpdateField( aField, m_CurrentSheet );
     m_canvas->MoveCursorToCrossHair();
     m_canvas->SetIgnoreMouseEvents( false );
-    OnModify();
 
     if( m_autoplaceFields )
         component->AutoAutoplaceFields( GetScreen() );
 
-    m_canvas->Refresh();
+    RefreshItem( aField );
+    OnModify();
 
     MSG_PANEL_ITEMS items;
     component->SetCurrentSheetPath( &GetCurrentSheet() );
-    component->GetMsgPanelInfo( items );
+    component->GetMsgPanelInfo( m_UserUnits, items );
     SetMsgPanel( items );
 }
 
@@ -110,5 +111,34 @@ void SCH_EDIT_FRAME::RotateField( SCH_FIELD* aField )
     else
         aField->SetTextAngle( TEXT_ANGLE_HORIZ );
 
+    RefreshItem( aField );
     OnModify();
+}
+
+
+void SCH_EDIT_FRAME::EditComponent( SCH_COMPONENT* aComponent )
+{
+    wxCHECK_RET( aComponent != nullptr && aComponent->Type() == SCH_COMPONENT_T,
+            wxT( "Invalid component object pointer.  Bad Programmer!" ) );
+
+    m_canvas->SetIgnoreMouseEvents( true );
+
+    DIALOG_EDIT_COMPONENT_IN_SCHEMATIC dlg( this, aComponent );
+
+    // This dialog itself subsequently can invoke a KIWAY_PLAYER as a quasimodal
+    // frame. Therefore this dialog as a modal frame parent, MUST be run under
+    // quasimodal mode for the quasimodal frame support to work.  So don't use
+    // the QUASIMODAL macros here.
+    int ret = dlg.ShowQuasiModal();
+
+    m_canvas->SetIgnoreMouseEvents( false );
+    m_canvas->MoveCursorToCrossHair();
+
+    if( ret == wxID_OK )
+    {
+        if( m_autoplaceFields )
+            aComponent->AutoAutoplaceFields( GetScreen() );
+
+        GetCanvas()->Refresh();
+    }
 }

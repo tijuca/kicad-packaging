@@ -2,8 +2,8 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 Miguel Angel Ajo Pelayo, miguelangel@nbee.es
- * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2004-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -35,7 +35,7 @@
 #include <footprint_wizard.h>
 class wxSashLayoutWindow;
 class wxListBox;
-class wxGrid;
+class WX_GRID;
 class wxGridEvent;
 class FOOTPRINT_EDIT_FRAME;
 
@@ -55,13 +55,15 @@ class FOOTPRINT_WIZARD_FRAME : public PCB_BASE_FRAME
 private:
     wxPanel*        m_parametersPanel;      ///< Panel for the page list and parameter grid
     wxListBox*      m_pageList;             ///< The list of pages
-    wxGrid*         m_parameterGrid;        ///< The list of parameters
+    WX_GRID*        m_parameterGrid;        ///< The list of parameters
     int             m_parameterGridPage;    ///< the page currently displayed by m_parameterGrid
                                             ///< it is most of time the m_pageList selection, but can differ
                                             ///< during transitions between pages.
     wxTextCtrl*     m_buildMessageBox;
 
     wxString        m_auiPerspective;       ///< Encoded string describing the AUI layout
+
+    bool            m_wizardListShown;      ///< A show-once flag for the wizard list
 
 protected:
     wxString        m_wizardName;           ///< name of the current wizard
@@ -86,8 +88,20 @@ public:
 private:
 
     void                OnSize( wxSizeEvent& event ) override;
-
     void                OnGridSize( wxSizeEvent& aSizeEvent );
+
+    /**
+     * redraws the message panel.
+     * display the current footprint info, or
+     * clear the message panel if nothing is loaded
+     */
+    void UpdateMsgPanel() override;
+
+    /**
+     * rebuild the GAL view (reint tool manager, colors and drawings)
+     * must be run after any footprint change.
+     */
+    void updateView();
 
     /**
      * Function ExportSelectedFootprint();
@@ -171,11 +185,21 @@ private:
 
     bool                GeneralControl( wxDC* aDC, const wxPoint& aPosition, EDA_KEY aHotKey = 0 ) override;
 
+    ///> @copydoc EDA_DRAW_FRAME::GetHotKeyDescription()
+    EDA_HOTKEY* GetHotKeyDescription( int aCommand ) const override;
+
+    /**
+     * Function OnHotKey
+     * handle hot key events.
+     * <p?
+     * Some commands are relative to the item under the mouse cursor.  Commands are
+     * case insensitive
+     * </p>
+     */
+    bool OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition, EDA_ITEM* aItem = NULL ) override;
+
     void                LoadSettings( wxConfigBase* aCfg ) override;
     void                SaveSettings( wxConfigBase* aCfg ) override;
-
-    ///> @copydoc EDA_DRAW_FRAME::GetHotKeyDescription()
-    EDA_HOTKEY* GetHotKeyDescription( int aCommand ) const override { return NULL; }
 
     /**
      * Function OnActivate

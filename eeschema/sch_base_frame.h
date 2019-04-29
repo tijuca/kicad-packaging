@@ -29,6 +29,14 @@
 #include <draw_frame.h>
 
 #include <sch_screen.h>
+#include <sch_draw_panel.h>
+#include "template_fieldnames.h"
+
+
+namespace KIGFX
+{
+    class SCH_RENDER_SETTINGS;
+}
 
 class PAGE_INFO;
 class TITLE_BLOCK;
@@ -40,7 +48,7 @@ class PART_LIB;
 class SCHLIB_FILTER;
 class LIB_ID;
 class SYMBOL_LIB_TABLE;
-
+class SCH_DRAW_PANEL;
 
 /**
  * Load symbol from symbol library table.
@@ -77,6 +85,8 @@ LIB_PART* SchGetLibPart( const LIB_ID& aLibId, SYMBOL_LIB_TABLE* aLibTable,
 class SCH_BASE_FRAME : public EDA_DRAW_FRAME
 {
 protected:
+    TEMPLATES m_templateFieldNames;
+
     wxPoint  m_repeatStep;          ///< the increment value of the position of an item
                                     ///< when it is repeated
     int      m_repeatDeltaLabel;    ///< the increment value of labels like bus members
@@ -92,7 +102,22 @@ public:
 
     virtual ~SCH_BASE_FRAME();
 
+    void createCanvas();
+
+    SCH_DRAW_PANEL* GetCanvas() const override;
     SCH_SCREEN* GetScreen() const override;
+
+    KIGFX::SCH_RENDER_SETTINGS* GetRenderSettings();
+
+    /**
+     * switches currently used canvas ( Cairo / OpenGL).
+     */
+    virtual void OnSwitchCanvas( wxCommandEvent& aEvent );
+
+    /**
+     * Update UI called when switches currently used canvas (Cairo / OpenGL).
+     */
+    void OnUpdateSwitchCanvas( wxUpdateUIEvent& aEvent );
 
     /**
      * @return the increment value of the position of an item
@@ -143,10 +168,7 @@ public:
     }
     void SetGridOrigin( const wxPoint& aPoint ) override {}
 
-    // Virtual from EDA_DRAW_FRAME
-    // the background color of the draw canvas:
-    COLOR4D GetDrawBgColor() const override;
-    void SetDrawBgColor( COLOR4D aColor) override;
+    void OnGridSettings( wxCommandEvent& aEvent ) override;
 
     const TITLE_BLOCK& GetTitleBlock() const override;
     void SetTitleBlock( const TITLE_BLOCK& aTitleBlock ) override;
@@ -194,17 +216,36 @@ public:
      *
      * @return the selected component
      */
-    COMPONENT_SELECTION SelectComponentFromLibrary(
-            const SCHLIB_FILTER*                aFilter,
-            std::vector<COMPONENT_SELECTION>&   aHistoryList,
-            bool                                aUseLibBrowser,
-            int                                 aUnit,
-            int                                 aConvert,
-            bool                                aShowFootprints,
-            const LIB_ID*                       aHighlight = nullptr,
-            bool                                aAllowFields = true );
+    COMPONENT_SELECTION SelectComponentFromLibTree(
+            const SCHLIB_FILTER* aFilter,
+            std::vector<COMPONENT_SELECTION>& aHistoryList,
+            bool aUseLibBrowser,
+            int aUnit,
+            int aConvert,
+            bool aShowFootprints,
+            const LIB_ID* aHighlight = nullptr,
+            bool aAllowFields = true );
 
     void OnConfigurePaths( wxCommandEvent& aEvent );
+
+    /**
+     * Return a template field names list for read only access.
+     */
+    const TEMPLATE_FIELDNAMES& GetTemplateFieldNames() const
+    {
+        return m_templateFieldNames.GetTemplateFieldNames();
+    }
+
+    /**
+     * Search for \a aName in the the template field name list.
+     *
+     * @param aName A wxString object containing the field name to search for.
+     * @return the template fieldname if found; NULL otherwise.
+     */
+    const TEMPLATE_FIELDNAME* GetTemplateFieldName( const wxString& aName ) const
+    {
+        return m_templateFieldNames.GetFieldName( aName );
+    }
 
     virtual void OnEditSymbolLibTable( wxCommandEvent& aEvent );
 
@@ -218,7 +259,7 @@ public:
      * @return The symbol found in the library or NULL if the symbol was not found.
      */
     LIB_ALIAS* GetLibAlias( const LIB_ID& aLibId, bool aUseCacheLib = false,
-                            bool aShowErrorMsg = false );
+                            bool aShowError = false );
 
     LIB_PART* GetLibPart( const LIB_ID& aLibId, bool aUseCacheLib = false,
                           bool aShowErrorMsg = false );
@@ -236,11 +277,50 @@ public:
      * @param aConvert          preselected deMorgan conversion
      * @return the selected component
      */
-    COMPONENT_SELECTION SelectComponentFromLibBrowser(
-            wxTopLevelWindow* aParent,
-            const SCHLIB_FILTER* aFilter,
-            const LIB_ID& aPreselectedLibid,
-            int aUnit, int aConvert );
+    COMPONENT_SELECTION SelectComponentFromLibBrowser( wxTopLevelWindow* aParent,
+                                                       const SCHLIB_FILTER* aFilter,
+                                                       const LIB_ID& aPreselectedLibid,
+                                                       int aUnit, int aConvert );
+
+
+    virtual void Zoom_Automatique( bool aWarpPointer ) override;
+
+                                       /* Set the zoom level to show the area Rect */
+    virtual void Window_Zoom( EDA_RECT& aRect ) override;
+
+    virtual void RedrawScreen( const wxPoint& aCenterPoint, bool aWarpPointer ) override;
+
+    virtual void RedrawScreen2( const wxPoint& posBefore ) override;
+
+    virtual void CenterScreen( const wxPoint& aCenterPoint, bool aWarpPointer );
+
+    virtual void HardRedraw() override;
+
+    /**
+     * Add an item to the screen (and view)
+     */
+    void AddToScreen( SCH_ITEM* aItem );
+
+    /**
+     * Add a list of items to the screen (and view)
+     */
+    void AddToScreen( DLIST<SCH_ITEM>& aItems );
+
+    /**
+     * Remove an item from the screen (and view)
+     */
+    void RemoveFromScreen( SCH_ITEM* aItem );
+
+    /**
+     * Mark an item for refresh.
+     */
+    void RefreshItem( SCH_ITEM* aItem, bool isAddOrDelete = false );
+
+    /**
+     * Mark all items for refresh.
+     */
+    void SyncView();
+
 
 protected:
 
@@ -297,6 +377,10 @@ protected:
      * @return True when all requested actions succeeded.
      */
     bool saveSymbolLibTables( bool aGlobal, bool aProject );
+
+    virtual bool HandleBlockBegin( wxDC* aDC, EDA_KEY aKey, const wxPoint& aPosition,
+                                   int aExplicitCommand = 0 ) override;
+
 };
 
 #endif // SCH_BASE_FRAME_H_

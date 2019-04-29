@@ -48,6 +48,7 @@ class GBR_NETLIST_METADATA;
  * of the radio buttons in the plot panel/windows.
  */
 enum PlotFormat {
+    PLOT_FORMAT_UNDEFINED = -1,
     PLOT_FIRST_FORMAT = 0,
     PLOT_FORMAT_HPGL = PLOT_FIRST_FORMAT,
     PLOT_FORMAT_GERBER,
@@ -95,9 +96,6 @@ enum PlotDashType {
  */
 class PLOTTER
 {
-private:
-    double m_dotMarkLength_mm ;      ///< Dotted line parameter in mm: segment
-
 public:
     // These values are used as flag for pen or aperture selection
     static const int DO_NOT_SET_LINE_WIDTH = -2;    // Skip selection
@@ -117,14 +115,17 @@ public:
     virtual bool StartPlot() = 0;
     virtual bool EndPlot() = 0;
 
-    virtual void SetNegative( bool _negative )
+    virtual void SetNegative( bool aNegative )
     {
-        negativeMode = _negative;
+        negativeMode = aNegative;
     }
 
-    virtual void SetColorMode( bool _color_mode )
+    /** Plot in B/W or color.
+     * @param aColorMode = true to plot in color, false to plot in black and white
+     */
+    virtual void SetColorMode( bool aColorMode )
     {
-        colorMode = _color_mode;
+        colorMode = aColorMode;
     }
 
     bool GetColorMode() const
@@ -935,6 +936,22 @@ public:
                             double aScaleFactor ) override;
 
     virtual void PenTo( const wxPoint& pos, char plume ) override;
+
+
+    /**
+     * calling this function allows one to define the beginning of a group
+     * of drawing items (used in SVG format to separate components)
+     * @param aData should be a string for the SVG ID tage
+     */
+    virtual void StartBlock( void* aData ) override;
+
+    /**
+     * calling this function allows one to define the end of a group of drawing
+     * items the group is started by StartBlock()
+     * @param aData should be null
+     */
+    virtual void EndBlock( void* aData ) override;
+
     virtual void Text( const wxPoint&              aPos,
                        const COLOR4D               aColor,
                        const wxString&             aText,
@@ -974,9 +991,12 @@ protected:
 
     /**
      * function setSVGPlotStyle()
-     * output the string which define pen and brush color, shape, transparence
+     * output the string which define pen and brush color, shape, transparency
+     *
+     * @param aIsGroup If false, do not form a new group for the style.
+     * @param aExtraStyle If given, the string will be added into the style string before closing
      */
-    void setSVGPlotStyle();
+    void setSVGPlotStyle( bool aIsGroup = true, const std::string& aExtraStyle = {} );
 
     /**
      * function setFillMode()
@@ -1133,7 +1153,7 @@ public:
      */
     virtual void SetGerberCoordinatesFormat( int aResolution, bool aUseInches = false ) override;
 
-    void UseX2Attributes( bool aEnable ) { m_useX2Attributes = aEnable; }
+    void UseX2format( bool aEnable ) { m_useX2format = aEnable; }
     void UseX2NetAttributes( bool aEnable ) { m_useNetAttributes = aEnable; }
 
     /**
@@ -1220,11 +1240,11 @@ protected:
     bool     m_gerberUnitInch;  // true if the gerber units are inches, false for mm
     int      m_gerberUnitFmt;   // number of digits in mantissa.
                                 // usually 6 in Inches and 5 or 6  in mm
-    bool    m_useX2Attributes;  // In recent gerber files, attributes can be added.
-                                // It will be added if this parm is true
+    bool    m_useX2format;      // In recent gerber files, attributes are added.
+                                // Attributes in file header will be added using X2 format if true
+                                // If false (X1 format), these attributes will be added as comments.
     bool    m_useNetAttributes; // In recent gerber files, netlist info can be added.
-                                // It will be added if this parm is true
-                                // (imply m_useX2Attributes == true)
+                                // It will be added if this param is true, using X2 or X1 format
 };
 
 

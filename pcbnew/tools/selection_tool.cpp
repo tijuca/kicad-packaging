@@ -53,7 +53,7 @@ using namespace std::placeholders;
 #include <tool/tool_event.h>
 #include <tool/tool_manager.h>
 #include <router/router_tool.h>
-#include <connectivity_data.h>
+#include <connectivity/connectivity_data.h>
 #include <footprint_viewer_frame.h>
 #include "tool_event_utils.h"
 
@@ -92,13 +92,17 @@ TOOL_ACTION PCB_ACTIONS::selectionClear( "pcbnew.InteractiveSelection.Clear",
         AS_GLOBAL, 0,
         "", "" );    // No description, it is not supposed to be shown anywhere
 
+TOOL_ACTION PCB_ACTIONS::selectionMenu( "pcbnew.InteractiveSelection.SelectionMenu",
+        AS_GLOBAL, 0,
+        "", "" );    // No description, it is not supposed to be shown anywhere
+
 TOOL_ACTION PCB_ACTIONS::selectConnection( "pcbnew.InteractiveSelection.SelectConnection",
         AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_SEL_TRIVIAL_CONNECTION ),
-        _( "Trivial Connection" ), _( "Selects a connection between two junctions." ), add_tracks_xpm );
+        _( "Single Track" ), _( "Selects all track segments & vias between two junctions." ), add_tracks_xpm );
 
 TOOL_ACTION PCB_ACTIONS::selectCopper( "pcbnew.InteractiveSelection.SelectCopper",
         AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_SEL_COPPER_CONNECTION ),
-        _( "Copper Connection" ), _( "Selects whole copper connection." ), net_highlight_xpm );
+        _( "Connected Tracks" ), _( "Selects all connected tracks & vias." ), net_highlight_xpm );
 
 TOOL_ACTION PCB_ACTIONS::expandSelectedConnection( "pcbnew.InteractiveSelection.ExpandConnection",
         AS_GLOBAL, 0,
@@ -107,7 +111,7 @@ TOOL_ACTION PCB_ACTIONS::expandSelectedConnection( "pcbnew.InteractiveSelection.
 
 TOOL_ACTION PCB_ACTIONS::selectNet( "pcbnew.InteractiveSelection.SelectNet",
         AS_GLOBAL, 0,
-        _( "Whole Net" ), _( "Selects all tracks & vias belonging to the same net." ), mode_track_xpm );
+        _( "All Tracks in Net" ), _( "Selects all tracks & vias belonging to the same net." ), mode_track_xpm );
 
 TOOL_ACTION PCB_ACTIONS::selectOnSheetFromEeschema( "pcbnew.InteractiveSelection.SelectOnSheet",
         AS_GLOBAL,  0,
@@ -284,24 +288,11 @@ int SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
             }
             else
             {
-                CLIENT_SELECTION_FILTER filter = nullptr;
-
                 // If no modifier keys are pressed, clear the selection
                 if( !m_additive )
-                {
-                    if( m_selection.Size() != 0 )
-                        filter = []( const VECTOR2I&, GENERAL_COLLECTOR& aCollector )
-                        {
-                            for( int i = aCollector.GetCount() - 1; i >= 0; i-- )
-                                if( aCollector[i]->Type() == PCB_ZONE_AREA_T )
-                                    aCollector.Remove( i );
-                        };
-
                     clearSelection();
-                }
 
-                selectPoint( evt->Position(), false, nullptr, filter );
-
+                selectPoint( evt->Position() );
             }
         }
 
@@ -395,40 +386,80 @@ SELECTION& SELECTION_TOOL::GetSelection()
 }
 
 
-SELECTION& SELECTION_TOOL::RequestSelection( int aFlags, CLIENT_SELECTION_FILTER aClientFilter )
+static EDA_RECT getRect( const BOARD_ITEM* aItem )
 {
-    std::vector<EDA_ITEM*> removed_items;
+    if( aItem->Type() == PCB_MODULE_T )
+        return static_cast<const MODULE*>( aItem )->GetFootprintRect();
+
+    return aItem->GetBoundingBox();
+}
+
+
+SELECTION& SELECTION_TOOL::RequestSelection( CLIENT_SELECTION_FILTER aClientFilter,
+        std::vector<BOARD_ITEM*>* aFiltered, bool aConfirmLockedItems )
+{
     bool selectionEmpty = m_selection.Empty();
     m_selection.SetIsHover( selectionEmpty );
 
     if( selectionEmpty )
     {
-        if( aFlags & SELECTION_FORCE_UNLOCK )
-            m_locked = false;
-
         m_toolMgr->RunAction( PCB_ACTIONS::selectionCursor, true, aClientFilter );
         m_selection.ClearReferencePoint();
     }
 
-    // Be careful with iterators: items can be removed from list that invalidate iterators.
-    for( auto item : m_selection )
+    if ( aConfirmLockedItems && CheckLock() == SELECTION_LOCKED )
     {
-        if( ( aFlags & SELECTION_EDITABLE ) && item->Type() == PCB_MARKER_T )
-            removed_items.push_back( item );
+        clearSelection();
     }
 
-    // Now safely remove the items from the selection
-    for( auto item : removed_items )
-        unselect( static_cast<BOARD_ITEM *>( item ) );
+    if( aClientFilter )
+    {
+        GENERAL_COLLECTOR collector;
 
-    if( aFlags & SELECTION_SANITIZE_PADS )
-        SanitizeSelection();
+        for( auto item : m_selection )
+            collector.Append( item );
+
+        aClientFilter( VECTOR2I(), collector );
+
+        /*
+         * The first step is to find the items that may have been added by the client filter
+         * This can happen if the locked pads select the module instead
+         */
+        std::vector<EDA_ITEM*> new_items;
+        std::set_difference( collector.begin(), collector.end(), m_selection.begin(), m_selection.end(),
+                std::back_inserter( new_items ) );
+
+        /**
+         * The second step is to find the items that were removed by the client filter
+         */
+        std::vector<EDA_ITEM*> diff;
+        std::set_difference( m_selection.begin(), m_selection.end(), collector.begin(), collector.end(),
+                std::back_inserter( diff ) );
+
+        if( aFiltered )
+        {
+            for( auto item : diff )
+                aFiltered->push_back( static_cast<BOARD_ITEM*>( item ) );
+        }
+
+        /**
+         * Once we find the adjustments to m_selection that are required by the client filter, we
+         * apply them both
+         */
+        for( auto item : diff )
+            unhighlight( static_cast<BOARD_ITEM*>( item ), SELECTED, m_selection );
+
+        for( auto item : new_items )
+            highlight( static_cast<BOARD_ITEM*>( item ), SELECTED, m_selection );
+
+        m_frame->GetGalCanvas()->ForceRefresh();
+    }
 
     return m_selection;
 }
 
 
-void SELECTION_TOOL::toggleSelection( BOARD_ITEM* aItem )
+void SELECTION_TOOL::toggleSelection( BOARD_ITEM* aItem, bool aForce )
 {
     if( aItem->IsSelected() )
     {
@@ -443,7 +474,7 @@ void SELECTION_TOOL::toggleSelection( BOARD_ITEM* aItem )
             clearSelection();
 
         // Prevent selection of invisible or inactive items
-        if( selectable( aItem ) )
+        if( aForce || selectable( aItem ) )
         {
             select( aItem );
 
@@ -453,15 +484,13 @@ void SELECTION_TOOL::toggleSelection( BOARD_ITEM* aItem )
     }
 
     if( m_frame )
-    {
         m_frame->GetGalCanvas()->ForceRefresh();
-    }
 }
 
 const GENERAL_COLLECTORS_GUIDE SELECTION_TOOL::getCollectorsGuide() const
 {
     GENERAL_COLLECTORS_GUIDE guide( board()->GetVisibleLayers(),
-                                    (PCB_LAYER_ID) view()->GetTopLayer() );
+                                    (PCB_LAYER_ID) view()->GetTopLayer(), view() );
 
     // account for the globals
     guide.SetIgnoreMTextsMarkedNoShow( ! board()->IsElementVisible( LAYER_MOD_TEXT_INVISIBLE ) );
@@ -471,6 +500,7 @@ const GENERAL_COLLECTORS_GUIDE SELECTION_TOOL::getCollectorsGuide() const
     guide.SetIgnoreModulesOnFront( ! board()->IsElementVisible( LAYER_MOD_FR ) );
     guide.SetIgnorePadsOnBack( ! board()->IsElementVisible( LAYER_PAD_BK ) );
     guide.SetIgnorePadsOnFront( ! board()->IsElementVisible( LAYER_PAD_FR ) );
+    guide.SetIgnoreThroughHolePads( ! board()->IsElementVisible( LAYER_PADS_TH ) );
     guide.SetIgnoreModulesVals( ! board()->IsElementVisible( LAYER_MOD_VALUES ) );
     guide.SetIgnoreModulesRefs( ! board()->IsElementVisible( LAYER_MOD_REFERENCES ) );
     guide.SetIgnoreThroughVias( ! board()->IsElementVisible( LAYER_VIA_THROUGH ) );
@@ -488,6 +518,9 @@ bool SELECTION_TOOL::selectPoint( const VECTOR2I& aWhere, bool aOnDrag,
 {
     auto guide = getCollectorsGuide();
     GENERAL_COLLECTOR collector;
+    auto displayOpts = (PCB_DISPLAY_OPTIONS*)m_frame->GetDisplayOptions();
+
+    guide.SetIgnoreZoneFills( displayOpts->m_DisplayZonesMode != 0 );
 
     collector.Collect( board(),
         m_editModules ? GENERAL_COLLECTOR::ModuleItems : GENERAL_COLLECTOR::AllBoardItems,
@@ -542,11 +575,10 @@ bool SELECTION_TOOL::selectPoint( const VECTOR2I& aWhere, bool aOnDrag,
         Wait( TOOL_EVENT( TC_ANY, TA_MOUSE_UP, BUT_LEFT ) );
     }
 
-    BOARD_ITEM* item = disambiguationMenu( &collector );
+    BOARD_ITEM* item = doSelectionMenu( &collector, _( "Clarify Selection" ) );
 
     if( item )
     {
-        toggleSelection( item );
         return true;
     }
     else
@@ -646,7 +678,7 @@ bool SELECTION_TOOL::selectMultiple()
 
                 if( windowSelection )
                 {
-                    BOX2I bbox( item->GetBoundingBox() );
+                    BOX2I bbox = getRect( item );
 
                     if( selectionBox.Contains( bbox ) )
                     {
@@ -706,6 +738,7 @@ void SELECTION_TOOL::setTransitions()
     Go( &SELECTION_TOOL::SelectItems, PCB_ACTIONS::selectItems.MakeEvent() );
     Go( &SELECTION_TOOL::UnselectItem, PCB_ACTIONS::unselectItem.MakeEvent() );
     Go( &SELECTION_TOOL::UnselectItems, PCB_ACTIONS::unselectItems.MakeEvent() );
+    Go( &SELECTION_TOOL::SelectionMenu, PCB_ACTIONS::selectionMenu.MakeEvent() );
     Go( &SELECTION_TOOL::find, PCB_ACTIONS::find.MakeEvent() );
     Go( &SELECTION_TOOL::findMove, PCB_ACTIONS::findMove.MakeEvent() );
     Go( &SELECTION_TOOL::filterSelection, PCB_ACTIONS::filterSelection.MakeEvent() );
@@ -766,16 +799,7 @@ int SELECTION_TOOL::CursorSelection( const TOOL_EVENT& aEvent )
 {
     CLIENT_SELECTION_FILTER aClientFilter = aEvent.Parameter<CLIENT_SELECTION_FILTER>();
 
-    if( m_selection.Empty() )                        // Try to find an item that could be modified
-    {
-        selectCursor( true, aClientFilter );
-
-        if( CheckLock() == SELECTION_LOCKED )
-        {
-            clearSelection();
-            return 0;
-        }
-    }
+    selectCursor( false, aClientFilter );
 
     return 0;
 }
@@ -1144,7 +1168,7 @@ void SELECTION_TOOL::selectAllItemsOnSheet( wxString& aSheetpath )
 }
 
 
-void SELECTION_TOOL::zoomFitSelection( void )
+void SELECTION_TOOL::zoomFitSelection()
 {
     //Should recalculate the view to zoom in on the selection
     auto selectionBox = m_selection.ViewBBox();
@@ -1252,7 +1276,7 @@ int SELECTION_TOOL::findMove( const TOOL_EVENT& aEvent )
     {
         KIGFX::VIEW_CONTROLS* viewCtrls = getViewControls();
         clearSelection();
-        toggleSelection( module );
+        toggleSelection( module, true );
 
         auto cursorPosition = viewCtrls->GetCursorPosition( false );
 
@@ -1397,10 +1421,11 @@ void SELECTION_TOOL::clearSelection()
     if( m_selection.Empty() )
         return;
 
-    for( auto item : m_selection )
-        unselectVisually( static_cast<BOARD_ITEM*>( item ) );
+    while( m_selection.GetSize() )
+        unhighlight( static_cast<BOARD_ITEM*>( m_selection.Front() ), SELECTED, m_selection );
 
-    m_selection.Clear();
+    view()->Update( &m_selection );
+
     m_selection.SetIsHover( false );
     m_selection.ClearReferencePoint();
 
@@ -1413,13 +1438,24 @@ void SELECTION_TOOL::clearSelection()
 
     // Inform other potentially interested tools
     m_toolMgr->ProcessEvent( ClearedEvent );
+    m_toolMgr->RunAction( PCB_ACTIONS::hideLocalRatsnest, true );
 }
 
 
-BOARD_ITEM* SELECTION_TOOL::disambiguationMenu( GENERAL_COLLECTOR* aCollector )
+int SELECTION_TOOL::SelectionMenu( const TOOL_EVENT& aEvent )
+{
+    GENERAL_COLLECTOR* collector = aEvent.Parameter<GENERAL_COLLECTOR*>();
+    doSelectionMenu( collector, wxEmptyString );
+
+    return 0;
+}
+
+
+BOARD_ITEM* SELECTION_TOOL::doSelectionMenu( GENERAL_COLLECTOR* aCollector,
+                                             const wxString& aTitle )
 {
     BOARD_ITEM* current = NULL;
-    KIGFX::VIEW_GROUP highlightGroup;
+    SELECTION highlightGroup;
     CONTEXT_MENU menu;
 
     highlightGroup.SetLayer( LAYER_SELECT_OVERLAY );
@@ -1431,13 +1467,14 @@ BOARD_ITEM* SELECTION_TOOL::disambiguationMenu( GENERAL_COLLECTOR* aCollector )
     {
         wxString text;
         BOARD_ITEM* item = ( *aCollector )[i];
-        text = item->GetSelectMenuText();
+        text = item->GetSelectMenuText( m_frame->GetUserUnits() );
 
         wxString menuText = wxString::Format("&%d. %s", i + 1, text );
         menu.Add( menuText, i + 1, item->GetMenuImage() );
     }
 
-    menu.SetTitle( _( "Clarify Selection" ) );
+    if( aTitle.Length() )
+        menu.SetTitle( aTitle );
     menu.SetIcon( info_xpm );
     menu.DisplayTitle( true );
     SetContextMenu( &menu, CMENU_NOW );
@@ -1447,12 +1484,7 @@ BOARD_ITEM* SELECTION_TOOL::disambiguationMenu( GENERAL_COLLECTOR* aCollector )
         if( evt->Action() == TA_CONTEXT_MENU_UPDATE )
         {
             if( current )
-            {
-                current->ClearBrightened();
-                getView()->Hide( current, false );
-                highlightGroup.Remove( current );
-                getView()->MarkTargetDirty( KIGFX::TARGET_OVERLAY );
-            }
+                unhighlight( current, BRIGHTENED, highlightGroup );
 
             int id = *evt->GetCommandId();
 
@@ -1460,10 +1492,7 @@ BOARD_ITEM* SELECTION_TOOL::disambiguationMenu( GENERAL_COLLECTOR* aCollector )
             if( id > 0 && id <= limit )
             {
                 current = ( *aCollector )[id - 1];
-                current->SetBrightened();
-                getView()->Hide( current, true );
-                highlightGroup.Add( current );
-                getView()->MarkTargetDirty( KIGFX::TARGET_OVERLAY );
+                highlight( current, BRIGHTENED, highlightGroup );
             }
             else
             {
@@ -1473,12 +1502,7 @@ BOARD_ITEM* SELECTION_TOOL::disambiguationMenu( GENERAL_COLLECTOR* aCollector )
         else if( evt->Action() == TA_CONTEXT_MENU_CHOICE )
         {
             if( current )
-            {
-                current->ClearBrightened();
-                getView()->Hide( current, false );
-                highlightGroup.Remove( current );
-                getView()->MarkTargetDirty( KIGFX::TARGET_OVERLAY );
-            }
+                unhighlight( current, BRIGHTENED, highlightGroup );
 
             OPT<int> id = evt->GetCommandId();
 
@@ -1493,6 +1517,8 @@ BOARD_ITEM* SELECTION_TOOL::disambiguationMenu( GENERAL_COLLECTOR* aCollector )
     }
     getView()->Remove( &highlightGroup );
 
+    if( current )
+        toggleSelection( current );
 
     return current;
 }
@@ -1519,8 +1545,8 @@ BOARD_ITEM* SELECTION_TOOL::pickSmallestComponent( GENERAL_COLLECTOR* aCollector
     {
         MODULE* module = (MODULE*) ( *aCollector )[i];
 
-        int lx = module->GetBoundingBox().GetWidth();
-        int ly = module->GetBoundingBox().GetHeight();
+        int lx = module->GetFootprintRect().GetWidth();
+        int ly = module->GetFootprintRect().GetHeight();
 
         int lmin = std::min( lx, ly );
 
@@ -1535,7 +1561,7 @@ BOARD_ITEM* SELECTION_TOOL::pickSmallestComponent( GENERAL_COLLECTOR* aCollector
 }
 
 
-bool SELECTION_TOOL::selectable( const BOARD_ITEM* aItem ) const
+bool SELECTION_TOOL::selectable( const BOARD_ITEM* aItem, bool checkVisibilityOnly ) const
 {
     // Is high contrast mode enabled?
     bool highContrast = getView()->GetPainter()->GetSettings()->GetHighContrast();
@@ -1543,8 +1569,10 @@ bool SELECTION_TOOL::selectable( const BOARD_ITEM* aItem ) const
     int layers[KIGFX::VIEW::VIEW_MAX_LAYERS], layers_count;
 
     // Filter out items that do not belong to active layers
-    const std::set<unsigned int>& activeLayers = getView()->GetPainter()->
-                                                 GetSettings()->GetActiveLayers();
+    std::set<unsigned int> activeLayers = getView()->GetPainter()->GetSettings()->GetActiveLayers();
+
+    // The markers layer is considered to be always active
+    activeLayers.insert( (unsigned int) LAYER_DRC );
 
     aItem->ViewGetLayers( layers, layers_count );
 
@@ -1574,7 +1602,7 @@ bool SELECTION_TOOL::selectable( const BOARD_ITEM* aItem ) const
         {
             auto* zone = static_cast<const ZONE_CONTAINER*>( aItem );
 
-            if( zone && zone->GetIsKeepout() )
+            if( zone->GetIsKeepout() )
             {
                 auto zoneLayers = zone->GetLayerSet().Seq();
 
@@ -1629,82 +1657,90 @@ bool SELECTION_TOOL::selectable( const BOARD_ITEM* aItem ) const
             // For vias it is enough if only one of its layers is visible
             return ( board()->GetVisibleLayers() & via->GetLayerSet() ).any();
         }
-        break;
 
     case PCB_MODULE_T:
     {
-        // In the module editor, we do not want to select the module itself
-        // rather, the module sub-components should be selected individually
+        // In modedit, we do not want to select the module itself.
         if( m_editModules )
             return false;
 
-        // Allow selection of footprints if at least one draw layer is on and
-        // the appropriate LAYER_MOD is on
+        // Allow selection of footprints if some part of the footprint is visible.
 
-        bool layer_mod = ( ( aItem->IsOnLayer( F_Cu ) && board()->IsElementVisible( LAYER_MOD_FR ) ) ||
-                           ( aItem->IsOnLayer( B_Cu ) && board()->IsElementVisible( LAYER_MOD_BK ) ) );
+        MODULE* module = const_cast<MODULE*>( static_cast<const MODULE*>( aItem ) );
 
-        bool draw_layer_visible = false;
-        int draw_layers[KIGFX::VIEW::VIEW_MAX_LAYERS], draw_layers_count;
-
-        static_cast<const MODULE*>( aItem )->GetAllDrawingLayers( draw_layers,
-                                                                  draw_layers_count,
-                                                                  true );
-
-        for( int i = 0; i < draw_layers_count; ++i )
+        for( auto item : module->GraphicalItems() )
         {
-            // NOTE: Pads return LAYER_PADS_PLATEDHOLES but the visibility
-            // control only directly switches LAYER_PADS_TH, so we overwrite it
-            // here so that the visibility check is accurate
-            if( draw_layers[i] == LAYER_PADS_PLATEDHOLES )
-                draw_layers[i] = LAYER_PADS_TH;
-
-            if( ( ( draw_layers[i] < PCB_LAYER_ID_COUNT ) &&
-                  board()->IsLayerVisible( static_cast<PCB_LAYER_ID>( draw_layers[i] ) ) ) ||
-                ( ( draw_layers[i] >= GAL_LAYER_ID_START ) &&
-                  board()->IsElementVisible( static_cast<GAL_LAYER_ID>( draw_layers[i] ) ) ) )
-            {
-                draw_layer_visible = true;
-            }
+            if( selectable( item, true ) )
+                return true;
         }
 
-        return ( draw_layer_visible && layer_mod );
+        for( auto pad : module->Pads() )
+        {
+            if( selectable( pad, true ) )
+                return true;
+        }
 
-        break;
+        return false;
     }
 
     case PCB_MODULE_TEXT_T:
-        if( m_multiple && !m_editModules )
+        // Multiple selection is only allowed in modedit mode.  In pcbnew, you have to select
+        // module subparts one by one, rather than with a drag selection.  This is so you can
+        // pick up items under an (unlocked) module without also moving the module's sub-parts.
+        if( !m_editModules && !checkVisibilityOnly )
+        {
+            if( m_multiple )
+                return false;
+        }
+
+        if( !m_editModules && !view()->IsVisible( aItem ) )
             return false;
 
-        return view()->IsVisible( aItem ) && board()->IsLayerVisible( aItem->GetLayer() );
+        break;
 
     case PCB_MODULE_EDGE_T:
     case PCB_PAD_T:
     {
-        // Multiple selection is only allowed in modedit mode
-        // In pcbnew, you have to select subparts of modules
-        // one-by-one, rather than with a drag selection.
-        // This is so you can pick up items under an (unlocked)
-        // module without also moving the module's sub-parts.
-        if( m_multiple && !m_editModules )
-            return false;
-
-        // In pcbnew, locked modules prevent individual pad selection
-        // in modedit, we don't enforce this as the module is assumed to
-        // be edited by design
-        if( !m_editModules )
+        // Multiple selection is only allowed in modedit mode.  In pcbnew, you have to select
+        // module subparts one by one, rather than with a drag selection.  This is so you can
+        // pick up items under an (unlocked) module without also moving the module's sub-parts.
+        if( !m_editModules && !checkVisibilityOnly )
         {
-            MODULE* mod = static_cast<const D_PAD*>( aItem )->GetParent();
-            if( mod && mod->IsLocked() )
+            if( m_multiple )
                 return false;
         }
 
         if( aItem->Type() == PCB_PAD_T )
         {
-            // In editor, pads are selectable if any draw layer is visible
-
             auto pad = static_cast<const D_PAD*>( aItem );
+
+            // In pcbnew, locked modules prevent individual pad selection.
+            // In modedit, we don't enforce this as the module is assumed to be edited by design.
+            if( !m_editModules && !checkVisibilityOnly )
+            {
+                if( pad->GetParent() && pad->GetParent()->IsLocked() )
+                    return false;
+            }
+
+            // Check render mode (from the Items tab) first
+            switch( pad->GetAttribute() )
+            {
+            case PAD_ATTRIB_STANDARD:
+            case PAD_ATTRIB_HOLE_NOT_PLATED:
+                if( !board()->IsElementVisible( LAYER_PADS_TH ) )
+                    return false;
+                break;
+
+            case PAD_ATTRIB_CONN:
+            case PAD_ATTRIB_SMD:
+                if( pad->IsOnLayer( F_Cu ) && !board()->IsElementVisible( LAYER_PAD_FR ) )
+                    return false;
+                else if( pad->IsOnLayer( B_Cu ) && !board()->IsElementVisible( LAYER_PAD_BK ) )
+                    return false;
+                break;
+            }
+
+            // Otherwise, pads are selectable if any draw layer is visible
 
             // Shortcut: check copper layer visibility
             if( board()->IsLayerVisible( F_Cu ) && pad->IsOnLayer( F_Cu ) )
@@ -1736,6 +1772,10 @@ bool SELECTION_TOOL::selectable( const BOARD_ITEM* aItem ) const
         break;
     }
 
+
+    case PCB_MARKER_T:  // Always selectable
+        return true;
+
     // These are not selectable
     case NOT_USED:
     case TYPE_NOT_INIT:
@@ -1765,8 +1805,8 @@ void SELECTION_TOOL::select( BOARD_ITEM* aItem )
             return;
     }
 
-    m_selection.Add( aItem );
-    selectVisually( aItem );
+    highlight( aItem, SELECTED, m_selection );
+    view()->Update( &m_selection );
 
     if( m_frame )
     {
@@ -1786,73 +1826,96 @@ void SELECTION_TOOL::select( BOARD_ITEM* aItem )
 
 void SELECTION_TOOL::unselect( BOARD_ITEM* aItem )
 {
-    m_selection.Remove( aItem );
-    unselectVisually( aItem );
+    unhighlight( aItem, SELECTED, m_selection );
+    view()->Update( &m_selection );
 
     if( m_frame && m_frame->GetCurItem() == aItem )
         m_frame->SetCurItem( NULL );
 
     if( m_selection.Empty() )
-    {
-        if( m_frame )
-        {
-            m_frame->SetCurItem( NULL );
-        }
         m_locked = true;
-    }
 }
 
 
-void SELECTION_TOOL::selectVisually( BOARD_ITEM* aItem )
+void SELECTION_TOOL::highlight( BOARD_ITEM* aItem, int aMode, SELECTION& aGroup )
 {
+    if( aMode == SELECTED )
+        aItem->SetSelected();
+    else if( aMode == BRIGHTENED )
+        aItem->SetBrightened();
+
     // Hide the original item, so it is shown only on overlay
-    aItem->SetSelected();
     view()->Hide( aItem, true );
+
+    aGroup.Add( aItem );
 
     // Modules are treated in a special way - when they are selected, we have to
     // unselect all the parts that make the module, not the module itself
-
     if( aItem->Type() == PCB_MODULE_T )
     {
         static_cast<MODULE*>( aItem )->RunOnChildren( [&] ( BOARD_ITEM* item )
         {
-            item->SetSelected();
+            if( aMode == SELECTED )
+                item->SetSelected();
+            else if( aMode == BRIGHTENED )
+            {
+                item->SetBrightened();
+                aGroup.Add( item );
+            }
             view()->Hide( item, true );
         });
     }
 
-    view()->Update( &m_selection );
+    // Many selections are very temporal and updating the display each time just
+    // creates noise.
+    if( aMode == BRIGHTENED )
+        getView()->MarkTargetDirty( KIGFX::TARGET_OVERLAY );
 }
 
 
-void SELECTION_TOOL::unselectVisually( BOARD_ITEM* aItem )
+void SELECTION_TOOL::unhighlight( BOARD_ITEM* aItem, int aMode, SELECTION& aGroup )
 {
+    if( aMode == SELECTED )
+        aItem->ClearSelected();
+    else if( aMode == BRIGHTENED )
+        aItem->ClearBrightened();
+
+    aGroup.Remove( aItem );
+
     // Restore original item visibility
-    aItem->ClearSelected();
     view()->Hide( aItem, false );
     view()->Update( aItem );
 
     // Modules are treated in a special way - when they are selected, we have to
     // unselect all the parts that make the module, not the module itself
-
     if( aItem->Type() == PCB_MODULE_T )
     {
         static_cast<MODULE*>( aItem )->RunOnChildren( [&] ( BOARD_ITEM* item )
         {
-            item->ClearSelected();
+            if( aMode == SELECTED )
+                item->ClearSelected();
+            else if( aMode == BRIGHTENED )
+                item->ClearBrightened();
+
+            // N.B. if we clear the selection flag for sub-elements, we need to also
+            // remove the element from the selection group (if it exists)
+            aGroup.Remove( item );
             view()->Hide( item, false );
             view()->Update( item );
         });
     }
 
-    view()->Update( &m_selection );
+    // Many selections are very temporal and updating the display each time just
+    // creates noise.
+    if( aMode == BRIGHTENED )
+        getView()->MarkTargetDirty( KIGFX::TARGET_OVERLAY );
 }
 
 
 bool SELECTION_TOOL::selectionContains( const VECTOR2I& aPoint ) const
 {
     const unsigned GRIP_MARGIN = 20;
-    VECTOR2D margin = getView()->ToWorld( VECTOR2D( GRIP_MARGIN, GRIP_MARGIN ), false );
+    VECTOR2I margin = getView()->ToWorld( VECTOR2I( GRIP_MARGIN, GRIP_MARGIN ), false );
 
     // Check if the point is located within any of the currently selected items bounding boxes
     for( auto item : m_selection )
@@ -1865,15 +1928,6 @@ bool SELECTION_TOOL::selectionContains( const VECTOR2I& aPoint ) const
     }
 
     return false;
-}
-
-
-static EDA_RECT getRect( const BOARD_ITEM* aItem )
-{
-    if( aItem->Type() == PCB_MODULE_T )
-        return static_cast<const MODULE*>( aItem )->GetFootprintRect();
-
-    return aItem->GetBoundingBox();
 }
 
 
@@ -1959,8 +2013,10 @@ double calcRatio( double a, double b )
 void SELECTION_TOOL::guessSelectionCandidates( GENERAL_COLLECTOR& aCollector,
         const VECTOR2I& aWhere ) const
 {
+    std::set<BOARD_ITEM*> preferred;
     std::set<BOARD_ITEM*> rejected;
     std::set<BOARD_ITEM*> forced;
+    wxPoint               where( aWhere.x, aWhere.y );
 
     // footprints which are below this percentage of the largest footprint will be considered
     // for selection; all others will not
@@ -1980,14 +2036,11 @@ void SELECTION_TOOL::guessSelectionCandidates( GENERAL_COLLECTOR& aCollector,
     // its unique area).
     constexpr double commonAreaRatio = 0.6;
 
-    PCB_LAYER_ID actLayer = (PCB_LAYER_ID) view()->GetTopLayer();
+    PCB_LAYER_ID activeLayer = (PCB_LAYER_ID) view()->GetTopLayer();
+    LSET         silkLayers( 2, B_SilkS, F_SilkS );
 
-    LSET silkLayers( 2, B_SilkS, F_SilkS );
-
-    if( silkLayers[actLayer] )
+    if( silkLayers[activeLayer] )
     {
-        std::set<BOARD_ITEM*> preferred;
-
         for( int i = 0; i < aCollector.GetCount(); ++i )
         {
             BOARD_ITEM* item = aCollector[i];
@@ -2000,7 +2053,7 @@ void SELECTION_TOOL::guessSelectionCandidates( GENERAL_COLLECTOR& aCollector,
             }
         }
 
-        if( preferred.size() != 0 )
+        if( preferred.size() > 0 )
         {
             aCollector.Empty();
 
@@ -2012,28 +2065,29 @@ void SELECTION_TOOL::guessSelectionCandidates( GENERAL_COLLECTOR& aCollector,
 
     int numZones = aCollector.CountType( PCB_ZONE_AREA_T );
 
-    if( numZones > 0 && aCollector.GetCount() > numZones )
+    // Zone edges are very specific; zone fills much less so.
+    if( numZones > 0 )
     {
         for( int i = aCollector.GetCount() - 1; i >= 0; i-- )
         {
-            if( aCollector[i]->Type() == PCB_ZONE_AREA_T && !static_cast<ZONE_CONTAINER*>
-                    ( aCollector[i] )->HitTestForEdge( wxPoint( aWhere.x, aWhere.y ) ) )
+            if( aCollector[i]->Type() == PCB_ZONE_AREA_T )
             {
-                aCollector.Remove( i );
+                auto zone = static_cast<ZONE_CONTAINER*>( aCollector[i] );
+
+                if( zone->HitTestForEdge( where, 5 * aCollector.GetGuide()->OnePixelInIU() ) )
+                    preferred.insert( zone );
+                else
+                    rejected.insert( zone );
             }
         }
-    }
 
-    int numDrawitems = aCollector.CountType( PCB_LINE_T ) +
-            aCollector.CountType( PCB_MODULE_EDGE_T );
-
-    if( numDrawitems > 0 && aCollector.GetCount() > numDrawitems )
-    {
-        for( int i = aCollector.GetCount() - 1; i >= 0; i-- )
+        if( preferred.size() > 0 )
         {
-            auto ds = static_cast<DRAWSEGMENT*>( aCollector[i] );
-            if( ds->GetShape() == S_POLYGON )
-                aCollector.Remove( i );
+            aCollector.Empty();
+
+            for( BOARD_ITEM* item : preferred )
+                aCollector.Append( item );
+            return;
         }
     }
 
@@ -2129,9 +2183,9 @@ void SELECTION_TOOL::guessSelectionCandidates( GENERAL_COLLECTOR& aCollector,
                 // footprint then it should be considered for selection
                 else if( calcRatio( calcArea( mod ), maxArea ) <= footprintToFootprintMinRatio )
                     continue;
-                // reject ALL OTHER footprints (whether there are one or more of
-                // them); the other items in the list should have precedence
-                else
+                // reject ALL OTHER footprints if there's still something else left
+                // to select
+                else if( (int)( rejected.size() + 1 ) < aCollector.GetCount() )
                     rejected.insert( mod );
             }
         }
@@ -2244,58 +2298,6 @@ int SELECTION_TOOL::updateSelection( const TOOL_EVENT& aEvent )
     getView()->Update( &m_selection );
 
     return 0;
-}
-
-
-bool SELECTION_TOOL::SanitizeSelection()
-{
-    std::set<BOARD_ITEM*> rejected;
-    std::set<BOARD_ITEM*> added;
-
-    if( !m_editModules )
-    {
-        for( auto i : m_selection )
-        {
-            auto item = static_cast<BOARD_ITEM*>( i );
-            if( item->Type() == PCB_PAD_T )
-            {
-                MODULE* mod = static_cast<MODULE*>( item->GetParent() );
-
-                // case 1: module (or its pads) are locked
-                if( mod && ( mod->PadsLocked() || mod->IsLocked() ) )
-                {
-                    rejected.insert( item );
-
-                    if( !mod->IsLocked() && !mod->IsSelected() )
-                        added.insert( mod );
-                }
-
-                // case 2: multi-item selection contains both the module and its pads - remove the pads
-                if( mod && m_selection.Contains( mod ) )
-                    rejected.insert( item );
-            }
-        }
-    }
-
-    if( !rejected.empty() )
-    {
-        for( BOARD_ITEM* item : rejected )
-            unselect( item );
-
-        // Inform other potentially interested tools
-        m_toolMgr->ProcessEvent( UnselectedEvent );
-    }
-
-    if( !added.empty() )
-    {
-        for( BOARD_ITEM* item : added )
-            select( item );
-
-        // Inform other potentially interested tools
-        m_toolMgr->ProcessEvent( SelectedEvent );
-    }
-
-    return true;
 }
 
 

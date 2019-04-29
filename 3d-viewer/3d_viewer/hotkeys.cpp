@@ -31,7 +31,7 @@
 #include "../3d_viewer_id.h"
 
 // Define 3D Viewer Hotkeys
-static EDA_HOTKEY HkHotkeysHelp( _HKI( "Help (this window)" ), HK_HELP, GR_KB_CTRL + WXK_F1 );
+static EDA_HOTKEY HkHotkeysHelp( _HKI( "List Hotkeys" ), HK_HELP, GR_KB_CTRL + WXK_F1 );
 static EDA_HOTKEY Hk3D_PivotCenter( _HKI( "Center pivot rotation (Middle mouse click)" ), 0, WXK_SPACE );
 static EDA_HOTKEY Hk3D_MoveLeft( _HKI( "Move board Left" ), ID_POPUP_MOVE3D_LEFT, WXK_LEFT );
 static EDA_HOTKEY Hk3D_MoveRight( _HKI( "Move board Right" ), ID_POPUP_MOVE3D_RIGHT, WXK_RIGHT );
@@ -86,14 +86,20 @@ static EDA_HOTKEY* viewer3d_Hotkey_List[] =
 
 // list of sections and corresponding hotkey list for the 3D Viewer
 // (used to list current hotkeys)
-struct EDA_HOTKEY_CONFIG g_3DViewer_Hokeys_Descr[] =
+static struct EDA_HOTKEY_CONFIG s_3DViewer_Hotkeys_Descr[] =
 {
     { &g_CommonSectionTag, viewer3d_Hotkey_List, &viewer3DSectionTitle },
     { NULL,                NULL,                 NULL }
 };
 
 
-void EDA_3D_VIEWER::DisplayHotKeys()
+EDA_HOTKEY_CONFIG* EDA_3D_VIEWER::GetHotkeyConfig() const
 {
-    DisplayHotkeyList( this, g_3DViewer_Hokeys_Descr );
+    return s_3DViewer_Hotkeys_Descr;
+}
+
+
+EDA_HOTKEY_CONFIG* EDA_3D_CANVAS::GetHotkeyConfig() const
+{
+    return s_3DViewer_Hotkeys_Descr;
 }

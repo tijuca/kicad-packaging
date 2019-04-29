@@ -29,7 +29,7 @@
 
 #include <fctsys.h>
 #include <gr_basic.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <msgpanel.h>
 
 #include <general.h>
@@ -52,11 +52,10 @@ LIB_ITEM::LIB_ITEM( KICAD_T        aType,
     m_Fill              = aFillType;
     m_Parent            = (EDA_ITEM*) aComponent;
     m_isFillable        = false;
-    m_eraseLastDrawItem = false;
 }
 
 
-void LIB_ITEM::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
+void LIB_ITEM::GetMsgPanelInfo( EDA_UNITS_T aUnits, MSG_PANEL_ITEMS& aList )
 {
     wxString msg;
 
@@ -69,11 +68,9 @@ void LIB_ITEM::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 
     aList.push_back( MSG_PANEL_ITEM( _( "Unit" ), msg, BROWN ) );
 
-    if( m_Convert == 0 )
-        msg = _( "All" );
-    else if( m_Convert == 1 )
+    if( m_Convert == LIB_ITEM::LIB_CONVERT::BASE )
         msg = _( "no" );
-    else if( m_Convert == 2 )
+    else if( m_Convert == LIB_ITEM::LIB_CONVERT::DEMORGAN )
         msg = _( "yes" );
     else
         msg = wxT( "?" );
@@ -117,6 +114,7 @@ void LIB_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
                      GR_DRAWMODE aDrawMode, void* aData,
                      const TRANSFORM& aTransform )
 {
+    #if 0
     if( InEditMode() )
     {
         // Temporarily disable filling while the item is being edited.
@@ -136,7 +134,7 @@ void LIB_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
         }
 #endif
         // Calculate the new attributes at the current cursor position.
-        calcEdit( aOffset );
+        CalcEdit( aOffset );
 
         // Draw the items using the new attributes.
         drawEditGraphics( aPanel->GetClipBox(), aDC, color );
@@ -146,9 +144,19 @@ void LIB_ITEM::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
         m_Fill = fillMode;
     }
     else
+    #endif
     {
         drawGraphic( aPanel, aDC, aOffset, aColor, aDrawMode, aData, aTransform );
     }
+}
+
+
+void LIB_ITEM::ViewGetLayers( int aLayers[], int& aCount ) const
+{
+    // Basic fallback
+    aCount      = 2;
+    aLayers[0]  = LAYER_DEVICE;
+    aLayers[1]  = LAYER_DEVICE_BACKGROUND;
 }
 
 

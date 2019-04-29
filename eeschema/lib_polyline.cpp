@@ -29,7 +29,7 @@
 #include <fctsys.h>
 #include <gr_basic.h>
 #include <macros.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <plotter.h>
 #include <trigo.h>
 #include <base_units.h>
@@ -163,8 +163,14 @@ void LIB_POLYLINE::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
     }
 
     bool already_filled = m_Fill == FILLED_WITH_BG_BODYCOLOR;
-    aPlotter->SetColor( GetLayerColor( LAYER_DEVICE ) );
-    aPlotter->PlotPoly( cornerList, already_filled ? NO_FILL : m_Fill, GetPenSize() );
+    auto pen_size = GetPenSize();
+
+    if( !already_filled || pen_size > 0 )
+    {
+        pen_size = std::max( 0, pen_size );
+        aPlotter->SetColor( GetLayerColor( LAYER_DEVICE ) );
+        aPlotter->PlotPoly( cornerList, already_filled ? NO_FILL : m_Fill, GetPenSize() );
+    }
 }
 
 
@@ -176,7 +182,13 @@ void LIB_POLYLINE::AddPoint( const wxPoint& point )
 
 int LIB_POLYLINE::GetPenSize() const
 {
-    return ( m_Width == 0 ) ? GetDefaultLineThickness() : m_Width;
+    if( m_Width > 0 )
+        return m_Width;
+
+    if( m_Width == 0 )
+       return GetDefaultLineThickness();
+
+    return -1;   // the minimal pen value
 }
 
 
@@ -312,14 +324,14 @@ void LIB_POLYLINE::DeleteSegment( const wxPoint aPosition )
 }
 
 
-void LIB_POLYLINE::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
+void LIB_POLYLINE::GetMsgPanelInfo( EDA_UNITS_T aUnits, MSG_PANEL_ITEMS& aList )
 {
     wxString msg;
     EDA_RECT bBox = GetBoundingBox();
 
-    LIB_ITEM::GetMsgPanelInfo( aList );
+    LIB_ITEM::GetMsgPanelInfo( aUnits, aList );
 
-    msg = StringFromValue( g_UserUnit, m_Width, true );
+    msg = MessageTextFromValue( aUnits, m_Width, true );
 
     aList.push_back( MSG_PANEL_ITEM( _( "Line Width" ), msg, BLUE ) );
 
@@ -330,11 +342,11 @@ void LIB_POLYLINE::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
 }
 
 
-wxString LIB_POLYLINE::GetSelectMenuText() const
+wxString LIB_POLYLINE::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
     return wxString::Format( _( "Polyline at (%s, %s) with %d points" ),
-                             GetChars( CoordinateToString( m_PolyPoints[0].x ) ),
-                             GetChars( CoordinateToString( m_PolyPoints[0].y ) ),
+                             MessageTextFromValue( aUnits, m_PolyPoints[0].x ),
+                             MessageTextFromValue( aUnits, m_PolyPoints[0].y ),
                              int( m_PolyPoints.size() ) );
 }
 
@@ -401,14 +413,11 @@ void LIB_POLYLINE::BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition )
             prevPoint = point;
             index++;
         }
-
-        SetEraseLastDrawItem();
     }
     else if( aEditMode == IS_MOVED )
     {
         m_initialCursorPos = aPosition;
         m_initialPos = m_PolyPoints[0];
-        SetEraseLastDrawItem();
     }
 
     m_Flags = aEditMode;
@@ -457,16 +466,14 @@ void LIB_POLYLINE::EndEdit( const wxPoint& aPosition, bool aAbort )
     }
 
     m_Flags = 0;
-    SetEraseLastDrawItem( false );
 }
 
 
-void LIB_POLYLINE::calcEdit( const wxPoint& aPosition )
+void LIB_POLYLINE::CalcEdit( const wxPoint& aPosition )
 {
     if( m_Flags == IS_NEW )
     {
         m_PolyPoints[ GetCornerCount() - 1 ] = aPosition;
-        SetEraseLastDrawItem();
     }
     else if( m_Flags == IS_RESIZED )
     {

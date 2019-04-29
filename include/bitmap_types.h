@@ -31,40 +31,24 @@
 // #include <wx/bitmap.h>   // only to define wxBitmap
 class wxBitmap;     // only to define wxBitmap
 class EDA_BASE_FRAME;
+class EDA_DRAW_FRAME;
 class wxWindow;
 class wxAuiToolBar;
 
 #include <config.h>
+#include <wx/gdicmn.h>  // wxBitmapType
 
-
-/// PNG memory record (file in memory).
-struct BITMAP_OPAQUE
-{
-    const unsigned char* png;
-    int         byteCount;
-    const char* name;       // for debug, or future lazy dynamic linking
-};
-
-// declared as single element _array_, so its name assigns to pointer
-#define EXTERN_BITMAP(x) extern const BITMAP_OPAQUE x[1];
-
-
-/// a BITMAP_DEF is really a const pointer to an opaque
-/// structure.  So you should never need to use 'const' with it.
-typedef const BITMAP_OPAQUE *BITMAP_DEF;
-
+#include <bitmaps_png/bitmap_def.h>
 
 /**
- * Function KiBitmap
- * constructs a wxBitmap from a memory record, held in a
- * BITMAP_DEF.
+ * Construct a wxBitmap from a memory record, held in a BITMAP_DEF.
  */
 wxBitmap KiBitmap( BITMAP_DEF aBitmap );
 
 
 /**
- * Function KiScaledBitmap
- * Constructs a wxBitmap from a memory record, scaling it if device DPI demands it.
+ * Construct a wxBitmap from a memory record, scaling it if device DPI demands it.
+ *
  * Internally this may use caching to avoid scaling the same image twice. If caching
  * is used, it's guaranteed threadsafe.
  *
@@ -73,29 +57,41 @@ wxBitmap KiBitmap( BITMAP_DEF aBitmap );
  */
 wxBitmap KiScaledBitmap( BITMAP_DEF aBitmap, EDA_BASE_FRAME* aWindow );
 
+/**
+ * Overload of the above function that takes another wxBitmap as a parameter.
+ *
+ * @param aBitmap bitmap definition
+ * @param aWindow target window for scaling context
+ */
+wxBitmap KiScaledBitmap( const wxBitmap& aBitmap, EDA_BASE_FRAME* aWindow );
 
 /**
- * Function KiScaledSeparator
- * Adds a separator to the given toolbar scaled the same way as KiScaledBitmap.
+ * Add a separator to the given toolbar scaled the same way as KiScaledBitmap.
  */
 void KiScaledSeparator( wxAuiToolBar* aToolbar, EDA_BASE_FRAME* aWindow );
 
 /**
- * Function KiIconScale
- * Returns the automatic scale factor that would be used for a given window by
+ * Return the automatic scale factor that would be used for a given window by
  * KiScaledBitmap and KiScaledSeparator.
  */
 int KiIconScale( wxWindow* aWindow );
 
-
 /**
- * Function KiBitmapNew
- * allocates a wxBitmap on heap from a memory record, held in a
- * BITMAP_DEF.
+ * Allocate a wxBitmap on heap from a memory record, held in a BITMAP_DEF.
  *
  * @return wxBitmap* - caller owns it.
  */
 wxBitmap* KiBitmapNew( BITMAP_DEF aBitmap );
 
+/**
+ * Save the current view as an image file.
+ *
+ * @param aFrame The current draw frame view to save.
+ * @param aFileName The file name to save the image.  This will overwrite an exisiting file.
+ * @param aBitmapType The type of bitmap create as defined by wxImage.
+ * @return True if the file was successfully saved or false if the file failed to be saved.
+ */
+bool SaveCanvasImageToFile( EDA_DRAW_FRAME* aFrame, const wxString& aFileName,
+                            wxBitmapType aBitmapType = wxBITMAP_TYPE_PNG );
 
 #endif  // BITMAP_TYPES_H_

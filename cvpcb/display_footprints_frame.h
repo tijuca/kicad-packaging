@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2007 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 2007-2011 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2018 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+ * Copyright (C) 2007-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,7 +25,8 @@
 /**
  * @file display_footprints_frame.h
  */
-
+#ifndef DISPLAY_FOOTPRINTS_FRAME_H
+#define DISPLAY_FOOTPRINTS_FRAME_H
 
 #include <pcb_base_frame.h>
 
@@ -41,11 +42,18 @@ class CVPCB_MAINFRAME;
  */
 class DISPLAY_FOOTPRINTS_FRAME : public PCB_BASE_FRAME
 {
+    bool   m_autoZoom;
+    double m_lastZoom;
+
 public:
-    DISPLAY_FOOTPRINTS_FRAME( KIWAY* aKiway, CVPCB_MAINFRAME* aParent );
-    ~DISPLAY_FOOTPRINTS_FRAME();
+    DISPLAY_FOOTPRINTS_FRAME( KIWAY* aKiway, wxWindow* aParent );
+    ~DISPLAY_FOOTPRINTS_FRAME() override;
 
     void    OnCloseWindow( wxCloseEvent& Event ) override;
+
+    /** UI events:
+     */
+    void OnUIToolSelection( wxUpdateUIEvent& aEvent );
 
     /*
      * Draws the current highlighted footprint.
@@ -55,12 +63,6 @@ public:
     void    ReCreateHToolbar() override;
     void    ReCreateVToolbar() override;
     void    ReCreateOptToolbar() override;
-    void    RecreateMenuBar();
-
-    void OnSelectOptionToolbar( wxCommandEvent& event );
-
-    void OnUpdateTextDrawMode( wxUpdateUIEvent& aEvent );
-    void OnUpdateLineDrawMode( wxUpdateUIEvent& aEvent );
 
     /**
      * Function InitDisplay
@@ -71,10 +73,27 @@ public:
     void InitDisplay();
 
     /**
+     * update the gal canvas (view, colors ...)
+     */
+    void updateView();
+
+    void LoadSettings( wxConfigBase* aCfg ) override;
+    void SaveSettings( wxConfigBase* aCfg ) override;
+
+    /// Updates the GAL with display settings changes
+    void ApplyDisplaySettingsToGAL();
+
+    ///> @copydoc EDA_DRAW_FRAME::UpdateMsgPanel()
+    void UpdateMsgPanel() override;
+
+    bool GetAutoZoom() const { return m_autoZoom; }
+    void SetAutoZoom( bool aEnable ) { m_autoZoom = aEnable; }
+
+    /**
      * Function IsGridVisible() , virtual
      * @return true if the grid must be shown
      */
-    virtual bool IsGridVisible() const override;
+    bool IsGridVisible() const override;
 
     /**
      * Function SetGridVisibility() , virtual
@@ -82,12 +101,12 @@ public:
      * if you want to store/retrieve the grid visibility in configuration.
      * @param aVisible = true if the grid must be shown
      */
-    virtual void SetGridVisibility( bool aVisible ) override;
+    void SetGridVisibility( bool aVisible ) override;
     /**
      * Function GetGridColor() , virtual
      * @return the color of the grid
      */
-    virtual COLOR4D GetGridColor() override;
+    COLOR4D GetGridColor() override;
 
     void    OnLeftClick( wxDC* DC, const wxPoint& MousePos ) override;
     void    OnLeftDClick( wxDC* DC, const wxPoint& MousePos ) override;
@@ -99,8 +118,6 @@ public:
     ///> @copydoc EDA_DRAW_FRAME::GetHotKeyDescription()
     EDA_HOTKEY* GetHotKeyDescription( int aCommand ) const override { return NULL; }
 
-    void    Process_Settings( wxCommandEvent& event );
-
     /**
      * Display 3D frame of current footprint selection.
      */
@@ -110,9 +127,8 @@ public:
      * currently: do nothing in CvPcb.
      * but but be defined because it is a pure virtual in PCB_BASE_FRAME
      */
-    virtual void SaveCopyInUndoList( BOARD_ITEM* aItemToCopy,
-                                     UNDO_REDO_T aTypeCommand = UR_UNSPECIFIED,
-                                     const wxPoint& aTransformPoint = wxPoint( 0, 0 ) ) override
+    void SaveCopyInUndoList( BOARD_ITEM* aItemToCopy, UNDO_REDO_T aTypeCommand = UR_UNSPECIFIED,
+                             const wxPoint& aTransformPoint = wxPoint( 0, 0 ) ) override
     {
     }
 
@@ -126,9 +142,8 @@ public:
      * @param aTransformPoint = the reference point of the transformation,
      *                          for commands like move
      */
-    virtual void SaveCopyInUndoList( const PICKED_ITEMS_LIST& aItemsList,
-                                     UNDO_REDO_T aTypeCommand,
-                                     const wxPoint& aTransformPoint = wxPoint( 0, 0 ) ) override
+    void SaveCopyInUndoList( const PICKED_ITEMS_LIST& aItemsList, UNDO_REDO_T aTypeCommand,
+                             const wxPoint& aTransformPoint = wxPoint( 0, 0 ) ) override
     {
         // currently: do nothing in CvPcb.
     }
@@ -136,3 +151,5 @@ public:
 
     DECLARE_EVENT_TABLE()
 };
+
+#endif   // DISPLAY_FOOTPRINTS_FRAME_H

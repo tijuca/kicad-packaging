@@ -30,11 +30,11 @@
 #ifndef PAD_H_
 #define PAD_H_
 
-
+#include <pcbnew.h>
 #include <class_board_item.h>
 #include <board_connected_item.h>
 #include <pad_shapes.h>
-#include <PolyLine.h>
+#include <geometry/shape_poly_set.h>
 #include <config_params.h>       // PARAM_CFG_ARRAY
 #include "zones.h"
 
@@ -123,8 +123,7 @@ public:
     void ExportTo( DRAWSEGMENT* aTarget );
 
     /** Export the PAD_CS_PRIMITIVE parameters to a EDGE_MODULE
-     * useful to convert a primitive shape to a EDGE_MODULE shape for edition
-     * in footprint editor
+     * useful to convert a primitive shape to a EDGE_MODULE shape for editing in footprint editor
      * @param aTarget is the EDGE_MODULE to initialize
      */
     void ExportTo( EDGE_MODULE* aTarget );
@@ -151,6 +150,7 @@ public:
     static LSET ConnSMDMask();      ///< layer set for a SMD pad on Front layer
                                     ///< used for edge board connectors
     static LSET UnplatedHoleMask(); ///< layer set for a mechanical unplated through hole pad
+    static LSET ApertureMask();     ///< layer set for an aperture pad
 
     static inline bool ClassOf( const EDA_ITEM* aItem )
     {
@@ -308,7 +308,7 @@ public:
      * Note: The corners coordinates are relative to the pad position, orientation 0,
      */
     bool MergePrimitivesAsPolygon( SHAPE_POLY_SET * aMergedPolygon = NULL,
-                                    int aCircleToSegmentsCount = 32 );
+                                    int aCircleToSegmentsCount = ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF );
 
     /**
      * clear the basic shapes list
@@ -346,6 +346,13 @@ public:
      * Flip the basic shapes, in custom pads
      */
     void FlipPrimitives();
+
+    /**
+     * Mirror the primitives about a coordinate
+     *
+     * @param aX the x coordinate about which to mirror
+     */
+    void MirrorXPrimitives( int aX );
 
     /**
      * Import to the basic shape list
@@ -404,6 +411,10 @@ public:
     void SetAttribute( PAD_ATTR_T aAttribute );
     PAD_ATTR_T GetAttribute() const             { return m_Attribute; }
 
+    // We don't currently have an attribute for APERTURE, and adding one will change the file
+    // format, so for now just infer a copper-less pad to be an APERTURE pad.
+    bool IsAperturePad() const                  { return ( m_layerMask & LSET::AllCuMask() ).none(); }
+
     void SetPadToDieLength( int aLength )       { m_LengthPadToDie = aLength; }
     int GetPadToDieLength() const               { return m_LengthPadToDie; }
 
@@ -431,13 +442,16 @@ public:
      * @param aCorrectionFactor = the correction to apply to circles radius to keep
      * clearance when the circle is approximated by segment bigger or equal
      * to the real clearance value (usually near from 1.0)
-    */
+     * @param ignoreLineWidth = used for edge cut items where the line width is only
+     * for visualization
+     */
     void TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
                                                int aClearanceValue,
                                                int aCircleToSegmentsCount,
-                                               double aCorrectionFactor ) const override;
+                                               double aCorrectionFactor,
+                                               bool ignoreLineWidth = false ) const override;
 
-     /**
+    /**
      * Function GetClearance
      * returns the clearance in internal units.  If \a aItem is not NULL then the
      * returned clearance is the greater of this object's clearance and
@@ -536,6 +550,12 @@ public:
      * @return The radius of the rounded corners for this pad size.
      */
     int GetRoundRectCornerRadius( const wxSize& aSize ) const;
+
+    /**
+     * Set the rounded rectangle radius ratio based on a given radius
+     * @param aRadius = desired radius of curvature
+     */
+    void SetRoundRectCornerRadius( double aRadius );
 
     /**
      * Function BuildPadShapePolygon
@@ -645,7 +665,7 @@ public:
     int GetSubRatsnest() const                  { return m_SubRatsnest; }
     void SetSubRatsnest( int aSubRatsnest )     { m_SubRatsnest = aSubRatsnest; }
 
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
+    void GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList ) override;
 
     bool IsOnLayer( PCB_LAYER_ID aLayer ) const override
     {
@@ -667,6 +687,7 @@ public:
     ///> Set absolute coordinates.
     void SetDrawCoord();
 
+    //todo: Remove SetLocalCoord along with m_pos
     ///> Set relative coordinates.
     void SetLocalCoord();
 
@@ -685,7 +706,7 @@ public:
 
     void Rotate( const wxPoint& aRotCentre, double aAngle ) override;
 
-    wxString GetSelectMenuText() const override;
+    wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
 
     BITMAP_DEF GetMenuImage() const override;
 
@@ -775,6 +796,7 @@ private:    // Private variable members:
 
     wxString    m_name;
 
+    // TODO: Remove m_Pos from Pad or make private.  View positions calculated from m_Pos0
     wxPoint     m_Pos;              ///< pad Position on board
 
     PAD_SHAPE_T m_padShape;         ///< Shape: PAD_SHAPE_CIRCLE, PAD_SHAPE_RECT,

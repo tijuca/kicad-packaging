@@ -37,13 +37,11 @@
 #include <ki_mutex.h>
 #include <kicad_string.h>
 #include <sync_queue.h>
+#include <lib_tree_item.h>
 
 #include <atomic>
 #include <functional>
 #include <memory>
-
-
-#define USE_FPI_LAZY 0 // 1:yes lazy,  0:no early
 
 
 class FP_LIB_TABLE;
@@ -62,7 +60,7 @@ class KIWAY;
  * This is a virtual class; its implementation lives in pcbnew/footprint_info_impl.cpp.
  * To get instances of these classes, see FOOTPRINT_LIST::GetInstance().
  */
-class APIEXPORT FOOTPRINT_INFO
+class APIEXPORT FOOTPRINT_INFO : public LIB_TREE_ITEM
 {
     friend bool operator<( const FOOTPRINT_INFO& item1, const FOOTPRINT_INFO& item2 );
 
@@ -79,12 +77,22 @@ public:
         return m_fpname;
     }
 
-    const wxString& GetNickname() const
+    wxString GetLibNickname() const override
     {
         return m_nickname;
     }
 
-    const wxString& GetDoc()
+    const wxString& GetName() const override
+    {
+        return m_fpname;
+    }
+
+    LIB_ID GetLibId() const override
+    {
+        return LIB_ID( m_nickname, m_fpname );
+    }
+
+    const wxString& GetDescription() override
     {
         ensure_loaded();
         return m_doc;
@@ -94,6 +102,15 @@ public:
     {
         ensure_loaded();
         return m_keywords;
+    }
+
+    wxString GetSearchText() override
+    {
+        // Matches are scored by offset from front of string, so inclusion of this spacer
+        // discounts matches found after it.
+        static const wxString discount( wxT( "        " ) );
+
+        return GetKeywords() + discount + GetDescription();
     }
 
     unsigned GetPadCount()
@@ -132,7 +149,7 @@ protected:
     }
 
     /// lazily load stuff not filled in by constructor.  This may throw IO_ERRORS.
-    virtual void load() = 0;
+    virtual void load() { };
 
     FOOTPRINT_LIST* m_owner; ///< provides access to FP_LIB_TABLE
 
@@ -141,8 +158,8 @@ protected:
     wxString m_nickname;         ///< library as known in FP_LIB_TABLE
     wxString m_fpname;           ///< Module name.
     int      m_num;              ///< Order number in the display list.
-    int      m_pad_count;        ///< Number of pads
-    int      m_unique_pad_count; ///< Number of unique pads
+    unsigned m_pad_count;        ///< Number of pads
+    unsigned m_unique_pad_count; ///< Number of unique pads
     wxString m_doc;              ///< Footprint description.
     wxString m_keywords;         ///< Footprint keywords.
 };
@@ -151,12 +168,12 @@ protected:
 /// FOOTPRINT object list sort function.
 inline bool operator<( const FOOTPRINT_INFO& item1, const FOOTPRINT_INFO& item2 )
 {
-    int retv = StrNumCmp( item1.m_nickname, item2.m_nickname, INT_MAX, true );
+    int retv = StrNumCmp( item1.m_nickname, item2.m_nickname, true );
 
     if( retv != 0 )
         return retv < 0;
 
-    return StrNumCmp( item1.m_fpname, item2.m_fpname, INT_MAX, true ) < 0;
+    return StrNumCmp( item1.m_fpname, item2.m_fpname, true ) < 0;
 }
 
 
@@ -180,9 +197,6 @@ protected:
     FPILIST m_list;
     ERRLIST m_errors; ///< some can be PARSE_ERRORs also
 
-    MUTEX m_list_lock;
-
-
 public:
     FOOTPRINT_LIST() : m_lib_table( 0 )
     {
@@ -191,6 +205,9 @@ public:
     virtual ~FOOTPRINT_LIST()
     {
     }
+
+    virtual void WriteCacheToFile( wxTextFile* aFile ) { };
+    virtual void ReadCacheFromFile( wxTextFile* aFile ) { };
 
     /**
      * @return the number of items stored in list
@@ -207,11 +224,14 @@ public:
     }
 
     /**
-     * Get info for a module by name.
-     * @param aFootprintName = the footprint name inside the FOOTPRINT_INFO of interest.
-     * @return FOOTPRINT_INF* - the item stored in list if found
+     * Get info for a module by id.
      */
-    FOOTPRINT_INFO* GetModuleInfo( const wxString& aFootprintName );
+    FOOTPRINT_INFO* GetModuleInfo( const wxString& aFootprintId );
+
+    /**
+     * Get info for a module by libNickname/footprintName
+     */
+    FOOTPRINT_INFO* GetModuleInfo( const wxString& aLibNickname, const wxString& aFootprintName );
 
     /**
      * Get info for a module by index.
@@ -222,12 +242,6 @@ public:
     {
         return *m_list[aIdx];
     }
-
-    /**
-     * Add aItem to list
-     * @param aItem = item to add
-     */
-    void AddItem( FOOTPRINT_INFO* aItem );
 
     unsigned GetErrorCount() const
     {
@@ -303,10 +317,8 @@ class APIEXPORT FOOTPRINT_ASYNC_LOADER
     friend class FOOTPRINT_LIST_IMPL;
 
     FOOTPRINT_LIST*       m_list;
-    std::function<void()> m_completion_cb;
     std::string           m_last_table;
 
-    bool m_started; ///< True if Start() has been called - does not reset
     int  m_total_libs;
 
 public:
@@ -353,21 +365,6 @@ public:
      * Safely stop the current process.
      */
     void Abort();
-
-    /**
-     * Set a callback to receive notice when loading is complete.
-     *
-     * Callback MUST be threadsafe, and must be set before calling Start
-     * if you want to use it (it is safe not to set it at all).
-     */
-    void SetCompletionCallback( std::function<void()> aCallback );
-
-    /**
-     * Return true if the given table is the same as the last table loaded.
-     * Useful for checking if the table has been modified and needs to be
-     * reloaded.
-     */
-    bool IsSameTable( FP_LIB_TABLE* aOther );
 
     /**
      * Default number of worker threads. Determined empirically (by dickelbeck):

@@ -29,7 +29,7 @@
 #include <fctsys.h>
 #include <gr_basic.h>
 #include <macros.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <plotter.h>
 #include <trigo.h>
 #include <base_units.h>
@@ -147,14 +147,26 @@ void LIB_RECTANGLE::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
     }
 
     bool already_filled = m_Fill == FILLED_WITH_BG_BODYCOLOR;
-    aPlotter->SetColor( GetLayerColor( LAYER_DEVICE ) );
-    aPlotter->Rect( pos, end, already_filled ? NO_FILL : m_Fill, GetPenSize() );
+    auto pen_size = GetPenSize();
+
+    if( !already_filled || pen_size > 0 )
+    {
+        pen_size = std::max( 0, pen_size );
+        aPlotter->SetColor( GetLayerColor( LAYER_DEVICE ) );
+        aPlotter->Rect( pos, end, already_filled ? NO_FILL : m_Fill, GetPenSize() );
+    }
 }
 
 
 int LIB_RECTANGLE::GetPenSize() const
 {
-    return ( m_Width == 0 ) ? GetDefaultLineThickness() : m_Width;
+    if( m_Width > 0 )
+        return m_Width;
+
+    if( m_Width == 0 )
+       return GetDefaultLineThickness();
+
+    return -1;   // a value to use a minimal pen size
 }
 
 
@@ -209,13 +221,13 @@ void LIB_RECTANGLE::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
 }
 
 
-void LIB_RECTANGLE::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
+void LIB_RECTANGLE::GetMsgPanelInfo( EDA_UNITS_T aUnits, MSG_PANEL_ITEMS& aList )
 {
     wxString msg;
 
-    LIB_ITEM::GetMsgPanelInfo( aList );
+    LIB_ITEM::GetMsgPanelInfo( aUnits, aList );
 
-    msg = StringFromValue( g_UserUnit, m_Width, true );
+    msg = MessageTextFromValue( aUnits, m_Width, true );
 
     aList.push_back( MSG_PANEL_ITEM( _( "Line Width" ), msg, BLUE ) );
 }
@@ -291,13 +303,13 @@ bool LIB_RECTANGLE::HitTest( const wxPoint &aPosition, int aThreshold, const TRA
 }
 
 
-wxString LIB_RECTANGLE::GetSelectMenuText() const
+wxString LIB_RECTANGLE::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
     return wxString::Format( _( "Rectangle from (%s, %s) to (%s, %s)" ),
-                             GetChars( CoordinateToString( m_Pos.x ) ),
-                             GetChars( CoordinateToString( m_Pos.y ) ),
-                             GetChars( CoordinateToString( m_End.x ) ),
-                             GetChars( CoordinateToString( m_End.y ) ) );
+                             MessageTextFromValue( aUnits, m_Pos.x ),
+                             MessageTextFromValue( aUnits, m_Pos.y ),
+                             MessageTextFromValue( aUnits, m_End.x ),
+                             MessageTextFromValue( aUnits, m_End.y ) );
 }
 
 
@@ -332,13 +344,11 @@ void LIB_RECTANGLE::BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition )
             m_isHeightLocked = abs( m_End.y - aPosition.y ) >= MINIMUM_SELECTION_DISTANCE;
         }
 
-        SetEraseLastDrawItem();
     }
     else if( aEditMode == IS_MOVED )
     {
         m_initialPos = m_Pos;
         m_initialCursorPos = aPosition;
-        SetEraseLastDrawItem();
     }
 
     m_Flags = aEditMode;
@@ -362,16 +372,14 @@ void LIB_RECTANGLE::EndEdit( const wxPoint& aPosition, bool aAbort )
     m_Flags = 0;
     m_isHeightLocked = false;
     m_isWidthLocked  = false;
-    SetEraseLastDrawItem( false );
 }
 
 
-void LIB_RECTANGLE::calcEdit( const wxPoint& aPosition )
+void LIB_RECTANGLE::CalcEdit( const wxPoint& aPosition )
 {
     if( m_Flags == IS_NEW )
     {
         m_End = aPosition;
-        SetEraseLastDrawItem();
     }
     else if( m_Flags == IS_RESIZED )
     {

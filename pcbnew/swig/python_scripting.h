@@ -33,10 +33,17 @@
     #undef _XOPEN_SOURCE
 #endif
 
+#undef HAVE_CLOCK_GETTIME  // macro is defined in Python.h and causes redefine warning
 #include <Python.h>
+#undef HAVE_CLOCK_GETTIME
+
 #ifndef NO_WXPYTHON_EXTENSION_HEADERS
 #ifdef KICAD_SCRIPTING_WXPYTHON
-    #include <wx/wxPython/wxPython.h>
+    #ifdef KICAD_SCRIPTING_WXPYTHON_PHOENIX
+        #include <wx/window.h>
+    #else
+        #include <wx/wxPython/wxPython.h>
+    #endif
 #endif
 #endif
 
@@ -104,6 +111,7 @@ public:
 
 #endif
 
+wxString        PyStringToWx( PyObject* str );
 wxArrayString   PyArrayStringToWx( PyObject* arr );
 wxString        PyErrStringWithTraceback();
 

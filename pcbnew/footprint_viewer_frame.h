@@ -54,7 +54,15 @@ protected:
 public:
     ~FOOTPRINT_VIEWER_FRAME();
 
+    PCB_GENERAL_SETTINGS& GetConfigSettings() { return m_configSettings; }
+
+    /// Updates the GAL with display settings changes
+    void ApplyDisplaySettingsToGAL();
+
     virtual COLOR4D GetGridColor() override;
+
+    bool GetAutoZoom() const { return m_autoZoom; }
+    void SetAutoZoom( bool aEnable ) { m_autoZoom = aEnable; }
 
     /**
      * redraws the message panel.
@@ -78,12 +86,15 @@ public:
      * @param aFootprint an optional FPID string to initialize the viewer with and to
      *                   return a selected footprint through.
      */
-    bool ShowModal( wxString* aFootprint, wxWindow* aResultantFocusWindow ) override;
+    bool ShowModal( wxString* aFootprint, wxWindow* aParent ) override;
 
 private:
 
     wxListBox*          m_libList;               // The list of libs names
     wxListBox*          m_footprintList;         // The list of footprint names
+
+    bool                m_autoZoom;
+    double              m_lastZoom;
 
     const wxString      getCurNickname();
     void                setCurNickname( const wxString& aNickname );
@@ -122,6 +133,8 @@ private:
     void DClickOnFootprintList( wxCommandEvent& event );
     void OnSetRelativeOffset( wxCommandEvent& event );
 
+    void InstallDisplayOptions( wxCommandEvent& event );
+
     bool GeneralControl( wxDC* aDC, const wxPoint& aPosition, EDA_KEY aHotKey = 0 ) override;
 
     ///> @copydoc EDA_DRAW_FRAME::GetHotKeyDescription()
@@ -146,8 +159,6 @@ private:
      * that can be changed by the schematic editor or the library editor.
      */
     virtual void OnActivate( wxActivateEvent& event ) override;
-
-    void SelectCurrentLibrary( wxCommandEvent& event );
 
     /**
      * Function SelectCurrentFootprint

@@ -32,7 +32,7 @@
 #include <view/view.h>
 #include <view/wx_view_controls.h>
 #include <painter.h>
-
+#include <base_screen.h>
 #include <gal/graphics_abstraction_layer.h>
 #include <gal/opengl/opengl_gal.h>
 #include <gal/cairo/cairo_gal.h>
@@ -48,7 +48,8 @@
 EDA_DRAW_PANEL_GAL::EDA_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWindowId,
                                         const wxPoint& aPosition, const wxSize& aSize,
                                         KIGFX::GAL_DISPLAY_OPTIONS& aOptions, GAL_TYPE aGalType ) :
-    wxScrolledCanvas( aParentWindow, aWindowId, aPosition, aSize ), m_options( aOptions )
+    wxScrolledCanvas( aParentWindow, aWindowId, aPosition, aSize ),
+    m_options( aOptions )
 {
     m_parent     = aParentWindow;
     m_edaFrame   = dynamic_cast<EDA_DRAW_FRAME*>( aParentWindow );
@@ -149,8 +150,17 @@ void EDA_DRAW_PANEL_GAL::onPaint( wxPaintEvent& WXUNUSED( aEvent ) )
 {
     m_viewControls->UpdateScrollbars();
 
-    // Drawing to a zero-width or zero-height GAL is fraught with peril.
-    if( GetClientRect().IsEmpty() )
+    // Update current zoom settings if the canvas is managed by a EDA frame
+    // (i.e. not by a preview panel in a dialog)
+    if( GetParentEDAFrame() && GetParentEDAFrame()->GetScreen() )
+    {
+        GetParentEDAFrame()->GetScreen()->SetZoom( GetLegacyZoom() );
+
+        VECTOR2D center = GetView()->GetCenter();
+        GetParentEDAFrame()->SetScrollCenterPosition( wxPoint( center.x, center.y ) );
+    }
+
+    if( !m_gal->IsVisible() )
         return;
 
     m_pendingRefresh = false;
@@ -171,13 +181,24 @@ void EDA_DRAW_PANEL_GAL::onPaint( wxPaintEvent& WXUNUSED( aEvent ) )
     {
         m_view->UpdateItems();
 
-        m_gal->BeginDrawing();
+        KIGFX::GAL_DRAWING_CONTEXT ctx( m_gal );
+
         m_gal->SetClearColor( settings->GetBackgroundColor() );
-        m_gal->SetCursorColor( settings->GetLayerColor( LAYER_CURSOR ) );
-        m_gal->ClearScreen( );
+        m_gal->SetGridColor( settings->GetGridColor() );
+        m_gal->SetCursorColor( settings->GetCursorColor() );
+
+        // TODO: find why ClearScreen() must be called here in opengl mode
+        // and only if m_view->IsDirty() in Cairo mode to avoid distaly artifacts
+        // when moving the mouse cursor
+        if( m_backend == GAL_TYPE_OPENGL )
+            m_gal->ClearScreen();
 
         if( m_view->IsDirty() )
         {
+            if( m_backend != GAL_TYPE_OPENGL &&     // Already called in opengl
+                m_view->IsTargetDirty( KIGFX::TARGET_NONCACHED ) )
+                m_gal->ClearScreen();
+
             m_view->ClearTargets();
 
             // Grid has to be redrawn only when the NONCACHED target is redrawn
@@ -188,7 +209,6 @@ void EDA_DRAW_PANEL_GAL::onPaint( wxPaintEvent& WXUNUSED( aEvent ) )
         }
 
         m_gal->DrawCursor( m_viewControls->GetCursorPosition() );
-        m_gal->EndDrawing();
     }
     catch( std::runtime_error& err )
     {
@@ -201,10 +221,12 @@ void EDA_DRAW_PANEL_GAL::onPaint( wxPaintEvent& WXUNUSED( aEvent ) )
         }
         else
         {
-            SwitchBackend( GAL_TYPE_CAIRO );
+            SwitchBackend( GAL_FALLBACK );
         }
 
-        DisplayError( m_parent, wxString( err.what() ) );
+        DisplayInfoMessage( m_parent,
+                _( "Could not use OpenGL, falling back to software rendering" ),
+                wxString( err.what() ) );
     }
 
 #ifdef __WXDEBUG__
@@ -219,10 +241,15 @@ void EDA_DRAW_PANEL_GAL::onPaint( wxPaintEvent& WXUNUSED( aEvent ) )
 
 void EDA_DRAW_PANEL_GAL::onSize( wxSizeEvent& aEvent )
 {
+    KIGFX::GAL_CONTEXT_LOCKER locker( m_gal );
     wxSize clientSize = GetClientSize();
     m_gal->ResizeScreen( clientSize.x, clientSize.y );
-    m_view->MarkTargetDirty( KIGFX::TARGET_CACHED );
-    m_view->MarkTargetDirty( KIGFX::TARGET_NONCACHED );
+
+    if( m_view )
+    {
+        m_view->MarkTargetDirty( KIGFX::TARGET_CACHED );
+        m_view->MarkTargetDirty( KIGFX::TARGET_NONCACHED );
+    }
 }
 
 
@@ -328,8 +355,7 @@ void EDA_DRAW_PANEL_GAL::SetTopLayer( int aLayer )
 
 double EDA_DRAW_PANEL_GAL::GetLegacyZoom() const
 {
-    double zoomFactor = m_gal->GetWorldScale() / m_gal->GetZoomFactor();
-    return ( 1.0 / ( zoomFactor * m_view->GetScale() ) );
+    return m_edaFrame->GetZoomLevelCoeff() / m_gal->GetZoomFactor();
 }
 
 
@@ -351,7 +377,20 @@ bool EDA_DRAW_PANEL_GAL::SwitchBackend( GAL_TYPE aGalType )
         switch( aGalType )
         {
         case GAL_TYPE_OPENGL:
-            new_gal = new KIGFX::OPENGL_GAL( m_options, this, this, this );
+            try
+            {
+                new_gal = new KIGFX::OPENGL_GAL( m_options, this, this, this );
+                break;
+            }
+            catch( std::runtime_error& err )
+            {
+                aGalType = GAL_TYPE_CAIRO;
+                DisplayInfoMessage( m_parent,
+                        _( "Could not use OpenGL, falling back to software rendering" ),
+                        wxString( err.what() ) );
+            }
+
+            new_gal = new KIGFX::CAIRO_GAL( m_options, this, this, this );
             break;
 
         case GAL_TYPE_CAIRO:
@@ -359,7 +398,7 @@ bool EDA_DRAW_PANEL_GAL::SwitchBackend( GAL_TYPE aGalType )
             break;
 
         default:
-            assert( false );
+            wxASSERT( false );
             // warn about unhandled GAL canvas type, but continue with the fallback option
 
         case GAL_TYPE_NONE:
@@ -382,7 +421,7 @@ bool EDA_DRAW_PANEL_GAL::SwitchBackend( GAL_TYPE aGalType )
     // from the defaults
     m_options.NotifyChanged();
 
-    assert( new_gal );
+    wxASSERT( new_gal );
     delete m_gal;
     m_gal = new_gal;
 
@@ -468,4 +507,22 @@ void EDA_DRAW_PANEL_GAL::onShowTimer( wxTimerEvent& aEvent )
         m_onShowTimer.Stop();
         OnShow();
     }
+}
+void EDA_DRAW_PANEL_GAL::SetCurrentCursor( int aCursor )
+{
+    if ( aCursor > wxCURSOR_NONE && aCursor < wxCURSOR_MAX )
+    {
+        m_currentCursor = aCursor;
+    }
+    else
+    {
+        m_currentCursor = wxCURSOR_ARROW;
+    }
+
+    SetCursor( (wxStockCursor) m_currentCursor );
+}
+
+void EDA_DRAW_PANEL_GAL::SetDefaultCursor()
+{
+    SetCurrentCursor( m_defaultCursor );
 }

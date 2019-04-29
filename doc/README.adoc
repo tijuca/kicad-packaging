@@ -56,7 +56,8 @@ about 1.5GiB of space):
     texlive-lang-cyrillic texlive-lang-english texlive-lang-european \
     texlive-lang-french texlive-lang-german texlive-lang-italian \
     texlive-lang-japanese texlive-lang-other texlive-lang-polish \
-    texlive-lang-spanish texlive-xetex texlive-lang-chinese
+    texlive-lang-spanish texlive-xetex texlive-lang-chinese \
+    libunicode-linebreak-perl
 
 NOTE: Debian Jessie and Ubuntu 16.04 LTS has no package
 texlive-lang-european, install the package texlive-lang-dutch instead.
@@ -68,7 +69,7 @@ or, if you do not have space problems:
 
     sudo apt-get install asciidoc cmake dblatex fonts-freefont-ttf \
     fonts-vlgothic gettext git make po4a source-highlight \
-    texlive-lang-all texlive-xetex
+    texlive-lang-all texlive-xetex libunicode-linebreak-perl
 
 === Fedora
 
@@ -78,6 +79,19 @@ To install the dependencies on Fedora run the following:
     source-highlight texlive vlgothic-fonts perl-Unicode-LineBreak \
     texlive-scheme-full texlive-collection-xetex gnu-free-serif-fonts \
     gnu-free-mono-fonts gnu-free-sans-fonts
+
+=== Manjaro Linux 
+
+To install the dependencies on Manjaro run the following:
+	
+	sudo  pacman -S asciidoc cmake dblatex ttf-freefont gettext \
+	po4a source-highlight  texlive-langchinese texlive-langcyrillic \
+	texlive-langjapanese texlive-langextra texlive-langkorean \
+	texlive-langgreek perl-unicode-linebreak
+
+NOTE: AUR package
+	
+	yaourt -S ttf-vlgothic
 
 == Building the docs
 
@@ -106,7 +120,7 @@ Read link:utils/docker/README.adoc[] if you want to build the documentation in a
 
 ==== BUILD_FORMATS
 
-By default **BUILD_FORMATS** is set to `html;pdf;epub` to enable building all supported
+By default **BUILD_FORMATS** is set to `"html;pdf;epub"` to enable building all supported
 document formats.
 
 It's possible to set **BUILD_FORMATS** in order to build only a subset of formats,
@@ -120,12 +134,12 @@ the format.
 By default CMake will configure to build all languages available for each document.
 
 You can build just one or some of the languages by using the **LANGUAGES** option
-when configuring a build with CMake, e.g. `-DLANGUAGES=it;en;de`, etc.
+when configuring a build with CMake, e.g. `-DLANGUAGES="it;en;de"`, etc.
 
-Currently, the available languages are : `ca`, `de`, `en`, `es`, `fr`, `id`, `it`,
-`ja`, `nl`, `pl`, `ru`  and `zh`, however, any
-language code can be selected. Only translated documents will be built, so for
-some languages there may only be a partial documentation output.
+Currently, the available languages are : `ca`, `de`, `en`, `es`, `fr`, `id`,
+`it`, `ja`, `pl`, `ru`  and `zh`, however, any language code can be selected.
+Only translated documents will be built, so for some languages there may only
+be a partial documentation output.
 
 ==== SINGLE_LANGUAGE
 

@@ -6,8 +6,8 @@ configure_file( 3d_plugin_dir.h.in 3d_plugin_dir.h @ONLY )
 include_directories(BEFORE ${INC_BEFORE})
 include_directories(
     ${CMAKE_CURRENT_BINARY_DIR}
+    ../include/legacy_wx
     ../pcbnew
-    ../polygon
     3d_canvas
     3d_cache
     3d_rendering
@@ -33,10 +33,7 @@ set(3D-VIEWER_SRCS
     3d_cache/3d_cache_wrapper.cpp
     3d_cache/3d_cache.cpp
     3d_cache/3d_plugin_manager.cpp
-    3d_cache/3d_filename_resolver.cpp
     ${DIR_DLG}/3d_cache_dialogs.cpp
-    ${DIR_DLG}/dlg_3d_pathconfig_base.cpp
-    ${DIR_DLG}/dlg_3d_pathconfig.cpp
     ${DIR_DLG}/dlg_select_3dmodel.cpp
     ${DIR_DLG}/panel_prev_3d_base.cpp
     ${DIR_DLG}/panel_prev_model.cpp
@@ -110,6 +107,7 @@ add_dependencies( 3d-viewer pcbcommon )
 
 target_link_libraries( 3d-viewer
                        gal
+                       polygon
                        ${Boost_}
                        ${wxWidgets_LIBRARIES}
                        ${OPENGL_LIBRARIES}

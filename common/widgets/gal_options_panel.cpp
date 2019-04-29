@@ -32,9 +32,9 @@
 /*
  * Spin control parameters
  */
-static const double gridThicknessMin = 0.5;
+static const double gridThicknessMin = 1.0;
 static const double gridThicknessMax = 10.0;
-static const double gridThicknessStep = 0.5;
+static const double gridThicknessStep = 1.0;
 
 static const double gridMinSpacingMin = 5;
 static const double gridMinSpacingMax = 200;
@@ -46,16 +46,6 @@ static const UTIL::CFG_MAP<KIGFX::GRID_STYLE> gridStyleSelectMap =
     { KIGFX::GRID_STYLE::DOTS,        0 },  // Default
     { KIGFX::GRID_STYLE::LINES,       1 },
     { KIGFX::GRID_STYLE::SMALL_CROSS, 2 },
-};
-
-
-static const UTIL::CFG_MAP<KIGFX::OPENGL_ANTIALIASING_MODE> aaModeSelectMap =
-{
-    { KIGFX::OPENGL_ANTIALIASING_MODE::NONE,              0 },    // Default
-    { KIGFX::OPENGL_ANTIALIASING_MODE::SUBSAMPLE_HIGH,    1 },
-    { KIGFX::OPENGL_ANTIALIASING_MODE::SUBSAMPLE_ULTRA,   2 },
-    { KIGFX::OPENGL_ANTIALIASING_MODE::SUPERSAMPLING_X2,  3 },
-    { KIGFX::OPENGL_ANTIALIASING_MODE::SUPERSAMPLING_X4,  4 },
 };
 
 
@@ -75,31 +65,7 @@ GAL_OPTIONS_PANEL::GAL_OPTIONS_PANEL( wxWindow* aParent, KIGFX::GAL_DISPLAY_OPTI
     const wxString galOnlySuffix = _( " (not supported in Legacy Toolset)" );
 
     /*
-     * Anti-aliasing subpanel
-     */
-    {
-        wxStaticBoxSizer* sOpenGLRenderingSizer;
-        sOpenGLRenderingSizer = new wxStaticBoxSizer( new wxStaticBox( this,
-                wxID_ANY, _( "Accelerated Graphics:" ) ), wxVERTICAL );
-
-        wxString m_choiceAntialiasingChoices[] = {
-            _( "No Antialiasing" ),
-            _( "Subpixel Antialiasing (High Quality)" ),
-            _( "Subpixel Antialiasing (Ultra Quality)" ),
-            _( "Supersampling (2x)" ),
-            _( "Supersampling (4x)" )
-        };
-        int m_choiceAntialiasingNChoices = sizeof( m_choiceAntialiasingChoices ) / sizeof( wxString );
-        m_choiceAntialiasing = new wxChoice( sOpenGLRenderingSizer->GetStaticBox(),
-                wxID_ANY, wxDefaultPosition, wxDefaultSize,
-                m_choiceAntialiasingNChoices, m_choiceAntialiasingChoices, 0 );
-        sOpenGLRenderingSizer->Add( m_choiceAntialiasing, 0, wxALL|wxEXPAND, 5 );
-
-        sLeftSizer->Add( sOpenGLRenderingSizer, 0, wxALL|wxEXPAND, 5 );
-    }
-
-    /*
-     * Grid setting subpanel
+     * Grid settings subpanel
      */
     {
         wxStaticBoxSizer* sGridSettings;
@@ -113,7 +79,7 @@ GAL_OPTIONS_PANEL::GAL_OPTIONS_PANEL( wxWindow* aParent, KIGFX::GAL_DISPLAY_OPTI
         };
         int m_gridStyleNChoices = sizeof( m_gridStyleChoices ) / sizeof( wxString );
         m_gridStyle = new wxRadioBox( sGridSettings->GetStaticBox(),
-                wxID_ANY, _( "Grid style:" ),
+                wxID_ANY, _( "Grid Style" ),
                 wxDefaultPosition, wxDefaultSize,
                 m_gridStyleNChoices, m_gridStyleChoices, 1, wxRA_SPECIFY_COLS );
         sGridSettings->Add( m_gridStyle, 0, wxALL|wxEXPAND, 5 );
@@ -130,11 +96,11 @@ GAL_OPTIONS_PANEL::GAL_OPTIONS_PANEL( wxWindow* aParent, KIGFX::GAL_DISPLAY_OPTI
         sGridSettingsGrid->Add( l_gridLineWidth, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 
         m_gridLineWidth = new wxTextCtrl( sGridSettings->GetStaticBox(), wxID_ANY );
-        sGridSettingsGrid->Add( m_gridLineWidth, 0, wxEXPAND, 5 );
+        sGridSettingsGrid->Add( m_gridLineWidth, 0, wxEXPAND | wxTOP | wxBOTTOM, 5 );
 
         m_gridLineWidthSpinBtn = new wxSpinButton( sGridSettings->GetStaticBox(),
                 wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_ARROW_KEYS );
-        sGridSettingsGrid->Add( m_gridLineWidthSpinBtn, 0, wxEXPAND | wxALL, 0 );
+        sGridSettingsGrid->Add( m_gridLineWidthSpinBtn, 0, wxALL | wxALIGN_CENTER_VERTICAL, 0 );
 
         l_gridLineWidthUnits = new wxStaticText( sGridSettings->GetStaticBox(),
                 wxID_ANY, _( "px" ) );
@@ -147,11 +113,11 @@ GAL_OPTIONS_PANEL::GAL_OPTIONS_PANEL( wxWindow* aParent, KIGFX::GAL_DISPLAY_OPTI
         sGridSettingsGrid->Add( l_gridMinSpacing, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 
         m_gridMinSpacing = new wxTextCtrl( sGridSettings->GetStaticBox(), wxID_ANY);
-        sGridSettingsGrid->Add( m_gridMinSpacing, 0, wxEXPAND, 5 );
+        sGridSettingsGrid->Add( m_gridMinSpacing, 0, wxEXPAND | wxTOP | wxBOTTOM, 5 );
 
         m_gridMinSpacingSpinBtn = new wxSpinButton( sGridSettings->GetStaticBox(),
                 wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_ARROW_KEYS );
-        sGridSettingsGrid->Add( m_gridMinSpacingSpinBtn, 0, wxEXPAND | wxALL, 0 );
+        sGridSettingsGrid->Add( m_gridMinSpacingSpinBtn, 0, wxALL | wxALIGN_CENTER_VERTICAL, 0 );
 
         l_gridMinSpacingUnits = new wxStaticText( sGridSettings->GetStaticBox(),
                 wxID_ANY, _( "px" ) );
@@ -160,7 +126,7 @@ GAL_OPTIONS_PANEL::GAL_OPTIONS_PANEL( wxWindow* aParent, KIGFX::GAL_DISPLAY_OPTI
 
         sGridSettings->Add( sGridSettingsGrid, 1, wxALL|wxEXPAND, 5 );
 
-        sLeftSizer->Add( sGridSettings, 0, wxALL | wxEXPAND, 5 );
+        sLeftSizer->Add( sGridSettings, 0, wxTOP | wxBOTTOM | wxRIGHT | wxEXPAND, 5 );
 
         // bind the spin buttons and text boxes
         m_gridSizeIncrementer = std::make_unique<SPIN_INCREMENTAL_TEXT_CTRL>(
@@ -168,7 +134,7 @@ GAL_OPTIONS_PANEL::GAL_OPTIONS_PANEL( wxWindow* aParent, KIGFX::GAL_DISPLAY_OPTI
 
         m_gridSizeIncrementer->SetStep( gridThicknessMin, gridThicknessMax,
                                         gridThicknessStep );
-        m_gridSizeIncrementer->SetPrecision( 1 );
+        m_gridSizeIncrementer->SetPrecision( 0 );
 
         m_gridMinSpacingIncrementer = std::make_unique<SPIN_INCREMENTAL_TEXT_CTRL>(
                     *m_gridMinSpacingSpinBtn, *m_gridMinSpacing );
@@ -178,6 +144,9 @@ GAL_OPTIONS_PANEL::GAL_OPTIONS_PANEL( wxWindow* aParent, KIGFX::GAL_DISPLAY_OPTI
         m_gridMinSpacingIncrementer->SetPrecision( 0 ); // restrict to ints
     }
 
+    /*
+     * Cursor settings subpanel
+     */
     {
         wxString cursorDisplayTitle = _( "Cursor Options" );
 
@@ -190,33 +159,32 @@ GAL_OPTIONS_PANEL::GAL_OPTIONS_PANEL( wxWindow* aParent, KIGFX::GAL_DISPLAY_OPTI
         auto sCursorSettings = new wxStaticBoxSizer( new wxStaticBox( this,
                 wxID_ANY, cursorDisplayTitle ), wxVERTICAL );
 
-        sLeftSizer->Add( sCursorSettings, 1, wxALL | wxEXPAND, 5 );
+        sLeftSizer->Add( sCursorSettings, 1, wxTOP | wxRIGHT | wxEXPAND, 5 );
 
         wxString m_CursorShapeChoices[] = {
             _( "Small crosshair" ),
             _( "Full window crosshair" )
         };
 
-        wxString cursorShapeTitle = _( "Cursor shape:" );
-
         int m_CursorShapeNChoices = sizeof( m_CursorShapeChoices ) / sizeof( wxString );
         m_cursorShape = new wxRadioBox( this, wxID_ANY,
-                 cursorShapeTitle, wxDefaultPosition, wxDefaultSize,
-                 m_CursorShapeNChoices, m_CursorShapeChoices, 1, wxRA_SPECIFY_COLS );
+                                        _( "Cursor shape:" ), wxDefaultPosition, wxDefaultSize,
+                                        m_CursorShapeNChoices, m_CursorShapeChoices, 1,
+                                        wxRA_SPECIFY_COLS );
 
         m_cursorShape->SetSelection( 0 );
         m_cursorShape->SetToolTip( _( "Cursor shape for drawing, placement and movement tools" ) );
 
         sCursorSettings->Add( m_cursorShape, 0, wxALL | wxEXPAND, 5 );
 
-#ifndef __APPLE__
+#ifdef __APPLE__
         // Whole section is galOnly on OSX; no need for further qualifier here
-        m_forceCursorDisplay = new wxCheckBox( this, wxID_ANY, _( "Always display crosshairs" ) );
+        m_forceCursorDisplay = new wxCheckBox( this, wxID_ANY, _( "Always show crosshairs" ) );
 #else
         // User a shorter galOnly qualifier as otherwise the label is obnoxiously long
         // @todo LEGACY remove this
         m_forceCursorDisplay = new wxCheckBox( this, wxID_ANY,
-                                         _( "Always display crosshairs (not in Legacy)" ) );
+                                         _( "Always show crosshairs (not in Legacy)" ) );
 #endif
 
         sCursorSettings->Add( m_forceCursorDisplay, 0, wxALL | wxEXPAND, 5 );
@@ -226,9 +194,6 @@ GAL_OPTIONS_PANEL::GAL_OPTIONS_PANEL( wxWindow* aParent, KIGFX::GAL_DISPLAY_OPTI
 
 bool GAL_OPTIONS_PANEL::TransferDataToWindow()
 {
-    m_choiceAntialiasing->SetSelection( UTIL::GetConfigForVal(
-            aaModeSelectMap, m_galOptions.gl_antialiasing_mode ) );
-
     m_gridStyle->SetSelection( UTIL::GetConfigForVal(
             gridStyleSelectMap, m_galOptions.m_gridStyle ) );
 
@@ -246,13 +211,10 @@ bool GAL_OPTIONS_PANEL::TransferDataToWindow()
 
 bool GAL_OPTIONS_PANEL::TransferDataFromWindow()
 {
-    m_galOptions.gl_antialiasing_mode = UTIL::GetValFromConfig(
-            aaModeSelectMap, m_choiceAntialiasing->GetSelection() );
-
     m_galOptions.m_gridStyle = UTIL::GetValFromConfig(
             gridStyleSelectMap, m_gridStyle->GetSelection() );
 
-    m_galOptions.m_gridLineWidth = m_gridSizeIncrementer->GetValue();
+    m_galOptions.m_gridLineWidth = std::floor( m_gridSizeIncrementer->GetValue() + 0.5 );
 
     m_galOptions.m_gridMinSpacing = m_gridMinSpacingIncrementer->GetValue();
 

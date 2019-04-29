@@ -66,13 +66,12 @@ BEGIN_EVENT_TABLE( PL_EDITOR_FRAME, EDA_DRAW_FRAME )
 
     EVT_MENU( ID_GEN_PLOT, PL_EDITOR_FRAME::ToPlotter )
 
-    EVT_MENU_RANGE( wxID_FILE1, wxID_FILE9, PL_EDITOR_FRAME::OnFileHistory )
+    EVT_MENU_RANGE( ID_FILE1, ID_FILEMAX, PL_EDITOR_FRAME::OnFileHistory )
 
     EVT_MENU( wxID_EXIT, PL_EDITOR_FRAME::OnQuit )
 
     // menu Preferences
-    EVT_MENU_RANGE( ID_PREFERENCES_HOTKEY_START, ID_PREFERENCES_HOTKEY_END, PL_EDITOR_FRAME::Process_Config )
-    EVT_MENU( ID_MENU_PL_EDITOR_SELECT_PREFERED_EDITOR, EDA_BASE_FRAME::OnSelectPreferredEditor )
+    EVT_MENU( ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST, PL_EDITOR_FRAME::Process_Config )
     EVT_MENU( wxID_PREFERENCES, PL_EDITOR_FRAME::Process_Config )
     EVT_MENU( ID_MENU_SWITCH_BGCOLOR, PL_EDITOR_FRAME::Process_Config )
     EVT_MENU( ID_MENU_GRID_ONOFF, PL_EDITOR_FRAME::Process_Config )
@@ -147,7 +146,8 @@ void PL_EDITOR_FRAME::Process_Special_Functions( wxCommandEvent& event )
 
     case ID_SHEET_SET:
         {
-        DIALOG_PAGES_SETTINGS dlg( this );
+        DIALOG_PAGES_SETTINGS dlg( this, wxSize( MAX_PAGE_SIZE_EDITORS_MILS,
+                                                 MAX_PAGE_SIZE_EDITORS_MILS ) );
         dlg.SetWksFileName( GetCurrFileName() );
         dlg.EnableWksFileNamePicker( false );
         dlg.ShowModal();

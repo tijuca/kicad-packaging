@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2017 Kicad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2017-2019 Kicad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -52,6 +52,9 @@ public:
         ///> Should create a keepout zone?
         bool m_keepout;
 
+        ///> Layer to begin drawing
+        PCB_LAYER_ID m_layer;
+
         ///> The zone mode to operate in
         DRAWING_TOOL::ZONE_MODE m_mode;
 
@@ -63,7 +66,7 @@ public:
      * @param aTool the DRAWING_TOOL to provide the zone tool to
      * @param aParams the parameters to use to guide the zone creation
      */
-    ZONE_CREATE_HELPER( DRAWING_TOOL& aTool, const PARAMS& aParams );
+    ZONE_CREATE_HELPER( DRAWING_TOOL& aTool, PARAMS& aParams );
 
     ~ZONE_CREATE_HELPER();
 
@@ -104,10 +107,10 @@ public:
      * Cut one zone out of another one (i.e. subtraction) and
      * update the zone.
      *
-     * @param aExistingZone the zone to removed area from
+     * @param aZone the zone to removed area from
      * @param aCutout the area to remove
      */
-    void performZoneCutout( ZONE_CONTAINER& aExistingZone, ZONE_CONTAINER& aCutout );
+    void performZoneCutout( ZONE_CONTAINER& aZone, ZONE_CONTAINER& aCutout );
 
     /**
      * Commit the current zone-in-progress to the BOARD. This might
@@ -123,7 +126,7 @@ private:
     DRAWING_TOOL& m_tool;
 
     ///> Parameters of the zone to be drawn
-    const PARAMS& m_params;
+    PARAMS& m_params;
 
     ///> The preview item to display
     KIGFX::PREVIEW::POLYGON_ITEM m_previewItem;

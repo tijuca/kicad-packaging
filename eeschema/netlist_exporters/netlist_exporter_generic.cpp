@@ -23,14 +23,15 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <build_version.h>
-#include <sch_base_frame.h>
-#include <class_library.h>
+#include "netlist_exporter_generic.h"
 
-#include <sch_edit_frame.h>
+#include <build_version.h>
+#include <refdes_utils.h>
+
+#include <class_library.h>
+#include <sch_base_frame.h>
 #include <symbol_lib_table.h>
 
-#include "netlist_exporter_generic.h"
 
 static bool sortPinsByNumber( LIB_PIN* aPin1, LIB_PIN* aPin2 );
 
@@ -246,7 +247,7 @@ XNODE* NETLIST_EXPORTER_GENERIC::makeComponents()
             // We only want the symbol name, not the full LIB_ID.
             xlibsource->AddAttribute( "part", comp->GetLibId().GetLibItemName() );
 
-            xlibsource->AddAttribute( "description", comp->GetAliasDescription() );
+            xlibsource->AddAttribute( "description", comp->GetDescription() );
 
             XNODE* xsheetpath;
 
@@ -556,5 +557,5 @@ XNODE* NETLIST_EXPORTER_GENERIC::node( const wxString& aName, const wxString& aT
 static bool sortPinsByNumber( LIB_PIN* aPin1, LIB_PIN* aPin2 )
 {
     // return "lhs < rhs"
-    return RefDesStringCompare( aPin1->GetNumber(), aPin2->GetNumber() ) < 0;
+    return UTIL::RefDesStringCompare( aPin1->GetNumber(), aPin2->GetNumber() ) < 0;
 }

@@ -35,8 +35,8 @@ add_dependencies( pnsrouter pcbcommon pcad2kicadpcb ${GITHUB_PLUGIN_LIBRARIES} )
 
 add_executable(test_window WIN32
   test.cpp
-  ../common/pcb_test_frame.cpp
-  ../common/mocks.cpp
+  ../qa_utils/pcb_test_frame.cpp
+  ../qa_utils/mocks.cpp
   ../../common/base_units.cpp
   ../../pcbnew/tools/pcb_tool.cpp
   ../../pcbnew/tools/selection.cpp
@@ -55,35 +55,26 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/pcbnew/router
     ${CMAKE_SOURCE_DIR}/pcbnew/tools
     ${CMAKE_SOURCE_DIR}/pcbnew/dialogs
-    ${CMAKE_SOURCE_DIR}/polygon
     ${CMAKE_SOURCE_DIR}/common/geometry
-    ${CMAKE_SOURCE_DIR}/qa/common
+    ${CMAKE_SOURCE_DIR}/qa/qa_utils
     ${Boost_INCLUDE_DIR}
     ${INC_AFTER}
 )
 
 target_link_libraries( test_window
-    polygon
     pnsrouter
     common
     pcbcommon
-    bitmaps
-    polygon
     pnsrouter
     common
     pcbcommon
-    bitmaps
-    polygon
     pnsrouter
     common
     pcbcommon
-    bitmaps
-    polygon
     pnsrouter
     common
     pcbcommon
     3d-viewer
-    bitmaps
     gal
     pcad2kicadpcb
     common

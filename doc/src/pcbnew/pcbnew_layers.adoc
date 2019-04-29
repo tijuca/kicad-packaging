@@ -19,9 +19,9 @@ Pcbnew can work with 50 different layers:
 
 === Setting up layers
 
-To open the *Layers Setup* from the menu bar, select **Design Rules** -> **Layers Setup**.
+To open the *Layers Setup* from the menu bar, select **Setup** -> **Layers Setup**.
 
-The number of copper layers, their names, and their function are configured there.
+The board thickness, number of copper layers, their names, and their function are configured there.
 Unused technical layers can be disabled.
 
 image::images/Pcbnew_layer_setup_dialog.png[scaledwidth="60%"]
@@ -70,7 +70,7 @@ The paired technical layers are:
     Used to show how much space a component physically takes on the PCB.
 
 *Fabrication* (F.Fab and B.Fab)::
-    Footprint assembly (?).
+    The fabrication layers are primarily used for documentation purposes to convey information to, for example, the PCB maker or the assembly house.
 
 ==== Independant Technical Layers
 
@@ -138,7 +138,8 @@ layers used for vias.
 image::images/Pcbnew_via_layer_pair_dialog.png[scaledwidth="40%"]
 
 When a via is placed the working (active) layer is automatically
-switched to the alternate layer of the layer pair used for the vias.
+switched to the alternate layer of the layer pair used for the vias
+(unless 'Shift' is held when adding the via).
 
 One can also switch to another active layer by hot keys, and if a
 track is in progress, a via will be inserted.

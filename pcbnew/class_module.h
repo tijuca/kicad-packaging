@@ -41,7 +41,6 @@
 #include <lib_id.h>
 
 #include <class_text_mod.h>
-#include <PolyLine.h>
 #include "zones.h"
 
 #include <core/iterators.h>
@@ -87,7 +86,8 @@ class MODULE_3D_SETTINGS
             // Initialize with sensible values
             m_Scale { 1, 1, 1 },
             m_Rotation { 0, 0, 0 },
-            m_Offset { 0, 0, 0 }
+            m_Offset { 0, 0, 0 },
+            m_Preview( true )
         {
         }
 
@@ -100,6 +100,7 @@ class MODULE_3D_SETTINGS
         VECTOR3D m_Rotation;    ///< 3D model rotation (degrees)
         VECTOR3D m_Offset;      ///< 3D model offset (mm)
         wxString m_Filename;    ///< The 3D shape filename in 3D library
+        bool     m_Preview;     ///< Include module in 3D preview
 };
 
 class MODULE : public BOARD_ITEM_CONTAINER
@@ -115,7 +116,7 @@ public:
 
     static inline bool ClassOf( const EDA_ITEM* aItem )
     {
-        return PCB_MODULE_T == aItem->Type();
+        return aItem && PCB_MODULE_T == aItem->Type();
     }
 
     MODULE* Next() const { return static_cast<MODULE*>( Pnext ); }
@@ -227,6 +228,9 @@ public:
     void SetFlag( int aFlag ) { m_arflag = aFlag; }
     void IncrementFlag() { m_arflag += 1; }
     int GetFlag() const { return m_arflag; }
+
+    // A bit of a hack until net ties are supported as first class citizens
+    bool IsNetTie() const { return GetKeywords().StartsWith( wxT( "net tie" ) ); }
 
     void Move( const wxPoint& aMoveVector ) override;
 
@@ -434,7 +438,7 @@ public:
             const wxPoint& offset, int dim_ancre, GR_DRAWMODE draw_mode );
 
     ///> @copydoc EDA_ITEM::GetMsgPanelInfo
-    void GetMsgPanelInfo( std::vector<MSG_PANEL_ITEM>& aList ) override;
+    void GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector<MSG_PANEL_ITEM>& aList ) override;
 
     bool HitTest( const wxPoint& aPosition ) const override;
 
@@ -471,13 +475,10 @@ public:
     }
 
     /**
-     * Function GetReference prefix
-     * Gets the alphabetic prefix of the module reference - e.g.
-     *      R1    -> R
-     *      IC34  -> IC
-     * @return the reference prefix (may be empty)
+     * Function IncrementReference
+     * Bumps the current reference by aDelta.
      */
-    wxString GetReferencePrefix() const;
+    void IncrementReference( int aDelta );
 
     /**
      * Function GetValue
@@ -561,7 +562,7 @@ public:
      */
     wxString GetNextPadName( bool aFillSequenceGaps ) const;
 
-    double GetArea() const { return m_Surface; }
+    double GetArea( int aPadding = 0 ) const;
 
     timestamp_t GetLink() const { return m_Link; }
     void SetLink( timestamp_t aLink )            { m_Link = aLink; }
@@ -596,7 +597,7 @@ public:
         return wxT( "MODULE" );
     }
 
-    wxString GetSelectMenuText() const override;
+    wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
 
     BITMAP_DEF GetMenuImage() const override;
 
@@ -738,8 +739,7 @@ private:
     ZoneConnection m_ZoneConnection;
     timestamp_t m_LastEditTime;
     int m_arflag;           ///< Use to trace ratsnest and auto routing.
-    double m_Surface;       ///< Bounding box area
-    timestamp_t m_Link;     ///< Temporary logical link used in edition
+    timestamp_t m_Link;     ///< Temporary logical link used during editing
     int m_CntRot90;         ///< Horizontal automatic placement cost ( 0..10 ).
     int m_CntRot180;        ///< Vertical automatic placement cost ( 0..10 ).
 

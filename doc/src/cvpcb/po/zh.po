@@ -1,20 +1,21 @@
-# KiCad CvPcb user manual chinese translation
-# Copyright (C) The KiCad Documentation Team
-# This file is distributed under the same license as the KiCad documentation package.
+# SOME DESCRIPTIVE TITLE
+# Copyright (C) YEAR Free Software Foundation, Inc.
+# This file is distributed under the same license as the PACKAGE package.
 # Liu HanCheng <buaa_cnlhc@buaa.edu.cn>,2018.
+#
 msgid ""
 msgstr ""
-"Project-Id-Version: KiCad CvPcb Manual\n"
-"POT-Creation-Date: 2018-10-22 08:29+0200\n"
-"PO-Revision-Date: 2018-10-22 08:45+0200\n"
-"Last-Translator: Liu HanCheng <buaa_chlhc@buaa.edu.cn>\n"
-"Language-Team: Chinese\n"
-"Language: zh\n"
+"Project-Id-Version: KiCad_CvPcb_Manual_zh_CN_v0.3\n"
+"POT-Creation-Date: 2019-03-30 00:40+0800\n"
+"PO-Revision-Date: 2019-03-30 01:30+0800\n"
+"Language-Team: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 1.8.9\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Poedit 2.2.1\n"
+"Last-Translator: taotieren <admin@taotieren.com>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"Language: zh_CN\n"
 
 #. type: Title =
 #: cvpcb.adoc:6
@@ -41,7 +42,11 @@ msgid ""
 "GNU General Public License (https://www.gnu.org/licenses/gpl.html), version "
 "3 or later, or the Creative Commons Attribution License (https://"
 "creativecommons.org/licenses/by/3.0/), version 3.0 or later."
-msgstr "本文档著作权 (C) 由以下列出的贡献者所共有。你可以根据 GPLv3 通用许可证 (https://www.gnu.org/licenses/gpl.html) 及之后的版本, 或是 知识共享署名许可 版本3 (https://creativecommons.org/licenses/by/3.0/) 及之后的版本, 对本文档进行分发或修改"
+msgstr ""
+"本文档著作权 (C) 由以下列出的贡献者所共有。你可以根据 GPLv3 通用许可证 "
+"(https://www.gnu.org/licenses/gpl.html) 及之后的版本, 或是 知识共享署名许可 "
+"版本3 (https://creativecommons.org/licenses/by/3.0/) 及之后的版本, 对本文档进"
+"行分发或修改。"
 
 #. type: Plain text
 #: cvpcb.adoc:20
@@ -68,7 +73,7 @@ msgstr "*反馈*\n"
 #. type: Plain text
 #: cvpcb.adoc:30
 msgid "Please direct any bug reports, suggestions or new versions to here:"
-msgstr "请将所有的Bug, 建议以及新版本重定向于此:"
+msgstr "请将所有的 Bug, 建议以及新版本重定向于此:"
 
 #. type: Plain text
 #: cvpcb.adoc:32
@@ -94,7 +99,7 @@ msgstr "*发行日期及软件版本*\n"
 #. type: Plain text
 #: cvpcb.adoc:42
 msgid "Published on may 22, 2015."
-msgstr "发布于 2015-05-22. "
+msgstr "发布于 2015-05-22。"
 
 #. Since docbook "article" is more compact, I have to separate this page
 #. type: Plain text
@@ -159,7 +164,7 @@ msgid ""
 "are lookup tables associating each component with it's footprint."
 msgstr ""
 "用户可以手动为元器件分配对应的封装。通过创建 .equ 文件, 也可以实现封装的自动"
-"分配。.equ 文件包含了元器件和其对应封装的相关信息"
+"分配。.equ 文件包含了元器件和其对应封装的相关信息。"
 
 #. type: Plain text
 #: cvpcb.adoc:72
@@ -187,7 +192,7 @@ msgid ""
 "Eeschema is started from the KiCad project manager or when Eeschema is\n"
 "started as a stand alone application.\n"
 msgstr ""
-"CvPcb  **只能通过 Eeschema 启动**, 其入口位于 Eeschema 的顶部工具栏处。\n"
+"CvPcb  **只能通过 Eeschema 启动** , 其入口位于 Eeschema 的顶部工具栏处。\n"
 "无论 Eeschema 是通过 Kicad 的项目管理器启动, 还是作为独立组件单独启动,\n"
 "都可以通过其顶部工具栏按钮访问 CvPcb。\n"
 
@@ -198,13 +203,13 @@ msgid ""
 "better because:"
 msgstr ""
 "从通过 Kicad 项目管理器启动的 Eeschema 访问 CvPcb 通常来说是更好的选择, 这是"
-"因为: "
+"因为:"
 
 #. type: Plain text
 #: cvpcb.adoc:85
 msgid ""
 "Cvpcb needs the project config file to know the footprint libraries to load."
-msgstr "CvPcb  需要读取项目配置文件, 以确定哪些封装库需要被加载"
+msgstr "CvPcb  需要读取项目配置文件, 以确定哪些封装库需要被加载。"
 
 #. type: Plain text
 #: cvpcb.adoc:89
@@ -238,7 +243,7 @@ msgstr ""
 "尽管用户确实 *能够* 从单独启动的 Eeschema 中访问 Cvpcb,但是请注意, 单独打开的"
 "原理图文件由于可能缺失相关的项目文件, 进而导致缺失相关的库文件, 这会使 Cvpcb"
 "的工作出现问题。如果在单独打开的原理图文件所在的目录中, 不包括其他 fp-lib-"
-"table 文件, 那么工程封装库列表也是不可用的"
+"table 文件, 那么工程封装库列表也是不可用的。"
 
 #. type: Title ==
 #: cvpcb.adoc:100
@@ -257,7 +262,7 @@ msgstr "手动或自动关联"
 msgid ""
 "CvPcb allows for interactive assignment (manual) as well as automatic "
 "assignment via equivalence files."
-msgstr "Cvpcb 同时支持交互式的手动封装分配和通过 .equ文件进行的自动封装分配。"
+msgstr "Cvpcb 同时支持交互式的手动封装分配和通过 .equ 文件进行的自动封装分配。"
 
 #. type: Title ==
 #: cvpcb.adoc:107
@@ -283,8 +288,8 @@ msgid ""
 "footprints) to CvPcb.  There is no update to do (unless some new components "
 "are not yet annotated), just run Cvpcb."
 msgstr ""
-"Eeschmea 会自动的将一些信息 (例如当前原理图中元器件列表和可用的封装), 传递给"
-"CvPcb。在调用 CvPcb之前, 用户唯一需要做的工作就是为原理图中的各个元件编号。"
+"Eeschmea 会自动的将一些信息 (例如当前原理图中元器件列表和可用的封装), 传递给 "
+"CvPcb 。在调用 CvPcb 之前, 用户唯一需要做的工作就是为原理图中的各个元件编号。"
 
 #. type: Title ==
 #: cvpcb.adoc:116
@@ -301,7 +306,7 @@ msgstr "主界面"
 #. type: Plain text
 #: cvpcb.adoc:121
 msgid "The image below shows the main window of CvPcb."
-msgstr "下面的图片展示了CvPcb 的主界面"
+msgstr "下面的图片展示了 CvPcb 的主界面。"
 
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb.adoc:122
@@ -313,7 +318,7 @@ msgstr "CvPcb 的主界面"
 #: cvpcb.adoc:122
 #, no-wrap
 msgid "images/en/cvpcb_main_window.png"
-msgstr ""
+msgstr "images/zh/cvpcb_main_window.png"
 
 #. type: Plain text
 #: cvpcb.adoc:131
@@ -353,123 +358,89 @@ msgstr "images/cvpcb_main_toolbar.png"
 msgid "The top toolbar allows for easy access to the following commands:"
 msgstr "顶部的工具栏提供了下列命令的快速访问接口："
 
-#. type: delimited block |
-#: cvpcb.adoc:142
+#. type: Table
+#: cvpcb.adoc:180
 #, no-wrap
 msgid ""
 "|image:images/icons/save.png[]\n"
 "|Transfer the current footprint association to Eeschema (this is the content of footprint fields).\n"
-msgstr ""
-"|image:images/icons/save.png[]\n"
-"|将当前的封装关联转移到 Eeschema 中。\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:145
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/config.png[]\n"
 "|Invoke the CvPcb configuration menu.\n"
-msgstr ""
-"|image:images/icons/config.png[]\n"
-"|启动 CvPcb 配置菜单。\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:149
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/show_footprint.png[]\n"
 "|Display the footprint of the component selected in the footprint\n"
 "window.\n"
-msgstr ""
-"|image:images/icons/show_footprint.png[]\n"
-"|查看选中封装的几何外形。\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:153
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/left.png[]\n"
 "|Automatically select the previous component in the list without a\n"
 "footprint association.\n"
-msgstr ""
-"|image:images/icons/left.png[]\n"
-"|自动选中列表中上一个未分配封装的元器件。\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:157
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/right.png[]\n"
 "|Automatically select the next component in the list without a footprint\n"
 "association.\n"
-msgstr ""
-"|image:images/icons/right.png[]\n"
-"|自动选中列表中下一个未分配封装的元器件。\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:161
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/auto_associe.png[]\n"
 "|Automatically associate footprints with components starting using an\n"
 "equivalence file.\n"
-msgstr ""
-"|image:images/icons/auto_associe.png[]\n"
-"|使用 .equ 文件自动为元器件分配封装。\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:164
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/delete_association.png[]\n"
 "|Delete all footprint assignments.\n"
-msgstr ""
-"|image:images/icons/delete_association.png[]\n"
-"|删除所有的封装关联。\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:168
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/datasheet.png[]\n"
 "|Open the selected footprint documentation pdf file using the default\n"
 "pdf viewer.\n"
-msgstr ""
-"|image:images/icons/datasheet.png[]\n"
-"|使用默认的 pdf 阅读器打开选中封装的 pdf 文档。\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:172
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/module_filtered_list.png[]\n"
 "|Enable or disable the filtering to limit the list of footprints to the\n"
 "footprint filters of the selected component.\n"
-msgstr ""
-"|image:images/icons/module_filtered_list.png[]\n"
-"|改变元器件过滤器的状态。\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:176
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/module_pin_filtered_list.png[]\n"
 "|Enable or disable the filtering to limit the list of footprints using\n"
 "the pin count of the selected component.\n"
-msgstr ""
-"|image:images/icons/module_pin_filtered_list.png[]\n"
-"|改变引脚数目过滤器的状态。\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:180
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/module_library_list.png[]\n"
 "|Enable or disable filtering to limit the list of footprints using the\n"
 "selected library.\n"
 msgstr ""
+"|image:images/icons/save.png[]\n"
+"|将当前封装关联转移到 Eeschema（这是封装字段的内容）。\n"
+"\n"
+"|image:images/icons/config.png[]\n"
+"|调用 CvPcb 配置菜单。\n"
+"\n"
+"|image:images/icons/show_footprint.png[]\n"
+"|显示在封装中选择的元件的封装\n"
+"窗口。\n"
+"\n"
+"|image:images/icons/left.png[]\n"
+"|在没有的情况下自动选择列表中的上一个元件\n"
+"封装库。\n"
+"\n"
+"|image:images/icons/right.png[]\n"
+"|自动选择列表中的下一个元件而不占用封装\n"
+"库。\n"
+"|image:images/icons/auto_associe.png[]\n"
+"|使用等价文件自动将封装与\n"
+"元件相关联。\n"
+"|image:images/icons/delete_association.png[]\n"
+"|删除所有封装分配。\n"
+"\n"
+"|image:images/icons/datasheet.png[]\n"
+"|使用默认值打开选定的封装文档 pdf 文件\n"
+" pdf 查看器。\n"
+"\n"
+"|image:images/icons/module_filtered_list.png[]\n"
+"|启用或禁用过滤以限制封装列表\n"
+"所选元件的封装过滤器。\n"
+"\n"
+"|image:images/icons/module_pin_filtered_list.png[]\n"
+"|启用或禁用过滤以限制使用的封装列表\n"
+"所选元件的引脚数。\n"
+"\n"
 "|image:images/icons/module_library_list.png[]\n"
-"|改变封装库过滤器的状态。\n"
+"|启用或禁用过滤以使用。限制封装列表\n"
+"选定的库。\n"
 
 #. type: Title ===
 #: cvpcb.adoc:182
@@ -480,67 +451,51 @@ msgstr "主界面键盘快捷方式"
 #. type: Plain text
 #: cvpcb.adoc:185
 msgid "The following table lists the keyboard commands for the main window:"
-msgstr " 下面的表格列出了 CvPcb 主窗口中的键盘快捷方式。"
+msgstr "下面的表格列出了 CvPcb 主窗口中的键盘快捷方式："
 
-#. type: delimited block |
-#: cvpcb.adoc:190
+#. type: Table
+#: cvpcb.adoc:207
 #, no-wrap
 msgid ""
 "|Right Arrow / Tab|Activate the next pane to the right of the currently activated pane.\n"
 "Wrap around to the first pane if the last pane is currently activated.\n"
-msgstr ""
-"|右箭头 / Tab|使当前焦点右侧窗体部分获得焦点。\n"
-"在当前焦点为最右窗体时, 则最左窗体部分获得焦点。.\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:193
-#, no-wrap
-msgid ""
+"\n"
 "|Left Arrow |Activate the next pane to the left of the currently activated\n"
 "pane. Wrap around to the last pane if the first pane is currently activated.\n"
-msgstr ""
-"|左箭头 |使当前焦点左侧窗体部分获得焦点\n"
-"在当前焦点为最左窗体时, 则最右窗体部分获得焦点。\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:195
-#, no-wrap
-msgid "|Up Arrow |Select the previous item of the currently selected list.\n"
-msgstr "|上箭头|选择当前选中列表中的上一项\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:197
-#, no-wrap
-msgid "|Down Arrow |Select the next item of the currently selected list.\n"
-msgstr "|下箭头|选择当前选中列表中的下一项\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:200
-#, no-wrap
-msgid ""
+"\n"
+"|Up Arrow |Select the previous item of the currently selected list.\n"
+"\n"
+"|Down Arrow |Select the next item of the currently selected list.\n"
+"\n"
 "|Page Up |Select the item up one full page of the currently selected\n"
 "list.\n"
-msgstr "|Page Up |选择当前选中列表中一整页之前的项。\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:203
-#, no-wrap
-msgid ""
+"\n"
 "|Page Down |Select the item down one full page of the currently selected\n"
 "list.\n"
-msgstr "|Page Down |选择当前选中列表中一整页之后的项。\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:205
-#, no-wrap
-msgid "|Home |Select the first item of the currently selected list.\n"
-msgstr "|Home  |选择当前选中列表中的第一项。\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:207
-#, no-wrap
-msgid "|End |Select the last item of the currently selected list.\n"
-msgstr "|End |选择当前选中列表中的最后一项\n"
+"\n"
+"|Home |Select the first item of the currently selected list.\n"
+"\n"
+"|End |Select the last item of the currently selected list.\n"
+msgstr ""
+"|右箭头/选项卡 |激活当前激活窗格右侧的下一个窗格。\n"
+"如果最后一个窗格当前已激活，请换行到第一个窗格。\n"
+"\n"
+"|左箭头 |激活当前激活的左侧的下一个窗格\n"
+"窗格。 如果第一个窗格当前已激活，请换行到最后一个窗格。\n"
+"\n"
+"|向上箭头 |选择当前所选列表的上一个项目。\n"
+"\n"
+"|向下箭头 |选择当前所选列表的下一个项目。\n"
+"\n"
+"|Page Up |选择当前所选项目的整页\n"
+"名单。\n"
+"\n"
+"|Page Down |选择当前所选项目的整页内容\n"
+"名单。\n"
+"\n"
+"|Home |选择当前所选列表的第一项。\n"
+"\n"
+"|End |选择当前所选列表的最后一项。\n"
 
 #. type: Title ===
 #: cvpcb.adoc:209
@@ -558,7 +513,7 @@ msgstr "设置菜单"
 #: cvpcb.adoc:211
 #, no-wrap
 msgid "images/en/cvpcb_preference_menu.png"
-msgstr ""
+msgstr "images/zh/cvpcb_preference_menu.png"
 
 #. type: Plain text
 #: cvpcb.adoc:215
@@ -572,7 +527,7 @@ msgstr "CvPcb 可以在保存封装关联关系后自动关闭或手动关闭。
 msgid ""
 "Invoking the ``Libraries'' entry in the ``Preferences'' menu displays the "
 "library configuration dialog."
-msgstr "点击菜单中的 ``设置'' -- ``封装库''  将会打开封装库配置对话框。"
+msgstr "点击菜单中的 “设置” -- “封装库”  将会打开封装库配置对话框。"
 
 #. type: Plain text
 #: cvpcb.adoc:221
@@ -594,8 +549,8 @@ msgid ""
 "method of library management, You can also use native libraries originating "
 "from GEDA/GPCB or even Eagle xml format files."
 msgstr ""
-"新的管理方式使用 ``Pretty'' 格式。 这种管理方式将会使用一个文件夹列表,每个文"
-"件夹( 文件夹名为*.pretty) 就是一个库。新的管理方式允许用户使用来自 gEDA/gPCB "
+"新的管理方式使用 “Pretty” 格式。 这种管理方式将会使用一个文件夹列表,每个文件"
+"夹( 文件夹名为 *.pretty) 就是一个库。新的管理方式允许用户使用来自 gEDA/gPCB "
 "中的库以及 Eagle 软件中 xml 格式的库。"
 
 #. type: Plain text
@@ -621,7 +576,7 @@ msgstr "重要提示:"
 #: cvpcb.adoc:236
 #, no-wrap
 msgid "*_This section is relevant only for KiCad versions since December 2013_*\n"
-msgstr "*_本节内容只与2013年12月之后发行的 KiCad 相关_*\n"
+msgstr "*_本节内容只与2013年12月之后发行的KiCad相关_*\n"
 
 #. type: Title ===
 #: cvpcb.adoc:238
@@ -661,7 +616,7 @@ msgstr "查看封装"
 #: cvpcb.adoc:254
 #, no-wrap
 msgid "images/en/footprint_view.png"
-msgstr ""
+msgstr "images/zh/footprint_view.png"
 
 #. type: Title ====
 #: cvpcb.adoc:256
@@ -676,10 +631,10 @@ msgid ""
 "provides useful information to the user. The following table defines the "
 "contents of each pane in the status bar."
 msgstr ""
-"状态栏位于 CvPcb主窗口的底部，它为用户提供了许多有用的信息。下面的表格列出了"
+"状态栏位于 CvPcb 主窗口的底部，它为用户提供了许多有用的信息。下面的表格列出了"
 "状态栏中不同窗格的定义。"
 
-#. type: delimited block |
+#. type: Table
 #: cvpcb.adoc:267
 #, no-wrap
 msgid ""
@@ -687,8 +642,9 @@ msgid ""
 "|Middle |Filter list of the selected component\n"
 "|Right |Filtering mode and count of available footprints\n"
 msgstr ""
-"|左|元器件统计:总数量，未分配封装的数量|中|选中元件的过滤列表\n"
-"|右|过滤器状态以及可用封装的数量\n"
+"|左 |元件统计:总数量，未分配封装的数量\n"
+"|中 |选中元件的过滤列表\n"
+"|右 |过滤器状态以及可用封装的数量\n"
 
 #. type: Title ====
 #: cvpcb.adoc:269
@@ -696,7 +652,7 @@ msgstr ""
 msgid "Keyboard Commands"
 msgstr "键盘快捷键"
 
-#. type: delimited block |
+#. type: Table
 #: cvpcb.adoc:283
 #, no-wrap
 msgid ""
@@ -716,11 +672,11 @@ msgstr ""
 "|F3 |刷新显示\n"
 "|F4 |将光标移动到窗体中心\n"
 "|Home |是封装大小自适应于当前窗体\n"
-"|空格|设置相对于当前光标的相对坐标\n"
-"|右箭头|将光标向右移动一个网格单位\n"
-"|左箭头|将光标向左移动一个网格单位\n"
-"|上箭头|将光标向上移动一个网格单位\n"
-"|下箭头|将光标向下移动一个网格单位\n"
+"|空格 |设置相对于当前光标的相对坐标\n"
+"|右箭头 |将光标向右移动一个网格单位\n"
+"|左箭头 |将光标向左移动一个网格单位\n"
+"|上箭头 |将光标向上移动一个网格单位\n"
+"|下箭头 |将光标向下移动一个网格单位\n"
 
 #. type: Title ====
 #: cvpcb.adoc:285 cvpcb.adoc:362
@@ -728,7 +684,7 @@ msgstr ""
 msgid "Mouse Commands"
 msgstr "鼠标操作"
 
-#. type: delimited block |
+#. type: Table
 #: cvpcb.adoc:293
 #, no-wrap
 msgid ""
@@ -737,10 +693,10 @@ msgid ""
 "|Shift + Scroll Wheel |Pan up and down\n"
 "|Right Button Click |Open context menu\n"
 msgstr ""
-"|滚轮|在当前游标位置放大或缩小\n"
-"|Ctrl + 滚轮|水平方向平移\n"
-"|Shift + 滚轮|垂直方向平移\n"
-"|鼠标右键|打开右键菜单\n"
+"|滚轮 |在当前游标位置放大或缩小\n"
+"|Ctrl + 滚轮 |水平方向平移\n"
+"|Shift + 滚轮 |垂直方向平移\n"
+"|鼠标右键 |打开右键菜单\n"
 
 #. type: Title ====
 #: cvpcb.adoc:295
@@ -751,7 +707,7 @@ msgstr "右键菜单"
 #. type: Plain text
 #: cvpcb.adoc:298
 msgid "Displayed by right-clicking the mouse:"
-msgstr "通过点击鼠标右键打开右键菜单"
+msgstr "通过点击鼠标右键打开右键菜单："
 
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb.adoc:299
@@ -763,17 +719,17 @@ msgstr "选中封装的右键菜单"
 #: cvpcb.adoc:299
 #, no-wrap
 msgid "images/en/context_menu.png"
-msgstr ""
+msgstr "images/zh/context_menu.png"
 
-#. type: delimited block |
+#. type: Table
 #: cvpcb.adoc:305
 #, no-wrap
 msgid ""
 "|Zoom Selection (Select Zoom) |Direct selection of the display zoom.\n"
 "|Grid Selection (Grid Select) |Direct selection of the grid.\n"
 msgstr ""
-"|缩放选择|选择当前缩放的倍数\n"
-"|网格选择|选择网格大小\n"
+"|缩放选择 |选择当前缩放的倍数\n"
+"|网格选择 |选择网格大小\n"
 
 #. type: Title ====
 #: cvpcb.adoc:307 cvpcb.adoc:371
@@ -781,59 +737,43 @@ msgstr ""
 msgid "Horizontal Toolbar"
 msgstr "水平菜单"
 
-#. type: delimited block |
-#: cvpcb.adoc:315
+#. type: Table
+#: cvpcb.adoc:327
 #, no-wrap
 msgid ""
 "|image:images/icons/display_options.png[]\n"
 "|Show display options dialog\n"
 "|image:images/icons/zoom_in.png[]\n"
 "|Zoom in\n"
-msgstr ""
-"|image:images/icons/display_options.png[]\n"
-"|打开显示选项对话框\n"
-"|image:images/icons/zoom_in.png[]\n"
-"|放大\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:318 cvpcb.adoc:389
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/zoom_out.png[]\n"
 "|Zoom out\n"
-msgstr ""
-"|image:images/icons/zoom_out.png[]\n"
-"|缩小\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:321 cvpcb.adoc:392
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/zoom_redraw.png[]\n"
 "|Redraw\n"
-msgstr ""
-"|image:images/icons/zoom_redraw.png[]\n"
-"|重新绘制\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:324 cvpcb.adoc:395
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/zoom_fit_in_page.png[]\n"
 "|Fit drawing in display area\n"
-msgstr ""
-"|image:images/icons/zoom_fit_in_page.png[]\n"
-"|自适应显示\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:327
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/shape_3d.png[]\n"
 "|Open 3D model viewer\n"
 msgstr ""
+"|image:images/icons/display_options.png[]\n"
+"|显示显示选项对话框\n"
+"|image:images/icons/zoom_in.png[]\n"
+"|放大\n"
+"\n"
+"|image:images/icons/zoom_out.png[]\n"
+"|缩小\n"
+"\n"
+"|image:images/icons/zoom_redraw.png[]\n"
+"|重绘\n"
+"\n"
+"|image:images/icons/zoom_fit_in_page.png[]\n"
+"|在显示区域适合绘图\n"
+"\n"
 "|image:images/icons/shape_3d.png[]\n"
-"|打开 3D 模型浏览器\n"
+"|打开 3D 模型查看器\n"
 
 #. type: Title ====
 #: cvpcb.adoc:329
@@ -841,105 +781,77 @@ msgstr ""
 msgid "Vertical Toolbar"
 msgstr "垂直工具栏"
 
-#. type: delimited block |
-#: cvpcb.adoc:335
+#. type: Table
+#: cvpcb.adoc:356
 #, no-wrap
 msgid ""
 "|image:images/icons/grid.png[]\n"
 "|Show or hide the grid\n"
-msgstr ""
-"|image:images/icons/grid.png[]\n"
-"|显示或隐藏网格\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:338
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/polar_coord.png[]\n"
 "|Show coordinates in polar or rectangular notation\n"
-msgstr ""
-"|image:images/icons/polar_coord.png[]\n"
-"|显示极坐标或矩形表示法的坐标\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:341
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/unit_inch.png[]\n"
 "|Display coordinates in inches\n"
-msgstr ""
-"|image:images/icons/unit_inch.png[]\n"
-"|以英寸为单位显示坐标\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:344
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/unit_mm.png[]\n"
 "|Display coordinates in millimeters\n"
-msgstr ""
-"|image:images/icons/unit_mm.png[]\n"
-"|以毫米为单位显示坐标\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:347
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/cursor_shape.png[]\n"
 "|Toggle pointer style\n"
-msgstr ""
-"|image:images/icons/cursor_shape.png[]\n"
-"|切换指示器风格\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:350
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/pad_sketch.png[]\n"
 "|Toggle between drawing pads in sketch or normal mode\n"
-msgstr ""
-"|image:images/icons/pad_sketch.png[]\n"
-"|切换焊盘的显示方式。\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:353
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/text_sketch.png[]\n"
 "|Toggle between drawing text in sketch or normal mode\n"
-msgstr ""
-"|image:images/icons/text_sketch.png[]\n"
-"|切换文本的显示方式\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:356
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/show_mod_edge.png[]\n"
 "|Toggle between drawing edges in sketch or normal mode\n"
 msgstr ""
+"|image:images/icons/grid.png[]\n"
+"|显示或隐藏网格\n"
+"\n"
+"|image:images/icons/polar_coord.png[]\n"
+"|以极坐标或矩形表示法显示坐标\n"
+"\n"
+"|image:images/icons/unit_inch.png[]\n"
+"|以英寸显示坐标\n"
+"\n"
+"|image:images/icons/unit_mm.png[]\n"
+"|显示以毫米为单位的坐标\n"
+"\n"
+"|image:images/icons/cursor_shape.png[]\n"
+"|切换指针样式\n"
+"\n"
+"|image:images/icons/pad_sketch.png[]\n"
+"|在草图或正常模式下在绘图板之间切换\n"
+"\n"
+"|image:images/icons/text_sketch.png[]\n"
+"|在草图或普通模式下绘制文本之间切换\n"
+"\n"
 "|image:images/icons/show_mod_edge.png[]\n"
-"|切换边的显示方式\n"
+"|在草图或正常模式下绘制边缘之间切换\n"
 
 #. type: Title ===
 #: cvpcb.adoc:358
 #, no-wrap
 msgid "Viewing the Current 3D Model"
-msgstr "查看当前3D模型"
+msgstr "查看当前 3D 模型"
 
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb.adoc:360
 #, no-wrap
 msgid "3D-Model view"
-msgstr "3D模型查看"
+msgstr "3D 模型查看"
 
 #. type: Target for macro image
 #: cvpcb.adoc:360
 #, no-wrap
 msgid "images/en/3d_window.png"
-msgstr ""
+msgstr "images/zh/3d_window.png"
 
-#. type: delimited block |
+#. type: Table
 #: cvpcb.adoc:369
 #, no-wrap
 msgid ""
@@ -947,158 +859,119 @@ msgid ""
 "|Ctrl + Scroll Wheel |Pan right and left\n"
 "|Shift + Scroll Wheel |Pan up and down\n"
 msgstr ""
-"|鼠标滚轮|在光标处放大或缩小\n"
-"|Ctrl+ 鼠标滚轮|水平方向平移\n"
-"|Shift + 鼠标滚轮|垂直方向平移\n"
-"\n"
+"|鼠标滚轮 |在光标处放大或缩小\n"
+"|Ctrl+ 鼠标滚轮 |水平方向平移\n"
+"|Shift + 鼠标滚轮 |垂直方向平移\n"
 
-#. type: delimited block |
-#: cvpcb.adoc:377
+#. type: Table
+#: cvpcb.adoc:428
 #, no-wrap
 msgid ""
 "|image:images/icons/import3d.png[]\n"
 "|Reload the 3D model\n"
-msgstr ""
-"|image:images/icons/import3d.png[]\n"
-"|重新加载3D模型\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:380
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/copy.png[]\n"
 "|Copy 3D image to clipboard\n"
-msgstr ""
-"|image:images/icons/copy.png[]\n"
-"|将3D 模型的图片复制到剪贴板\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:383
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/read_setup.png[]\n"
 "|Set 3D viewer options\n"
-msgstr ""
-"|image:images/icons/read_setup.png[]\n"
-"|3D 查看器选项\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:386
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/zoom_in.png[]\n"
 "|Zoom in\n"
-msgstr ""
-"|image:images/icons/zoom_in.png[]\n"
-"|放大\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:398
-#, no-wrap
-msgid ""
+"\n"
+"|image:images/icons/zoom_out.png[]\n"
+"|Zoom out\n"
+"\n"
+"|image:images/icons/zoom_redraw.png[]\n"
+"|Redraw\n"
+"\n"
+"|image:images/icons/zoom_fit_in_page.png[]\n"
+"|Fit drawing in display area\n"
+"\n"
 "|image:images/icons/rotate_neg_x.png[]\n"
 "|Rotate backward along the X axis\n"
-msgstr ""
-"|image:images/icons/rotate_neg_x.png[]\n"
-"|沿X轴反向旋转\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:401
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/rotate_pos_x.png[]\n"
 "|Rotate forward along the X axis\n"
-msgstr ""
-"|image:images/icons/rotate_pos_x.png[]\n"
-"|沿X轴正向旋转\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:404
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/rotate_neg_y.png[]\n"
 "|Rotate backward along the Y axis\n"
-msgstr ""
-"|image:images/icons/rotate_neg_y.png[]\n"
-"|沿Y轴反向旋转\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:407
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/rotate_pos_y.png[]\n"
 "|Rotate forward along the Y axis\n"
-msgstr ""
-"|image:images/icons/rotate_pos_y.png[]\n"
-"|沿Y轴正向旋转\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:410
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/rotate_neg_z.png[]\n"
 "|Rotate backward along the Z axis\n"
-msgstr ""
-"|image:images/icons/rotate_neg_z.png[]\n"
-"|沿Z轴反向旋转\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:413
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/rotate_pos_z.png[]\n"
 "|Rotate forward along the Z axis\n"
-msgstr ""
-"|image:images/icons/rotate_pos_z.png[]\n"
-"|沿Z轴正向旋转\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:416
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/left.png[]\n"
 "|Pan left\n"
-msgstr ""
-"|image:images/icons/left.png[]\n"
-"|向左平移\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:419
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/right.png[]\n"
 "|Pan right\n"
-msgstr ""
-"|image:images/icons/right.png[]\n"
-"|向右平移\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:422
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/up.png[]\n"
 "|Pan up\n"
-msgstr ""
-"|image:images/icons/up.png[]\n"
-"|向上平移\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:425
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/down.png[]\n"
 "|Pan down\n"
-msgstr ""
-"|image:images/icons/down.png[]\n"
-"|向下平移\n"
-
-#. type: delimited block |
-#: cvpcb.adoc:428
-#, no-wrap
-msgid ""
+"\n"
 "|image:images/icons/ortho.png[]\n"
 "|Toggle orthographic projection mode on and off\n"
 msgstr ""
+"|image:images/icons/import3d.png[]\n"
+"|重新加载 3D 模型\n"
+"\n"
+"|image:images/icons/copy.png[]\n"
+"|将 3D 图像复制到剪贴板\n"
+"\n"
+"|image:images/icons/read_setup.png[]\n"
+"|设置 3D 查看器选项\n"
+"\n"
+"|image:images/icons/zoom_in.png[]\n"
+"|放大\n"
+"\n"
+"|image:images/icons/zoom_out.png[]\n"
+"|缩小\n"
+"\n"
+"|image:images/icons/zoom_redraw.png[]\n"
+"|重绘\n"
+"\n"
+"|image:images/icons/zoom_fit_in_page.png[]\n"
+"|在显示区域适合绘图\n"
+"\n"
+"|image:images/icons/rotate_neg_x.png[]\n"
+"|沿 X 轴向后旋转\n"
+"\n"
+"|image:images/icons/rotate_pos_x.png[]\n"
+"|沿 X 轴向前旋转\n"
+"\n"
+"|image:images/icons/rotate_neg_y.png[]\n"
+"|沿 Y 轴向后旋转\n"
+"\n"
+"|image:images/icons/rotate_pos_y.png[]\n"
+"|沿 Y 轴向前旋转\n"
+"\n"
+"|image:images/icons/rotate_neg_z.png[]\n"
+"|沿 Z 轴向后旋转\n"
+"\n"
+"|image:images/icons/rotate_pos_z.png[]\n"
+"|沿 Z 轴向前旋转\n"
+"\n"
+"|image:images/icons/left.png[]\n"
+"|镜头左转\n"
+"\n"
+"|image:images/icons/right.png[]\n"
+"|镜头右转\n"
+"\n"
+"|image:images/icons/up.png[]\n"
+"|镜头上转\n"
+"\n"
+"|image:images/icons/down.png[]\n"
+"|镜头下转\n"
+"\n"
 "|image:images/icons/ortho.png[]\n"
 "|打开和关闭正交投影模式\n"
 
@@ -1106,7 +979,7 @@ msgstr ""
 #: cvpcb.adoc:432
 #, no-wrap
 msgid "Using CvPcb to Associate Components with Footprints"
-msgstr "使用 CvPcb 向元器件分配封装"
+msgstr "使用 CvPcb 向元件分配封装"
 
 #. type: Title ===
 #: cvpcb.adoc:434
@@ -1123,10 +996,10 @@ msgid ""
 "The unassigned next component in the list is automatically selected. "
 "Changing the component footprint is performed in the same manner."
 msgstr ""
-"如果要手动分配封装, 首先在需要位于窗口中部的元器件窗格中选择一个元器件.然后在"
-"右侧的封装窗格中, 鼠标左键双击想要分配的封装.然后该封装就会被分配给选择的元器"
-"件. 此外, 分配完成后, 下一个未分配封装的元器件将会被自动选中.改变元器件的封装"
-"时, 操作类似."
+"如果要手动分配封装, 首先在需要位于窗口中部的元件窗格中选择一个元器件.然后在右"
+"侧的封装窗格中, 鼠标左键双击想要分配的封装.然后该封装就会被分配给选择的元器"
+"件. 此外, 分配完成后, 下一个未分配封装的元件将会被自动选中.改变元件的封装时, "
+"操作类似."
 
 #. type: Title ===
 #: cvpcb.adoc:443
@@ -1154,8 +1027,8 @@ msgid ""
 msgstr ""
 "image:images/icons/module_filtered_list.png[] image:images/icons/"
 "module_pin_filtered_list.png[] image:images/icons/module_library_list.png[] "
-"点击这些按钮将打开或关闭过滤器. 当所有的过滤器都处于关闭状态时, 将会在右侧显"
-"示所有可用的封装."
+"点击这些按钮将打开或关闭过滤器。当所有的过滤器都处于关闭状态时, 将会在右侧显"
+"示所有可用的封装。"
 
 #. type: Plain text
 #: cvpcb.adoc:456
@@ -1172,7 +1045,7 @@ msgstr "没有任何过滤器应用的列表"
 #: cvpcb.adoc:457
 #, no-wrap
 msgid "images/en/filter_none.png"
-msgstr ""
+msgstr "images/zh/filter_none.png"
 
 #. type: Plain text
 #: cvpcb.adoc:462
@@ -1187,7 +1060,7 @@ msgstr ""
 #. type: Plain text
 #: cvpcb.adoc:464
 msgid "Filtered by the footprint filter of the selected component:"
-msgstr "根据应用于选定元器件的过滤器对封装列表进行过滤"
+msgstr "根据应用于选定元器件的过滤器对封装列表进行过滤："
 
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb.adoc:465
@@ -1199,7 +1072,7 @@ msgstr "被过滤的列表"
 #: cvpcb.adoc:465
 #, no-wrap
 msgid "images/en/filter_comp.png"
-msgstr ""
+msgstr "images/zh/filter_comp.png"
 
 #. type: Plain text
 #: cvpcb.adoc:470
@@ -1208,8 +1081,8 @@ msgid ""
 "using the entries in the footprint filter tab of the component properties "
 "dialog as shown below."
 msgstr ""
-"在 Eeschema 的元器件库编辑器中, 用户可以在元器件属性对话框的 ``封装'' 选项卡"
-"中设置元器件的可用封装列表.元器件属性对话框如下图所示:"
+"在 Eeschema 的元件库编辑器中, 用户可以在元件属性对话框的 “封装” 选项卡中设置"
+"元件的可用封装列表元件属性对话框如下图所示。"
 
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb.adoc:471
@@ -1221,12 +1094,12 @@ msgstr "Eeschema 中的封装过滤器"
 #: cvpcb.adoc:471
 #, no-wrap
 msgid "images/en/eeschema_filter.png"
-msgstr ""
+msgstr "images/zh/eeschema_filter.png"
 
 #. type: Plain text
 #: cvpcb.adoc:474
 msgid "Filtered by the pin count of the selected component:"
-msgstr "根据选中的元器件的引脚数目进行过滤:"
+msgstr "根据选中的元件的引脚数目进行过滤:"
 
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb.adoc:475
@@ -1238,12 +1111,12 @@ msgstr "受引脚数目约束的封装列表"
 #: cvpcb.adoc:475
 #, no-wrap
 msgid "images/en/filter_pincount.png"
-msgstr ""
+msgstr "images/zh/filter_pincount.png"
 
 #. type: Plain text
 #: cvpcb.adoc:478
 msgid "Filtered by the selected library."
-msgstr "根据选择的封装库进行过滤"
+msgstr "根据选择的封装库进行过滤。"
 
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb.adoc:479
@@ -1255,7 +1128,7 @@ msgstr "受封装库约束的列表"
 #: cvpcb.adoc:479
 #, no-wrap
 msgid "images/en/filter_library.png"
-msgstr ""
+msgstr "images/zh/filter_library.png"
 
 #. type: Plain text
 #: cvpcb.adoc:483
@@ -1269,19 +1142,19 @@ msgstr ""
 #. type: Plain text
 #: cvpcb.adoc:485
 msgid "Filtered by the selected component pin count and the component filter:"
-msgstr "根据选定元器件的引脚和元器件过滤器进行过滤:"
+msgstr "根据选定元器件的引脚和元件过滤器进行过滤:"
 
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb.adoc:486
 #, no-wrap
 msgid "List filtered by pin count and component"
-msgstr "受元器件和引脚数目约束的列表."
+msgstr "受元件和引脚数目约束的列表"
 
 #. type: Target for macro image
 #: cvpcb.adoc:486
 #, no-wrap
 msgid "images/en/filter_comp_and_pincount.png"
-msgstr ""
+msgstr "images/zh/filter_comp_and_pincount.png"
 
 #. type: Title ==
 #: cvpcb.adoc:490
@@ -1299,7 +1172,7 @@ msgstr "Equivalence 文件"
 #: cvpcb.adoc:496
 msgid ""
 "Equivalence files allow for automatic assignment of footprints to components."
-msgstr "Equivalence 文件可以帮助用户自动为元器件分配封装."
+msgstr "Equivalence 文件可以帮助用户自动为元件分配封装."
 
 #. type: Plain text
 #: cvpcb.adoc:500
@@ -1308,8 +1181,8 @@ msgid ""
 "(__value field__) of the component. These files typically have the *.equ* "
 "file extension."
 msgstr ""
-"它会根据元器件的名称属性(__value field__)列出与之对应的封装. Equivalence 文件"
-"的文件扩展名为 *.equ* "
+"它会根据元件的名称属性(__value field__)列出与之对应的封装. Equivalence 文件的"
+"文件扩展名为 *.equ* 。"
 
 #. type: Plain text
 #: cvpcb.adoc:503
@@ -1317,8 +1190,8 @@ msgid ""
 "They are plain text files and may be edited by using any plain text editor, "
 "and must be created by the user."
 msgstr ""
-".equ 文件是纯文本文件,用户可以用任何文本编辑器编辑它.该文件指能由用户手动创"
-"建."
+".equ 文件是纯文本文件,用户可以用任何文本编辑器编辑它。该文件指能由用户手动创"
+"建。"
 
 #. type: Title ===
 #: cvpcb.adoc:506
@@ -1331,20 +1204,20 @@ msgstr "Equivalence 文件格式"
 msgid ""
 "Equivalence files consist of one line for each component. Each line has the "
 "following structure:"
-msgstr ".equ 文件中每一行对应一个元器件.每行的格式如下:"
+msgstr ".equ 文件中每一行对应一个元件.每行的格式如下:"
 
 #. type: Plain text
 #: cvpcb.adoc:512
 #, no-wrap
 msgid "*`component value' `footprint name'*\n"
-msgstr "*`元器件值' `封装名'*\n"
+msgstr "*“元器件值” “封装名”*\n"
 
 #. type: Plain text
 #: cvpcb.adoc:515
 msgid ""
 "Each name must be single quoted by the ' character and the component and "
 "footprint names must be separated by one or more spaces."
-msgstr "每个名称都应该被单引号括起, 不同的封装名应该由一个或者多个空格隔开."
+msgstr "每个名称都应该被单引号括起, 不同的封装名应该由一个或者多个空格隔开。"
 
 #. type: Plain text
 #: cvpcb.adoc:517
@@ -1361,7 +1234,7 @@ msgstr "如果 U3 是 14011, 它的封装是 14DIP300,那么其对应行应写�
 #. type: Plain text
 #: cvpcb.adoc:522
 msgid "+`14011' `14DIP300'+"
-msgstr "+`14011' `14DIP300'+"
+msgstr "+“14011” “14DIP300”+"
 
 #. type: Plain text
 #: cvpcb.adoc:524
@@ -1449,7 +1322,7 @@ msgstr ""
 #: cvpcb.adoc:560
 #, no-wrap
 msgid "Automatically Associating Footprints to Components"
-msgstr "自动为元器件分配封装"
+msgstr "自动为元件分配封装"
 
 #. type: Plain text
 #: cvpcb.adoc:564
@@ -1463,7 +1336,7 @@ msgstr "点击位于顶部工具栏的自动分配按钮以解析 Equivalence �
 msgid ""
 "_All components found by their value in the selected equivalence (*.equ) "
 "file will have their footprint automatically assigned._"
-msgstr "_所有在 .equ 文件中能找到相关记录的元器件,将会被自动分配封装。_"
+msgstr "_所有在 .equ 文件中能找到相关记录的元件,将会被自动分配封装。_"
 
 #
 #
@@ -1485,7 +1358,7 @@ msgid ""
 "libraries* from"
 msgstr ""
 "从2013年12约以后， Pcbnew 和 CvPcb 使用了新的基于 *_封装库列表_* 的库管理工"
-"具。 新的管理工具允许用户通过以下方式 *直接使用封装库* :  "
+"具，新的管理工具允许用户通过以下方式 *直接使用封装库* 。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:7
@@ -1499,15 +1372,14 @@ msgid ""
 "pretty extension, containing .kicad_mod files)"
 msgstr ""
 "KiCad 新式 _.pretty_ 封装库(在用户的本地磁盘中， 拥有 .pretty 扩展名并包含"
-"了 .kicad_mod 文件的文件夹) "
+"了 .kicad_mod 文件的文件夹)"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:10
 msgid ""
 "KiCad New _.pretty_ footprint libraries (on our Github server, or other "
 "Github server)"
-msgstr ""
-"KiCad's 新式 _.pretty_ 封装库 (托管在官方或第三方维护的 Github 仓库中) "
+msgstr "KiCad 新式 _.pretty_ 封装库 (托管在官方或第三方维护的 Github 仓库中)"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:11
@@ -1526,7 +1398,7 @@ msgid ""
 "disk (and the .kicad_mod files inside these folders)."
 msgstr ""
 "用户仅能改写位于本地磁盘上的 Kicad _.pretty_ 封装库 (以及这些文件夹中包括的 ."
-"kicad_mod 文件),"
+"kicad_mod 文件)。"
 
 #. type: delimited block =
 #: cvpcb_footprint_libraries_tables.adoc:18
@@ -1540,8 +1412,8 @@ msgid ""
 "be opened by invoking the ``Footprint Libraries'' entry from the "
 "``Preferences'' menu."
 msgstr ""
-"下面的图片展示了封装库列表编辑对话框, 该对话框可以通过菜单栏中的 ``设置''- ``"
-"封装库'' 打开。 "
+"下面的图片展示了封装库列表编辑对话框, 该对话框可以通过菜单栏中的 “设置” - “封"
+"装库” 打开。"
 
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb_footprint_libraries_tables.adoc:26
@@ -1553,7 +1425,7 @@ msgstr "封装库列表编辑对话框"
 #: cvpcb_footprint_libraries_tables.adoc:26
 #, no-wrap
 msgid "images/en/lib_table.png"
-msgstr ""
+msgstr "images/zh/lib_table.png"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:32
@@ -1563,7 +1435,7 @@ msgid ""
 "up footprints* instead of the previous method which depended on library "
 "search path ordering."
 msgstr ""
-"封装库列表的作用是为  Kicad 支持的封装库分配一个别名。*可利用该别名,而不是之"
+"封装库列表的作用是为  Kicad 支持的封装库分配一个别名。* 可利用该别名,而不是之"
 "前基于封装库路径查找顺序的方法,进行封装的查找."
 
 #. type: Plain text
@@ -1576,7 +1448,7 @@ msgid ""
 msgstr ""
 "这项功能能够使 Cvpcb 控制不同封装库的加载， 从而使得访问那些位于不同封装库但"
 "是拥有相同名称的封装可以被正确访问。此外，这项功能还能使 Kicad 访问来自其他 "
-"PCB 编辑器，例如 Eagle 和 GEDA ,的封装库 "
+"PCB 编辑器，例如 Eagle 和 GEDA 的封装库。"
 
 #. type: Title ====
 #: cvpcb_footprint_libraries_tables.adoc:39
@@ -1615,7 +1487,7 @@ msgid ""
 msgstr ""
 "项目封装库列表包括了仅在当前打开项目内能访问的封装库。项目封装库列表仅能在项"
 "目的 网络列表文件被加载时才能编辑。如果当前没有打开任何项目，或是在打开的项目"
-"目录中没有封装库列表文件，那么系统将创建一个新的可供编辑的表格文件。 "
+"目录中没有封装库列表文件，那么系统将创建一个新的可供编辑的表格文件。"
 
 #. type: Title ====
 #: cvpcb_footprint_libraries_tables.adoc:56
@@ -1632,9 +1504,9 @@ msgid ""
 "system's KiCad template folder to the file fp-lib-table in the user's home "
 "folder."
 msgstr ""
-"首次运行 Pcbnew 或 Cvpcb时， 如果在用户主目录下无法找到全局封装库列表文件* "
-"fp-lib-table*，那么Pcbnew 或 CvPcb 将尝试将存储在 Kicad 模板文件夹中的默认封"
-"装库列表文件复制到用户主目录中。"
+"首次运行 Pcbnew 或 Cvpcb 时， 如果在用户主目录下无法找到全局封装库列表文件 "
+"*fp-lib-table* ，那么 Pcbnew 或 CvPcb 将尝试将存储在 Kicad 模板文件夹中的默认"
+"封装库列表文件复制到用户主目录中。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:67
@@ -1653,7 +1525,7 @@ msgid ""
 "The default footprint library table includes many of the standard footprint "
 "libraries that are installed as part of KiCad."
 msgstr ""
-"默认的封装库列表将作为 kicad 的一部分而被安装，其中包括了许多标准的封装. "
+"默认的封装库列表将作为 kicad 的一部分而被安装，其中包括了许多标准的封装。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:73
@@ -1699,10 +1571,10 @@ msgid ""
 "of library. Paths can be defined as absolute, relative, or by environment "
 "variable substitution (see section below)."
 msgstr ""
-"``别名'' 字段可以由用户自行决定，不必和封装库的路径/封装库文件名等相关。别名"
-"中不可以出现冒号 : 。列表中的每一项需要有一个可用的路径。根据封装库类型的不"
-"同，路径的具体表现形式可能不同。``路径'' 字段中的内容可以是绝对路径，相对路"
-"径，或者是环境变量(下文中会进一步讨论)"
+"“别名” 字段可以由用户自行决定，不必和封装库的路径/封装库文件名等相关。别名中"
+"不可以出现冒号 : 。列表中的每一项需要有一个可用的路径。根据封装库类型的不同，"
+"路径的具体表现形式可能不同。“路径” 字段中的内容可以是绝对路径，相对路径，或者"
+"是环境变量(下文中会进一步讨论)"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:94
@@ -1711,8 +1583,8 @@ msgid ""
 "properly read. KiCad currently supports reading KiCad legacy, KiCad Pretty, "
 "Eagle, and GEDA footprint libraries."
 msgstr ""
-"为了正确读取封装库，列表中每一项的``插件类型'' 字段必须被正确选择。目前 "
-"KiCad 支持的类型包括 KiCad legacy, KiCad Pretty, Eagle, 和 GEDA 封装库。"
+"为了正确读取封装库，列表中每一项的 “插件类型” 字段必须被正确选择。目前 KiCad "
+"支持的类型包括 KiCad legacy, KiCad Pretty, Eagle, 和 GEDA 封装库。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:98
@@ -1721,8 +1593,8 @@ msgid ""
 "The option field is not used at this time so adding options will have no "
 "effect when loading libraries."
 msgstr ""
-"列表中的 ``描述'' 字段，用于为项添加额外的备注信息。列表中的 ``设置'' 字段在"
-"当前版本尚未使用，修改该字段没有任何效果"
+"列表中的 “描述” 字段，用于为项添加额外的备注信息。列表中的 “设置” 字段在当前"
+"版本尚未使用，修改该字段没有任何效果。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:102
@@ -1761,13 +1633,13 @@ msgid ""
 "in the footprint library path."
 msgstr ""
 "环境变量替换是封装库列表的强大功能之一。它将允许用户使用环境变量定义自定义的"
-"封装路径。使用环境变量替换, 需要在封装库列表的 ``路径'' 字段中，遵守以下语"
-"法: +$\\{ENV_VAR_NAME\\}"
+"封装路径。使用环境变量替换, 需要在封装库列表的 “路径” 字段中，遵守以下语法: +"
+"$\\{ENV_VAR_NAME\\}"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:116
 msgid "By default, at run time KiCad defines **two environment variables**:"
-msgstr "运行时，KiCad 默认定义 ** 两个环境变量** :"
+msgstr "运行时，KiCad 默认定义 **两个环境变量** :"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:119
@@ -1781,7 +1653,7 @@ msgstr "*+KIPRJMOD+* 环境变量。该变量指向当前项目的目录，不�
 msgid ""
 "the *+KISYSMOD+* environment variable. This points to where the default "
 "footprint libraries that were installed with KiCad are located."
-msgstr "*+KISYSMOD+* 环境变量。该变量指向默认随KiCad安装的默认封装库目录。"
+msgstr "*+KISYSMOD+* 环境变量。该变量指向默认随 KiCad 安装的默认封装库目录。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:126
@@ -1790,8 +1662,8 @@ msgid ""
 "Path which allows you to substitute your own libraries in place of the "
 "default KiCad footprint libraries."
 msgstr ""
-"用户可以通过在菜单栏中的 ``设置''- ``配置目录'' 中重载 +KISYSMOD+ 的值，因此"
-"用户可以使用自定义的封装库替换Kicad的默认封装库。"
+"用户可以通过在菜单栏中的 “设置” - “配置目录” 中重载 +KISYSMOD+ 的值，因此用户"
+"可以使用自定义的封装库替换 Kicad 的默认封装库。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:129
@@ -1806,7 +1678,7 @@ msgstr ""
 #: cvpcb_footprint_libraries_tables.adoc:131
 msgid ""
 "Pcbnew also defines this environment variable when loading a board file."
-msgstr "在加载一个 board file时，Pcbnew 也会设置该环境变量。"
+msgstr "在加载一个电路板文件时，Pcbnew 也会设置该环境变量。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:135
@@ -1821,7 +1693,7 @@ msgstr ""
 #: cvpcb_footprint_libraries_tables.adoc:136
 #, no-wrap
 msgid "Using the GitHub Plugin"
-msgstr "使用 Github 插件"
+msgstr "使用 GitHub 插件"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:147
@@ -1836,12 +1708,12 @@ msgid ""
 "the ``Library Path'' in the footprint library table row must be set to a "
 "valid GitHub URL."
 msgstr ""
-"Github 插件提供了只读访问那些包含Kicad pretty封装库文件的Github仓库的接口。  "
-"该插件也提供了 COW(``Copy On Write'')功能。 该功能是可选项，它将允许用户编辑"
-"从 Github 仓库读取的封装库， 并且将它们保存在本地。因而， ``Github''插件用于 "
-"*只读访问托管于 https://github.com/[https://github.com/] 的远程 pretty 封装库"
-"*如果要向封装库列表中添加 Github 项， 其 ``路径'' 字段需要被设置为一个合法的 "
-"Github 地址。"
+"GitHub 插件提供了只读访问那些包含 Kicad pretty 封装库文件的 GitHub 仓库的接"
+"口。  该插件也提供了 COW(“复制时写入”) 功能。 该功能是可选项，它将允许用户编"
+"辑从 GitHub 仓库读取的封装库， 并且将它们保存在本地。因而， “GitHub” 插件用"
+"于 *只读访问托管于 https://github.com/[https://github.com/] 的远程 pretty 封"
+"装库* 如果要向封装库列表中添加 GitHub 项， 其 “路径” 字段需要被设置为一个合法"
+"的 GitHub 地址。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:149
@@ -1870,7 +1742,7 @@ msgstr "https://github.com/KiCad[https://github.com/KiCad]"
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:158
 msgid "Typically GitHub URLs take the form:"
-msgstr "典型的 Github URL为以下形式:"
+msgstr "典型的 GitHub URL 为以下形式:"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:160
@@ -1899,41 +1771,37 @@ msgid ""
 "``Github'' in all further discussions, but it consists of both the local "
 "read/write portion and the remote read only portion."
 msgstr ""
-"``插件类型''字段必须被设置为 ``Github''。 如果要使用 COW功能,必须向设置字段内"
-"添加 *allow_pretty_writing_to_this_dir* 的选项.该选项的值用于设置对Github上封"
-"装库的修改副本的存储路径.存储在该目录中的封装将和Github上的只读部分共同构成封"
-"装库.如果没有声明该选项,那么Github封装库就完全是只读的. 如果声明了该选项, 那"
-"么对该 ``混合''封装库的修改,将存储到本地的 .pretty 文件夹中.注意该 ``混合'' "
-"封装库中位于Github中的那一部分始终是只读的, 这意味着你无法直接删除或修改特定"
-"Github 仓库中的内容. 进一步的讨论认为该混合仓库仍然属于 ``Github'' 类型, 只是"
-"它包括了本地的读/写部分及远程的只读部分."
+"“插件类型” 字段必须被设置为 “GitHub”。 如果要使用 COW 功能,必须向设置字段内添"
+"加 *允许写这个目录* 的选项.该选项的值用于设置对 GitHub 上封装库的修改副本的存"
+"储路径.存储在该目录中的封装将和 GitHub 上的只读部分共同构成封装库.如果没有声"
+"明该选项,那么 GitHub 封装库就完全是只读的. 如果声明了该选项, 那么对该 “混合” "
+"封装库的修改,将存储到本地的 .pretty 文件夹中.注意该 “混合” 封装库中位于 "
+"GitHub 中的那一部分始终是只读的, 这意味着你无法直接删除或修改特定 GitHub 仓库"
+"中的内容. 进一步的讨论认为该混合仓库仍然属于 “GitHub” 类型, 只是它包括了本地"
+"的读/写部分及远程的只读部分."
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:179
 msgid ""
 "The table below shows a footprint library table entry without the option "
 "*allow_pretty_writing_to_this_dir*:"
-msgstr ""
-"下面的表格展示了没有 *allow_pretty_writing_to_this_dir* 设置的封装库列表项:"
+msgstr "下面的表格展示了没有 *允许写这个目录* 设置的封装库列表项:"
 
-#. type: delimited block |
-#: cvpcb_footprint_libraries_tables.adoc:183
-#: cvpcb_footprint_libraries_tables.adoc:199
-#, no-wrap
-msgid "|Nickname |Library Path |Plugin Type |Options |Descript.\n"
-msgstr "|别名|库路径|插件类型|设置 |描述\n"
-
-#. type: delimited block |
+#. type: Table
 #: cvpcb_footprint_libraries_tables.adoc:187
 #, no-wrap
 msgid ""
+"|Nickname |Library Path |Plugin Type |Options |Descript.\n"
+"\n"
 "|github\n"
 "|https://github.com/liftoff-sr/pretty_footprints[https://github.com/liftoff-sr/pretty_footprints]\n"
 "|Github | |Liftoff's GH footprints\n"
 msgstr ""
+"|昵称 |库路径 |插件类型 |选项 |描述。\n"
+"\n"
 "|github\n"
 "|https://github.com/liftoff-sr/pretty_footprints[https://github.com/liftoff-sr/pretty_footprints]\n"
-"|Github | |Liftoff's GitHub Footprints\n"
+"|Github | |Liftoff's GH footprints\n"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:195
@@ -1945,24 +1813,27 @@ msgid ""
 "to create that directory manually in advance and it must end with the "
 "extension *.pretty*."
 msgstr ""
-"下面的表格展示了开启COW功能的封装库列表项。注意 环境变量 $\\{HOME\\} 仅做举例"
-"用。github.pretty 目录应该位于 $\\{HOME\\}/pretty/ 。如果用户使用了 "
-"*allow_pretty_writing_to_this_dir* 选项，则应该提前手动创建上述目录并以 ."
-"pretty结尾。"
+"下面的表格展示了开启 COW 功能的封装库列表项。注意 环境变量 $\\{HOME\\} 仅做举"
+"例用。github.pretty 目录应该位于 $\\{HOME\\}/pretty/ 。如果用户使用了 *允许写"
+"这个目录* 选项，则应该提前手动创建上述目录并以 .pretty 结尾。"
 
-#. type: delimited block |
+#. type: Table
 #: cvpcb_footprint_libraries_tables.adoc:204
 #, no-wrap
 msgid ""
+"|Nickname |Library Path |Plugin Type |Options |Descript.\n"
+"\n"
 "|github\n"
 "|https://github.com/liftoff-sr/pretty_footprints[https://github.com/liftoff-sr/pretty_footprints]\n"
 "|Github |allow_pretty_writing_to_this_dir= $\\{HOME\\}/pretty/github.pretty\n"
 "|Liftoff's GH footprints\n"
 msgstr ""
+"|昵称 |库路径 |插件类型 |选项 |描述。\n"
+"\n"
 "|github\n"
 "|https://github.com/liftoff-sr/pretty_footprints[https://github.com/liftoff-sr/pretty_footprints]\n"
 "|Github |allow_pretty_writing_to_this_dir= $\\{HOME\\}/pretty/github.pretty\n"
-"|Liftoff's GitHub Footprints\n"
+"|Liftoff's GH footprints\n"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:212
@@ -1973,9 +1844,9 @@ msgid ""
 "footprint save in the footprint editor, no Git Hub updates will be seen when "
 "loading a footprint with the same name as one for which you've saved locally."
 msgstr ""
-"对于设置了*allow_pretty_writing_to_this_dir* 的列表项，将首先加载位于本地的封"
-"装库。一旦用户使用封装编辑器对封装进行修改并保存在了 COW 本地文件夹中，那么 "
-"Github 仓库中,和用户修改并保存过的的封装同名的任何封装的更新将不会被看见。"
+"对于设置了 *允许写这个目录* 的列表项，将首先加载位于本地的封装库。一旦用户使"
+"用封装编辑器对封装进行修改并保存在了 COW 本地文件夹中，那么 GitHub 仓库中,和"
+"用户修改并保存过的的封装同名的任何封装的更新将不会被看见。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:215
@@ -1983,15 +1854,17 @@ msgid ""
 "Always keep a separate local *.pretty directory for each Git Hub library, "
 "never combine them by referring to the same directory more than once."
 msgstr ""
-"始终应该对每一个Github封装库使用不同的本地 .pretty 目录。请不要试图通过多次引"
-"用同一目录的方式来结合两个不同的Github封装库。"
+"始终应该对每一个 GitHub 封装库使用不同的本地 .pretty 目录。请不要试图通过多次"
+"引用同一目录的方式来结合两个不同的 GitHub 封装库。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:218
 msgid ""
 "Also, do not use the same COW (*.pretty) directory in a footprint library "
 "table entry. This would likely create a mess."
-msgstr "也不要在不同的封装库列表项中使用相同的COW目录。 这将带来不少问题。"
+msgstr ""
+"也不要在不同的封装库列表项中使用相同的 COW (*.pretty) 目录。 这将带来不少问"
+"题。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:222
@@ -2000,14 +1873,14 @@ msgid ""
 "environment variable using the $\\{\\} notation to create the path in the "
 "same way as the ``Library Path'' setting."
 msgstr ""
-"设置字段中，*allow_pretty_writing_to_this_dir* 的设置值将会通过使用 $\\{\\} "
-"表示的环境变量来创建路径，就和在库路径字段中使用环境变量一样。"
+"设置字段中，*允许写这个目录* 的设置值将会通过使用 $\\{\\} 表示的环境变量来创"
+"建路径，就和在库路径字段中使用环境变量一样。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:224
 msgid ""
 "What is the point of COW? It is to turbo-charge the sharing of footprints."
-msgstr "那COW的目的究竟是什么?  其实它是为了更好的促进封装库的分享。"
+msgstr "那 COW 的目的究竟是什么?  其实它是为了更好的促进封装库的分享。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:234
@@ -2022,12 +1895,12 @@ msgid ""
 "small as possible by contributing frequently to the shared master copies at "
 "https://github.com/[https://github.com]."
 msgstr ""
-"如果用户周期性的将通过COW 修改的pretty元件库反馈到Github仓库的维护者处, 那么"
-"用可以帮助更新 Github 中的封装库。用户可以仅将COW文件夹中的 *.kicad_mod 文件"
-"发送给仓库的维护者。当用户得知他们的修改被同步到了Github仓库时，他们就可以删"
-"除本地的COW文件，然后 使用Github插件提供的只读访问功能。用户应尽量向位于"
-"https://github.com/[https://github.com] 的主仓库多多提交，让自己的COW文件尽可"
-"能的小"
+"如果用户周期性的将通过 COW 修改的 pretty 元件库反馈到 GitHub 仓库的维护者处, "
+"那么用可以帮助更新 GitHub 中的封装库。用户可以仅将 COW 文件夹中的 *."
+"kicad_mod 文件发送给仓库的维护者。当用户得知他们的修改被同步到了 GitHub 仓库"
+"时，他们就可以删除本地的 COW 文件，然后 使用 GitHub 插件提供的只读访问功能。"
+"用户应尽量向位于 https://github.com/[https://github.com] 的主仓库多多提交，让"
+"自己的 COW 文件尽可能的小。"
 
 #. type: Title ====
 #: cvpcb_footprint_libraries_tables.adoc:235
@@ -2081,7 +1954,7 @@ msgid ""
 msgstr ""
 "两种方法各有优劣。你可以在全局封装库列表中定义所有你可能会用到的封装，这样可"
 "以实现随用随取。这样做的缺点是你必须在非常多的封装中寻找你所需要的封装。你也"
-"可以根据项目的需求定义你的封装库，"
+"可以根据项目的需求定义你的封装库。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:260
@@ -2133,12 +2006,12 @@ msgstr ""
 #: cvpcb_footprint_libraries_tables.adoc:278
 msgid ""
 "Note also libraries can be any type of footprint library supported by KiCad."
-msgstr "待添加的封装库可以是任何Kicad 支持的类型。"
+msgstr "待添加的封装库可以是任何 Kicad 支持的类型。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:280
 msgid "It can add ``local'' libraries or libraries from a Github repository."
-msgstr "它可以是本地的封装库或是Github上的封装库。"
+msgstr "它可以是本地的封装库或是 GitHub 上的封装库。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:283
@@ -2146,8 +2019,8 @@ msgid ""
 "When libraries are on a Github repository, they can be added as remote "
 "libraries, or **downloaded and added as _local libraries_**."
 msgstr ""
-"当库位于Github仓库中时，它们可以被添加为远程仓库，也可以 **将它们下载到本地作"
-"为 _本地仓库_ 添加**。 "
+"当库位于 GitHub 仓库中时，它们可以被添加为远程仓库，也可以 **将它们下载到本地"
+"作为 _本地仓库_ 添加**。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:285
@@ -2164,7 +2037,7 @@ msgstr "封装库添加向导本地起始页面"
 #: cvpcb_footprint_libraries_tables.adoc:286
 #, no-wrap
 msgid "images/en/fplib_wizard_locallibstartpage.png"
-msgstr ""
+msgstr "images/zh/fplib_wizard_locallibstartpage.png"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:289
@@ -2175,13 +2048,13 @@ msgstr "此处远程封装库选项被选中。"
 #: cvpcb_footprint_libraries_tables.adoc:290
 #, no-wrap
 msgid "Footprint library wizard startpage GitHub"
-msgstr "封装库添加向导Github起始页面"
+msgstr "封装库添加向导 GitHub 起始页面"
 
 #. type: Target for macro image
 #: cvpcb_footprint_libraries_tables.adoc:290
 #, no-wrap
 msgid "images/en/fplib_wizard_startpage_github.png"
-msgstr ""
+msgstr "images/zh/fplib_wizard_startpage_github.png"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:294
@@ -2206,24 +2079,24 @@ msgstr "封装库添加向导本地库选中"
 #: cvpcb_footprint_libraries_tables.adoc:297
 #, no-wrap
 msgid "images/en/fplib_wizard_locallibselection.png"
-msgstr ""
+msgstr "images/zh/fplib_wizard_locallibselection.png"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:300
 msgid "Here, the remote libraries option was selected."
-msgstr "此处,远程仓库选项被选中."
+msgstr "此处,远程仓库选项被选中。"
 
 #. type: Named 'alt' AttributeList argument for macro 'image'
 #: cvpcb_footprint_libraries_tables.adoc:301
 #, no-wrap
 msgid "Footprint library wizard GitHub selection"
-msgstr "封装添加向导-Github选中"
+msgstr "封装添加向导 GitHub 选中"
 
 #. type: Target for macro image
 #: cvpcb_footprint_libraries_tables.adoc:301
 #, no-wrap
 msgid "images/en/fplib_wizard_githubselection.png"
-msgstr ""
+msgstr "images/zh/fplib_wizard_githubselection.png"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:304
@@ -2235,13 +2108,13 @@ msgstr "当一系列封装库被选中后,下一个页面将验证选择:"
 #: cvpcb_footprint_libraries_tables.adoc:305
 #, no-wrap
 msgid "Footprint libary wizard validate"
-msgstr "封装库添加向导-验证"
+msgstr "封装库添加向导验证"
 
 #. type: Target for macro image
 #: cvpcb_footprint_libraries_tables.adoc:305
 #, no-wrap
 msgid "images/en/fplib_wizard_validate.png"
-msgstr ""
+msgstr "images/zh/fplib_wizard_validate.png"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:309
@@ -2249,12 +2122,12 @@ msgid ""
 "If some selected libraries are incorrect (not supported, not a footprint "
 "library ...)  they will be flagged as ``INVALID''."
 msgstr ""
-"如果一些选中的库不正确(不支持,不是封装库,...),它们将被标记为 ``不可用'' "
+"如果一些选中的库不正确(不支持,不是封装库,...),它们将被标记为 “不可用”。"
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:311
 msgid "The last choice is the footprint library table to populate:"
-msgstr "最后一个页面是选择需要导出的封装库列表."
+msgstr "最后一个页面是选择需要导出的封装库列表："
 
 #. type: Plain text
 #: cvpcb_footprint_libraries_tables.adoc:313
@@ -2270,10 +2143,10 @@ msgstr "仅当前工程"
 #: cvpcb_footprint_libraries_tables.adoc:315
 #, no-wrap
 msgid "Footprint library wizard choose local folder"
-msgstr "封装库添加向导 选择本地文件夹."
+msgstr "封装库添加向导 选择本地文件夹"
 
 #. type: Target for macro image
 #: cvpcb_footprint_libraries_tables.adoc:315
 #, no-wrap
 msgid "images/en/fplib_wizard_chooseflt.png"
-msgstr ""
+msgstr "images/zh/fplib_wizard_chooseflt.png"

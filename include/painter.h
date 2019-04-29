@@ -178,25 +178,38 @@ public:
         return m_worksheetLineWidth;
     }
 
-    /**
-     * Function GetBackgroundColor
-     * Returns current background color settings.
-     * @return Background color.
-     */
-    inline const COLOR4D& GetBackgroundColor() const
+    inline bool GetShowPageLimits() const
     {
-        return m_backgroundColor;
+        return m_showPageLimits;
+    }
+
+    inline void SetShowPageLimits( bool aDraw )
+    {
+        m_showPageLimits = aDraw;
     }
 
     /**
-     * Function SetBackgroundColor
-     * Sets new color for background.
-     * @param aColor is the new background color.
+     * Function GetBackgroundColor
+     * Returns current background color settings.
      */
-    inline void SetBackgroundColor( const COLOR4D& aColor )
-    {
-        m_backgroundColor = aColor;
-    }
+    virtual const COLOR4D& GetBackgroundColor() = 0;
+
+    /**
+     * Sets the background color.
+     */
+    virtual void SetBackgroundColor( const COLOR4D& aColor ) = 0;
+
+    /**
+     * Function GetGridColor
+     * Returns current grid color settings.
+     */
+    virtual const COLOR4D& GetGridColor() = 0;
+
+    /**
+     * Function GetCursorColor
+     * Returns current cursor color settings.
+     */
+    virtual const COLOR4D& GetCursorColor() = 0;
 
     /**
      * Function GetLayerColor
@@ -219,6 +232,21 @@ public:
         m_layerColors[aLayer] = aColor;
 
         update();       // recompute other shades of the color
+    }
+
+    virtual bool IsBackgroundDark() const
+    {
+        return false;
+    }
+
+    /**
+     * Set line width used for drawing outlines.
+     *
+     * @param aWidth is the new width.
+     */
+    void SetOutlineWidth( float aWidth )
+    {
+        m_outlineWidth = aWidth;
     }
 
 protected:
@@ -258,6 +286,8 @@ protected:
     float   m_layerOpacity;         ///< Determines opacity of all layers
     float   m_outlineWidth;         ///< Line width used when drawing outlines
     float   m_worksheetLineWidth;   ///< Line width used when drawing worksheet
+
+    bool    m_showPageLimits;
 
     COLOR4D m_backgroundColor;      ///< The background color
 };

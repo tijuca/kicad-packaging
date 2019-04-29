@@ -32,16 +32,61 @@
 #define  PGM_BASE_H_
 
 #include <map>
+#include <memory>
 #include <wx/filename.h>
+#include <wx/filehistory.h>
 #include <search_stack.h>
 #include <wx/gdicmn.h>
 
+
+///@{
+/// \ingroup config
+
+#define USE_ICONS_IN_MENUS_KEY          wxT( "UseIconsInMenus" )
+#define ICON_SCALE_KEY                  wxT( "IconScale" )
+#define CANVAS_SCALE_KEY                wxT( "CanvasScale" )
+#define AUTOSAVE_INTERVAL_KEY           wxT( "AutoSaveInterval" )
+#define ENBL_ZOOM_NO_CENTER_KEY         wxT( "ZoomNoCenter" )
+#define ENBL_MOUSEWHEEL_PAN_KEY         wxT( "MousewheelPAN" )
+#define MIDDLE_BUTT_PAN_LIMITED_KEY     wxT( "MiddleBtnPANLimited" )
+#define ENBL_AUTO_PAN_KEY               wxT( "AutoPAN" )
+#define FILE_HISTORY_SIZE_KEY           wxT( "FileHistorySize" )
+#define GAL_DISPLAY_OPTIONS_KEY         wxT( "GalDisplayOptions" )
+#define GAL_ANTIALIASING_MODE_KEY       wxT( "OpenGLAntialiasingMode" )
+#define CAIRO_ANTIALIASING_MODE_KEY     wxT( "CairoAntialiasingMode" )
+
+///@}
+
+/// The default file history size is 9.
+#define DEFAULT_FILE_HISTORY_SIZE 9
+#define MAX_FILE_HISTORY_SIZE 99
 
 class wxConfigBase;
 class wxSingleInstanceChecker;
 class wxApp;
 class wxMenu;
 class wxWindow;
+
+class FILENAME_RESOLVER;
+class EDA_DRAW_FRAME;
+
+
+
+enum FILE_HISTORY_IDS
+{
+    ID_FILE = 4200,
+    ID_FILE1,
+    ID_FILEMAX = ID_FILE + MAX_FILE_HISTORY_SIZE
+};
+
+
+class FILE_HISTORY : public wxFileHistory
+{
+public:
+    FILE_HISTORY( size_t aMaxFiles, int aBaseFileId );
+
+    void SetMaxFiles( size_t aMaxFiles );
+};
 
 
 // inter program module calling
@@ -142,7 +187,7 @@ public:
      */
     VTBL_ENTRY void MacOpenFile( const wxString& aFileName ) = 0;
 
-    VTBL_ENTRY wxConfigBase* CommonSettings() const                 { return m_common_settings; }
+    VTBL_ENTRY wxConfigBase* CommonSettings() const { return m_common_settings.get(); }
 
     VTBL_ENTRY void SetEditorName( const wxString& aFileName );
 
@@ -273,19 +318,6 @@ public:
     }
 
     /**
-     * Function ConfigurePaths
-     *
-     * presents a dialog to the user to edit local environment variable settings for use in
-     * the footprint library table and the 3D model importer.  It was added to PGM_BASE because
-     * it will eventually find use for in schematic I/O design so it needs to accessible by
-     * almost every KiCad application.
-     *
-     * @param aParent - a pointer the wxWindow parent of the dialog or NULL to use the top level
-     *                  window.
-     */
-    VTBL_ENTRY void ConfigurePaths( wxWindow* aParent = NULL );
-
-    /**
      * Function App
      * returns a bare naked wxApp, which may come from wxPython, SINGLE_TOP, or kicad.exe.
      * Should return what wxGetApp() returns.
@@ -320,14 +352,6 @@ public:
      */
     void SaveCommonSettings();
 
-    /// Scaling factor for menus and tool icons
-    void SetIconsScale( double aValue ) { m_iconsScale = aValue; }
-    double GetIconsScale() { return m_iconsScale; }
-    /// True to use menu icons
-    void SetUseIconsInMenus( bool aUseIcons ) { m_useIconsInMenus = aUseIcons; }
-    bool GetUseIconsInMenus() { return m_useIconsInMenus; }
-
-
 protected:
 
     /**
@@ -341,7 +365,7 @@ protected:
 
     /// Configuration settings common to all KiCad program modules,
     /// like as in $HOME/.kicad_common
-    wxConfigBase*   m_common_settings;
+    std::unique_ptr<wxConfigBase> m_common_settings;
 
     /// full path to this program
     wxString        m_bin_dir;
@@ -357,11 +381,6 @@ protected:
 
     /// true to use the selected PDF browser, if exists, or false to use the default
     bool            m_use_system_pdf_browser;
-
-    /// Scaling factor for menus and tool icons
-    double          m_iconsScale;
-    /// True to use menu icons
-    bool            m_useIconsInMenus;
 
     /// Trap all changes in here, simplifies debugging
     void setLanguageId( int aId )       { m_language_id = aId; }

@@ -28,23 +28,27 @@
  */
 
 #include <fctsys.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <trigo.h>
 #include <msgpanel.h>
 #include <bitmaps.h>
+#include <base_units.h>
 
 #include <sch_marker.h>
 #include <erc.h>
 
+/// Factor to convert the maker unit shape to internal units:
+#define SCALING_FACTOR  Millimeter2iu( 0.1 )
 
-SCH_MARKER::SCH_MARKER() : SCH_ITEM( NULL, SCH_MARKER_T ), MARKER_BASE()
+
+SCH_MARKER::SCH_MARKER() : SCH_ITEM( NULL, SCH_MARKER_T ), MARKER_BASE( SCALING_FACTOR )
 {
 }
 
 
 SCH_MARKER::SCH_MARKER( const wxPoint& pos, const wxString& text ) :
     SCH_ITEM( NULL, SCH_MARKER_T ),
-    MARKER_BASE( 0, pos, text, pos )
+    MARKER_BASE( 0, pos, text, pos, SCALING_FACTOR )
 {
 }
 
@@ -106,16 +110,21 @@ bool SCH_MARKER::Matches( wxFindReplaceData& aSearchData, void* aAuxData,
 }
 
 
+void SCH_MARKER::ViewGetLayers( int aLayers[], int& aCount ) const
+{
+    aCount      = 1;
+    aLayers[0]  = this->m_ErrorLevel == MARKER_SEVERITY_ERROR ? LAYER_ERC_ERR : LAYER_ERC_WARN;
+}
+
+
 const EDA_RECT SCH_MARKER::GetBoundingBox() const
 {
     return GetBoundingBoxMarker();
 }
 
 
-void SCH_MARKER::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
+void SCH_MARKER::GetMsgPanelInfo( EDA_UNITS_T aUnits, MSG_PANEL_ITEMS& aList )
 {
-    wxString msg;
-
     aList.push_back( MSG_PANEL_ITEM( _( "Electronics Rule Check Error" ),
                                      GetReporter().GetErrorText(), DARKRED ) );
 }

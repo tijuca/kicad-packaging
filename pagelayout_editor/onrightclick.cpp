@@ -38,6 +38,7 @@
 #include <worksheet_shape_builder.h>
 #include <worksheet_dataitem.h>
 #include <hotkeys.h>
+#include <kicad_device_context.h>
 
 // Helper function to add menuitems relative to items creation
 void AddNewItemsCommand( wxMenu* aMainMenu )
@@ -83,8 +84,9 @@ bool PL_EDITOR_FRAME::OnRightClick( const wxPoint& aPosition, wxMenu* aPopMenu )
 
     if( ! busy )     // No item currently edited
     {
+        INSTALL_UNBUFFERED_DC( dc, m_canvas );
         WORKSHEET_DATAITEM* old_item = m_treePagelayout->GetPageLayoutSelectedItem();
-        WORKSHEET_DATAITEM* item = Locate( aPosition );
+        WORKSHEET_DATAITEM* item = Locate( &dc, aPosition );
 
         if( item && old_item != item )
         {
@@ -97,7 +99,7 @@ bool PL_EDITOR_FRAME::OnRightClick( const wxPoint& aPosition, wxMenu* aPopMenu )
         {
             if( (item->GetFlags() & LOCATE_STARTPOINT) )
             {
-                msg = AddHotkeyName( _( "Move Start Point" ), PlEditorHokeysDescr,
+                msg = AddHotkeyName( _( "Move Start Point" ), PlEditorHotkeysDescr,
                                      HK_MOVE_START_POINT );
                 AddMenuItem( aPopMenu, ID_POPUP_ITEM_MOVE_START_POINT, msg,
                              KiBitmap( move_xpm ) );
@@ -105,19 +107,19 @@ bool PL_EDITOR_FRAME::OnRightClick( const wxPoint& aPosition, wxMenu* aPopMenu )
 
             if( (item->GetFlags() & LOCATE_ENDPOINT ) )
             {
-                msg = AddHotkeyName( _( "Move End Point" ), PlEditorHokeysDescr,
+                msg = AddHotkeyName( _( "Move End Point" ), PlEditorHotkeysDescr,
                                      HK_MOVE_END_POINT );
                 AddMenuItem( aPopMenu, ID_POPUP_ITEM_MOVE_END_POINT, msg,
                              KiBitmap( move_xpm ) );
             }
 
-            msg = AddHotkeyName( _( "Move Item" ), PlEditorHokeysDescr,
+            msg = AddHotkeyName( _( "Move Item" ), PlEditorHotkeysDescr,
                                  HK_MOVE_ITEM );
             AddMenuItem( aPopMenu, ID_POPUP_ITEM_MOVE, msg,
                          KiBitmap( move_xpm ) );
             aPopMenu->AppendSeparator();
 
-            msg = AddHotkeyName( _( "Delete" ), PlEditorHokeysDescr,
+            msg = AddHotkeyName( _( "Delete" ), PlEditorHotkeysDescr,
                                  HK_DELETE_ITEM );
             AddMenuItem( aPopMenu, ID_POPUP_ITEM_DELETE, msg, KiBitmap( delete_xpm ) );
             aPopMenu->AppendSeparator();
@@ -125,7 +127,7 @@ bool PL_EDITOR_FRAME::OnRightClick( const wxPoint& aPosition, wxMenu* aPopMenu )
     }
     else     // An item is currently in edit
     {
-        msg = AddHotkeyName( _( "Place Item" ), PlEditorHokeysDescr,
+        msg = AddHotkeyName( _( "Place Item" ), PlEditorHotkeysDescr,
                                  HK_PLACE_ITEM );
         AddMenuItem( aPopMenu, ID_POPUP_ITEM_PLACE, msg,
                      KiBitmap( move_xpm ) );

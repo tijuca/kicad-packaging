@@ -11,6 +11,8 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
+class WX_GRID;
+
 #include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/checkbox.h>
@@ -47,8 +49,9 @@ class DIALOG_FIELDS_EDITOR_GLOBAL_BASE : public DIALOG_SHIM
 		wxCheckBox* m_groupComponentsBox;
 		wxBitmapButton* m_bRefresh;
 		wxDataViewListCtrl* m_fieldsCtrl;
+		wxButton* m_addFieldButton;
 		wxPanel* m_panel4;
-		wxGrid* m_grid;
+		WX_GRID* m_grid;
 		wxButton* m_button1;
 		wxStdDialogButtonSizer* m_sdbSizer1;
 		wxButton* m_sdbSizer1OK;
@@ -60,6 +63,7 @@ class DIALOG_FIELDS_EDITOR_GLOBAL_BASE : public DIALOG_SHIM
 		virtual void OnRegroupComponents( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnColumnItemToggled( wxDataViewEvent& event ) { event.Skip(); }
 		virtual void OnSizeFieldList( wxSizeEvent& event ) { event.Skip(); }
+		virtual void OnAddField( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnTableValueChanged( wxGridEvent& event ) { event.Skip(); }
 		virtual void OnTableCellClick( wxGridEvent& event ) { event.Skip(); }
 		virtual void OnTableItemContextMenu( wxGridEvent& event ) { event.Skip(); }

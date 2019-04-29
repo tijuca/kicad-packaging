@@ -3,8 +3,8 @@
  *
  * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2012 Wayne Stambaugh <stambaughw@verizon.net>
- * Copyright (C) 1992-2012 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@gmail.com>
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -36,14 +36,17 @@
 #include <base_screen.h>
 #include <id.h>
 #include <base_units.h>
+#include <trace_helpers.h>
+
 
 wxString BASE_SCREEN::m_PageLayoutDescrFileName;   // the name of the page layout descr file.
+
 
 BASE_SCREEN::BASE_SCREEN( KICAD_T aType ) :
     EDA_ITEM( aType )
 {
     m_UndoRedoCountMax = DEFAULT_MAX_UNDO_ITEMS;
-    m_FirstRedraw      = true;
+    m_Initialized      = false;
     m_ScreenNumber     = 1;
     m_NumberOfScreens  = 1;      // Hierarchy: Root: ScreenNumber = 1
     m_Zoom             = 32.0;
@@ -122,7 +125,7 @@ bool BASE_SCREEN::SetZoom( double iu_per_du )
     if( iu_per_du == m_Zoom )
         return false;
 
-    //wxLogDebug( "Zoom:%.16g  1/Zoom:%.16g", iu_per_du, 1/iu_per_du );
+    wxLogTrace( traceScreen, "Zoom:%.16g  1/Zoom:%.16g", iu_per_du, 1/iu_per_du );
 
     if( iu_per_du < GetMinAllowedZoom() )
         return false;
@@ -138,9 +141,12 @@ bool BASE_SCREEN::SetZoom( double iu_per_du )
 
 bool BASE_SCREEN::SetNextZoom()
 {
+    // Step must be AT LEAST 1.2
+    double target = m_Zoom * 1.2;
+
     for( unsigned i=0; i < m_ZoomList.size();  ++i )
     {
-        if( m_Zoom < m_ZoomList[i] )
+        if( target < m_ZoomList[i] )
         {
             SetZoom( m_ZoomList[i] );
             return true;
@@ -153,9 +159,12 @@ bool BASE_SCREEN::SetNextZoom()
 
 bool BASE_SCREEN::SetPreviousZoom()
 {
+    // Step must be AT LEAST 1.2
+    double target = m_Zoom / 1.2;
+
     for( unsigned i = m_ZoomList.size(); i != 0;  --i )
     {
-        if( m_Zoom > m_ZoomList[i - 1] )
+        if( target > m_ZoomList[i - 1] )
         {
             SetZoom( m_ZoomList[i - 1] );
             return true;
@@ -165,11 +174,7 @@ bool BASE_SCREEN::SetPreviousZoom()
     return false;
 }
 
-/* Build the list of human readable grid list.
- * The list shows the grid size both in mils or mm.
- * aMmFirst = true to have mm first and mils after
- *            false to have mils first and mm after
- */
+
 int BASE_SCREEN::BuildGridsChoiceList( wxArrayString& aGridsList, bool aMmFirst) const
 {
     wxString msg;
@@ -185,7 +190,12 @@ int BASE_SCREEN::BuildGridsChoiceList( wxArrayString& aGridsList, bool aMmFirst)
 
         if( grid.m_CmdId == ID_POPUP_GRID_USER )
         {
-            msg = _( "Custom User Grid" );
+            if( aMmFirst )
+                msg.Printf( _( "User grid: %.4f mm (%.2f mils)" ),
+                            gridValue_mm, gridValueMils );
+            else
+                msg.Printf( _( "User grid: %.2f mils (%.4f mm)" ),
+                            gridValueMils, gridValue_mm );
             idx_usergrid = i;
         }
         else
@@ -244,11 +254,6 @@ int BASE_SCREEN::SetGrid( const wxRealPoint& size )
     }
 
     m_Grid = nearest_grid;
-
-    wxLogWarning( _( "Grid size( %f, %f ) not in grid list, falling back "
-                     "to grid size( %f, %f )." ),
-                  size.x, size.y, m_Grid.m_Size.x, m_Grid.m_Size.y );
-
     return gridIdx;
 }
 
@@ -267,14 +272,8 @@ int BASE_SCREEN::SetGrid( int aCommandId  )
     }
 
     m_Grid = m_grids[0];
-
-    wxLogWarning( _( "Grid ID %d not in grid list, falling back to "
-                     "grid size( %g, %g )." ), aCommandId,
-                  m_Grid.m_Size.x, m_Grid.m_Size.y );
-
     return m_grids[0].m_CmdId - ID_POPUP_GRID_LEVEL_1000;
 }
-
 
 
 void BASE_SCREEN::AddGrid( const GRID_TYPE& grid )
@@ -283,14 +282,14 @@ void BASE_SCREEN::AddGrid( const GRID_TYPE& grid )
     {
         if( m_grids[i].m_Size == grid.m_Size && grid.m_CmdId != ID_POPUP_GRID_USER )
         {
-            wxLogDebug( wxT( "Discarding duplicate grid size( %g, %g )." ),
+            wxLogTrace( traceScreen,  "Discarding duplicate grid size( %g, %g ).",
                         grid.m_Size.x, grid.m_Size.y );
             return;
         }
 
         if( m_grids[i].m_CmdId == grid.m_CmdId )
         {
-            wxLogDebug( wxT( "Changing grid ID %d from size( %g, %g ) to " ) \
+            wxLogTrace( traceScreen, wxT( "Changing grid ID %d from size( %g, %g ) to " ) \
                         wxT( "size( %g, %g )." ),
                         grid.m_CmdId, m_grids[i].m_Size.x,
                         m_grids[i].m_Size.y, grid.m_Size.x, grid.m_Size.y );
@@ -374,7 +373,8 @@ wxPoint BASE_SCREEN::getNearestGridPosition( const wxPoint& aPosition,
 }
 
 
-wxPoint BASE_SCREEN::getCursorPosition( bool aOnGrid, const wxPoint& aGridOrigin, wxRealPoint* aGridSize ) const
+wxPoint BASE_SCREEN::getCursorPosition( bool aOnGrid, const wxPoint& aGridOrigin,
+                                        wxRealPoint* aGridSize ) const
 {
     if( aOnGrid )
         return getNearestGridPosition( m_crossHairPosition, aGridOrigin, aGridSize );
@@ -395,7 +395,8 @@ wxPoint BASE_SCREEN::getCrossHairScreenPosition() const
 }
 
 
-void BASE_SCREEN::setCrossHairPosition( const wxPoint& aPosition, const wxPoint& aGridOrigin, bool aSnapToGrid )
+void BASE_SCREEN::setCrossHairPosition( const wxPoint& aPosition, const wxPoint& aGridOrigin,
+                                        bool aSnapToGrid )
 {
     if( aSnapToGrid )
         m_crossHairPosition = getNearestGridPosition( aPosition, aGridOrigin, NULL );
@@ -419,6 +420,7 @@ void BASE_SCREEN::PushCommandToUndoList( PICKED_ITEMS_LIST* aNewitem )
     if( m_UndoRedoCountMax > 0 )
     {
         int extraitems = GetUndoCommandCount() - m_UndoRedoCountMax;
+
         if( extraitems > 0 )
             ClearUndoORRedoList( m_UndoList, extraitems );
     }
@@ -433,6 +435,7 @@ void BASE_SCREEN::PushCommandToRedoList( PICKED_ITEMS_LIST* aNewitem )
     if( m_UndoRedoCountMax > 0 )
     {
         int extraitems = GetRedoCommandCount() - m_UndoRedoCountMax;
+
         if( extraitems > 0 )
             ClearUndoORRedoList( m_RedoList, extraitems );
     }
@@ -441,13 +444,13 @@ void BASE_SCREEN::PushCommandToRedoList( PICKED_ITEMS_LIST* aNewitem )
 
 PICKED_ITEMS_LIST* BASE_SCREEN::PopCommandFromUndoList( )
 {
-    return m_UndoList.PopCommand( );
+    return m_UndoList.PopCommand();
 }
 
 
 PICKED_ITEMS_LIST* BASE_SCREEN::PopCommandFromRedoList( )
 {
-    return m_RedoList.PopCommand( );
+    return m_RedoList.PopCommand();
 }
 
 

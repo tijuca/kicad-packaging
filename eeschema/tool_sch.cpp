@@ -28,11 +28,12 @@
  */
 
 #include <fctsys.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <sch_edit_frame.h>
 #include <kiface_i.h>
 #include <bitmaps.h>
-
+#include <sch_view.h>
+#include <sch_painter.h>
 #include <general.h>
 #include <hotkeys.h>
 #include <eeschema_id.h>
@@ -90,16 +91,16 @@ void SCH_EDIT_FRAME::ReCreateHToolbar()
 
     KiScaledSeparator( m_mainToolBar, this );
 
-    msg = AddHotkeyName( HELP_UNDO, g_Schematic_Hokeys_Descr, HK_UNDO, IS_COMMENT );
+    msg = AddHotkeyName( HELP_UNDO, g_Schematic_Hotkeys_Descr, HK_UNDO, IS_COMMENT );
     m_mainToolBar->AddTool( wxID_UNDO, wxEmptyString, KiScaledBitmap( undo_xpm, this ), msg );
 
-    msg = AddHotkeyName( HELP_REDO, g_Schematic_Hokeys_Descr, HK_REDO, IS_COMMENT );
+    msg = AddHotkeyName( HELP_REDO, g_Schematic_Hotkeys_Descr, HK_REDO, IS_COMMENT );
     m_mainToolBar->AddTool( wxID_REDO, wxEmptyString, KiScaledBitmap( redo_xpm, this ), msg );
 
 
     KiScaledSeparator( m_mainToolBar, this );
 
-    msg = AddHotkeyName( HELP_FIND, g_Schematic_Hokeys_Descr, HK_FIND_ITEM, IS_COMMENT );
+    msg = AddHotkeyName( HELP_FIND, g_Schematic_Hotkeys_Descr, HK_FIND_ITEM, IS_COMMENT );
     m_mainToolBar->AddTool( ID_FIND_ITEMS, wxEmptyString, KiScaledBitmap( find_xpm, this ), msg );
 
     m_mainToolBar->AddTool( wxID_REPLACE, wxEmptyString, KiScaledBitmap( find_replace_xpm, this ),
@@ -109,17 +110,17 @@ void SCH_EDIT_FRAME::ReCreateHToolbar()
 
     KiScaledSeparator( m_mainToolBar, this );
 
-    msg = AddHotkeyName( HELP_ZOOM_REDRAW, g_Schematic_Hokeys_Descr, HK_ZOOM_REDRAW, IS_COMMENT );
+    msg = AddHotkeyName( HELP_ZOOM_REDRAW, g_Schematic_Hotkeys_Descr, HK_ZOOM_REDRAW, IS_COMMENT );
     m_mainToolBar->AddTool( ID_ZOOM_REDRAW, wxEmptyString,
                             KiScaledBitmap( zoom_redraw_xpm, this ), msg );
 
-    msg = AddHotkeyName( HELP_ZOOM_IN, g_Schematic_Hokeys_Descr, HK_ZOOM_IN, IS_COMMENT );
+    msg = AddHotkeyName( HELP_ZOOM_IN, g_Schematic_Hotkeys_Descr, HK_ZOOM_IN, IS_COMMENT );
     m_mainToolBar->AddTool( ID_ZOOM_IN, wxEmptyString, KiScaledBitmap( zoom_in_xpm, this ), msg );
 
-    msg = AddHotkeyName( HELP_ZOOM_OUT, g_Schematic_Hokeys_Descr, HK_ZOOM_OUT, IS_COMMENT );
+    msg = AddHotkeyName( HELP_ZOOM_OUT, g_Schematic_Hotkeys_Descr, HK_ZOOM_OUT, IS_COMMENT );
     m_mainToolBar->AddTool( ID_ZOOM_OUT, wxEmptyString, KiScaledBitmap( zoom_out_xpm, this ), msg );
 
-    msg = AddHotkeyName( HELP_ZOOM_FIT, g_Schematic_Hokeys_Descr, HK_ZOOM_AUTO, IS_COMMENT );
+    msg = AddHotkeyName( HELP_ZOOM_FIT, g_Schematic_Hotkeys_Descr, HK_ZOOM_AUTO, IS_COMMENT );
     m_mainToolBar->AddTool( ID_ZOOM_PAGE, wxEmptyString,
                             KiScaledBitmap( zoom_fit_in_page_xpm, this ), msg );
 
@@ -197,11 +198,11 @@ void SCH_EDIT_FRAME::ReCreateVToolbar()
 
     // Set up toolbar
     m_drawToolBar->AddTool( ID_NO_TOOL_SELECTED, wxEmptyString, KiScaledBitmap( cursor_xpm, this ),
-                            wxEmptyString, wxITEM_CHECK );
+                            HELP_SELECT, wxITEM_CHECK );
 
     m_drawToolBar->AddTool( ID_HIGHLIGHT, wxEmptyString,
                             KiScaledBitmap( net_highlight_schematic_xpm, this ),
-                            _( "Highlight net" ), wxITEM_CHECK );
+                            HELP_HIGHLIGHT, wxITEM_CHECK );
 
     m_drawToolBar->AddTool( ID_SCH_PLACE_COMPONENT, wxEmptyString,
                             KiScaledBitmap( add_component_xpm, this ), HELP_PLACE_COMPONENTS,
@@ -295,16 +296,9 @@ void SCH_EDIT_FRAME::ReCreateOptToolbar()
                                KiScaledBitmap( unit_mm_xpm, this ),
                                _( "Set unit to mm" ), wxITEM_CHECK );
 
-#ifndef __APPLE__
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_CURSOR, wxEmptyString,
                                KiScaledBitmap( cursor_shape_xpm, this ),
                                _( "Change cursor shape" ), wxITEM_CHECK );
-#else
-    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_CURSOR, wxEmptyString,
-                               KiScaledBitmap( cursor_shape_xpm, this ),
-                               _( "Change cursor shape (not supported in Legacy Toolset)" ),
-                               wxITEM_CHECK  );
-#endif
 
     //KiScaledSeparator( m_optionsToolBar, this );
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_HIDDEN_PINS, wxEmptyString,
@@ -328,10 +322,15 @@ void SCH_EDIT_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
     switch( id )
     {
     case ID_TB_OPTIONS_HIDDEN_PINS:
+    {
         m_showAllPins = !m_showAllPins;
 
-        if( m_canvas )
-            m_canvas->Refresh();
+        auto painter = static_cast<KIGFX::SCH_PAINTER*>( GetCanvas()->GetView()->GetPainter() );
+        painter->GetSettings()->m_ShowHiddenPins = m_showAllPins;
+
+        GetCanvas()->GetView()->UpdateAllItems( KIGFX::REPAINT );
+        GetCanvas()->Refresh();
+    }
         break;
 
     case ID_TB_OPTIONS_BUS_WIRES_ORIENT:

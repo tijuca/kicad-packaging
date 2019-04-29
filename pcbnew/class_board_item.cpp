@@ -87,143 +87,11 @@ wxString BOARD_ITEM::GetLayerName() const
 }
 
 
-std::string BOARD_ITEM::FormatInternalUnits( int aValue )
-{
-#if 1
-
-    char    buf[50];
-    int     len;
-    double  mm = aValue / IU_PER_MM;
-
-    if( mm != 0.0 && fabs( mm ) <= 0.0001 )
-    {
-        len = sprintf( buf, "%.10f", mm );
-
-        while( --len > 0 && buf[len] == '0' )
-            buf[len] = '\0';
-
-        if( buf[len] == '.' )
-            buf[len] = '\0';
-        else
-            ++len;
-    }
-    else
-    {
-        len = sprintf( buf, "%.10g", mm );
-    }
-
-    return std::string( buf, len );
-
-#else
-
-    // Assume aValue is in nanometers, and that we want the result in millimeters,
-    // and that int is 32 bits wide.  Then perform an alternative algorithm.
-    // Can be used to verify that the above algorithm is correctly generating text.
-    // Convert aValue into an integer string, then insert a decimal point manually.
-    // Results are the same as above general purpose algorithm.
-
-    wxASSERT( sizeof(int) == 4 );
-
-    if( aValue == 0 )
-        return std::string( 1, '0' );
-    else
-    {
-        char    buf[50];
-        int     len = sprintf( buf, aValue > 0 ? "%06d" : "%07d", aValue );     // optionally pad w/leading zeros
-
-        std::string ret( buf, len );
-
-        std::string::iterator it = ret.end() - 1;           // last byte
-
-        // insert '.' at 6 positions from end, dividing by 10e6 (a million), nm => mm
-        std::string::iterator decpoint = ret.end() - 6;
-
-        // truncate trailing zeros, up to decimal point position
-        for(  ; *it=='0' && it >= decpoint;  --it )
-            ret.erase( it );    // does not invalidate iterators it or decpoint
-
-        if( it >= decpoint )
-        {
-            ret.insert( decpoint, '.' );
-
-            // decpoint is invalidated here, after insert()
-
-#if 1       // want a leading zero when decimal point is in first position?
-            if( ret[0] == '.' )
-            {
-                // insert leading zero ahead of decimal point.
-                ret.insert( ret.begin(), '0' );
-            }
-            else if( ret[0]=='-' && ret[1]=='.' )
-            {
-                ret.insert( ret.begin() + 1, '0' );
-            }
-#endif
-        }
-
-        return ret;
-    }
-
-#endif
-}
-
-
-std::string BOARD_ITEM::FormatAngle( double aAngle )
-{
-    char temp[50];
-
-    int len = snprintf( temp, sizeof(temp), "%.10g", aAngle / 10.0 );
-
-    return std::string( temp, len );
-}
-
-
-std::string BOARD_ITEM::FormatInternalUnits( const wxPoint& aPoint )
-{
-    return FormatInternalUnits( aPoint.x ) + " " + FormatInternalUnits( aPoint.y );
-}
-
-
-std::string BOARD_ITEM::FormatInternalUnits( const VECTOR2I& aPoint )
-{
-    return FormatInternalUnits( aPoint.x ) + " " + FormatInternalUnits( aPoint.y );
-}
-
-
-std::string BOARD_ITEM::FormatInternalUnits( const wxSize& aSize )
-{
-    return FormatInternalUnits( aSize.GetWidth() ) + " " + FormatInternalUnits( aSize.GetHeight() );
-}
-
-
 void BOARD_ITEM::ViewGetLayers( int aLayers[], int& aCount ) const
 {
     // Basic fallback
     aCount = 1;
     aLayers[0] = m_Layer;
-}
-
-
-int BOARD_ITEM::getTrailingInt( const wxString& aStr )
-{
-    int number = 0;
-    int base = 1;
-
-    // Trim and extract the trailing numeric part
-    int index = aStr.Len() - 1;
-    while( index >= 0 )
-    {
-        const char chr = aStr.GetChar( index );
-
-        if( chr < '0' || chr > '9' )
-            break;
-
-        number += ( chr - '0' ) * base;
-        base *= 10;
-        index--;
-    }
-
-    return number;
 }
 
 
@@ -275,7 +143,8 @@ void BOARD_ITEM::SwapData( BOARD_ITEM* aImage )
 void BOARD_ITEM::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
                                            int aClearanceValue,
                                            int aCircleToSegmentsCount,
-                                           double aCorrectionFactor ) const
-                                           {
-    wxASSERT_MSG(false, wxT("Called TransformShapeWithClearanceToPolygon() on unsupported BOARD_ITEM."));
+                                           double aCorrectionFactor,
+                                           bool ignoreLineWidth ) const
+{
+    wxASSERT_MSG( false, "Called TransformShapeWithClearanceToPolygon() on unsupported BOARD_ITEM." );
 };

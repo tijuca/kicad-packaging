@@ -35,9 +35,9 @@
 #include <hotkeys.h>
 #include <gerbview_frame.h>
 
-const wxChar* g_GerberPageSizeList[] = {
-    wxT( "GERBER" ),    // index 0: full size page selection, and do not show page limits
-    wxT( "GERBER" ),    // index 1: full size page selection, and show page limits
+const wxChar* g_GerberPageSizeList[] =
+{
+    wxT( "GERBER" ),    // index 0: full size page selection
     wxT( "A4" ),
     wxT( "A3" ),
     wxT( "A2" ),
@@ -128,7 +128,7 @@ bool IFACE::OnKifaceStart( PGM_BASE* aProgram, int aCtlBits )
 
     // Must be called before creating the main frame in order to
     // display the real hotkeys in menus or tool tips
-    ReadHotkeyConfig( GERBVIEW_FRAME_NAME, GerbviewHokeysDescr );
+    ReadHotkeyConfig( GERBVIEW_FRAME_NAME, GerbviewHotkeysDescr );
 
     return true;
 }

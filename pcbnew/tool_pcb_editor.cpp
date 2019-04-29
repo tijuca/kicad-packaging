@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2012 Jean-Pierre Charras, jean-pierre.charras@ujf-grenoble.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2012=2015 Wayne Stambaugh <stambaughw@verizon.net>
+ * Copyright (C) 2012 Wayne Stambaugh <stambaughw@gmail.com>
  * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
@@ -48,6 +48,7 @@
 
 #include <wx/wupdlock.h>
 #include <memory>
+#include <pgm_base.h>
 
 extern bool IsWxPythonLoaded();
 
@@ -102,7 +103,8 @@ void PCB_EDIT_FRAME::PrepareLayerIndicator()
                    previous_Route_Layer_BOTTOM_color, previous_via_color,
                    previous_background_color;
 
-    const int  requested_scale = GetIconScale();
+    int requested_scale;
+    Pgm().CommonSettings()->Read( ICON_SCALE_KEY, &requested_scale, 0 );
 
     if( requested_scale != previous_requested_scale )
     {
@@ -230,6 +232,13 @@ void PCB_EDIT_FRAME::PrepareLayerIndicator()
 
 void PCB_EDIT_FRAME::ReCreateHToolbar()
 {
+    // Note:
+    // To rebuild the aui toolbar, the more easy way is to clear ( calling m_mainToolBar.Clear() )
+    // all wxAuiToolBarItems.
+    // However the wxAuiToolBarItems are not the owners of controls managed by
+    // them and therefore do not delete them
+    // So we do not recreate them after clearing the tools.
+
     wxString msg;
 
     wxWindowUpdateLocker dummy( this );
@@ -240,73 +249,61 @@ void PCB_EDIT_FRAME::ReCreateHToolbar()
         m_mainToolBar = new wxAuiToolBar( this, ID_H_TOOLBAR, wxDefaultPosition, wxDefaultSize,
                                           KICAD_AUI_TB_STYLE | wxAUI_TB_HORZ_LAYOUT );
 
+#define ADD_TOOL( id, xpm, tooltip ) \
+    m_mainToolBar->AddTool( id, wxEmptyString, KiScaledBitmap( xpm, this ), tooltip );
+
     // Set up toolbar
     if( Kiface().IsSingle() )
     {
-        m_mainToolBar->AddTool( ID_NEW_BOARD, wxEmptyString, KiScaledBitmap( new_board_xpm, this ),
-                                _( "New board" ) );
-        m_mainToolBar->AddTool( ID_LOAD_FILE, wxEmptyString, KiScaledBitmap( open_brd_file_xpm, this ),
-                                _( "Open existing board" ) );
+        ADD_TOOL( ID_NEW_BOARD, new_board_xpm, _( "New board" ) );
+        ADD_TOOL( ID_LOAD_FILE, open_brd_file_xpm, _( "Open existing board" ) );
     }
 
-    m_mainToolBar->AddTool( ID_SAVE_BOARD, wxEmptyString, KiScaledBitmap( save_xpm, this ),
-                            _( "Save board" ) );
+    ADD_TOOL( ID_SAVE_BOARD, save_xpm, _( "Save board" ) );
 
     KiScaledSeparator( m_mainToolBar, this );
-    m_mainToolBar->AddTool( ID_SHEET_SET, wxEmptyString, KiScaledBitmap( sheetset_xpm, this ),
-                            _( "Page settings for paper size and texts" ) );
+    ADD_TOOL( ID_BOARD_SETUP_DIALOG, options_board_xpm, _( "Board setup" ) );
 
     KiScaledSeparator( m_mainToolBar, this );
-    m_mainToolBar->AddTool( ID_OPEN_MODULE_EDITOR, wxEmptyString,
-                            KiScaledBitmap( module_editor_xpm, this ),
-                            _( "Open footprint editor" ) );
-
-    m_mainToolBar->AddTool( ID_OPEN_MODULE_VIEWER, wxEmptyString,
-                            KiScaledBitmap( modview_icon_xpm, this ),
-                            _( "Open footprint viewer" ) );
+    ADD_TOOL( ID_SHEET_SET, sheetset_xpm, _( "Page settings for paper size and texts" ) );
+    ADD_TOOL( wxID_PRINT, print_button_xpm, _( "Print board" ) );
+    ADD_TOOL( ID_GEN_PLOT, plot_xpm, _( "Plot (HPGL, PostScript, or GERBER format)" ) );
 
     KiScaledSeparator( m_mainToolBar, this );
     msg = AddHotkeyName( HELP_UNDO, g_Board_Editor_Hotkeys_Descr, HK_UNDO, IS_COMMENT );
-    m_mainToolBar->AddTool( wxID_UNDO, wxEmptyString, KiScaledBitmap( undo_xpm, this ), msg );
+    ADD_TOOL( wxID_UNDO, undo_xpm, msg );
     msg = AddHotkeyName( HELP_REDO, g_Board_Editor_Hotkeys_Descr, HK_REDO, IS_COMMENT );
-    m_mainToolBar->AddTool( wxID_REDO, wxEmptyString, KiScaledBitmap( redo_xpm, this ), msg );
+    ADD_TOOL( wxID_REDO, redo_xpm, msg );
 
     KiScaledSeparator( m_mainToolBar, this );
-    m_mainToolBar->AddTool( wxID_PRINT, wxEmptyString, KiScaledBitmap( print_button_xpm, this ),
-                            _( "Print board" ) );
-    m_mainToolBar->AddTool( ID_GEN_PLOT, wxEmptyString, KiScaledBitmap( plot_xpm, this ),
-                            _( "Plot (HPGL, PostScript, or GERBER format)" ) );
+    msg = AddHotkeyName( HELP_FIND, g_Board_Editor_Hotkeys_Descr, HK_FIND_ITEM, IS_COMMENT );
+    ADD_TOOL( ID_FIND_ITEMS, find_xpm, msg );
 
     KiScaledSeparator( m_mainToolBar, this );
-    msg = AddHotkeyName( HELP_ZOOM_REDRAW, g_Board_Editor_Hotkeys_Descr, HK_ZOOM_REDRAW,
-                         IS_COMMENT );
-    m_mainToolBar->AddTool( ID_ZOOM_REDRAW, wxEmptyString, KiScaledBitmap( zoom_redraw_xpm, this ), msg );
-
+    msg = AddHotkeyName( HELP_ZOOM_REDRAW, g_Board_Editor_Hotkeys_Descr, HK_ZOOM_REDRAW, IS_COMMENT );
+    ADD_TOOL( ID_ZOOM_REDRAW, zoom_redraw_xpm, msg );
     msg = AddHotkeyName( HELP_ZOOM_IN, g_Board_Editor_Hotkeys_Descr, HK_ZOOM_IN, IS_COMMENT );
-    m_mainToolBar->AddTool( ID_ZOOM_IN, wxEmptyString, KiScaledBitmap( zoom_in_xpm, this ), msg );
-
+    ADD_TOOL( ID_ZOOM_IN, zoom_in_xpm, msg );
     msg = AddHotkeyName( HELP_ZOOM_OUT, g_Board_Editor_Hotkeys_Descr, HK_ZOOM_OUT, IS_COMMENT );
-    m_mainToolBar->AddTool( ID_ZOOM_OUT, wxEmptyString, KiScaledBitmap( zoom_out_xpm, this ), msg );
-
+    ADD_TOOL( ID_ZOOM_OUT, zoom_out_xpm, msg );
     msg = AddHotkeyName( HELP_ZOOM_FIT, g_Board_Editor_Hotkeys_Descr, HK_ZOOM_AUTO, IS_COMMENT );
-    m_mainToolBar->AddTool( ID_ZOOM_PAGE, wxEmptyString, KiScaledBitmap( zoom_fit_in_page_xpm, this ), msg );
+    ADD_TOOL( ID_ZOOM_PAGE, zoom_fit_in_page_xpm, msg );
 
     m_mainToolBar->AddTool( ID_ZOOM_SELECTION, wxEmptyString, KiScaledBitmap( zoom_area_xpm, this ),
                             _( "Zoom to selection" ), wxITEM_CHECK );
 
     KiScaledSeparator( m_mainToolBar, this );
-    msg = AddHotkeyName( HELP_FIND, g_Board_Editor_Hotkeys_Descr, HK_FIND_ITEM, IS_COMMENT );
-    m_mainToolBar->AddTool( ID_FIND_ITEMS, wxEmptyString, KiScaledBitmap( find_xpm, this ), msg );
+    ADD_TOOL( ID_OPEN_MODULE_EDITOR, module_editor_xpm, _( "Open footprint editor" ) );
+    ADD_TOOL( ID_OPEN_MODULE_VIEWER, modview_icon_xpm, _( "Open footprint viewer" ) );
 
     KiScaledSeparator( m_mainToolBar, this );
-    m_mainToolBar->AddTool( ID_GET_NETLIST, wxEmptyString, KiScaledBitmap( netlist_xpm, this ),
-                            _( "Read netlist" ) );
-    m_mainToolBar->AddTool( ID_DRC_CONTROL, wxEmptyString, KiScaledBitmap( erc_xpm, this ),
-                            _( "Perform design rules check" ) );
+    ADD_TOOL( ID_GET_NETLIST, netlist_xpm, _( "Load netlist" ) );
+    ADD_TOOL( ID_UPDATE_PCB_FROM_SCH, update_pcb_from_sch_xpm, _( "Update PCB from schematic" ) );
+    ADD_TOOL( ID_DRC_CONTROL, erc_xpm, _( "Perform design rules check" ) );
 
     KiScaledSeparator( m_mainToolBar, this );
 
-    if( m_SelLayerBox == NULL )
+    if( m_SelLayerBox == nullptr )
     {
         m_SelLayerBox = new PCB_LAYER_BOX_SELECTOR( m_mainToolBar, ID_TOOLBARH_PCB_SELECT_LAYER );
         m_SelLayerBox->SetBoardFrame( this );
@@ -315,10 +312,12 @@ void PCB_EDIT_FRAME::ReCreateHToolbar()
     ReCreateLayerBox( false );
     m_mainToolBar->AddControl( m_SelLayerBox );
 
-    PrepareLayerIndicator();    // Initialize the bitmap with current
-                                // active layer colors for the next tool
-    m_mainToolBar->AddTool( ID_AUX_TOOLBAR_PCB_SELECT_LAYER_PAIR, wxEmptyString,
-                            *LayerPairBitmap, SEL_LAYER_HELP );
+    PrepareLayerIndicator();    // Initialize the bitmap with the active layer colors
+    m_mainToolBar->AddTool( ID_AUX_TOOLBAR_PCB_SELECT_LAYER_PAIR, wxEmptyString, *LayerPairBitmap,
+                            SEL_LAYER_HELP );
+
+    KiScaledSeparator( m_mainToolBar, this );
+    ADD_TOOL( ID_RUN_EESCHEMA, eeschema_xpm, _( "Open schematic in Eeschema" ) );
 
     // Access to the scripting console
 #if defined(KICAD_SCRIPTING_WXPYTHON)
@@ -328,18 +327,30 @@ void PCB_EDIT_FRAME::ReCreateHToolbar()
 
         m_mainToolBar->AddTool( ID_TOOLBARH_PCB_SCRIPTING_CONSOLE, wxEmptyString,
                                 KiScaledBitmap( py_script_xpm, this ),
-                                _( "Show/Hide the Python Scripting console" ),
-                                wxITEM_CHECK );
+                                _( "Show/Hide the Python Scripting console" ), wxITEM_CHECK );
+
+#if defined(KICAD_SCRIPTING) && defined(KICAD_SCRIPTING_ACTION_MENU)
+        AddActionPluginTools();
+#endif
     }
 #endif
 
     // after adding the buttons to the toolbar, must call Realize() to reflect the changes
     m_mainToolBar->Realize();
+
+#undef ADD_TOOL
 }
 
 
 void PCB_EDIT_FRAME::ReCreateOptToolbar()
 {
+    // Note:
+    // To rebuild the aui toolbar, the more easy way is to clear ( calling m_mainToolBar.Clear() )
+    // all wxAuiToolBarItems.
+    // However the wxAuiToolBarItems are not the owners of controls managed by
+    // them and therefore do not delete them
+    // So we do not recreate them after clearing the tools.
+
     wxWindowUpdateLocker dummy( this );
 
     if( m_optionsToolBar )
@@ -438,7 +449,7 @@ void PCB_EDIT_FRAME::ReCreateVToolbar()
 
     // Set up toolbar
     m_drawToolBar->AddTool( ID_NO_TOOL_SELECTED, wxEmptyString, KiScaledBitmap( cursor_xpm, this ),
-                            wxEmptyString, wxITEM_CHECK );
+                            _( "Select item" ), wxITEM_CHECK );
 
     KiScaledSeparator( m_drawToolBar, this );
 
@@ -566,8 +577,8 @@ void PCB_EDIT_FRAME::ReCreateAuxiliaryToolbar()
 
     if( m_auxiliaryToolBar )
     {
-        updateTraceWidthSelectBox();
-        updateViaSizeSelectBox();
+        UpdateTrackWidthSelectBox( m_SelTrackWidthBox );
+        UpdateViaSizeSelectBox( m_SelViaSizeBox );
 
         // combobox sizes can have changed: apply new best sizes
         wxAuiToolBarItem* item = m_auxiliaryToolBar->FindTool( ID_AUX_TOOLBAR_PCB_TRACK_WIDTH );
@@ -586,19 +597,24 @@ void PCB_EDIT_FRAME::ReCreateAuxiliaryToolbar()
     /* Set up toolbar items */
 
     // Creates box to display and choose tracks widths:
-    m_SelTrackWidthBox = new wxChoice( m_auxiliaryToolBar,
-                                         ID_AUX_TOOLBAR_PCB_TRACK_WIDTH,
-                                         wxDefaultPosition, wxDefaultSize,
-                                         0, NULL );
-    updateTraceWidthSelectBox();
+    if( m_SelTrackWidthBox == nullptr )
+        m_SelTrackWidthBox = new wxChoice( m_auxiliaryToolBar,
+                                       ID_AUX_TOOLBAR_PCB_TRACK_WIDTH,
+                                       wxDefaultPosition, wxDefaultSize,
+                                       0, NULL );
+
+    UpdateTrackWidthSelectBox( m_SelTrackWidthBox );
     m_auxiliaryToolBar->AddControl( m_SelTrackWidthBox );
 
     // Creates box to display and choose vias diameters:
-    m_SelViaSizeBox = new wxChoice( m_auxiliaryToolBar,
-                                      ID_AUX_TOOLBAR_PCB_VIA_SIZE,
-                                      wxDefaultPosition, wxDefaultSize,
-                                      0, NULL );
-    updateViaSizeSelectBox();
+
+    if( m_SelViaSizeBox == nullptr )
+        m_SelViaSizeBox = new wxChoice( m_auxiliaryToolBar,
+                                    ID_AUX_TOOLBAR_PCB_VIA_SIZE,
+                                    wxDefaultPosition, wxDefaultSize,
+                                    0, NULL );
+
+    UpdateViaSizeSelectBox( m_SelViaSizeBox );
     m_auxiliaryToolBar->AddControl( m_SelViaSizeBox );
     KiScaledSeparator( m_auxiliaryToolBar, this );
 
@@ -612,19 +628,26 @@ void PCB_EDIT_FRAME::ReCreateAuxiliaryToolbar()
 
     // Add the box to display and select the current grid size:
     KiScaledSeparator( m_auxiliaryToolBar, this );
-    m_gridSelectBox = new wxChoice( m_auxiliaryToolBar,
-                                      ID_ON_GRID_SELECT,
-                                      wxDefaultPosition, wxDefaultSize,
-                                      0, NULL );
-    updateGridSelectBox();
+
+    if( m_gridSelectBox == nullptr )
+        m_gridSelectBox = new wxChoice( m_auxiliaryToolBar,
+                                    ID_ON_GRID_SELECT,
+                                    wxDefaultPosition, wxDefaultSize,
+                                    0, NULL );
+
+    UpdateGridSelectBox();
+
     m_auxiliaryToolBar->AddControl( m_gridSelectBox );
 
     //  Add the box to display and select the current Zoom
     KiScaledSeparator( m_auxiliaryToolBar, this );
-    m_zoomSelectBox = new wxChoice( m_auxiliaryToolBar,
-                                      ID_ON_ZOOM_SELECT,
-                                      wxDefaultPosition, wxDefaultSize,
-                                      0, NULL );
+
+    if( m_zoomSelectBox == nullptr )
+        m_zoomSelectBox = new wxChoice( m_auxiliaryToolBar,
+                                    ID_ON_ZOOM_SELECT,
+                                    wxDefaultPosition, wxDefaultSize,
+                                    0, NULL );
+
     updateZoomSelectBox();
     m_auxiliaryToolBar->AddControl( m_zoomSelectBox );
 
@@ -633,15 +656,15 @@ void PCB_EDIT_FRAME::ReCreateAuxiliaryToolbar()
 }
 
 
-void PCB_EDIT_FRAME::updateTraceWidthSelectBox()
+void PCB_EDIT_FRAME::UpdateTrackWidthSelectBox( wxChoice* aTrackWidthSelectBox, const bool aEdit )
 {
-    if( m_SelTrackWidthBox == NULL )
+    if( aTrackWidthSelectBox == NULL )
         return;
 
     wxString msg;
-    bool mmFirst = g_UserUnit != INCHES;
+    bool mmFirst = GetUserUnits() != INCHES;
 
-    m_SelTrackWidthBox->Clear();
+    aTrackWidthSelectBox->Clear();
 
     for( unsigned ii = 0; ii < GetDesignSettings().m_TrackWidthList.size(); ii++ )
     {
@@ -661,70 +684,71 @@ void PCB_EDIT_FRAME::updateTraceWidthSelectBox()
         if( ii == 0 )
             msg << wxT( " *" );
 
-        m_SelTrackWidthBox->Append( msg );
+        aTrackWidthSelectBox->Append( msg );
+    }
+
+    if( aEdit )
+    {
+        aTrackWidthSelectBox->Append( wxT( "---" ) );
+        aTrackWidthSelectBox->Append( _( "Edit pre-defined sizes..." ) );
     }
 
     if( GetDesignSettings().GetTrackWidthIndex() >= GetDesignSettings().m_TrackWidthList.size() )
         GetDesignSettings().SetTrackWidthIndex( 0 );
 
-    m_SelTrackWidthBox->SetSelection( GetDesignSettings().GetTrackWidthIndex() );
+    aTrackWidthSelectBox->SetSelection( GetDesignSettings().GetTrackWidthIndex() );
 }
 
 
-void PCB_EDIT_FRAME::updateViaSizeSelectBox()
+void PCB_EDIT_FRAME::UpdateViaSizeSelectBox( wxChoice* aViaSizeSelectBox, const bool aEdit )
 {
-    if( m_SelViaSizeBox == NULL )
+    if( aViaSizeSelectBox == NULL )
         return;
 
-    wxString msg;
+    aViaSizeSelectBox->Clear();
 
-    m_SelViaSizeBox->Clear();
-    bool mmFirst = g_UserUnit != INCHES;
+    bool mmFirst = GetUserUnits() != INCHES;
 
     for( unsigned ii = 0; ii < GetDesignSettings().m_ViasDimensionsList.size(); ii++ )
     {
-        int diam = GetDesignSettings().m_ViasDimensionsList[ii].m_Diameter;
+        VIA_DIMENSION viaDimension = GetDesignSettings().m_ViasDimensionsList[ii];
+        wxString      msg, mmStr, milsStr;
 
-        double valueMils = To_User_Unit( INCHES, diam ) * 1000;
-        double value_mm = To_User_Unit( MILLIMETRES, diam );
+        double diam = To_User_Unit( MILLIMETRES, viaDimension.m_Diameter );
+        double hole = To_User_Unit( MILLIMETRES, viaDimension.m_Drill );
 
-        if( mmFirst )
-            msg.Printf( _( "Via: %.2f mm (%.1f mils)" ),
-                        value_mm, valueMils );
+        if( hole > 0 )
+            mmStr.Printf( _( "%.2f / %.2f mm" ), diam, hole );
         else
-            msg.Printf( _( "Via: %.1f mils (%.2f mm)" ),
-                        valueMils, value_mm );
+            mmStr.Printf( _( "%.2f mm" ), diam );
 
-        int hole = GetDesignSettings().m_ViasDimensionsList[ii].m_Drill;
+        diam = To_User_Unit( INCHES, viaDimension.m_Diameter ) * 1000;
+        hole = To_User_Unit( INCHES, viaDimension.m_Drill ) * 1000;
 
-        if( hole )
-        {
-            msg  << wxT("/ ");
-            wxString hole_str;
-            valueMils = To_User_Unit( INCHES, hole ) * 1000;
-            value_mm = To_User_Unit( MILLIMETRES, hole );
+        if( hole > 0 )
+            milsStr.Printf( _( "%.1f / %.1f mils" ), diam, hole );
+        else
+            milsStr.Printf( _( "%.1f mils" ), diam );
 
-            if( mmFirst )
-                hole_str.Printf( _( "%.2f mm (%.1f mils)" ),
-                            value_mm, valueMils );
-            else
-                hole_str.Printf( _( "%.1f mils (%.2f mm)" ),
-                            valueMils, value_mm );
-
-            msg += hole_str;
-        }
+        msg.Printf( _( "Via: %s (%s)" ), mmFirst ? mmStr : milsStr, mmFirst ? milsStr : mmStr );
 
         // Mark the netclass via size value (the first in list)
         if( ii == 0 )
             msg << wxT( " *" );
 
-        m_SelViaSizeBox->Append( msg );
+        aViaSizeSelectBox->Append( msg );
+    }
+
+    if( aEdit )
+    {
+        aViaSizeSelectBox->Append( wxT( "---" ) );
+        aViaSizeSelectBox->Append( _( "Edit pre-defined sizes..." ) );
     }
 
     if( GetDesignSettings().GetViaSizeIndex() >= GetDesignSettings().m_ViasDimensionsList.size() )
         GetDesignSettings().SetViaSizeIndex( 0 );
 
-    m_SelViaSizeBox->SetSelection( GetDesignSettings().GetViaSizeIndex() );
+    aViaSizeSelectBox->SetSelection( GetDesignSettings().GetViaSizeIndex() );
 }
 
 
@@ -816,14 +840,14 @@ void PCB_EDIT_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
 
     case ID_TB_OPTIONS_SHOW_EXTRA_VERTICAL_TOOLBAR_MICROWAVE:
         m_show_microwave_tools = state;
-        m_auimgr.GetPane( wxT( "m_microWaveToolBar" ) ).Show( m_show_microwave_tools );
+        m_auimgr.GetPane( "MicrowaveToolbar" ).Show( m_show_microwave_tools );
         m_auimgr.Update();
         break;
 
     case ID_TB_OPTIONS_SHOW_MANAGE_LAYERS_VERTICAL_TOOLBAR:
         // show auxiliary Vertical layers and visibility manager toolbar
         m_show_layer_manager_tools = state;
-        m_auimgr.GetPane( wxT( "m_LayersManagerToolBar" ) ).Show( m_show_layer_manager_tools );
+        m_auimgr.GetPane( "LayersManager" ).Show( m_show_layer_manager_tools );
         m_auimgr.Update();
         break;
 

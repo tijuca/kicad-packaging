@@ -35,6 +35,7 @@
 #include <base_units.h>
 #include <msgpanel.h>
 #include <bitmaps.h>
+#include <eda_dockart.h>
 
 #include <pl_editor_frame.h>
 #include <pl_editor_id.h>
@@ -56,6 +57,7 @@ PL_EDITOR_FRAME::PL_EDITOR_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     EDA_DRAW_FRAME( aKiway, aParent, FRAME_PL_EDITOR, wxT( "PlEditorFrame" ),
             wxDefaultPosition, wxDefaultSize, KICAD_DEFAULT_DRAWFRAME_STYLE, PL_EDITOR_FRAME_NAME )
 {
+    m_UserUnits = MILLIMETRES;
     m_zoomLevelCoeff = 290.0;   // Adjusted to roughly displays zoom level = 1
                                 // when the screen shows a 1:1 image
                                 // obviously depends on the monitor,
@@ -64,7 +66,7 @@ PL_EDITOR_FRAME::PL_EDITOR_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     m_showAxis = false;                 // true to show X and Y axis on screen
     m_showGridAxis = true;
     m_showBorderAndTitleBlock   = true; // true for reference drawings.
-    m_hotkeysDescrList   = PlEditorHokeysDescr;
+    m_hotkeysDescrList   = PlEditorHotkeysDescr;
     m_originSelectChoice = 0;
     SetDrawBgColor( WHITE );            // default value, user option (WHITE/BLACK)
     SetShowPageLimits( true );
@@ -92,7 +94,6 @@ PL_EDITOR_FRAME::PL_EDITOR_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
 
     ReCreateMenuBar();
     ReCreateHToolbar();
-    ReCreateOptToolbar();
 
     wxWindow* stsbar = GetStatusBar();
     int dims[] = {
@@ -119,59 +120,25 @@ PL_EDITOR_FRAME::PL_EDITOR_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
         GetTextSize( _( "Inches" ), stsbar ).x + 10
     };
 
-    SetStatusWidths( DIM( dims ), dims );
-
+    SetStatusWidths( arrayDim( dims ), dims );
 
     m_auimgr.SetManagedWindow( this );
-
-    EDA_PANEINFO    horiz;
-    horiz.HorizontalToolbarPane();
-
-    EDA_PANEINFO    vert;
-    vert.VerticalToolbarPane();
-
-    EDA_PANEINFO    mesg;
-    mesg.MessageToolbarPane();
+    m_auimgr.SetArtProvider( new EDA_DOCKART( this ) );
 
     m_propertiesPagelayout = new PROPERTIES_FRAME( this );
-    EDA_PANEINFO    props;
-    props.LayersToolbarPane();
-    props.MinSize( m_propertiesPagelayout->GetMinSize() );
-    props.BestSize( m_propertiesFrameWidth, -1 );
-    props.Caption( _( "Properties" ) );
-
     m_treePagelayout = new DESIGN_TREE_FRAME( this );
-    EDA_PANEINFO    tree;
-    tree.LayersToolbarPane();
-    tree.MinSize( m_treePagelayout->GetMinSize() );
-    tree.BestSize( m_designTreeWidth, -1 );
-    tree.Caption( _( "Design" ) );
 
-    if( m_mainToolBar )
-        m_auimgr.AddPane( m_mainToolBar,
-                          wxAuiPaneInfo( horiz ).Name( wxT( "m_mainToolBar" ) ).Top().Row( 0 ) );
+    m_auimgr.AddPane( m_mainToolBar, EDA_PANE().HToolbar().Name( "MainToolbar" ).Top().Layer(6) );
+    m_auimgr.AddPane( m_messagePanel, EDA_PANE().Messages().Name( "MsgPanel" ).Bottom().Layer(6) );
 
-    if( m_drawToolBar )
-        m_auimgr.AddPane( m_drawToolBar,
-                          wxAuiPaneInfo( vert ).Name( wxT( "m_drawToolBar" ) ).Right().Row( 1 ) );
+    m_auimgr.AddPane( m_treePagelayout, EDA_PANE().Palette().Name( "Design" ).Left().Layer(1)
+                      .Caption( _( "Design" ) ).MinSize( m_treePagelayout->GetMinSize() )
+                      .BestSize( m_designTreeWidth, -1 ) );
+    m_auimgr.AddPane( m_propertiesPagelayout, EDA_PANE().Palette().Name( "Props" ).Right().Layer(1)
+                      .Caption( _( "Properties" ) ).MinSize( m_propertiesPagelayout->GetMinSize() )
+                      .BestSize( m_propertiesFrameWidth, -1 ) );
 
-    m_auimgr.AddPane( m_propertiesPagelayout,
-                      props.Name( wxT( "m_propertiesPagelayout" ) ).Right().Layer( 1 ) );
-
-    m_auimgr.AddPane( m_treePagelayout,
-                      tree.Name( wxT( "m_treePagelayout" ) ).Left().Layer( 0 ) );
-
-    if( m_optionsToolBar )
-        m_auimgr.AddPane( m_optionsToolBar,
-                          wxAuiPaneInfo( vert ).Name( wxT( "m_optionsToolBar" ) ).Left() );
-
-    if( m_canvas )
-        m_auimgr.AddPane( m_canvas,
-                          wxAuiPaneInfo().Name( wxT( "DrawFrame" ) ).CentrePane().Layer( 5 ) );
-
-    if( m_messagePanel )
-        m_auimgr.AddPane( m_messagePanel,
-                          wxAuiPaneInfo( mesg ).Name( wxT( "MsgPanel" ) ).Bottom().Layer( 10 ) );
+    m_auimgr.AddPane( m_canvas, EDA_PANE().Canvas().Name( "DrawFrame" ).Center() );
 
     m_auimgr.Update();
 
@@ -218,47 +185,11 @@ void PL_EDITOR_FRAME::OnCloseWindow( wxCloseEvent& Event )
 {
     if( GetScreen()->IsModify() )
     {
-        wxString msg;
-        wxString filename = GetCurrFileName();
-
-        if( filename.IsEmpty() )
-            msg = _( "Save changes in a new file before closing?" );
-        else
-            msg.Printf( _( "Save the changes in\n\"%s\"\nbefore closing?" ),
-                        GetChars( filename ) );
-
-        int ii = DisplayExitDialog( this, msg );
-
-        switch( ii )
+        if( !HandleUnsavedChanges( this, _( "The current page layout has been modified. Save changes?" ),
+                                   [&]()->bool { return saveCurrentPageLayout(); } ) )
         {
-        case wxID_CANCEL:
             Event.Veto();
             return;
-
-        case wxID_NO:
-            break;
-
-        case wxID_OK:
-        case wxID_YES:
-        {
-            if( filename.IsEmpty() )
-            {
-                wxFileDialog openFileDialog( this, _( "Save As" ), wxEmptyString, wxEmptyString,
-                                             PageLayoutDescrFileWildcard(), wxFD_SAVE );
-
-                if(openFileDialog.ShowModal() == wxID_CANCEL )
-                    return;
-
-                filename = openFileDialog.GetPath();
-            }
-
-            if( !SavePageLayoutDescrFile( filename ) )
-            {
-                msg.Printf( _( "Unable to create \"%s\"" ), GetChars( filename ) );
-                wxMessageBox( msg );
-            }
-        }
-            break;
         }
     }
 
@@ -438,14 +369,14 @@ void PL_EDITOR_FRAME::UpdateStatusBar()
 
     // Display absolute coordinates:
     wxPoint coord = GetCrossHairPosition() - originCoord;
-    double dXpos = To_User_Unit( g_UserUnit, coord.x*Xsign );
-    double dYpos = To_User_Unit( g_UserUnit, coord.y*Ysign );
+    double dXpos = To_User_Unit( GetUserUnits(), coord.x*Xsign );
+    double dYpos = To_User_Unit( GetUserUnits(), coord.y*Ysign );
 
     wxString pagesizeformatter = _( "Page size: width %.4g height %.4g" );
     wxString absformatter = wxT( "X %.4g  Y %.4g" );
     wxString locformatter = wxT( "dx %.4g  dy %.4g" );
 
-    switch( g_UserUnit )
+    switch( GetUserUnits() )
     {
     case INCHES:        // Should not be used in page layout editor
         SetStatusText( _("inches"), 5 );
@@ -480,8 +411,8 @@ void PL_EDITOR_FRAME::UpdateStatusBar()
     // Display relative coordinates:
     int dx = GetCrossHairPosition().x - screen->m_O_Curseur.x;
     int dy = GetCrossHairPosition().y - screen->m_O_Curseur.y;
-    dXpos = To_User_Unit( g_UserUnit, dx * Xsign );
-    dYpos = To_User_Unit( g_UserUnit, dy * Ysign );
+    dXpos = To_User_Unit( GetUserUnits(), dx * Xsign );
+    dYpos = To_User_Unit( GetUserUnits(), dy * Ysign );
     line.Printf( locformatter, dXpos, dYpos );
     SetStatusText( line, 3 );
 
@@ -669,7 +600,7 @@ WORKSHEET_DATAITEM * PL_EDITOR_FRAME::GetSelectedItem()
 }
 
 
-WORKSHEET_DATAITEM* PL_EDITOR_FRAME::Locate( const wxPoint& aPosition )
+WORKSHEET_DATAITEM* PL_EDITOR_FRAME::Locate( wxDC* aDC, const wxPoint& aPosition )
 {
     const PAGE_INFO&    pageInfo = GetPageSettings();
     TITLE_BLOCK         t_block = GetTitleBlock();
@@ -694,7 +625,7 @@ WORKSHEET_DATAITEM* PL_EDITOR_FRAME::Locate( const wxPoint& aPosition )
     // We do not use here the COLLECTOR classes in use in pcbnew and eeschema
     // because the locate requirements are very basic.
     std::vector <WS_DRAW_ITEM_BASE*> list;
-    drawList.Locate( list, aPosition );
+    drawList.Locate( aDC, list, aPosition );
 
     if( list.size() == 0 )
         return NULL;

@@ -1,12 +1,11 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 19 2018)
+// C++ code generated with wxFormBuilder (version Oct 26 2018)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
-#ifndef __DIALOG_DRC_BASE_H__
-#define __DIALOG_DRC_BASE_H__
+#pragma once
 
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
@@ -23,27 +22,24 @@ class DRCLISTBOX;
 #include <wx/textctrl.h>
 #include <wx/sizer.h>
 #include <wx/checkbox.h>
-#include <wx/button.h>
-#include <wx/statline.h>
-#include <wx/listbox.h>
-#include <wx/panel.h>
+#include <wx/bmpbuttn.h>
 #include <wx/bitmap.h>
 #include <wx/image.h>
 #include <wx/icon.h>
+#include <wx/button.h>
+#include <wx/gbsizer.h>
+#include <wx/listbox.h>
+#include <wx/panel.h>
 #include <wx/notebook.h>
-#include <wx/statbox.h>
 #include <wx/dialog.h>
 
 ///////////////////////////////////////////////////////////////////////////
 
 #define ID_CHECKBOX_RPT_FILE 1000
 #define ID_BUTTON_BROWSE_RPT_FILE 1001
-#define ID_STARTDRC 1002
-#define ID_LIST_UNCONNECTED 1003
-#define ID_DELETE_ALL 1004
-#define ID_NOTEBOOK1 1005
-#define ID_CLEARANCE_LIST 1006
-#define ID_UNCONNECTED_LIST 1007
+#define ID_NOTEBOOK1 1002
+#define ID_CLEARANCE_LIST 1003
+#define ID_UNCONNECTED_LIST 1004
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Class DIALOG_DRC_CONTROL_BASE
@@ -52,9 +48,8 @@ class DIALOG_DRC_CONTROL_BASE : public DIALOG_SHIM
 {
 	private:
 		wxPanel* m_panelUnconnectedBox;
-	
+
 	protected:
-		wxStaticText* m_staticTextOptions;
 		wxStaticText* m_ClearanceTitle;
 		wxStaticText* m_TrackMinWidthTitle;
 		wxStaticText* m_TrackMinWidthUnit;
@@ -64,59 +59,53 @@ class DIALOG_DRC_CONTROL_BASE : public DIALOG_SHIM
 		wxStaticText* m_MicroViaMinUnit;
 		wxCheckBox* m_cbRefillZones;
 		wxCheckBox* m_cbReportAllTrackErrors;
-		wxCheckBox* m_cbCourtyardOverlap;
-		wxCheckBox* m_cbCourtyardMissing;
-		wxStaticText* m_staticTextRpt;
+		wxCheckBox* m_cbReportTracksToZonesErrors;
+		wxStaticText* m_messagesLabel;
+		wxTextCtrl* m_Messages;
 		wxCheckBox* m_CreateRptCtrl;
 		wxTextCtrl* m_RptFilenameCtrl;
-		wxButton* m_BrowseButton;
-		wxStaticText* m_staticText6;
-		wxTextCtrl* m_Messages;
-		wxButton* m_buttonRunDRC;
-		wxButton* m_buttonListUnconnected;
-		wxButton* m_DeleteAllButton;
-		wxButton* m_DeleteCurrentMarkerButton;
-		wxStaticText* m_MarkerCountLabel;
-		wxStaticLine* m_staticline1;
-		wxStaticText* m_UnconnectedCountLabel;
+		wxBitmapButton* m_BrowseButton;
 		wxNotebook* m_Notebook;
 		wxPanel* m_panelClearanceListBox;
+		wxBoxSizer* m_sizerButtons;
+		wxButton* m_DeleteCurrentMarkerButton;
+		wxButton* m_DeleteAllMarkersButton;
 		wxStdDialogButtonSizer* m_sdbSizer1;
 		wxButton* m_sdbSizer1OK;
+		wxButton* m_sdbSizer1Apply;
 		wxButton* m_sdbSizer1Cancel;
-		
+
 		// Virtual event handlers, overide them in your derived class
 		virtual void OnActivateDlg( wxActivateEvent& event ) { event.Skip(); }
 		virtual void OnReportCheckBoxClicked( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnReportFilenameEdited( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnButtonBrowseRptFileClick( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnStartdrcClick( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnListUnconnectedClick( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnDeleteAllClick( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnDeleteOneClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnChangingMarkerList( wxNotebookEvent& event ) { event.Skip(); }
 		virtual void OnLeftDClickClearance( wxMouseEvent& event ) { event.Skip(); }
+		virtual void OnLeftUpClearance( wxMouseEvent& event ) { event.Skip(); }
 		virtual void OnMarkerSelectionEvent( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnRightUpClearance( wxMouseEvent& event ) { event.Skip(); }
 		virtual void OnLeftDClickUnconnected( wxMouseEvent& event ) { event.Skip(); }
+		virtual void OnLeftUpUnconnected( wxMouseEvent& event ) { event.Skip(); }
 		virtual void OnUnconnectedSelectionEvent( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnRightUpUnconnected( wxMouseEvent& event ) { event.Skip(); }
+		virtual void OnDeleteOneClick( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnDeleteAllClick( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnListUnconnectedClick( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnCancelClick( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnOkClick( wxCommandEvent& event ) { event.Skip(); }
-		
-	
+		virtual void OnStartdrcClick( wxCommandEvent& event ) { event.Skip(); }
+
+
 	public:
 		wxTextCtrl* m_SetClearance;
 		wxTextCtrl* m_SetTrackMinWidthCtrl;
 		wxTextCtrl* m_SetViaMinSizeCtrl;
 		wxTextCtrl* m_SetMicroViakMinSizeCtrl;
-		wxStaticText* m_MarkerCount;
-		wxStaticText* m_UnconnectedCount;
 		DRCLISTBOX* m_ClearanceListBox;
 		DRCLISTBOX* m_UnconnectedListBox;
-		
-		DIALOG_DRC_CONTROL_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("DRC Control"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+
+		DIALOG_DRC_CONTROL_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("DRC Control"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
 		~DIALOG_DRC_CONTROL_BASE();
-	
+
 };
 
-#endif //__DIALOG_DRC_BASE_H__

@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2014-2015 CERN
+ * Copyright (C) 2014-2019 CERN
  * @author Maciej Suminski <maciej.suminski@cern.ch>
  *
  * This program is free software; you can redistribute it and/or
@@ -36,6 +36,7 @@
 #include <view/view_group.h>
 #include <pcb_painter.h>
 #include <origin_viewitem.h>
+#include <status_popup.h>
 
 #include <kicad_plugin.h>
 #include <pcbnew_id.h>
@@ -107,15 +108,30 @@ int MODULE_EDITOR_TOOLS::PlacePad( const TOOL_EVENT& aEvent )
             pad->IncrementPadName( true, true );
             return std::unique_ptr<BOARD_ITEM>( pad );
         }
+
+        bool PlaceItem( BOARD_ITEM *aItem, BOARD_COMMIT& aCommit ) override
+        {
+            D_PAD* pad = dynamic_cast<D_PAD*>( aItem );
+
+            if( pad )
+            {
+                m_frame->Export_Pad_Settings( pad );
+                pad->SetLocalCoord();
+                aCommit.Add( aItem );
+                return true;
+            }
+
+            return false;
+        }
     };
 
     PAD_PLACER placer;
 
     frame()->SetToolID( ID_MODEDIT_PAD_TOOL, wxCURSOR_PENCIL, _( "Add pads" ) );
 
-    assert( board()->m_Modules );
+    wxASSERT( board()->m_Modules );
 
-    doInteractiveItemPlacement( &placer,  _( "Place pad" ), IPO_REPEAT | IPO_SINGLE_CLICK | IPO_ROTATE | IPO_FLIP | IPO_PROPERTIES );
+    doInteractiveItemPlacement( &placer,  _( "Place pad" ), IPO_REPEAT | IPO_SINGLE_CLICK | IPO_ROTATE | IPO_FLIP );
 
     frame()->SetNoToolSelected();
 
@@ -145,8 +161,9 @@ int MODULE_EDITOR_TOOLS::EnumeratePads( const TOOL_EVENT& aEvent )
     guide.SetIgnoreModulesVals( true );
     guide.SetIgnoreModulesRefs( true );
 
-    int padNumber = settingsDlg.GetStartNumber();
+    int seqPadNum = settingsDlg.GetStartNumber();
     wxString padPrefix = settingsDlg.GetPrefix();
+    std::deque<int> storedPadNumbers;
 
     frame()->SetToolID( ID_MODEDIT_PAD_TOOL, wxCURSOR_HAND,
                         _( "Click on successive pads to renumber them" ) );
@@ -158,8 +175,15 @@ int MODULE_EDITOR_TOOLS::EnumeratePads( const TOOL_EVENT& aEvent )
     VECTOR2I oldCursorPos;  // store the previous mouse cursor position, during mouse drag
     std::list<D_PAD*> selectedPads;
     BOARD_COMMIT commit( frame() );
-    std::map<wxString, wxString> oldNames;
+    std::map<wxString, std::pair<int, wxString>> oldNames;
     bool isFirstPoint = true;   // used to be sure oldCursorPos will be initialized at least once.
+
+    STATUS_TEXT_POPUP statusPopup( frame() );
+    statusPopup.SetText( wxString::Format(
+            _( "Click on pad %s%d\nPress Escape to cancel or double-click to commit" ),
+            padPrefix.c_str(), seqPadNum ) );
+    statusPopup.Popup();
+    statusPopup.Move( wxGetMousePosition() + wxPoint( 20, 20 ) );
 
     while( OPT_TOOL_EVENT evt = Wait() )
     {
@@ -207,11 +231,31 @@ int MODULE_EDITOR_TOOLS::EnumeratePads( const TOOL_EVENT& aEvent )
                     commit.Modify( pad );
 
                     // Rename pad and store the old name
-                    wxString newName = wxString::Format( wxT( "%s%d" ), padPrefix.c_str(), padNumber++ );
-                    oldNames[newName] = pad->GetName();
+                    int newval;
+
+                    if( storedPadNumbers.size() > 0 )
+                    {
+                        newval = storedPadNumbers.front();
+                        storedPadNumbers.pop_front();
+                    }
+                    else
+                        newval = seqPadNum++;
+
+                    wxString newName = wxString::Format( wxT( "%s%d" ), padPrefix.c_str(), newval );
+                    oldNames[newName] = { newval, pad->GetName() };
                     pad->SetName( newName );
                     pad->SetSelected();
                     getView()->Update( pad );
+
+                    // Ensure the popup text shows the correct next value
+                    if( storedPadNumbers.size() > 0 )
+                        newval = storedPadNumbers.front();
+                    else
+                        newval = seqPadNum;
+
+                    statusPopup.SetText( wxString::Format(
+                            _( "Click on pad %s%d\nPress Escape to cancel or double-click to commit" ),
+                            padPrefix.c_str(), newval ) );
                 }
 
                 // ..or restore the old name if it was enumerated and clicked again
@@ -222,8 +266,13 @@ int MODULE_EDITOR_TOOLS::EnumeratePads( const TOOL_EVENT& aEvent )
 
                     if( it != oldNames.end() )
                     {
-                        pad->SetName( it->second );
+                        storedPadNumbers.push_back( it->second.first );
+                        pad->SetName( it->second.second );
                         oldNames.erase( it );
+
+                        statusPopup.SetText( wxString::Format(
+                                _( "Click on pad %s%d\nPress Escape to cancel or double-click to commit" ),
+                                padPrefix.c_str(), storedPadNumbers.front() ) );
                     }
 
                     pad->ClearSelected();
@@ -257,15 +306,15 @@ int MODULE_EDITOR_TOOLS::EnumeratePads( const TOOL_EVENT& aEvent )
             break;
         }
 
-        else
+        else if( evt->IsClick( BUT_RIGHT ) )
         {
-            // Delegate BUT_RIGHT, etc. to SELECTION_TOOL
-            m_toolMgr->PassEvent();
+            m_menu.ShowContextMenu();
         }
 
         // Prepare the next loop by updating the old cursor mouse position
         // to this last mouse cursor position
         oldCursorPos = getViewControls()->GetCursorPosition();
+        statusPopup.Move( wxGetMousePosition() + wxPoint( 20, 20 ) );
     }
 
     for( auto p : board()->m_Modules->Pads() )
@@ -274,6 +323,7 @@ int MODULE_EDITOR_TOOLS::EnumeratePads( const TOOL_EVENT& aEvent )
         view->Update( p );
     }
 
+    statusPopup.Hide();
     frame()->SetNoToolSelected();
     frame()->GetGalCanvas()->SetCursor( wxCURSOR_ARROW );
 
@@ -359,6 +409,13 @@ int MODULE_EDITOR_TOOLS::CreatePadFromShapes( const TOOL_EVENT& aEvent )
             case PCB_MODULE_EDGE_T:
             {
                 auto em = static_cast<EDGE_MODULE*> ( item );
+
+                // Currently, S_CURVE shape is not supported. so warn the user
+                if( em->GetShape() == S_CURVE )
+                {
+                    illegalItemsFound = true;
+                    break;
+                }
 
                 PAD_CS_PRIMITIVE shape( em->GetShape() );
                 shape.m_Start = em->GetStart();

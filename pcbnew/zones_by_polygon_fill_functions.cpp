@@ -46,7 +46,6 @@
 #include <pcbnew.h>
 #include <zones.h>
 
-#include <connectivity_data.h>
 #include <board_commit.h>
 
 #include <widgets/progress_reporter.h>
@@ -119,7 +118,7 @@ void PCB_EDIT_FRAME::Check_All_Zones( wxWindow* aActiveWindow )
     std::unique_ptr<WX_PROGRESS_REPORTER> progressReporter(
             new WX_PROGRESS_REPORTER( aActiveWindow, _( "Checking Zones" ), 4 ) );
 
-    ZONE_FILLER filler( GetBoard(), &commit, aActiveWindow );
+    ZONE_FILLER filler( GetBoard(), &commit );
     filler.SetProgressReporter( progressReporter.get() );
 
     if( filler.Fill( toFill, true ) )

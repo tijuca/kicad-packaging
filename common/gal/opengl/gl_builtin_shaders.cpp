@@ -63,10 +63,15 @@ const char kicad_vertex_shader[] = R"SHADER_SOURCE(
 #version 120
 
 // Shader types
-const float SHADER_LINE                 = 1.0;
 const float SHADER_FILLED_CIRCLE        = 2.0;
 const float SHADER_STROKED_CIRCLE       = 3.0;
 const float SHADER_FONT                 = 4.0;
+const float SHADER_LINE_A               = 5.0;
+const float SHADER_LINE_B               = 6.0;
+const float SHADER_LINE_C               = 7.0;
+const float SHADER_LINE_D               = 8.0;
+const float SHADER_LINE_E               = 9.0;
+const float SHADER_LINE_F               = 10.0;
 
 // Minimum line width
 const float MIN_WIDTH = 1.0;
@@ -74,61 +79,166 @@ const float MIN_WIDTH = 1.0;
 attribute vec4 attrShaderParams;
 varying vec4 shaderParams;
 varying vec2 circleCoords;
+uniform float worldPixelSize;
+uniform vec2 screenPixelSize;
+uniform float pixelSizeMultiplier;
+uniform float minLinePixelWidth;
+
+
+float roundr( float f, float r )
+{
+    return floor(f / r + 0.5) * r;
+}
+
+vec4 roundv( vec4 x, vec2 t)
+{
+    return vec4( roundr(x.x, t.x), roundr(x.y, t.y), x.z, x.w );
+}
+
+void computeLineCoords( bool posture, vec2 vs, vec2 vp, vec2 texcoord, vec2 dir, float lineWidth, bool endV )
+{
+    float lineLength = length(vs);
+    vec4 screenPos = gl_ModelViewProjectionMatrix * gl_Vertex + vec4(1, 1, 0, 0);
+    float w = ((lineWidth == 0.0) ? worldPixelSize : lineWidth );
+    float pixelWidth = roundr( w / worldPixelSize, 1.0 );
+    float aspect = ( lineLength + w ) / w;
+    vec4 color = gl_Color;
+    vec2 s = sign( vec2( gl_ModelViewProjectionMatrix[0][0], gl_ModelViewProjectionMatrix[1][1] ) );
+
+
+    if( pixelWidth < 1.0 )
+        pixelWidth = 1.0;
+
+    if ( pixelWidth > 1.0 || pixelSizeMultiplier > 1.0 )
+    {
+        vec2 offsetNorm = (vs + vp) * pixelWidth / lineLength * 0.5;
+        vec4 screenOffset = vec4( s.x * offsetNorm.x  * screenPixelSize.x, s.y * offsetNorm.y  * screenPixelSize.y , 0, 0);
+        vec4 adjust = vec4(-1, -1, 0, 0);
+
+        if( mod( pixelWidth * pixelSizeMultiplier, 2.0 ) > 0.9 )
+        {
+            adjust += vec4( screenPixelSize.x, screenPixelSize.y, 0, 0 ) * 0.5;
+        }
+
+        gl_Position = roundv(screenPos, screenPixelSize) + adjust + screenOffset;
+
+        shaderParams[0] = SHADER_LINE_A;
+    }
+    else {
+        vec4 pos0 = screenPos;
+        pos0.xy += ( posture ? dir.xy : dir.yx ) * screenPixelSize / 2.0;
+
+        if(posture)
+        {
+            pos0.y -= screenPixelSize.y * sign(vs.y) * 0.5;
+        }
+        else
+        {
+            pos0.x += screenPixelSize.x * sign(vs.x) * 0.5;
+        }
+
+        gl_Position = pos0 - vec4(1, 1, 0, 0);
+        shaderParams[0] = SHADER_LINE_B;
+    }
+
+    shaderParams[1] = aspect;
+
+    gl_TexCoord[0].st = vec2(aspect * texcoord.x, texcoord.y);
+    gl_FrontColor = gl_Color;
+}
+
+
+void computeCircleCoords( float mode, float vertexIndex, float radius, float lineWidth )
+{
+    vec4 delta;
+    vec4 center = roundv( gl_ModelViewProjectionMatrix * gl_Vertex + vec4(1, 1, 0, 0), screenPixelSize );
+    float pixelWidth = roundr( lineWidth / worldPixelSize, 1.0);
+    float pixelR = roundr( radius / worldPixelSize, 1.0);
+
+    if( mode == SHADER_STROKED_CIRCLE)
+        pixelR += pixelWidth / 2.0;
+
+    vec4 adjust = vec4(-1, -1, 0, 0);
+
+    if( pixelWidth < 1.0 )
+        pixelWidth = 1.0;
+
+    if( vertexIndex == 1.0 )
+    {
+        circleCoords = vec2( -sqrt( 3.0 ), -1.0 );
+        delta = vec4( -pixelR * sqrt(3.0), -pixelR, 0, 0 );
+    }
+    else if( vertexIndex == 2.0 )
+    {
+        circleCoords = vec2( sqrt( 3.0 ), -1.0 );
+        delta = vec4( pixelR * sqrt( 3.0 ), -pixelR, 0, 0 );
+    }
+    else if( vertexIndex == 3.0 )
+    {
+        circleCoords = vec2( 0.0, 2.0 );
+        delta = vec4( 0, 2 * pixelR, 0, 0 );
+    }
+    else if( vertexIndex == 4.0 )
+    {
+        circleCoords = vec2( -sqrt( 3.0 ), 0.0 );
+        delta = vec4( 0, 0, 0, 0 );
+    }
+    else if( vertexIndex == 5.0 )
+    {
+        circleCoords = vec2( sqrt( 3.0 ), 0.0 );
+        delta = vec4( 0, 0, 0, 0 );
+    }
+    else if( vertexIndex == 6.0 )
+    {
+        circleCoords = vec2( 0.0, 2.0 );
+        delta = vec4( 0, 0, 0, 0 );
+    }
+
+    shaderParams[2] = pixelR;
+    shaderParams[3] = pixelWidth;
+
+    delta.x *= screenPixelSize.x;
+    delta.y *= screenPixelSize.y;
+
+    gl_Position = center + delta + adjust;
+    gl_FrontColor = gl_Color;
+}
+
 
 void main()
 {
+    float mode = attrShaderParams[0];
+
     // Pass attributes to the fragment shader
     shaderParams = attrShaderParams;
 
-    if( shaderParams[0] == SHADER_LINE )
-    {
-        float lineWidth = shaderParams[3];
-        float worldScale = abs( gl_ModelViewMatrix[0][0] );
+    float lineWidth = shaderParams.y;
+    vec2 vs = shaderParams.zw;
+    vec2 vp = vec2(-vs.y, vs.x);
+    bool posture = abs( vs.x ) < abs(vs.y);
 
-        // Make lines appear to be at least 1 pixel wide
-        if( worldScale * lineWidth < MIN_WIDTH )
-            gl_Position = gl_ModelViewProjectionMatrix *
-                ( gl_Vertex + vec4( shaderParams.yz * MIN_WIDTH / ( worldScale * lineWidth ), 0.0, 0.0 ) );
-        else
-            gl_Position = gl_ModelViewProjectionMatrix *
-                ( gl_Vertex + vec4( shaderParams.yz, 0.0, 0.0 ) );
-    }
-    else if( ( shaderParams[0] == SHADER_STROKED_CIRCLE ) ||
-             ( shaderParams[0] == SHADER_FILLED_CIRCLE  ) )
-    {
-        // Compute relative circle coordinates basing on indices
-        // Circle
-        if( shaderParams[1] == 1.0 )
-            circleCoords = vec2( -sqrt( 3.0 ), -1.0 );
-        else if( shaderParams[1] == 2.0 )
-            circleCoords = vec2( sqrt( 3.0 ), -1.0 );
-        else if( shaderParams[1] == 3.0 )
-            circleCoords = vec2( 0.0, 2.0 );
-
-        // Semicircle
-        else if( shaderParams[1] == 4.0 )
-            circleCoords = vec2( -3.0 / sqrt( 3.0 ), 0.0 );
-        else if( shaderParams[1] == 5.0 )
-            circleCoords = vec2( 3.0 / sqrt( 3.0 ), 0.0 );
-        else if( shaderParams[1] == 6.0 )
-            circleCoords = vec2( 0.0, 2.0 );
-
-        // Make the line appear to be at least 1 pixel wide
-        float lineWidth = shaderParams[3];
-        float worldScale = abs( gl_ModelViewMatrix[0][0] );
-
-        if( worldScale * lineWidth < MIN_WIDTH )
-            shaderParams[3] = shaderParams[3] / ( worldScale * lineWidth );
-
-        gl_Position = ftransform();
-    }
+    if( mode == SHADER_LINE_A )
+        computeLineCoords( posture,  -vs, vp,  vec2( -1, -1 ), vec2( -1, 0 ), lineWidth, false );
+    else if( mode == SHADER_LINE_B )
+        computeLineCoords( posture,  -vs, -vp, vec2( -1,  1 ), vec2(  1, 0 ), lineWidth, false );
+    else if( mode == SHADER_LINE_C )
+        computeLineCoords( posture,  vs, -vp,  vec2(  1,  1 ), vec2(  1, 0 ), lineWidth, true );
+    else if( mode == SHADER_LINE_D )
+        computeLineCoords( posture,  vs, -vp,  vec2( -1, -1 ), vec2(  1, 0 ), lineWidth, true );
+    else if( mode == SHADER_LINE_E )
+        computeLineCoords( posture,  vs, vp,   vec2( -1,  1 ), vec2( -1, 0 ), lineWidth, true );
+    else if( mode == SHADER_LINE_F )
+        computeLineCoords( posture,  -vs, vp,  vec2(  1,  1 ), vec2( -1, 0 ), lineWidth, false );
+    else if( mode == SHADER_FILLED_CIRCLE || mode == SHADER_STROKED_CIRCLE)
+        computeCircleCoords( mode, shaderParams.y, shaderParams.z, shaderParams.w );
     else
     {
         // Pass through the coordinates like in the fixed pipeline
         gl_Position = ftransform();
+        gl_FrontColor = gl_Color;
+
     }
 
-    gl_FrontColor = gl_Color;
 }
 
 )SHADER_SOURCE";
@@ -168,14 +278,16 @@ const char kicad_fragment_shader[] = R"SHADER_SOURCE(
 #define USE_MSDF
 
 // Shader types
-const float SHADER_LINE                 = 1.0;
 const float SHADER_FILLED_CIRCLE        = 2.0;
 const float SHADER_STROKED_CIRCLE       = 3.0;
 const float SHADER_FONT                 = 4.0;
+const float SHADER_LINE_A               = 5.0;
+const float SHADER_LINE_B               = 6.0;
 
 varying vec4 shaderParams;
 varying vec2 circleCoords;
 uniform sampler2D fontTexture;
+uniform float worldPixelSize;
 
 // Needed to reconstruct the mipmap level / texel derivative
 uniform int fontTextureWidth;
@@ -188,15 +300,53 @@ void filledCircle( vec2 aCoord )
         discard;
 }
 
+float pixelSegDistance( vec2 aCoord )
+{
+    if( shaderParams[0] == SHADER_LINE_B )
+    {
+        gl_FragColor = gl_Color;
+        return 0.0;
+    }
+
+    float aspect = shaderParams[1];
+    float dist;
+    vec2 v = vec2( 1.0 - ( aspect - abs( aCoord.s ) ), aCoord.t );
+
+    if( v.x <= 0.0 )
+    {
+        dist = abs( aCoord.t );
+    }
+    else
+    {
+        dist = length( v );
+    }
+
+    return dist;
+}
+
+int isPixelInSegment( vec2 aCoord )
+{
+    return pixelSegDistance( aCoord ) <= 1.0 ? 1 : 0;
+}
+
+
 
 void strokedCircle( vec2 aCoord, float aRadius, float aWidth )
 {
-    float outerRadius = max( aRadius + ( aWidth / 2 ), 0.0 );
-    float innerRadius = max( aRadius - ( aWidth / 2 ), 0.0 );
-    float relWidth = innerRadius / outerRadius;
+    float outerRadius = max( aRadius, 0.0 );
+    float innerRadius = max( aRadius - aWidth, 0.0 );
 
     if( ( dot( aCoord, aCoord ) < 1.0 ) &&
-        ( dot( aCoord, aCoord ) > relWidth * relWidth ) )
+        ( dot( aCoord, aCoord ) * ( outerRadius * outerRadius ) > innerRadius * innerRadius ) )
+        gl_FragColor = gl_Color;
+    else
+        discard;
+}
+
+
+void drawLine( vec2 aCoord )
+{
+    if( isPixelInSegment( aCoord ) != 0)
         gl_FragColor = gl_Color;
     else
         discard;
@@ -211,7 +361,11 @@ float median( vec3 v )
 
 void main()
 {
-    if( shaderParams[0] == SHADER_FILLED_CIRCLE )
+    if( shaderParams[0] == SHADER_LINE_A )
+    {
+        drawLine( gl_TexCoord[0].st );
+    }
+    else if( shaderParams[0] == SHADER_FILLED_CIRCLE )
     {
         filledCircle( circleCoords );
     }

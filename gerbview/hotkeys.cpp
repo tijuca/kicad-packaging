@@ -65,10 +65,14 @@ static EDA_HOTKEY   HkZoomOut( _HKI( "Zoom Out" ), HK_ZOOM_OUT, WXK_F2 );
 static EDA_HOTKEY   HkZoomIn( _HKI( "Zoom In" ), HK_ZOOM_IN, WXK_F1 );
 static EDA_HOTKEY   HkZoomSelection( _HKI( "Zoom to Selection" ),
                                      HK_ZOOM_SELECTION, GR_KB_CTRL + WXK_F5 );
-static EDA_HOTKEY   HkHelp( _HKI( "Help (this window)" ), HK_HELP, GR_KB_CTRL + WXK_F1 );
+static EDA_HOTKEY   HkPreferences( _HKI( "Preferences" ),
+                                   HK_PREFERENCES, GR_KB_CTRL + ',', (int) wxID_PREFERENCES );
+static EDA_HOTKEY   HkHelp( _HKI( "List Hotkeys" ), HK_HELP, GR_KB_CTRL + WXK_F1 );
 static EDA_HOTKEY   HkSwitchUnits( _HKI( "Switch Units" ), HK_SWITCH_UNITS, 'U' );
 static EDA_HOTKEY   HkResetLocalCoord( _HKI( "Reset Local Coordinates" ),
                                        HK_RESET_LOCAL_COORD, ' ' );
+static EDA_HOTKEY   HkSwitchHighContrastMode( _HKI( "Toggle High Contrast Mode" ),
+                                              HK_SWITCH_HIGHCONTRAST_MODE, 'H' + GR_KB_CTRL );
 
 static EDA_HOTKEY   HkLinesDisplayMode( _HKI( "Gbr Lines Display Mode" ),
                                         HK_GBR_LINES_DISPLAY_MODE, 'L' );
@@ -110,11 +114,12 @@ static EDA_HOTKEY HkMeasureTool( _HKI( "Measure Distance (Modern Toolset only)" 
 
 // List of common hotkey descriptors
 EDA_HOTKEY* gerbviewHotkeyList[] = {
-    &HkHelp,
+    &HkHelp, &HkPreferences,
     &HkZoomIn, &HkZoomOut, &HkZoomRedraw, &HkZoomCenter,
     &HkZoomAuto, &HkZoomSelection, &HkSwitchUnits, &HkResetLocalCoord,
     &HkLinesDisplayMode, &HkFlashedDisplayMode, &HkPolygonDisplayMode,
     &HkDCodesDisplayMode, &HkNegativeObjDisplayMode,
+    &HkSwitchHighContrastMode,
     &HkSwitch2NextCopperLayer,
     &HkSwitch2PreviousCopperLayer,
     &HkCanvasDefault,
@@ -130,7 +135,7 @@ EDA_HOTKEY* gerbviewHotkeyList[] = {
 static wxString gerbviewSectionTag( wxT( "[gerbview]" ) );
 static wxString gerbviewSectionTitle( _HKI( "Gerbview Hotkeys" ) );
 
-struct EDA_HOTKEY_CONFIG GerbviewHokeysDescr[] =
+struct EDA_HOTKEY_CONFIG GerbviewHotkeysDescr[] =
 {
     { &gerbviewSectionTag, gerbviewHotkeyList, &gerbviewSectionTitle  },
     { NULL,                NULL,               NULL  }
@@ -169,7 +174,12 @@ bool GERBVIEW_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
         return false;
 
     case HK_HELP:       // Display Current hotkey list
-        DisplayHotkeyList( this, GerbviewHokeysDescr );
+        DisplayHotkeyList( this, GerbviewHotkeysDescr );
+        break;
+
+    case HK_PREFERENCES:
+        cmd.SetId( wxID_PREFERENCES );
+        GetEventHandler()->ProcessEvent( cmd );
         break;
 
     case HK_ZOOM_IN:
@@ -207,7 +217,9 @@ bool GERBVIEW_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
         break;
 
     case HK_SWITCH_UNITS:
-        g_UserUnit = (g_UserUnit == INCHES ) ? MILLIMETRES : INCHES;
+        cmd.SetId( (GetUserUnits() == INCHES) ?
+                    ID_TB_OPTIONS_SELECT_UNIT_MM : ID_TB_OPTIONS_SELECT_UNIT_INCH );
+        GetEventHandler()->ProcessEvent( cmd );
         break;
 
     case HK_GBR_LINES_DISPLAY_MODE:
@@ -232,6 +244,11 @@ bool GERBVIEW_FRAME::OnHotKey( wxDC* aDC, int aHotkeyCode, const wxPoint& aPosit
 
     case HK_GBR_DCODE_DISPLAY_ONOFF:
         SetElementVisibility( LAYER_DCODES, not IsElementVisible( LAYER_DCODES ) );
+        m_canvas->Refresh();
+        break;
+
+    case HK_SWITCH_HIGHCONTRAST_MODE:
+        CHANGE( m_DisplayOptions.m_HighContrastMode );
         m_canvas->Refresh();
         break;
 

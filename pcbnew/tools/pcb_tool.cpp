@@ -61,14 +61,17 @@ void PCB_TOOL::doInteractiveItemPlacement( INTERACTIVE_PLACER_BASE* aPlacer,
     aPlacer->m_frame = frame();
     aPlacer->m_modifiers = 0;
 
-    if( aOptions & IPO_SINGLE_CLICK )
+    if( aOptions & IPO_SINGLE_CLICK  && !( aOptions & IPO_PROPERTIES ) )
     {
         VECTOR2I cursorPos = controls()->GetCursorPosition();
 
         newItem = aPlacer->CreateItem();
-        newItem->SetPosition( wxPoint( cursorPos.x, cursorPos.y ) );
 
-        preview.Add( newItem.get() );
+        if( newItem )
+        {
+            newItem->SetPosition( wxPoint( cursorPos.x, cursorPos.y ) );
+            preview.Add( newItem.get() );
+        }
     }
 
     // Main loop: keep receiving events
@@ -101,7 +104,6 @@ void PCB_TOOL::doInteractiveItemPlacement( INTERACTIVE_PLACER_BASE* aPlacer,
             if( evt->IsActivate() )  // now finish unconditionally
                 break;
         }
-
         else if( evt->IsClick( BUT_LEFT ) )
         {
             if( !newItem )
@@ -130,10 +132,16 @@ void PCB_TOOL::doInteractiveItemPlacement( INTERACTIVE_PLACER_BASE* aPlacer,
             }
             else
             {
+                auto oldFlags = newItem->GetFlags();
                 newItem->ClearFlags();
-                preview.Remove( newItem.get() );
 
-                aPlacer->PlaceItem( newItem.get(), commit );
+                if( !aPlacer->PlaceItem( newItem.get(), commit ) )
+                {
+                    newItem->SetFlags( oldFlags );
+                    continue;
+                }
+
+                preview.Remove( newItem.get() );
 
                 if( newItem->Type() == PCB_MODULE_T )
                 {
@@ -151,18 +159,24 @@ void PCB_TOOL::doInteractiveItemPlacement( INTERACTIVE_PLACER_BASE* aPlacer,
                 if( !( aOptions & IPO_REPEAT ) )
                     break;
 
-                if( aOptions & IPO_SINGLE_CLICK )
+                if( aOptions & IPO_SINGLE_CLICK  && !( aOptions & IPO_PROPERTIES ) )
                 {
                     VECTOR2I pos = controls()->GetCursorPosition();
 
                     newItem = aPlacer->CreateItem();
-                    newItem->SetPosition( wxPoint( pos.x, pos.y ) );
 
-                    preview.Add( newItem.get() );
+                    if( newItem )
+                    {
+                        newItem->SetPosition( wxPoint( pos.x, pos.y ) );
+                        preview.Add( newItem.get() );
+                    }
                 }
             }
         }
-
+        else if( evt->IsClick( BUT_RIGHT ) )
+        {
+            m_menu.ShowContextMenu();
+        }
         else if( newItem && evt->Category() == TC_COMMAND )
         {
             /*
@@ -172,8 +186,7 @@ void PCB_TOOL::doInteractiveItemPlacement( INTERACTIVE_PLACER_BASE* aPlacer,
 
             if( TOOL_EVT_UTILS::IsRotateToolEvt( *evt ) && ( aOptions & IPO_ROTATE ) )
             {
-                const auto rotationAngle = TOOL_EVT_UTILS::GetEventRotationAngle(
-                        *frame(), *evt );
+                const int rotationAngle = TOOL_EVT_UTILS::GetEventRotationAngle( *frame(), *evt );
                 newItem->Rotate( newItem->GetPosition(), rotationAngle );
                 view()->Update( &preview );
             }
@@ -197,6 +210,23 @@ void PCB_TOOL::doInteractiveItemPlacement( INTERACTIVE_PLACER_BASE* aPlacer,
 
     view()->Remove( &preview );
 }
+
+bool PCB_TOOL::Init()
+{
+    // A basic context manu.  Many (but not all) tools will choose to override this.
+
+    auto& ctxMenu = m_menu.GetMenu();
+
+    // cancel current tool goes in main context menu at the top if present
+    ctxMenu.AddItem( ACTIONS::cancelInteractive, SELECTION_CONDITIONS::ShowAlways, 1 );
+    ctxMenu.AddSeparator( SELECTION_CONDITIONS::ShowAlways, 1 );
+
+    // Finally, add the standard zoom/grid items
+    m_menu.AddStandardSubMenus( *getEditFrame<PCB_BASE_FRAME>() );
+
+    return true;
+}
+
 
 void PCB_TOOL::Reset( RESET_REASON aReason )
 {
@@ -238,7 +268,8 @@ void INTERACTIVE_PLACER_BASE::SnapItem( BOARD_ITEM *aItem )
     // Base implementation performs no snapping
 }
 
-void INTERACTIVE_PLACER_BASE::PlaceItem( BOARD_ITEM *aItem, BOARD_COMMIT& aCommit )
+bool INTERACTIVE_PLACER_BASE::PlaceItem( BOARD_ITEM *aItem, BOARD_COMMIT& aCommit )
 {
     aCommit.Add( aItem );
+    return true;
 }

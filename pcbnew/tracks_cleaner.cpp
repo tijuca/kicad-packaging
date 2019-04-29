@@ -37,8 +37,8 @@
 #include <class_track.h>
 #include <dialog_cleaning_options.h>
 #include <board_commit.h>
-#include <connectivity_data.h>
-#include <connectivity_algo.h>
+#include <connectivity/connectivity_algo.h>
+#include <connectivity/connectivity_data.h>
 
 #include <tool/tool_manager.h>
 #include <tools/pcb_actions.h>
@@ -237,8 +237,6 @@ bool TRACKS_CLEANER::CleanupBoard( bool aRemoveMisConnected,
     // Delete dangling tracks
     if( aDeleteUnconnected )
     {
-        buildTrackConnectionInfo();
-
         if( deleteDanglingTracks() )
         {
             modified = true;
@@ -391,6 +389,7 @@ bool TRACKS_CLEANER::deleteDanglingTracks()
 
     do // Iterate when at least one track is deleted
     {
+        buildTrackConnectionInfo();
         item_erased = false;
 
         TRACK* next_track;
@@ -553,7 +552,6 @@ bool TRACKS_CLEANER::cleanupSegments()
         removeDuplicatesOfTrack( segment, toRemove );
 
     modified |= removeItems( toRemove );
-    modified = true;
 
     if( modified )
         buildTrackConnectionInfo();

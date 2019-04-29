@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2016 Jean-Pierre Charras, jp.charras at wanadoo.fr
+ * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2015 Wayne Stambaugh <stambaughw@gmail.com>
  * Copyright (C) 2007-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
@@ -29,8 +29,10 @@
 
 #include <fctsys.h>
 #include <common.h>
+#include <gal/graphics_abstraction_layer.h>
 #include <class_drawpanel.h>
 #include <class_draw_panel_gal.h>
+#include <pcb_draw_panel_gal.h>
 #include <confirm.h>
 #include <macros.h>
 #include <bitmaps.h>
@@ -38,10 +40,12 @@
 #include <wildcards_and_files_ext.h>
 #include <lib_id.h>
 #include <fp_lib_table.h>
+#include <eda_dockart.h>
 
 #include <io_mgr.h>
 #include <class_module.h>
 #include <class_board.h>
+#include <pcb_painter.h>
 
 #include <cvpcb_mainframe.h>
 #include <display_footprints_frame.h>
@@ -49,6 +53,12 @@
 #include <listboxes.h>
 
 #include <3d_viewer/eda_3d_viewer.h>
+#include <view/view.h>
+
+#include <tool/tool_manager.h>
+#include <tool/tool_dispatcher.h>
+#include <tool/common_tools.h>
+#include "tools/cvpcb_actions.h"
 
 // Colors for layers and items
 COLORS_DESIGN_SETTINGS g_ColorsSettings( FRAME_CVPCB_DISPLAY );
@@ -56,26 +66,29 @@ COLORS_DESIGN_SETTINGS g_ColorsSettings( FRAME_CVPCB_DISPLAY );
 
 BEGIN_EVENT_TABLE( DISPLAY_FOOTPRINTS_FRAME, PCB_BASE_FRAME )
     EVT_CLOSE( DISPLAY_FOOTPRINTS_FRAME::OnCloseWindow )
-    EVT_SIZE( DISPLAY_FOOTPRINTS_FRAME::OnSize )
     EVT_TOOL( ID_OPTIONS_SETUP, DISPLAY_FOOTPRINTS_FRAME::InstallOptionsDisplay )
     EVT_TOOL( ID_CVPCB_SHOW3D_FRAME, DISPLAY_FOOTPRINTS_FRAME::Show3D_Frame )
+    EVT_CHOICE( ID_ON_ZOOM_SELECT, DISPLAY_FOOTPRINTS_FRAME::OnSelectZoom )
+    EVT_CHOICE( ID_ON_GRID_SELECT, DISPLAY_FOOTPRINTS_FRAME::OnSelectGrid )
 
-    EVT_TOOL( ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH,
-              DISPLAY_FOOTPRINTS_FRAME::OnSelectOptionToolbar)
-    EVT_TOOL( ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH,
-              DISPLAY_FOOTPRINTS_FRAME::OnSelectOptionToolbar)
+    EVT_UPDATE_UI( ID_NO_TOOL_SELECTED, DISPLAY_FOOTPRINTS_FRAME::OnUIToolSelection )
+    EVT_UPDATE_UI( ID_TB_MEASUREMENT_TOOL, DISPLAY_FOOTPRINTS_FRAME::OnUIToolSelection )
+    EVT_UPDATE_UI( ID_ZOOM_SELECTION, DISPLAY_FOOTPRINTS_FRAME::OnUIToolSelection )
 
-    EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH,
-                   DISPLAY_FOOTPRINTS_FRAME::OnUpdateTextDrawMode )
-    EVT_UPDATE_UI( ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH,
-                   DISPLAY_FOOTPRINTS_FRAME::OnUpdateLineDrawMode )
+    /*
+    EVT_TOOL  and EVT_UPDATE_UI for:
+      ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH,
+      ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH,
+      ID_TB_OPTIONS_SHOW_PADS_SKETCH
+      are managed in PCB_BASE_FRAME
+    */
 END_EVENT_TABLE()
 
 
-DISPLAY_FOOTPRINTS_FRAME::DISPLAY_FOOTPRINTS_FRAME( KIWAY* aKiway, CVPCB_MAINFRAME* aParent ) :
+DISPLAY_FOOTPRINTS_FRAME::DISPLAY_FOOTPRINTS_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     PCB_BASE_FRAME( aKiway, aParent, FRAME_CVPCB_DISPLAY, _( "Footprint Viewer" ),
-        wxDefaultPosition, wxDefaultSize,
-        KICAD_DEFAULT_DRAWFRAME_STYLE, FOOTPRINTVIEWER_FRAME_NAME )
+                    wxDefaultPosition, wxDefaultSize,
+                    KICAD_DEFAULT_DRAWFRAME_STYLE, FOOTPRINTVIEWER_FRAME_NAME )
 {
     m_showAxis = true;         // true to draw axis.
 
@@ -111,34 +124,52 @@ DISPLAY_FOOTPRINTS_FRAME::DISPLAY_FOOTPRINTS_FRAME( KIWAY* aKiway, CVPCB_MAINFRA
     ReCreateVToolbar();
     ReCreateOptToolbar();
 
+    // Create GAL canvas
+#ifdef __WXMAC__
+    // Cairo renderer doesn't handle Retina displays
+    EDA_DRAW_PANEL_GAL::GAL_TYPE backend = EDA_DRAW_PANEL_GAL::GAL_TYPE_OPENGL;
+#else
+    EDA_DRAW_PANEL_GAL::GAL_TYPE backend = EDA_DRAW_PANEL_GAL::GAL_TYPE_CAIRO;
+#endif
+    auto* gal_drawPanel = new PCB_DRAW_PANEL_GAL( this, -1, wxPoint( 0, 0 ), m_FrameSize,
+                                                  GetGalDisplayOptions(), backend );
+    SetGalCanvas( gal_drawPanel );
+
     m_auimgr.SetManagedWindow( this );
+    m_auimgr.SetArtProvider( new EDA_DOCKART( this ) );
 
-    EDA_PANEINFO horiz;
-    horiz.HorizontalToolbarPane();
+    m_auimgr.AddPane( m_mainToolBar, EDA_PANE().HToolbar().Name( "MainToolbar" ).Top().Layer(6) );
+    m_auimgr.AddPane( m_messagePanel, EDA_PANE().Messages().Name( "MsgPanel" ).Bottom().Layer(6) );
 
-    EDA_PANEINFO vert;
-    vert.VerticalToolbarPane();
+    m_auimgr.AddPane( m_optionsToolBar, EDA_PANE().VToolbar().Name( "OptToolbar" ).Left().Layer(3) );
 
-    EDA_PANEINFO mesg;
-    mesg.MessageToolbarPane();
-
-    m_auimgr.AddPane( m_mainToolBar,
-                      wxAuiPaneInfo( horiz ).Name( wxT( "m_mainToolBar" ) ).Top(). Row( 0 ) );
-
-    if( m_drawToolBar )    // Currently, no vertical right toolbar.
-        m_auimgr.AddPane( m_drawToolBar,
-                          wxAuiPaneInfo( vert ).Name( wxT( "m_drawToolBar" ) ).Right() );
-
-    m_auimgr.AddPane( m_canvas,
-                      wxAuiPaneInfo().Name( wxT( "DisplayFrame" ) ).CentrePane() );
-
-    m_auimgr.AddPane( m_messagePanel,
-                      wxAuiPaneInfo( mesg ).Name( wxT( "MsgPanel" ) ).Bottom().Layer(10) );
-
-    m_auimgr.AddPane( m_optionsToolBar,
-                      wxAuiPaneInfo( vert ).Name( wxT( "m_optionsToolBar" ) ).Left() );
+    m_auimgr.AddPane( m_canvas, EDA_PANE().Canvas().Name( "DrawFrame" ).Center() );
+    m_auimgr.AddPane( GetGalCanvas(), EDA_PANE().Canvas().Name( "DrawFrameGal" ).Center().Hide() );
 
     m_auimgr.Update();
+
+    // Create the manager and dispatcher & route draw panel events to the dispatcher
+    m_toolManager = new TOOL_MANAGER;
+    m_toolManager->SetEnvironment( GetBoard(), gal_drawPanel->GetView(),
+                                   gal_drawPanel->GetViewControls(), this );
+    m_actions = new CVPCB_ACTIONS();
+    m_toolDispatcher = new TOOL_DISPATCHER( m_toolManager, m_actions );
+    gal_drawPanel->SetEventDispatcher( m_toolDispatcher );
+
+    m_actions->RegisterAllTools( m_toolManager );
+    m_toolManager->InitTools();
+
+    // Run the control tool, it is supposed to be always active
+    m_toolManager->InvokeTool( "cvpcb.InteractiveSelection" );
+
+    auto& galOpts = GetGalDisplayOptions();
+    galOpts.m_axesEnabled = true;
+    UseGalCanvas( true );
+
+    // Restore last zoom.  (If auto-zooming we'll adjust when we load the footprint.)
+    GetGalCanvas()->GetView()->SetScale( m_lastZoom );
+
+    updateView();
 
     Show( true );
 }
@@ -146,6 +177,15 @@ DISPLAY_FOOTPRINTS_FRAME::DISPLAY_FOOTPRINTS_FRAME( KIWAY* aKiway, CVPCB_MAINFRA
 
 DISPLAY_FOOTPRINTS_FRAME::~DISPLAY_FOOTPRINTS_FRAME()
 {
+    GetGalCanvas()->StopDrawing();
+    GetGalCanvas()->GetView()->Clear();
+    // Be sure any event cannot be fired after frame deletion:
+    GetGalCanvas()->SetEvtHandlerEnabled( false );
+
+    // Be sure a active tool (if exists) is desactivated:
+    if( m_toolManager )
+        m_toolManager->DeactivateTool();
+
     delete GetScreen();
     SetScreen( NULL );      // Be sure there is no double deletion
 }
@@ -153,8 +193,7 @@ DISPLAY_FOOTPRINTS_FRAME::~DISPLAY_FOOTPRINTS_FRAME()
 
 void DISPLAY_FOOTPRINTS_FRAME::OnCloseWindow( wxCloseEvent& event )
 {
-    // Currently, do nothing
-    event.Skip();
+    Destroy();
 }
 
 
@@ -174,43 +213,57 @@ void DISPLAY_FOOTPRINTS_FRAME::ReCreateOptToolbar()
     m_optionsToolBar = new wxAuiToolBar( this, ID_OPT_TOOLBAR, wxDefaultPosition, wxDefaultSize,
                                          KICAD_AUI_TB_STYLE | wxAUI_TB_VERTICAL );
 
-    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_GRID, wxEmptyString, KiBitmap( grid_xpm ),
+    // TODO: these can be moved to the 'proper' right vertical toolbar if and when there are
+    // actual tools to put there. That, or I'll get around to implementing configurable
+    // toolbars.
+    m_optionsToolBar->AddTool( ID_NO_TOOL_SELECTED, wxEmptyString,
+                               KiScaledBitmap( cursor_xpm, this ),
+                               wxEmptyString, wxITEM_CHECK );
+
+    m_optionsToolBar->AddTool( ID_TB_MEASUREMENT_TOOL, wxEmptyString,
+                                   KiScaledBitmap( measurement_xpm, this ),
+                                   _( "Measure distance between two points" ),
+                                   wxITEM_CHECK );
+
+    KiScaledSeparator( m_optionsToolBar, this );
+
+    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_GRID, wxEmptyString, KiScaledBitmap( grid_xpm, this ),
                                _( "Hide grid" ), wxITEM_CHECK );
 
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_POLAR_COORD, wxEmptyString,
-                               KiBitmap( polar_coord_xpm ),
+                               KiScaledBitmap( polar_coord_xpm, this ),
                                _( "Display polar coordinates" ), wxITEM_CHECK );
 
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_UNIT_INCH, wxEmptyString,
-                               KiBitmap( unit_inch_xpm ),
+                               KiScaledBitmap( unit_inch_xpm, this ),
                                _( "Set units to inches" ), wxITEM_CHECK );
 
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_UNIT_MM, wxEmptyString,
-                               KiBitmap( unit_mm_xpm ),
+                               KiScaledBitmap( unit_mm_xpm, this ),
                                _( "Set units to millimeters" ), wxITEM_CHECK );
 
 #ifndef __APPLE__
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_CURSOR, wxEmptyString,
-                               KiBitmap( cursor_shape_xpm ),
+                               KiScaledBitmap( cursor_shape_xpm, this ),
                                _( "Change cursor shape" ), wxITEM_CHECK  );
 #else
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_CURSOR, wxEmptyString,
-                               KiBitmap( cursor_shape_xpm ),
+                               KiScaledBitmap( cursor_shape_xpm, this ),
                                _( "Change cursor shape (not supported in Legacy Toolset)" ),
                                wxITEM_CHECK  );
 #endif
 
     m_optionsToolBar->AddSeparator();
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_PADS_SKETCH, wxEmptyString,
-                               KiBitmap( pad_sketch_xpm ),
+                               KiScaledBitmap( pad_sketch_xpm, this ),
                                _( "Show pads in outline mode" ), wxITEM_CHECK  );
 
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH, wxEmptyString,
-                               KiBitmap( text_sketch_xpm ),
+                               KiScaledBitmap( text_sketch_xpm, this ),
                                _( "Show texts in line mode" ), wxITEM_CHECK  );
 
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH, wxEmptyString,
-                               KiBitmap( show_mod_edge_xpm ),
+                               KiScaledBitmap( show_mod_edge_xpm, this ),
                                _( "Show outlines in line mode" ), wxITEM_CHECK  );
 
     m_optionsToolBar->Realize();
@@ -225,26 +278,45 @@ void DISPLAY_FOOTPRINTS_FRAME::ReCreateHToolbar()
     m_mainToolBar = new wxAuiToolBar( this, ID_H_TOOLBAR, wxDefaultPosition, wxDefaultSize,
                                       KICAD_AUI_TB_STYLE | wxAUI_TB_HORZ_LAYOUT );
 
-    m_mainToolBar->AddTool( ID_OPTIONS_SETUP, wxEmptyString, KiBitmap( display_options_xpm ),
+    m_mainToolBar->AddTool( ID_OPTIONS_SETUP, wxEmptyString, KiScaledBitmap( config_xpm, this ),
                             _( "Display options" ) );
 
     m_mainToolBar->AddSeparator();
 
-    m_mainToolBar->AddTool( ID_ZOOM_IN, wxEmptyString, KiBitmap( zoom_in_xpm ),
+    m_mainToolBar->AddTool( ID_ZOOM_IN, wxEmptyString, KiScaledBitmap( zoom_in_xpm, this ),
                             _( "Zoom in (F1)" ) );
 
-    m_mainToolBar->AddTool( ID_ZOOM_OUT, wxEmptyString, KiBitmap( zoom_out_xpm ),
+    m_mainToolBar->AddTool( ID_ZOOM_OUT, wxEmptyString, KiScaledBitmap( zoom_out_xpm, this ),
                             _( "Zoom out (F2)" ) );
 
-    m_mainToolBar->AddTool( ID_ZOOM_REDRAW, wxEmptyString, KiBitmap( zoom_redraw_xpm ),
+    m_mainToolBar->AddTool( ID_ZOOM_REDRAW, wxEmptyString, KiScaledBitmap( zoom_redraw_xpm, this ),
                             _( "Redraw view (F3)" ) );
 
-    m_mainToolBar->AddTool( ID_ZOOM_PAGE, wxEmptyString, KiBitmap( zoom_fit_in_page_xpm ),
+    m_mainToolBar->AddTool( ID_ZOOM_PAGE, wxEmptyString, KiScaledBitmap( zoom_fit_in_page_xpm, this ),
                             _( "Zoom to fit footprint (Home)" ) );
 
+    m_mainToolBar->AddTool( ID_ZOOM_SELECTION, wxEmptyString, KiScaledBitmap( zoom_area_xpm, this ),
+                            _( "Zoom to selection" ), wxITEM_CHECK );
+
     m_mainToolBar->AddSeparator();
-    m_mainToolBar->AddTool( ID_CVPCB_SHOW3D_FRAME, wxEmptyString, KiBitmap( three_d_xpm ),
+    m_mainToolBar->AddTool( ID_CVPCB_SHOW3D_FRAME, wxEmptyString, KiScaledBitmap( three_d_xpm, this ),
                             _( "3D Display (Alt+3)" ) );
+
+    KiScaledSeparator( m_mainToolBar, this );
+
+    // Grid selection choice box.
+    m_gridSelectBox = new wxChoice( m_mainToolBar, ID_ON_GRID_SELECT,
+                                    wxDefaultPosition, wxDefaultSize, 0, NULL );
+    UpdateGridSelectBox();
+    m_mainToolBar->AddControl( m_gridSelectBox );
+
+    KiScaledSeparator( m_mainToolBar, this );
+
+    // Zoom selection choice box.
+    m_zoomSelectBox = new wxChoice( m_mainToolBar, ID_ON_ZOOM_SELECT,
+                                    wxDefaultPosition, wxDefaultSize, 0, NULL );
+    updateZoomSelectBox();
+    m_mainToolBar->AddControl( m_zoomSelectBox );
 
     // after adding the buttons to the toolbar, must call Realize() to reflect
     // the changes
@@ -252,32 +324,34 @@ void DISPLAY_FOOTPRINTS_FRAME::ReCreateHToolbar()
 }
 
 
-void DISPLAY_FOOTPRINTS_FRAME::OnUpdateTextDrawMode( wxUpdateUIEvent& aEvent )
+void DISPLAY_FOOTPRINTS_FRAME::LoadSettings( wxConfigBase* aCfg )
 {
-    auto displ_opts = (PCB_DISPLAY_OPTIONS*)GetDisplayOptions();
+    PCB_BASE_FRAME::LoadSettings( aCfg );
 
-    wxString msgTextsFill[2] = { _( "Show texts in filled mode" ),
-                                 _( "Show texts in sketch mode" ) };
+    m_configSettings.Load( aCfg );  // mainly, load the color config
 
-    unsigned i = displ_opts->m_DisplayModTextFill == SKETCH ? 0 : 1;
-
-    aEvent.Check( displ_opts->m_DisplayModTextFill == SKETCH );
-    m_optionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH, msgTextsFill[i] );
-
+    aCfg->Read( ConfigBaseName() + AUTO_ZOOM_KEY, &m_autoZoom, true );
+    aCfg->Read( ConfigBaseName() + ZOOM_KEY, &m_lastZoom, 10.0 );
 }
 
 
-void DISPLAY_FOOTPRINTS_FRAME::OnUpdateLineDrawMode( wxUpdateUIEvent& aEvent )
+void DISPLAY_FOOTPRINTS_FRAME::SaveSettings( wxConfigBase* aCfg )
 {
-    auto displ_opts = (PCB_DISPLAY_OPTIONS*)GetDisplayOptions();
+    PCB_BASE_FRAME::SaveSettings( aCfg );
 
-    wxString msgEdgesFill[2] = { _( "Show outlines in filled mode" ),
-                                 _( "Show outlines in sketch mode" ) };
+    aCfg->Write( ConfigBaseName() + AUTO_ZOOM_KEY, m_autoZoom );
+    aCfg->Write( ConfigBaseName() + ZOOM_KEY, GetGalCanvas()->GetView()->GetScale() );
+}
 
-    int i = displ_opts->m_DisplayModEdgeFill == SKETCH ? 0 : 1;
 
-    aEvent.Check( displ_opts->m_DisplayModEdgeFill == SKETCH );
-    m_optionsToolBar->SetToolShortHelp( ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH, msgEdgesFill[i] );
+void DISPLAY_FOOTPRINTS_FRAME::ApplyDisplaySettingsToGAL()
+{
+    auto painter = static_cast<KIGFX::PCB_PAINTER*>( GetGalCanvas()->GetView()->GetPainter() );
+    KIGFX::PCB_RENDER_SETTINGS* settings = painter->GetSettings();
+    settings->LoadDisplayOptions( &m_DisplayOptions, false );
+
+    GetGalCanvas()->GetView()->UpdateAllItems( KIGFX::ALL );
+    GetGalCanvas()->Refresh();
 }
 
 
@@ -294,31 +368,6 @@ void DISPLAY_FOOTPRINTS_FRAME::OnLeftDClick( wxDC* DC, const wxPoint& MousePos )
 bool DISPLAY_FOOTPRINTS_FRAME::OnRightClick( const wxPoint& MousePos, wxMenu* PopMenu )
 {
     return true;
-}
-
-
-void DISPLAY_FOOTPRINTS_FRAME::OnSelectOptionToolbar( wxCommandEvent& event )
-{
-    int        id = event.GetId();
-    auto displ_opts = (PCB_DISPLAY_OPTIONS*)GetDisplayOptions();
-
-    switch( id )
-    {
-    case ID_TB_OPTIONS_SHOW_MODULE_TEXT_SKETCH:
-        displ_opts->m_DisplayModTextFill = displ_opts->m_DisplayModTextFill == FILLED ? SKETCH : FILLED;
-        m_canvas->Refresh( );
-        break;
-
-    case ID_TB_OPTIONS_SHOW_MODULE_EDGE_SKETCH:
-        displ_opts->m_DisplayModEdgeFill = displ_opts->m_DisplayModEdgeFill == FILLED ? SKETCH : FILLED;
-        m_canvas->Refresh();
-        break;
-
-    default:
-        DisplayError( this,
-                      wxT( "DISPLAY_FOOTPRINTS_FRAME::OnSelectOptionToolbar error" ) );
-        break;
-    }
 }
 
 
@@ -471,81 +520,104 @@ MODULE* DISPLAY_FOOTPRINTS_FRAME::Get_Module( const wxString& aFootprintName )
 
 void DISPLAY_FOOTPRINTS_FRAME::InitDisplay()
 {
-    wxString msg;
+    CVPCB_MAINFRAME*      parentframe = (CVPCB_MAINFRAME *) GetParent();
+    MODULE*               module = nullptr;
+    const FOOTPRINT_INFO* module_info = nullptr;
 
-    CVPCB_MAINFRAME* parentframe = (CVPCB_MAINFRAME *) GetParent();
+    if( GetBoard()->m_Modules.GetCount() )
+        GetBoard()->m_Modules.DeleteAll();
 
     wxString footprintName = parentframe->GetSelectedFootprint();
 
+    if( footprintName.IsEmpty() )
+    {
+        COMPONENT* comp = parentframe->GetSelectedComponent();
+
+        if( comp )
+            footprintName = comp->GetFPID().GetUniStringLibId();
+    }
+
     if( !footprintName.IsEmpty() )
     {
-        msg.Printf( _( "Footprint: %s" ), GetChars( footprintName ) );
+        SetTitle( wxString::Format( _( "Footprint: %s" ), footprintName ) );
 
-        SetTitle( msg );
-        const FOOTPRINT_INFO* module_info =
-                parentframe->m_FootprintsList->GetModuleInfo( footprintName );
+        module = Get_Module( footprintName );
 
-        const wxChar* libname;
-
-        if( module_info )
-            libname = GetChars( module_info->GetNickname() );
-        else
-            libname = GetChars( wxT( "???" ) );
-
-        msg.Printf( _( "Lib: %s" ), libname );
-
-        SetStatusText( msg, 0 );
-
-        if( GetBoard()->m_Modules.GetCount() )
-        {
-            // there is only one module in the list
-            GetBoard()->m_Modules.DeleteAll();
-        }
-
-        MODULE* module = Get_Module( footprintName );
-
-        if( module )
-            GetBoard()->m_Modules.PushBack( module );
-
-        Zoom_Automatique( false );
-    }
-    else   // No footprint to display. Erase old footprint, if any
-    {
-        if( GetBoard()->m_Modules.GetCount() )
-        {
-            GetBoard()->m_Modules.DeleteAll();
-            Zoom_Automatique( false );
-            SetStatusText( wxEmptyString, 0 );
-        }
+        module_info = parentframe->m_FootprintsList->GetModuleInfo( footprintName );
     }
 
-    // Display new cursor coordinates and zoom value:
+    if( module )
+        GetBoard()->m_Modules.PushBack( module );
+
+    if( module_info )
+        SetStatusText( wxString::Format( _( "Lib: %s" ), module_info->GetLibNickname() ), 0 );
+    else
+        SetStatusText( wxEmptyString, 0 );
+
+    updateView();
+
     UpdateStatusBar();
 
     GetCanvas()->Refresh();
-
     Update3DView();
+}
+
+
+void DISPLAY_FOOTPRINTS_FRAME::updateView()
+{
+    PCB_DRAW_PANEL_GAL* dp = static_cast<PCB_DRAW_PANEL_GAL*>( GetGalCanvas() );
+    dp->UseColorScheme( &Settings().Colors() );
+    dp->DisplayBoard( GetBoard() );
+
+    m_toolManager->ResetTools( TOOL_BASE::MODEL_RELOAD );
+
+    if( m_autoZoom )
+        m_toolManager->RunAction( ACTIONS::zoomFitScreen, true );
+    else
+        m_toolManager->RunAction( ACTIONS::centerContents, true );
+
+    UpdateMsgPanel();
+}
+
+
+void DISPLAY_FOOTPRINTS_FRAME::UpdateMsgPanel()
+{
+    MODULE* footprint = GetBoard()->m_Modules;
+    MSG_PANEL_ITEMS items;
+
+    if( footprint )
+        footprint->GetMsgPanelInfo( m_UserUnits, items );
+
+    SetMsgPanel( items );
 }
 
 
 void DISPLAY_FOOTPRINTS_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 {
-    if( !GetBoard() )
-        return;
+    if( GetBoard() )
+        UpdateMsgPanel();
+}
 
-    m_canvas->DrawBackGround( DC );
-    GetBoard()->Draw( m_canvas, DC, GR_COPY );
 
-    MODULE* Module = GetBoard()->m_Modules;
-
-    if ( Module )
+void DISPLAY_FOOTPRINTS_FRAME::OnUIToolSelection( wxUpdateUIEvent& aEvent )
+{
+    switch( aEvent.GetId() )
     {
-        MSG_PANEL_ITEMS items;
-        Module->GetMsgPanelInfo( items );
-        SetMsgPanel( items );
-    }
+    case ID_TB_MEASUREMENT_TOOL:
+        aEvent.Check( GetToolId() == ID_TB_MEASUREMENT_TOOL );
+        break;
 
-    m_canvas->DrawCrossHair( DC );
+    case ID_NO_TOOL_SELECTED:
+        aEvent.Check( GetToolId() == ID_NO_TOOL_SELECTED );
+        break;
+
+    case ID_ZOOM_SELECTION:
+        aEvent.Check( GetToolId() == ID_ZOOM_SELECTION );
+        break;
+
+    default:
+        break;
+    }
 }
 
 

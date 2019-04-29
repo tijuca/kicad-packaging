@@ -99,7 +99,7 @@ public:
      * for vias/pads/tracks and so on).
      * @param aOptions are settings that you want to use for displaying items.
      */
-    void LoadDisplayOptions( const PCB_DISPLAY_OPTIONS* aOptions );
+    void LoadDisplayOptions( const PCB_DISPLAY_OPTIONS* aOptions, bool aShowPageLimits );
 
     /// @copydoc RENDER_SETTINGS::GetColor()
     virtual const COLOR4D& GetColor( const VIEW_ITEM* aItem, int aLayer ) const override;
@@ -136,12 +136,31 @@ public:
         m_sketchBoardGfx = aEnabled;
     }
 
-    inline bool IsBackgroundDark() const
+    /**
+     * Turns on/off drawing outline and hatched lines for zones.
+     */
+    void EnableZoneOutlines( bool aEnabled )
+    {
+        m_zoneOutlines = aEnabled;
+    }
+
+    inline bool IsBackgroundDark() const override
     {
         auto luma = m_layerColors[ LAYER_PCB_BACKGROUND ].GetBrightness();
 
         return luma < 0.5;
     }
+
+    const COLOR4D& GetBackgroundColor() override { return m_layerColors[ LAYER_PCB_BACKGROUND ]; }
+
+    void SetBackgroundColor( const COLOR4D& aColor ) override
+    {
+        m_layerColors[ LAYER_PCB_BACKGROUND ] = aColor;
+    }
+
+    const COLOR4D& GetGridColor() override { return m_layerColors[ LAYER_GRID ]; }
+
+    const COLOR4D& GetCursorColor() override { return m_layerColors[ LAYER_CURSOR ]; }
 
 protected:
     ///> Flag determining if items on a given layer should be drawn as an outline or a filled item
@@ -153,6 +172,9 @@ protected:
     ///> Flag determining if footprint graphic items should be outlined or stroked
     bool    m_sketchFpGfx;
 
+    ///> Flag determining if footprint text items should be outlined or stroked
+    bool    m_sketchFpTxtfx;
+
     ///> Flag determining if pad numbers should be visible
     bool    m_padNumbers;
 
@@ -163,7 +185,10 @@ protected:
     bool    m_netNamesOnTracks;
 
     ///> Flag determining if net names should be visible for vias
-    bool    m_netNamesOnVias = true;
+    bool    m_netNamesOnVias;
+
+    ///> Flag determining if zones should have outlines drawn
+    bool    m_zoneOutlines;
 
     ///> Maximum font size for netnames (and other dynamically shown strings)
     static const double MAX_FONT_SIZE;
@@ -227,6 +252,21 @@ protected:
      * @return the thickness to draw
      */
     int getLineThickness( int aActualThickness ) const;
+
+    /**
+     * Return drill shape of a pad.
+     */
+    virtual int getDrillShape( const D_PAD* aPad ) const;
+
+    /**
+     * Return drill size for a pad (internal units).
+     */
+    virtual VECTOR2D getDrillSize( const D_PAD* aPad ) const;
+
+    /**
+     * Return drill diameter for a via (internal units).
+     */
+    virtual int getDrillSize( const VIA* aVia ) const;
 };
 } // namespace KIGFX
 

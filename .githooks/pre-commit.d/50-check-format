@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+#
+# Runs clang-format on changed regions before commit.
+#
+# Remaining installation checks/instructions will be printed when you commit.
+#
+# Based on clang-format pre-commit hook by Alex Eagle
+# https://gist.github.com/alexeagle/c8ed91b14a407342d9a8e112b5ac7dab
+
+# Set kicad.check-format to allow this hook to run
+# If not set, the hook always succeeds.
+
+do_format=false
+
+# Check if formatting is configured
+if [ "$(git config --get kicad.check-format)" = true ]; then
+    do_format=true
+fi
+
+# Older env variable method
+if [ ! -z "$KICAD_CHECK_FORMAT" ]; then
+    do_format=true
+fi
+
+if [ ! ${do_format} = true ]; then
+    # No formatting required
+    exit 0;
+fi
+
+check_clang_format() {
+    if hash git-clang-format 2>/dev/null; then
+        return
+    else
+        echo "SETUP ERROR: no git-clang-format executable found, or it is not executable"
+        exit 1
+    fi
+}
+
+check_git_config() {
+    if [[ "$(git config --get clangFormat.style)" != "file" ]]; then
+        echo "SETUP ERROR: git config clangFormat.style is wrong (should be 'file'). Fix this with:"
+        echo "git config clangFormat.style file"
+        exit 1
+    fi
+}
+
+get_filtered_filenames()
+{
+    format_attr='clang-format-kicad'
+
+    # command to get list of candidate files
+    git_list_files='git diff --cached --name-only --diff-filter=ACM'
+
+    files=$(${git_list_files} |
+
+        # Filter for format-controlled files
+        git check-attr --stdin format.${format_attr} |
+
+        # output only the file names
+        grep ": set$" |
+        cut -d: -f1)
+
+    echo ${files}
+}
+
+check_clang_format
+check_git_config
+
+files_to_check=$(get_filtered_filenames)
+
+if [ -z "${files_to_check}" ]; then
+    # No controlled files to check
+    exit 0;
+fi
+
+git_clang_format_cmd="git clang-format -v --diff -- ${files_to_check}"
+
+readonly out=$(${git_clang_format_cmd})
+
+# In these cases, there is no formatting issues, so we succeed
+if [[ "$out" == *"no modified files to format"* ]]; then exit 0; fi
+if [[ "$out" == *"clang-format did not modify any files"* ]]; then exit 0; fi
+
+# Any other case implies formatting results
+echo "ERROR: you need to run clang-format (e.g. using tools/check_coding.sh) on your commit"
+
+# print the errors to show what's the issue
+${git_clang_format_cmd}
+
+# fail the pre-commit
+exit 1

@@ -34,18 +34,19 @@
 
 
 /**
- * The maximum number of items in the clarify selection context menu.  It is
- * highly unlikely that there would ever be more than 10 items at the current
- * cursor.  Increase this number if that ever becomes a problem.
+ * The maximum number of items in the clarify selection context menu.  While in
+ * most cases it is highly unlikely that there would ever be more than 10 items
+ * at the current cursor, there are some exceptions  (a bunch of pins created at
+ * once, for instance).  The current setting of 200 is arbitrary.
  */
-#define MAX_SELECT_ITEM_IDS 10
+#define MAX_SELECT_ITEM_IDS 200
 
 /**
  * The maximum number of units per package.
- * Increase this number if that ever becomes a problem, but remember
- * the popup menu to select a given unit could be not easy to use.
+ * While counts approaching 100 start to make the unit-selection popup menu
+ * difficult to use, the limit is currently 'ZZ' (26 * 26).
  */
-#define MAX_UNIT_COUNT_PER_PACKAGE 64
+#define MAX_UNIT_COUNT_PER_PACKAGE 676
 
 
 /**
@@ -67,6 +68,7 @@ enum id_eeschema_frm
     ID_EDIT_SYM_LIB_TABLE,
     ID_REMAP_SYMBOLS,
     ID_EDIT_COMPONENTS_TO_SYMBOLS_LIB_ID,
+    ID_GRID_SETTINGS,
 
     /* Schematic editor horizontal toolbar IDs */
     ID_HIERARCHY,
@@ -155,7 +157,6 @@ enum id_eeschema_frm
     ID_POPUP_SCH_GENERIC_EDIT_CMP,
     ID_POPUP_SCH_EDIT_CONVERT_CMP,
     ID_POPUP_SCH_EDIT_FIELD,
-    ID_POPUP_SCH_DISPLAYDOC_CMP,
     ID_POPUP_SCH_ENTER_SHEET,
     ID_POPUP_SCH_LEAVE_SHEET,
     ID_POPUP_SCH_SELECT_ON_PCB,
@@ -165,6 +166,7 @@ enum id_eeschema_frm
     ID_POPUP_SCH_GETINFO_MARKER,
     ID_POPUP_END_RANGE,
 
+    ID_POPUP_SCH_DISPLAYDOC_CMP,
     ID_POPUP_SCH_CALL_LIBEDIT_AND_LOAD_CMP,
 
     // Unit select context menus command IDs.
@@ -207,24 +209,17 @@ enum id_eeschema_frm
 
     ID_HOTKEY_HIGHLIGHT,
 
-    /* Library editor main menubar IDs. */
-    ID_LIBEDIT_DIMENSIONS,
-
-    /* Library editor: library edit events */
+    /* Library editor: edit events */
     ID_LIBEDIT_NEW_LIBRARY,
     ID_LIBEDIT_ADD_LIBRARY,
-    ID_LIBEDIT_SAVE_LIBRARY,
-    ID_LIBEDIT_SAVE_LIBRARY_AS,
-    ID_LIBEDIT_SAVE_ALL_LIBS,
-    ID_LIBEDIT_REVERT_LIBRARY,
-
-    /* Library editor: part edit events */
+    ID_LIBEDIT_SAVE,
+    ID_LIBEDIT_SAVE_AS,
+    ID_LIBEDIT_SAVE_ALL,
+    ID_LIBEDIT_REVERT,
     ID_LIBEDIT_NEW_PART,
     ID_LIBEDIT_EDIT_PART,
     ID_LIBEDIT_IMPORT_PART,
     ID_LIBEDIT_EXPORT_PART,
-    ID_LIBEDIT_SAVE_PART,
-    ID_LIBEDIT_REVERT_PART,
     ID_LIBEDIT_REMOVE_PART,
     ID_LIBEDIT_CUT_PART,
     ID_LIBEDIT_COPY_PART,
@@ -239,7 +234,6 @@ enum id_eeschema_frm
     ID_LIBEDIT_VIEW_DOC,
     ID_LIBEDIT_CHECK_PART,
     ID_LIBEDIT_GET_FRAME_EDIT_PART,
-    ID_LIBEDIT_GET_FRAME_EDIT_FIELDS,
 
     ID_LIBEDIT_SELECT_PART_NUMBER,
     ID_LIBEDIT_SELECT_ALIAS,

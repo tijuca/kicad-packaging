@@ -135,7 +135,7 @@ bool convex2pointDRC( wxPoint* aTref, int aTrefCount, wxPoint aPcompare, int aDi
 }
 
 
-bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
+bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool aTestPads, bool aTestZones )
 {
     TRACK*    track;
     wxPoint   delta;           // length on X and Y axis of segments
@@ -197,25 +197,32 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
     layerMask    = aRefSeg->GetLayerSet();
     net_code_ref = aRefSeg->GetNetCode();
 
-    // Phase 0 : Test vias
+    /******************************************/
+    /* Phase 0 : via DRC tests :              */
+    /******************************************/
+
     if( aRefSeg->Type() == PCB_VIA_T )
     {
-        const VIA *refvia = static_cast<const VIA*>( aRefSeg );
+        VIA *refvia = static_cast<VIA*>( aRefSeg );
+        wxPoint refviaPos = refvia->GetPosition();
+
         // test if the via size is smaller than minimum
         if( refvia->GetViaType() == VIA_MICROVIA )
         {
             if( refvia->GetWidth() < dsnSettings.m_MicroViasMinSize )
             {
-                markers.push_back( fillMarker( refvia, nullptr,
-                                               DRCE_TOO_SMALL_MICROVIA, nullptr ) );
+                markers.push_back(
+                        m_markerFactory.NewMarker( refviaPos, refvia, DRCE_TOO_SMALL_MICROVIA ) );
+
                 if( !handleNewMarker() )
                     return false;
             }
 
             if( refvia->GetDrillValue() < dsnSettings.m_MicroViasMinDrill )
             {
-                markers.push_back( fillMarker( refvia, nullptr,
-                                               DRCE_TOO_SMALL_MICROVIA_DRILL, nullptr ) );
+                markers.push_back( m_markerFactory.NewMarker(
+                        refviaPos, refvia, DRCE_TOO_SMALL_MICROVIA_DRILL ) );
+
                 if( !handleNewMarker() )
                     return false;
             }
@@ -224,16 +231,18 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
         {
             if( refvia->GetWidth() < dsnSettings.m_ViasMinSize )
             {
-                markers.push_back( fillMarker( refvia, nullptr,
-                                               DRCE_TOO_SMALL_VIA, nullptr ) );
+                markers.push_back(
+                        m_markerFactory.NewMarker( refviaPos, refvia, DRCE_TOO_SMALL_VIA ) );
+
                 if( !handleNewMarker() )
                     return false;
             }
 
             if( refvia->GetDrillValue() < dsnSettings.m_ViasMinDrill )
             {
-                markers.push_back( fillMarker( refvia, nullptr,
-                                               DRCE_TOO_SMALL_VIA_DRILL, nullptr ) );
+                markers.push_back(
+                        m_markerFactory.NewMarker( refviaPos, refvia, DRCE_TOO_SMALL_VIA_DRILL ) );
+
                 if( !handleNewMarker() )
                     return false;
             }
@@ -244,28 +253,28 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
         // and a default via hole can be bigger than some vias sizes
         if( refvia->GetDrillValue() > refvia->GetWidth() )
         {
-            markers.push_back( fillMarker( refvia, nullptr,
-                                           DRCE_VIA_HOLE_BIGGER, nullptr ) );
+            markers.push_back(
+                    m_markerFactory.NewMarker( refviaPos, refvia, DRCE_VIA_HOLE_BIGGER ) );
+
             if( !handleNewMarker() )
                 return false;
         }
 
         // test if the type of via is allowed due to design rules
-        if( ( refvia->GetViaType() == VIA_MICROVIA ) &&
-            ( m_pcb->GetDesignSettings().m_MicroViasAllowed == false ) )
+        if( refvia->GetViaType() == VIA_MICROVIA && !dsnSettings.m_MicroViasAllowed )
         {
-            markers.push_back( fillMarker( refvia, nullptr,
-                                           DRCE_MICRO_VIA_NOT_ALLOWED, nullptr ) );
+            markers.push_back(
+                    m_markerFactory.NewMarker( refviaPos, refvia, DRCE_MICRO_VIA_NOT_ALLOWED ) );
             if( !handleNewMarker() )
                 return false;
         }
 
         // test if the type of via is allowed due to design rules
-        if( ( refvia->GetViaType() == VIA_BLIND_BURIED ) &&
-            ( m_pcb->GetDesignSettings().m_BlindBuriedViaAllowed == false ) )
+        if( refvia->GetViaType() == VIA_BLIND_BURIED && !dsnSettings.m_BlindBuriedViaAllowed )
         {
-            markers.push_back( fillMarker( refvia, nullptr,
-                                           DRCE_BURIED_VIA_NOT_ALLOWED, nullptr ) );
+            markers.push_back(
+                    m_markerFactory.NewMarker( refviaPos, refvia, DRCE_BURIED_VIA_NOT_ALLOWED ) );
+
             if( !handleNewMarker() )
                 return false;
         }
@@ -283,15 +292,16 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
             if( layer1 > layer2 )
                 std::swap( layer1, layer2 );
 
-            if( layer2 == B_Cu && layer1 == m_pcb->GetDesignSettings().GetCopperLayerCount() - 2 )
+            if( layer2 == B_Cu && layer1 == dsnSettings.GetCopperLayerCount() - 2 )
                 err = false;
             else if( layer1 == F_Cu  &&  layer2 == In1_Cu  )
                 err = false;
 
             if( err )
             {
-                markers.push_back( fillMarker( refvia, nullptr,
-                                               DRCE_MICRO_VIA_INCORRECT_LAYER_PAIR, nullptr ) );
+                markers.push_back( m_markerFactory.NewMarker(
+                        refviaPos, refvia, DRCE_MICRO_VIA_INCORRECT_LAYER_PAIR ) );
+
                 if( !handleNewMarker() )
                     return false;
             }
@@ -302,8 +312,11 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
     {
         if( aRefSeg->GetWidth() < dsnSettings.m_TrackMinWidth )
         {
-            markers.push_back( fillMarker( aRefSeg, nullptr,
-                                           DRCE_TOO_SMALL_TRACK_WIDTH, nullptr ) );
+            wxPoint refsegMiddle = ( aRefSeg->GetStart() + aRefSeg->GetEnd() ) / 2;
+
+            markers.push_back( m_markerFactory.NewMarker(
+                    refsegMiddle, aRefSeg, DRCE_TOO_SMALL_TRACK_WIDTH ) );
+
             if( !handleNewMarker() )
                 return false;
         }
@@ -341,7 +354,7 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
     dummypad.SetLayerSet( LSET::AllCuMask() );     // Ensure the hole is on all layers
 
     // Compute the min distance to pads
-    if( testPads )
+    if( aTestPads )
     {
         unsigned pad_count = m_pcb->GetPadCount();
 
@@ -350,6 +363,8 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
         for( unsigned ii = 0; ii < pad_count; ++ii )
         {
             D_PAD* pad = pads[ii];
+            SEG padSeg( pad->GetPosition(), pad->GetPosition() );
+
 
             /* No problem if pads are on another layer,
              * But if a drill hole exists	(a pad on a single layer can have a hole!)
@@ -375,8 +390,9 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
                 if( !checkClearanceSegmToPad( &dummypad, aRefSeg->GetWidth(),
                                               netclass->GetClearance() ) )
                 {
-                    markers.push_back( fillMarker( aRefSeg, pad,
-                                                   DRCE_TRACK_NEAR_THROUGH_HOLE, nullptr ) );
+                    markers.push_back( m_markerFactory.NewMarker(
+                            aRefSeg, pad, padSeg, DRCE_TRACK_NEAR_THROUGH_HOLE ) );
+
                     if( !handleNewMarker() )
                         return false;
                 }
@@ -394,11 +410,11 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
             shape_pos = pad->ShapePos();
             m_padToTestPos = shape_pos - origin;
 
-            if( !checkClearanceSegmToPad( pad, aRefSeg->GetWidth(),
-                                          aRefSeg->GetClearance( pad ) ) )
+            if( !checkClearanceSegmToPad( pad, aRefSeg->GetWidth(), aRefSeg->GetClearance( pad ) ) )
             {
-                markers.push_back( fillMarker( aRefSeg, pad,
-                                               DRCE_TRACK_NEAR_PAD, nullptr ) );
+                markers.push_back(
+                        m_markerFactory.NewMarker( aRefSeg, pad, padSeg, DRCE_TRACK_NEAR_PAD ) );
+
                 if( !handleNewMarker() )
                     return false;
             }
@@ -442,14 +458,16 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
         {
             delta = track->GetEnd() - track->GetStart();
             segStartPoint = aRefSeg->GetStart() - track->GetStart();
+            wxPoint pos = aRefSeg->GetPosition();
 
             if( track->Type() == PCB_VIA_T )
             {
                 // Test distance between two vias, i.e. two circles, trivial case
                 if( EuclideanNorm( segStartPoint ) < w_dist )
                 {
-                    markers.push_back( fillMarker( aRefSeg, track,
-                                                   DRCE_VIA_NEAR_VIA, nullptr ) );
+                    markers.push_back(
+                            m_markerFactory.NewMarker( pos, aRefSeg, track, DRCE_VIA_NEAR_VIA ) );
+
                     if( !handleNewMarker() )
                         return false;
                 }
@@ -465,8 +483,9 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
 
                 if( !checkMarginToCircle( segStartPoint, w_dist, delta.x ) )
                 {
-                    markers.push_back( fillMarker( track, aRefSeg,
-                                                   DRCE_VIA_NEAR_TRACK, nullptr ) );
+                    markers.push_back(
+                            m_markerFactory.NewMarker( pos, aRefSeg, track, DRCE_VIA_NEAR_TRACK ) );
+
                     if( !handleNewMarker() )
                         return false;
                 }
@@ -484,13 +503,16 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
         RotatePoint( &segStartPoint, m_segmAngle );
         RotatePoint( &segEndPoint, m_segmAngle );
 
+        SEG seg( segStartPoint, segEndPoint );
+
         if( track->Type() == PCB_VIA_T )
         {
             if( checkMarginToCircle( segStartPoint, w_dist, m_segmLength ) )
                 continue;
 
-            markers.push_back( fillMarker( aRefSeg, track,
-                                           DRCE_TRACK_NEAR_VIA, nullptr ) );
+            markers.push_back(
+                    m_markerFactory.NewMarker( aRefSeg, track, seg, DRCE_TRACK_NEAR_VIA ) );
+
             if( !handleNewMarker() )
                 return false;
         }
@@ -517,16 +539,18 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
                 // Fine test : we consider the rounded shape of each end of the track segment:
                 if( segStartPoint.x >= 0 && segStartPoint.x <= m_segmLength )
                 {
-                    markers.push_back( fillMarker( aRefSeg, track,
-                                                   DRCE_TRACK_ENDS1, nullptr ) );
+                    markers.push_back(
+                            m_markerFactory.NewMarker( aRefSeg, track, seg, DRCE_TRACK_ENDS1 ) );
+
                     if( !handleNewMarker() )
                         return false;
                 }
 
                 if( !checkMarginToCircle( segStartPoint, w_dist, m_segmLength ) )
                 {
-                    markers.push_back( fillMarker( aRefSeg, track,
-                                                   DRCE_TRACK_ENDS2, nullptr ) );
+                    markers.push_back(
+                            m_markerFactory.NewMarker( aRefSeg, track, seg, DRCE_TRACK_ENDS2 ) );
+
                     if( !handleNewMarker() )
                         return false;
                 }
@@ -540,16 +564,18 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
                 // Fine test : we consider the rounded shape of the ends
                 if( segEndPoint.x >= 0 && segEndPoint.x <= m_segmLength )
                 {
-                    markers.push_back( fillMarker( aRefSeg, track,
-                                                   DRCE_TRACK_ENDS3, nullptr ) );
+                    markers.push_back(
+                            m_markerFactory.NewMarker( aRefSeg, track, seg, DRCE_TRACK_ENDS3 ) );
+
                     if( !handleNewMarker() )
                         return false;
                 }
 
                 if( !checkMarginToCircle( segEndPoint, w_dist, m_segmLength ) )
                 {
-                    markers.push_back( fillMarker( aRefSeg, track,
-                                                   DRCE_TRACK_ENDS4, nullptr ) );
+                    markers.push_back(
+                            m_markerFactory.NewMarker( aRefSeg, track, seg, DRCE_TRACK_ENDS4 ) );
+
                     if( !handleNewMarker() )
                         return false;
                 }
@@ -557,20 +583,21 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
 
             if( segStartPoint.x <= 0 && segEndPoint.x >= 0 )
             {
-            // the segment straddles the reference range (this actually only
-            // checks if it straddles the origin, because the other cases where already
-            // handled)
-            //  X.............X
-            //    O--REF--+
-                markers.push_back( fillMarker( aRefSeg, track,
-                                               DRCE_TRACK_SEGMENTS_TOO_CLOSE, nullptr ) );
+                // the segment straddles the reference range (this actually only
+                // checks if it straddles the origin, because the other cases where already
+                // handled)
+                //  X.............X
+                //    O--REF--+
+                markers.push_back( m_markerFactory.NewMarker(
+                        aRefSeg, track, seg, DRCE_TRACK_SEGMENTS_TOO_CLOSE ) );
+
                 if( !handleNewMarker() )
                     return false;
             }
         }
         else if( segStartPoint.x == segEndPoint.x ) // perpendicular segments
         {
-            if( ( segStartPoint.x <= ( -w_dist ) ) || ( segStartPoint.x >= ( m_segmLength + w_dist ) ) )
+            if( segStartPoint.x <= -w_dist || segStartPoint.x >= m_segmLength + w_dist )
                 continue;
 
             // Test if segments are crossing
@@ -579,8 +606,9 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
 
             if( ( segStartPoint.y < 0 ) && ( segEndPoint.y > 0 ) )
             {
-                markers.push_back( fillMarker( aRefSeg, track,
-                                               DRCE_TRACKS_CROSSING, nullptr ) );
+                markers.push_back(
+                        m_markerFactory.NewMarker( aRefSeg, track, seg, DRCE_TRACKS_CROSSING ) );
+
                 if( !handleNewMarker() )
                     return false;
             }
@@ -588,15 +616,17 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
             // At this point the drc error is due to an end near a reference segm end
             if( !checkMarginToCircle( segStartPoint, w_dist, m_segmLength ) )
             {
-                markers.push_back( fillMarker( aRefSeg, track,
-                                               DRCE_ENDS_PROBLEM1, nullptr ) );
+                markers.push_back(
+                        m_markerFactory.NewMarker( aRefSeg, track, seg, DRCE_ENDS_PROBLEM1 ) );
+
                 if( !handleNewMarker() )
                     return false;
             }
             if( !checkMarginToCircle( segEndPoint, w_dist, m_segmLength ) )
             {
-                markers.push_back( fillMarker( aRefSeg, track,
-                                               DRCE_ENDS_PROBLEM2, nullptr ) );
+                markers.push_back(
+                        m_markerFactory.NewMarker( aRefSeg, track, seg, DRCE_ENDS_PROBLEM2 ) );
+
                 if( !handleNewMarker() )
                     return false;
             }
@@ -624,8 +654,9 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
 
                 if( !checkLine( segStartPoint, segEndPoint ) )
                 {
-                    markers.push_back( fillMarker( aRefSeg, track,
-                                                   DRCE_ENDS_PROBLEM3, nullptr ) );
+                    markers.push_back(
+                            m_markerFactory.NewMarker( aRefSeg, track, seg, DRCE_ENDS_PROBLEM3 ) );
+
                     if( !handleNewMarker() )
                         return false;
                 }
@@ -653,16 +684,18 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
 
                     if( !checkMarginToCircle( relStartPos, w_dist, delta.x ) )
                     {
-                        markers.push_back( fillMarker( aRefSeg, track,
-                                                       DRCE_ENDS_PROBLEM4, nullptr ) );
+                        markers.push_back( m_markerFactory.NewMarker(
+                                aRefSeg, track, seg, DRCE_ENDS_PROBLEM4 ) );
+
                         if( !handleNewMarker() )
                             return false;
                     }
 
                     if( !checkMarginToCircle( relEndPos, w_dist, delta.x ) )
                     {
-                        markers.push_back( fillMarker( aRefSeg, track,
-                                                       DRCE_ENDS_PROBLEM5, nullptr ) );
+                        markers.push_back( m_markerFactory.NewMarker(
+                                aRefSeg, track, seg, DRCE_ENDS_PROBLEM5 ) );
+
                         if( !handleNewMarker() )
                             return false;
                     }
@@ -670,6 +703,60 @@ bool DRC::doTrackDrc( TRACK* aRefSeg, TRACK* aStart, bool testPads )
             }
         }
     }
+
+    /***************************************/
+    /* Phase 3: test DRC with copper zones */
+    /***************************************/
+    // Can be *very* time consumming.
+    if( aTestZones )
+    {
+        SEG refSeg( aRefSeg->GetStart(), aRefSeg->GetEnd() );
+
+        for( ZONE_CONTAINER* zone : m_pcb->Zones() )
+        {
+            if( zone->GetFilledPolysList().IsEmpty() || zone->GetIsKeepout() )
+                continue;
+
+            if( !( layerMask & zone->GetLayerSet() ).any() )
+                continue;
+
+            if( zone->GetNetCode() && zone->GetNetCode() == net_code_ref )
+                continue;
+
+            int clearance = zone->GetClearance( aRefSeg );
+            SHAPE_POLY_SET* outline = const_cast<SHAPE_POLY_SET*>( &zone->GetFilledPolysList() );
+
+            if( outline->Distance( refSeg, aRefSeg->GetWidth() ) < clearance )
+                addMarkerToPcb( m_markerFactory.NewMarker( aRefSeg, zone, DRCE_TRACK_NEAR_ZONE ) );
+        }
+    }
+
+    /***********************************************/
+    /* Phase 4: test DRC with to board edge        */
+    /***********************************************/
+    {
+        SEG test_seg( aRefSeg->GetStart(), aRefSeg->GetEnd() );
+
+        // the minimum distance = clearance plus half the reference track
+        // width.  Board edges do not have width or clearance values, so we
+        // look for simple crossing.
+        SEG::ecoord w_dist = aRefSeg->GetClearance() + aRefSeg->GetWidth() / 2;
+        w_dist *= w_dist;
+
+        for( auto it = m_board_outlines.IterateSegmentsWithHoles(); it; it++ )
+        {
+            if( test_seg.SquaredDistance( *it ) < w_dist )
+            {
+                auto pt = test_seg.NearestPoint( *it );
+                markers.push_back( m_markerFactory.NewMarker(
+                        wxPoint( pt.x, pt.y ), aRefSeg, DRCE_TRACK_NEAR_EDGE ) );
+
+                if( !handleNewMarker() )
+                    return false;
+            }
+        }
+    }
+
 
     if( markers.size() > 0 )
     {
@@ -733,10 +820,9 @@ bool DRC::doEdgeZoneDrc( ZONE_CONTAINER* aArea, int aCornerIndex )
         // test for ending line inside area_to_test
         if( area_to_test->Outline()->Contains( end ) )
         {
-            // COPPERAREA_COPPERAREA error: corner inside copper area
-            m_currentMarker = fillMarker( aArea, static_cast<wxPoint>( end ),
-                                          COPPERAREA_INSIDE_COPPERAREA,
-                                          m_currentMarker );
+            wxPoint pos( end.x, end.y );
+            m_currentMarker =
+                    m_markerFactory.NewMarker( pos, aArea, area_to_test, DRCE_ZONES_INTERSECT );
             return false;
         }
 
@@ -768,9 +854,8 @@ bool DRC::doEdgeZoneDrc( ZONE_CONTAINER* aArea, int aCornerIndex )
             if( d < zone_clearance )
             {
                 // COPPERAREA_COPPERAREA error : edge intersect or too close
-                m_currentMarker = fillMarker( aArea, wxPoint( x, y ),
-                                              COPPERAREA_CLOSE_TO_COPPERAREA,
-                                              m_currentMarker );
+                m_currentMarker = m_markerFactory.NewMarker(
+                        wxPoint( x, y ), aArea, area_to_test, DRCE_ZONES_TOO_CLOSE );
                 return false;
             }
 
@@ -1024,7 +1109,7 @@ bool DRC::checkClearancePadToPad( D_PAD* aRefPad, D_PAD* aPad )
     }
 
     default:
-        wxMessageBox( wxT( "DRC::checkClearancePadToPad: unknown pad shape" ) );
+        wxLogDebug( wxT( "DRC::checkClearancePadToPad: unknown pad shape" ) );
         break;
     }
 

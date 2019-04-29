@@ -14,8 +14,6 @@ add_executable( container_test
     )
 target_link_libraries( container_test
     common
-    polygon
-    bitmaps
     ${wxWidgets_LIBRARIES}
     )
 
@@ -45,6 +43,3 @@ target_link_libraries( utf8_tests
     common
     ${wxWidgets_LIBRARIES}
     )
-
-
-add_subdirectory( io_benchmark )

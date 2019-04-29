@@ -41,6 +41,7 @@
 #include <wx/richmsgdlg.h>
 
 #include <pgm_base.h>
+#include <draw_frame.h>
 #include <eda_base_frame.h>
 #include <macros.h>
 #include <config_params.h>
@@ -50,10 +51,11 @@
 #include <gestfich.h>
 #include <menus_helpers.h>
 #include <confirm.h>
-#include <dialog_env_var_config.h>
+#include <dialog_configure_paths.h>
 #include <lockfile.h>
 #include <systemdirsappend.h>
-
+#include <trace_helpers.h>
+#include <gal/gal_display_options.h>
 
 #define KICAD_COMMON                     wxT( "kicad_common" )
 
@@ -65,8 +67,24 @@ static const wxChar languageCfgKey[]   = wxT( "LanguageID" );
 static const wxChar pathEnvVariables[] = wxT( "EnvironmentVariables" );
 static const wxChar showEnvVarWarningDialog[] = wxT( "ShowEnvVarWarningDialog" );
 static const wxChar traceEnvVars[]     = wxT( "KIENVVARS" );
-///< enable/disable icons in menus
-static const wxChar entryUseIconsInMenus[] = wxT( "UseIconsInMenus" );
+
+
+FILE_HISTORY::FILE_HISTORY( size_t aMaxFiles, int aBaseFileId ) :
+        wxFileHistory( std::min( aMaxFiles, (size_t) MAX_FILE_HISTORY_SIZE ) )
+{
+    SetBaseId( aBaseFileId );
+}
+
+
+void FILE_HISTORY::SetMaxFiles( size_t aMaxFiles )
+{
+    m_fileMaxFiles = std::min( aMaxFiles, (size_t) MAX_FILE_HISTORY_SIZE );
+
+    size_t numFiles = m_fileHistory.size();
+
+    while( numFiles > m_fileMaxFiles )
+        RemoveFileFromHistory( --numFiles );
+}
 
 
 /**
@@ -104,182 +122,31 @@ struct LANGUAGE_DESCR
  */
 static LANGUAGE_DESCR s_Languages[] =
 {
-    // Default language
-    {
-        wxLANGUAGE_DEFAULT,
-        ID_LANGUAGE_DEFAULT,
-        lang_def_xpm,
-        _( "Default" )
-    },
-
-    // English language
-    {
-        wxLANGUAGE_ENGLISH,
-        ID_LANGUAGE_ENGLISH,
-        lang_en_xpm,
-        wxT( "English" ),
-        true
-    },
-
-    // French language
-    {
-        wxLANGUAGE_FRENCH,
-        ID_LANGUAGE_FRENCH,
-        lang_fr_xpm,
-        _( "French" )
-    },
-
-    // Finnish language
-    {
-        wxLANGUAGE_FINNISH,
-        ID_LANGUAGE_FINNISH,
-        lang_fi_xpm,
-        _( "Finnish" )
-    },
-
-    // Spanish language
-    {
-        wxLANGUAGE_SPANISH,
-        ID_LANGUAGE_SPANISH,
-        lang_es_xpm,
-        _( "Spanish" )
-    },
-
-    // Portuguese language
-    {
-        wxLANGUAGE_PORTUGUESE,
-        ID_LANGUAGE_PORTUGUESE,
-        lang_pt_xpm,
-        _( "Portuguese" )
-    },
-
-    // Italian language
-    {
-        wxLANGUAGE_ITALIAN,
-        ID_LANGUAGE_ITALIAN,
-        lang_it_xpm,
-        _( "Italian" )
-    },
-
-    // German language
-    {
-        wxLANGUAGE_GERMAN,
-        ID_LANGUAGE_GERMAN,
-        lang_de_xpm,
-        _( "German" )
-    },
-
-    // Greek language
-    {
-        wxLANGUAGE_GREEK,
-        ID_LANGUAGE_GREEK,
-        lang_gr_xpm,
-        _( "Greek" )
-    },
-
-    // Slovenian language
-    {
-        wxLANGUAGE_SLOVENIAN,
-        ID_LANGUAGE_SLOVENIAN,
-        lang_sl_xpm,
-        _( "Slovenian" )
-    },
-
-    // Slovenian language
-    {
-        wxLANGUAGE_SLOVAK,
-        ID_LANGUAGE_SLOVAK,
-        lang_sk_xpm,
-        _( "Slovak" )
-    },
-
-    // Hungarian language
-    {
-        wxLANGUAGE_HUNGARIAN,
-        ID_LANGUAGE_HUNGARIAN,
-        lang_hu_xpm,
-        _( "Hungarian" )
-    },
-
-    // Polish language
-    {
-        wxLANGUAGE_POLISH,
-        ID_LANGUAGE_POLISH,
-        lang_pl_xpm,
-        _( "Polish" )
-    },
-
-    // Czech language
-    {
-        wxLANGUAGE_CZECH,
-        ID_LANGUAGE_CZECH,
-        lang_cs_xpm,
-        _( "Czech" )
-    },
-
-    // Russian language
-    {
-        wxLANGUAGE_RUSSIAN,
-        ID_LANGUAGE_RUSSIAN,
-        lang_ru_xpm,
-        _( "Russian" )
-    },
-
-    // Korean language
-    {
-        wxLANGUAGE_KOREAN,
-        ID_LANGUAGE_KOREAN,
-        lang_ko_xpm,
-        _( "Korean" )
-    },
-
-    // Chinese simplified
-    {
-        wxLANGUAGE_CHINESE_SIMPLIFIED,
-        ID_LANGUAGE_CHINESE_SIMPLIFIED,
-        lang_zh_xpm,
-        _( "Chinese simplified" )
-    },
-
-    // Catalan language
-    {
-        wxLANGUAGE_CATALAN,
-        ID_LANGUAGE_CATALAN,
-        lang_catalan_xpm,
-        _( "Catalan" )
-    },
-
-    // Dutch language
-    {
-        wxLANGUAGE_DUTCH,
-        ID_LANGUAGE_DUTCH,
-        lang_nl_xpm,
-        _( "Dutch" )
-    },
-
-    // Japanese language
-    {
-        wxLANGUAGE_JAPANESE,
-        ID_LANGUAGE_JAPANESE,
-        lang_jp_xpm,
-        _( "Japanese" )
-    },
-
-    // Bulgarian language
-    {
-        wxLANGUAGE_BULGARIAN,
-        ID_LANGUAGE_BULGARIAN,
-        lang_bg_xpm,
-        _( "Bulgarian" )
-    },
-
-    // Lithuanian language
-    {
-        wxLANGUAGE_LITHUANIAN,
-        ID_LANGUAGE_LITHUANIAN,
-        lang_lt_xpm,
-        _( "Lithuanian" )
-    }
+    { wxLANGUAGE_DEFAULT,    ID_LANGUAGE_DEFAULT,    lang_def_xpm,  _( "Default" ) },
+    { wxLANGUAGE_ENGLISH,    ID_LANGUAGE_ENGLISH,    lang_en_xpm, wxT( "English" ), true },
+    { wxLANGUAGE_FRENCH,     ID_LANGUAGE_FRENCH,     lang_fr_xpm,   _( "French" ) },
+    { wxLANGUAGE_FINNISH,    ID_LANGUAGE_FINNISH,    lang_fi_xpm,   _( "Finnish" ) },
+    { wxLANGUAGE_SPANISH,    ID_LANGUAGE_SPANISH,    lang_es_xpm,   _( "Spanish" ) },
+    { wxLANGUAGE_PORTUGUESE, ID_LANGUAGE_PORTUGUESE, lang_pt_xpm,   _( "Portuguese" ) },
+    { wxLANGUAGE_ITALIAN,    ID_LANGUAGE_ITALIAN,    lang_it_xpm,   _( "Italian" ) },
+    { wxLANGUAGE_GERMAN,     ID_LANGUAGE_GERMAN,     lang_de_xpm,   _( "German" ) },
+    { wxLANGUAGE_GREEK,      ID_LANGUAGE_GREEK,      lang_gr_xpm,   _( "Greek" ) },
+    { wxLANGUAGE_SLOVENIAN,  ID_LANGUAGE_SLOVENIAN,  lang_sl_xpm,   _( "Slovenian" ) },
+    { wxLANGUAGE_SLOVAK,     ID_LANGUAGE_SLOVAK,     lang_sk_xpm,   _( "Slovak" ) },
+    { wxLANGUAGE_HUNGARIAN,  ID_LANGUAGE_HUNGARIAN,  lang_hu_xpm,   _( "Hungarian" ) },
+    { wxLANGUAGE_POLISH,     ID_LANGUAGE_POLISH,     lang_pl_xpm,   _( "Polish" ) },
+    { wxLANGUAGE_CZECH,      ID_LANGUAGE_CZECH,      lang_cs_xpm,   _( "Czech" ) },
+    { wxLANGUAGE_RUSSIAN,    ID_LANGUAGE_RUSSIAN,    lang_ru_xpm,   _( "Russian" ) },
+    { wxLANGUAGE_KOREAN,     ID_LANGUAGE_KOREAN,     lang_ko_xpm,   _( "Korean" ) },
+    { wxLANGUAGE_CHINESE_SIMPLIFIED, ID_LANGUAGE_CHINESE_SIMPLIFIED, lang_zh_xpm,
+                                                            _( "Chinese simplified" ) },
+    { wxLANGUAGE_CHINESE_TRADITIONAL, ID_LANGUAGE_CHINESE_TRADITIONAL, lang_zh_xpm,
+                                                            _( "Chinese traditional" ) },
+    { wxLANGUAGE_CATALAN,    ID_LANGUAGE_CATALAN,    lang_ca_xpm,   _( "Catalan" ) },
+    { wxLANGUAGE_DUTCH,      ID_LANGUAGE_DUTCH,      lang_nl_xpm,   _( "Dutch" ) },
+    { wxLANGUAGE_JAPANESE,   ID_LANGUAGE_JAPANESE,   lang_jp_xpm,   _( "Japanese" ) },
+    { wxLANGUAGE_BULGARIAN,  ID_LANGUAGE_BULGARIAN,  lang_bg_xpm,   _( "Bulgarian" ) },
+    { wxLANGUAGE_LITHUANIAN, ID_LANGUAGE_LITHUANIAN, lang_lt_xpm,   _( "Lithuanian" ) }
 };
 
 
@@ -287,9 +154,6 @@ PGM_BASE::PGM_BASE()
 {
     m_pgm_checker = NULL;
     m_locale = NULL;
-    m_common_settings = NULL;
-    m_iconsScale = 1.0;
-    m_useIconsInMenus = true;   // will be set later after reading the config
 
     m_show_env_var_dialog = true;
 
@@ -308,9 +172,7 @@ PGM_BASE::~PGM_BASE()
 void PGM_BASE::Destroy()
 {
     // unlike a normal destructor, this is designed to be called more than once safely:
-
-    delete m_common_settings;
-    m_common_settings = 0;
+    m_common_settings.reset();
 
     delete m_pgm_checker;
     m_pgm_checker = 0;
@@ -331,7 +193,7 @@ void PGM_BASE::SetEditorName( const wxString& aFileName )
 {
     m_editor_name = aFileName;
     wxASSERT( m_common_settings );
-    m_common_settings->Write( wxT( "Editor" ), aFileName );
+    m_common_settings->Write( "Editor", aFileName );
 }
 
 
@@ -341,7 +203,7 @@ const wxString& PGM_BASE::GetEditorName( bool aCanShowFileChooser )
 
     if( !editorname )
     {
-        if( !wxGetEnv( wxT( "EDITOR" ), &editorname ) )
+        if( !wxGetEnv( "EDITOR", &editorname ) )
         {
             // If there is no EDITOR variable set, try the desktop default
 #ifdef __WXMAC__
@@ -420,7 +282,7 @@ bool PGM_BASE::InitPgm()
     // Init KiCad environment
     // the environment variable KICAD (if exists) gives the kicad path:
     // something like set KICAD=d:\kicad
-    bool isDefined = wxGetEnv( wxT( "KICAD" ), &m_kicad_env );
+    bool isDefined = wxGetEnv( "KICAD", &m_kicad_env );
 
     if( isDefined )    // ensure m_kicad_env ends by "/"
     {
@@ -431,7 +293,7 @@ bool PGM_BASE::InitPgm()
     }
 
     // Init parameters for configuration
-    App().SetVendorName( wxT( "KiCad" ) );
+    App().SetVendorName( "KiCad" );
     App().SetAppName( pgm_name.GetName().Lower() );
 
     // Install some image handlers, mainly for help
@@ -484,8 +346,8 @@ bool PGM_BASE::InitPgm()
 #endif
 
 #if !defined( __WXMAC__ )
-    baseSharePath.AppendDir( wxT( "share" ) );
-    baseSharePath.AppendDir( wxT( "kicad" ) );
+    baseSharePath.AppendDir( "share" );
+    baseSharePath.AppendDir( "kicad" );
 #endif
 
     // KISYSMOD
@@ -499,7 +361,7 @@ bool PGM_BASE::InitPgm()
     else
     {
         tmpFileName = baseSharePath;
-        tmpFileName.AppendDir( wxT( "modules" ) );
+        tmpFileName.AppendDir( "modules" );
         envVarItem.SetDefinedExternally( false );
     }
 
@@ -516,7 +378,7 @@ bool PGM_BASE::InitPgm()
     }
     else
     {
-        tmpFileName.AppendDir( wxT( "packages3d" ) );
+        tmpFileName.AppendDir( "packages3d" );
         envVarItem.SetDefinedExternally( false );
     }
 
@@ -549,7 +411,8 @@ bool PGM_BASE::InitPgm()
             // Only add path if exists and can be read by the user.
             if( fn.DirExists() && fn.IsDirReadable() )
             {
-                wxLogDebug( "Checking template path '%s' exists", fn.GetPath() );
+                wxLogTrace( tracePathsAndFiles, "Checking template path '%s' exists",
+                            fn.GetPath() );
                 templatePaths.AddPaths( fn.GetPath() );
             }
         }
@@ -602,7 +465,7 @@ bool PGM_BASE::InitPgm()
     else
     {
         tmpFileName = baseSharePath;
-        tmpFileName.AppendDir( wxT( "library" ) );
+        tmpFileName.AppendDir( "library" );
         envVarItem.SetDefinedExternally( false );
     }
 
@@ -675,20 +538,68 @@ void PGM_BASE::loadCommonSettings()
 
     m_help_size.x = 500;
     m_help_size.y = 400;
-    m_iconsScale  = 1.0;
 
     // This only effect the first time KiCad is run.  The user's setting will be used for all
     // subsequent runs.  Menu icons are off by default on OSX and on for all other platforms.
 #if defined( __WXMAC__ )
-    m_useIconsInMenus = false;
+    bool defaultUseIconsInMenus = false;
 #else
-    m_useIconsInMenus = true;
+    bool defaultUseIconsInMenus = true;
 #endif
 
     m_common_settings->Read( showEnvVarWarningDialog, &m_show_env_var_dialog );
-    m_common_settings->Read( entryUseIconsInMenus, &m_useIconsInMenus, m_useIconsInMenus );
 
-    m_editor_name = m_common_settings->Read( wxT( "Editor" ) );
+    if( !m_common_settings->HasEntry( USE_ICONS_IN_MENUS_KEY ) )
+        m_common_settings->Write( USE_ICONS_IN_MENUS_KEY, defaultUseIconsInMenus );
+
+    if( !m_common_settings->HasEntry( ICON_SCALE_KEY )
+        || !m_common_settings->HasEntry( GAL_ANTIALIASING_MODE_KEY )
+        || !m_common_settings->HasEntry( CAIRO_ANTIALIASING_MODE_KEY )  )
+    {
+        // 5.0 and earlier saved common settings in each app, and saved hardware antialiasing
+        // options only in pcbnew (which was the only canvas to support them).  Since there's
+        // no single right answer to where to pull the common settings from, we might as well
+        // get them along with the hardware antialiasing option from pcbnew.
+        auto pcbnewConfig = GetNewConfig( wxString::FromUTF8( "pcbnew" ) );
+        wxString pcbFrameKey( PCB_EDIT_FRAME_NAME );
+
+        if( !m_common_settings->HasEntry( ICON_SCALE_KEY ) )
+        {
+            int temp;
+            wxString msg;
+            bool option;
+
+            pcbnewConfig->Read( "PcbIconScale", &temp, 0 );
+            m_common_settings->Write( ICON_SCALE_KEY, temp );
+
+            pcbnewConfig->Read( ENBL_MOUSEWHEEL_PAN_KEY, &option, false );
+            m_common_settings->Write( ENBL_MOUSEWHEEL_PAN_KEY, option );
+
+            pcbnewConfig->Read( ENBL_ZOOM_NO_CENTER_KEY, &option, false );
+            m_common_settings->Write( ENBL_ZOOM_NO_CENTER_KEY, option );
+
+            pcbnewConfig->Read( ENBL_AUTO_PAN_KEY, &option, true );
+            m_common_settings->Write( ENBL_AUTO_PAN_KEY, option );
+        }
+
+        if( !m_common_settings->HasEntry( GAL_ANTIALIASING_MODE_KEY ) )
+        {
+            int temp;
+            pcbnewConfig->Read( pcbFrameKey + GAL_DISPLAY_OPTIONS_KEY + GAL_ANTIALIASING_MODE_KEY,
+                                &temp, (int) KIGFX::OPENGL_ANTIALIASING_MODE::NONE );
+            m_common_settings->Write( GAL_ANTIALIASING_MODE_KEY, temp );
+        }
+
+        if( !m_common_settings->HasEntry( CAIRO_ANTIALIASING_MODE_KEY ) )
+        {
+            int temp;
+            pcbnewConfig->Read( pcbFrameKey + GAL_DISPLAY_OPTIONS_KEY + CAIRO_ANTIALIASING_MODE_KEY,
+                                &temp, (int) KIGFX::CAIRO_ANTIALIASING_MODE::NONE );
+            m_common_settings->Write( CAIRO_ANTIALIASING_MODE_KEY, temp );
+        }
+    }
+
+    m_editor_name = m_common_settings->Read( "Editor" );
 
     wxString entry, oldPath;
     wxArrayString entries;
@@ -700,7 +611,13 @@ void PGM_BASE::loadCommonSettings()
     while( m_common_settings->GetNextEntry( entry, index ) )
     {
         wxLogTrace( traceEnvVars,
-                    wxT( "Enumerating over entry %s, %ld." ), GetChars( entry ), index );
+                    "Enumerating over entry %s, %ld.", GetChars( entry ), index );
+
+        // Do not store the env var PROJECT_VAR_NAME ("KIPRJMOD") definition if for some reason
+        // it is found in config. (It is reserved and defined as project path)
+        if( entry == PROJECT_VAR_NAME )
+            continue;
+
         entries.Add( entry );
     }
 
@@ -715,7 +632,9 @@ void PGM_BASE::loadCommonSettings()
     }
 
     for( ENV_VAR_MAP_ITER it = m_local_env_vars.begin(); it != m_local_env_vars.end(); ++it )
+    {
         SetLocalEnvVariable( it->first, it->second.GetValue() );
+    }
 
     m_common_settings->SetPath( oldPath );
 }
@@ -731,7 +650,6 @@ void PGM_BASE::SaveCommonSettings()
 
         m_common_settings->Write( workingDirKey, cur_dir );
         m_common_settings->Write( showEnvVarWarningDialog, m_show_env_var_dialog );
-        m_common_settings->Write( entryUseIconsInMenus, m_useIconsInMenus);
 
         // Save the local environment variables.
         m_common_settings->SetPath( pathEnvVariables );
@@ -741,12 +659,12 @@ void PGM_BASE::SaveCommonSettings()
             if( it->second.GetDefinedExternally() )
                 continue;
 
-            wxLogTrace( traceEnvVars, wxT( "Saving environment variable config entry %s as %s" ),
+            wxLogTrace( traceEnvVars, "Saving environment variable config entry %s as %s",
                         GetChars( it->first ),  GetChars( it->second.GetValue() ) );
             m_common_settings->Write( it->first, it->second.GetValue() );
         }
 
-        m_common_settings->SetPath( wxT( ".." ) );
+        m_common_settings->SetPath( ".." );
     }
 }
 
@@ -765,7 +683,7 @@ bool PGM_BASE::SetLanguage( bool first_time )
         m_common_settings->Read( languageCfgKey, &languageSel );
 
         // Search for the current selection
-        for( unsigned ii = 0; ii < DIM( s_Languages ); ii++ )
+        for( unsigned ii = 0; ii < arrayDim( s_Languages ); ii++ )
         {
             if( s_Languages[ii].m_Lang_Label == languageSel )
             {
@@ -776,14 +694,14 @@ bool PGM_BASE::SetLanguage( bool first_time )
     }
 
     // dictionary file name without extend (full name is kicad.mo)
-    wxString dictionaryName( wxT( "kicad" ) );
+    wxString dictionaryName( "kicad" );
 
     delete m_locale;
     m_locale = new wxLocale;
 
     if( !m_locale->Init( m_language_id ) )
     {
-        wxLogDebug( wxT( "This language is not supported by the system." ) );
+        wxLogTrace( traceLocale, "This language is not supported by the system." );
 
         setLanguageId( wxLANGUAGE_DEFAULT );
         delete m_locale;
@@ -794,7 +712,7 @@ bool PGM_BASE::SetLanguage( bool first_time )
     }
     else if( !first_time )
     {
-        wxLogDebug( wxT( "Search for dictionary %s.mo in %s" ),
+        wxLogTrace( traceLocale, "Search for dictionary %s.mo in %s",
                     GetChars( dictionaryName ), GetChars( m_locale->GetName() ) );
     }
 
@@ -807,7 +725,7 @@ bool PGM_BASE::SetLanguage( bool first_time )
         wxString languageSel;
 
         // Search for the current selection language name
-        for( unsigned ii = 0; ii < DIM( s_Languages ); ii++ )
+        for( unsigned ii = 0; ii < arrayDim( s_Languages ); ii++ )
         {
             if( s_Languages[ii].m_WX_Lang_Identifier == m_language_id )
             {
@@ -845,10 +763,10 @@ bool PGM_BASE::SetLanguage( bool first_time )
 
 void PGM_BASE::SetLanguageIdentifier( int menu_id )
 {
-    wxLogDebug( wxT( "Select language ID %d from %d possible languages." ),
-                menu_id, DIM( s_Languages ) );
+    wxLogTrace( traceLocale, "Select language ID %d from %d possible languages.",
+                menu_id, (int)arrayDim( s_Languages ) );
 
-    for( unsigned ii = 0; ii < DIM( s_Languages ); ii++ )
+    for( unsigned ii = 0; ii < arrayDim( s_Languages ); ii++ )
     {
         if( menu_id == s_Languages[ii].m_KI_Lang_Identifier )
         {
@@ -871,23 +789,23 @@ void PGM_BASE::SetLanguagePath()
         wxFileName fn( guesses[i], wxEmptyString );
 
         // Append path for Windows and unix KiCad package install
-        fn.AppendDir( wxT( "share" ) );
-        fn.AppendDir( wxT( "internat" ) );
+        fn.AppendDir( "share" );
+        fn.AppendDir( "internat" );
 
         if( fn.IsDirReadable() )
         {
-            wxLogDebug( wxT( "Adding locale lookup path: " ) + fn.GetPath() );
+            wxLogTrace( traceLocale, "Adding locale lookup path: " + fn.GetPath() );
             wxLocale::AddCatalogLookupPathPrefix( fn.GetPath() );
         }
 
         // Append path for unix standard install
         fn.RemoveLastDir();
-        fn.AppendDir( wxT( "kicad" ) );
-        fn.AppendDir( wxT( "internat" ) );
+        fn.AppendDir( "kicad" );
+        fn.AppendDir( "internat" );
 
         if( fn.IsDirReadable() )
         {
-            wxLogDebug( wxT( "Adding locale lookup path: " ) + fn.GetPath() );
+            wxLogTrace( traceLocale, "Adding locale lookup path: " + fn.GetPath() );
             wxLocale::AddCatalogLookupPathPrefix( fn.GetPath() );
         }
     }
@@ -904,7 +822,7 @@ void PGM_BASE::AddMenuLanguageList( wxMenu* MasterMenu )
 
     menu = new wxMenu;
 
-    for( unsigned ii = 0; ii < DIM( s_Languages ); ii++ )
+    for( unsigned ii = 0; ii < arrayDim( s_Languages ); ii++ )
     {
         wxString label;
 
@@ -925,7 +843,7 @@ void PGM_BASE::AddMenuLanguageList( wxMenu* MasterMenu )
                  KiBitmap( language_xpm ) );
 
     // Set Check mark on current selected language
-    for( unsigned ii = 0;  ii < DIM( s_Languages );  ii++ )
+    for( unsigned ii = 0;  ii < arrayDim( s_Languages );  ii++ )
     {
         if( m_language_id == s_Languages[ii].m_WX_Lang_Identifier )
             menu->Check( s_Languages[ii].m_KI_Lang_Identifier, true );
@@ -942,12 +860,12 @@ bool PGM_BASE::SetLocalEnvVariable( const wxString& aName, const wxString& aValu
     // Check to see if the environment variable is already set.
     if( wxGetEnv( aName, &env ) )
     {
-        wxLogTrace( traceEnvVars, wxT( "Environment variable %s already set to %s." ),
+        wxLogTrace( traceEnvVars,  "Environment variable %s already set to %s.",
                     GetChars( aName ), GetChars( env ) );
         return env == aValue;
     }
 
-    wxLogTrace( traceEnvVars, wxT( "Setting local environment variable %s to %s." ),
+    wxLogTrace( traceEnvVars, "Setting local environment variable %s to %s.",
                 GetChars( aName ), GetChars( aValue ) );
 
     return wxSetEnv( aName, aValue );
@@ -968,47 +886,8 @@ void PGM_BASE::SetLocalEnvVariables( const ENV_VAR_MAP& aEnvVarMap )
     // is run.
     for( ENV_VAR_MAP_ITER it = m_local_env_vars.begin(); it != m_local_env_vars.end(); ++it )
     {
-        wxLogTrace( traceEnvVars, wxT( "Setting local environment variable %s to %s." ),
+        wxLogTrace( traceEnvVars, "Setting local environment variable %s to %s.",
                     GetChars( it->first ), GetChars( it->second.GetValue() ) );
         wxSetEnv( it->first, it->second.GetValue() );
     }
-}
-
-
-void PGM_BASE::ConfigurePaths( wxWindow* aParent )
-{
-    DIALOG_ENV_VAR_CONFIG dlg_envvars( aParent, GetLocalEnvVariables() );
-
-    if( dlg_envvars.ShowModal() == wxID_CANCEL )
-        return;
-
-    ENV_VAR_MAP envVarMap = dlg_envvars.GetEnvVarMap();
-
-    for( ENV_VAR_MAP_ITER it = envVarMap.begin(); it != envVarMap.end(); ++it )
-    {
-        wxLogTrace( traceEnvVars, wxT( "Environment variable %s=%s defined externally = %d" ),
-                    GetChars( it->first ), GetChars( it->second.GetValue() ),
-                    it->second.GetDefinedExternally() );
-    }
-
-    // If any of the environment variables are defined externally, warn the user that the
-    // next time kicad is run that the externally defined variables will be used instead of
-    // the user's settings.  This is by design.
-    if( dlg_envvars.ExternalDefsChanged() && m_show_env_var_dialog )
-    {
-        wxString msg1 = _( "Warning!  Some of paths you have configured have been defined \n"
-                           "externally to the running process and will be temporarily overwritten." );
-        wxString msg2 = _( "The next time KiCad is launched, any paths that have already\n"
-                           "been defined are honored and any settings defined in the path\n"
-                           "configuration dialog are ignored.  If you did not intend for this\n"
-                           "behavior, either rename any conflicting entries or remove the\n"
-                           "external environment variable definition(s) from your system." );
-        wxRichMessageDialog dlg( aParent, msg1, _( "Warning" ), wxOK | wxCENTRE );
-        dlg.ShowDetailedText( msg2 );
-        dlg.ShowCheckBox( _( "Do not show this message again." ) );
-        dlg.ShowModal();
-        m_show_env_var_dialog = !dlg.IsCheckBoxChecked();
-    }
-
-    SetLocalEnvVariables( dlg_envvars.GetEnvVarMap() );
 }

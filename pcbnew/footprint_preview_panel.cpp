@@ -21,7 +21,7 @@
 
 #include <footprint_preview_panel.h>
 #include <pcb_draw_panel_gal.h>
-
+#include <kiface_i.h>
 #include <kiway.h>
 #include <io_mgr.h>
 #include <fp_lib_table.h>
@@ -30,14 +30,15 @@
 #include <class_module.h>
 #include <class_board.h>
 #include <ki_mutex.h>
-
+#include <draw_frame.h>
 #include <boost/bind.hpp>
 #include <utility>
 #include <make_unique.h>
 #include <colors_design_settings.h>
-
+#include <pcb_edit_frame.h>
 #include <wx/stattext.h>
-
+#include <pgm_base.h>
+#include <painter.h>
 
 /**
  * Threadsafe interface class between loader thread and panel class.
@@ -243,13 +244,14 @@ public:
 };
 
 
-FOOTPRINT_PREVIEW_PANEL::FOOTPRINT_PREVIEW_PANEL(
-        KIWAY* aKiway, wxWindow* aParent, KIGFX::GAL_DISPLAY_OPTIONS& aOpts, GAL_TYPE aGalType )
-    : PCB_DRAW_PANEL_GAL ( aParent, -1, wxPoint( 0, 0 ), wxSize(200, 200), aOpts, aGalType  ),
+FOOTPRINT_PREVIEW_PANEL::FOOTPRINT_PREVIEW_PANEL( KIWAY* aKiway, wxWindow* aParent,
+                                                  std::unique_ptr<KIGFX::GAL_DISPLAY_OPTIONS> aOpts,
+                                                  GAL_TYPE aGalType )
+    : PCB_DRAW_PANEL_GAL ( aParent, -1, wxPoint( 0, 0 ), wxSize(200, 200), *aOpts, aGalType  ),
       KIWAY_HOLDER( aKiway ),
+      m_DisplayOptions( std::move( aOpts ) ),
       m_footprintDisplayed( true )
 {
-
     m_iface = std::make_shared<FP_THREAD_IFACE>();
     m_iface->SetPanel( this );
     m_loader = new FP_LOADER_THREAD( m_iface );
@@ -261,12 +263,13 @@ FOOTPRINT_PREVIEW_PANEL::FOOTPRINT_PREVIEW_PANEL(
 
     m_dummyBoard = std::make_unique<BOARD>();
     m_colorsSettings = std::make_unique<COLORS_DESIGN_SETTINGS>( FRAME_PCB_FOOTPRINT_PREVIEW );
+    m_colorsSettings->Load( Kiface().KifaceSettings() );
 
     UseColorScheme( m_colorsSettings.get() );
     SyncLayersVisibility( &*m_dummyBoard );
 
     Raise();
-    Show(true);
+    Show( true );
     StartDrawing();
 
     Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( FOOTPRINT_PREVIEW_PANEL::OnLoaderThreadUpdate ), NULL, this );
@@ -300,9 +303,9 @@ void FOOTPRINT_PREVIEW_PANEL::CacheFootprint( LIB_ID const& aFPID )
 void FOOTPRINT_PREVIEW_PANEL::renderFootprint(  MODULE *module )
 {
     GetView()->Clear();
-    module->SetParent ( &*m_dummyBoard );
+    module->SetParent( &*m_dummyBoard );
 
-    GetView()->Add ( module );
+    GetView()->Add( module );
     GetView()->SetVisible( module, true );
     GetView()->Update( module, KIGFX::ALL );
 
@@ -366,8 +369,71 @@ wxWindow* FOOTPRINT_PREVIEW_PANEL::GetWindow()
 
 FOOTPRINT_PREVIEW_PANEL* FOOTPRINT_PREVIEW_PANEL::New( KIWAY* aKiway, wxWindow* aParent )
 {
-    KIGFX::GAL_DISPLAY_OPTIONS gal_opts;
+    PCB_EDIT_FRAME* pcbnew = static_cast<PCB_EDIT_FRAME*>( aKiway->Player( FRAME_PCB, false ) );
+    wxConfigBase*   cfg = Kiface().KifaceSettings();
+    wxConfigBase*   commonCfg = Pgm().CommonSettings();
+    bool            btemp;
+    int             itemp;
+    wxString        msg;
+    COLOR4D         ctemp;
 
-    return new FOOTPRINT_PREVIEW_PANEL(
-            aKiway, aParent, gal_opts, EDA_DRAW_PANEL_GAL::GAL_TYPE_CAIRO );
+    // Fetch grid & display settings from PCBNew if it's running; otherwise fetch them
+    // from PCBNew's config settings.
+    // We need a copy with a lifetime that matches the panel
+    std::unique_ptr<KIGFX::GAL_DISPLAY_OPTIONS> gal_opts;
+
+    if( pcbnew )
+    {
+        // Copy the existing Pcbnew options
+        // REVIEW: This also copies the current subscription list of the options
+        // to the new options. This is probably not what is intended, but because
+        // this widget doesn't change the options it should be OK.
+        gal_opts = std::make_unique<KIGFX::GAL_DISPLAY_OPTIONS>( pcbnew->GetGalDisplayOptions() );
+    }
+    else
+    {
+        // Make and populate a new one from config
+        gal_opts = std::make_unique<KIGFX::GAL_DISPLAY_OPTIONS>();
+
+        gal_opts->ReadConfig( *commonCfg, *cfg, wxString( PCB_EDIT_FRAME_NAME ), aParent );
+    }
+
+#ifdef __WXMAC__
+    // Cairo renderer doesn't handle Retina displays so default to OpenGL
+    EDA_DRAW_PANEL_GAL::GAL_TYPE canvasType = (EDA_DRAW_PANEL_GAL::GAL_TYPE)
+                        cfg->ReadLong( CanvasTypeKeyBase, EDA_DRAW_PANEL_GAL::GAL_TYPE_OPENGL );
+#else
+    EDA_DRAW_PANEL_GAL::GAL_TYPE canvasType = (EDA_DRAW_PANEL_GAL::GAL_TYPE)
+                        cfg->ReadLong( CanvasTypeKeyBase, EDA_DRAW_PANEL_GAL::GAL_TYPE_CAIRO );
+#endif
+
+    auto panel = new FOOTPRINT_PREVIEW_PANEL( aKiway, aParent, std::move( gal_opts ), canvasType );
+
+    if( pcbnew )
+    {
+        panel->GetGAL()->SetGridVisibility( pcbnew->IsGridVisible() );
+        panel->GetGAL()->SetGridSize( VECTOR2D( pcbnew->GetScreen()->GetGridSize() ) );
+
+        // Grid color (among other things):
+        KIGFX::PAINTER* pcbnew_painter = pcbnew->GetGalCanvas()->GetView()->GetPainter();
+        panel->GetView()->GetPainter()->ApplySettings( pcbnew_painter->GetSettings() );
+    }
+    else
+    {
+        btemp = cfg->ReadBool( wxString( PCB_EDIT_FRAME_NAME ) + ShowGridEntryKeyword, true );
+        panel->GetGAL()->SetGridVisibility( btemp );
+
+        // Read grid size:
+        std::unique_ptr<PCB_SCREEN> temp_screen = std::make_unique<PCB_SCREEN>( wxSize() );
+        cfg->Read( wxString( PCB_EDIT_FRAME_NAME ) + LastGridSizeIdKeyword, &itemp, 0L );
+        temp_screen->SetGrid( itemp + ID_POPUP_GRID_LEVEL_1000 );
+        panel->GetGAL()->SetGridSize( VECTOR2D( temp_screen->GetGridSize() ) );
+
+        // Read grid color:
+        msg = cfg->Read( wxString( PCB_EDIT_FRAME_NAME ) + GridColorEntryKeyword, wxT( "NONE" ) );
+        ctemp.SetFromWxString( msg );
+        panel->GetGAL()->SetGridColor( ctemp );
+    }
+
+    return panel;
 }

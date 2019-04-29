@@ -4,7 +4,7 @@
  * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2015 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2015 Wayne Stambaugh <stambaughw@gmail.com>
- * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -37,6 +37,7 @@
 #include <confirm.h>
 #include <kicad_string.h>
 #include <pcbnew.h>
+#include <refdes_utils.h>
 #include <richio.h>
 #include <filter_reader.h>
 #include <macros.h>
@@ -62,7 +63,6 @@ MODULE::MODULE( BOARD* parent ) :
     m_ModuleStatus = MODULE_PADS_LOCKED;
     m_arflag = 0;
     m_CntRot90 = m_CntRot180 = 0;
-    m_Surface  = 0.0;
     m_Link     = 0;
     m_LastEditTime  = 0;
     m_LocalClearance = 0;
@@ -94,7 +94,7 @@ MODULE::MODULE( const MODULE& aModule ) :
     m_CntRot180 = aModule.m_CntRot180;
     m_LastEditTime = aModule.m_LastEditTime;
     m_Link = aModule.m_Link;
-    m_Path = aModule.m_Path;              //is this correct behavior?
+    m_Path = aModule.m_Path;              // is this correct behavior?
 
     m_LocalClearance = aModule.m_LocalClearance;
     m_LocalSolderMaskMargin = aModule.m_LocalSolderMaskMargin;
@@ -286,27 +286,6 @@ void MODULE::Add( BOARD_ITEM* aBoardItem, ADD_MODE aMode )
     }
 
     aBoardItem->SetParent( this );
-
-    // Update relative coordinates, it can be done only after there is a parent object assigned
-    switch( aBoardItem->Type() )
-    {
-    case PCB_MODULE_TEXT_T:
-        static_cast<TEXTE_MODULE*>( aBoardItem )->SetLocalCoord();
-        break;
-
-    case PCB_MODULE_EDGE_T:
-        static_cast<EDGE_MODULE*>( aBoardItem )->SetLocalCoord();
-        break;
-
-    case PCB_PAD_T:
-        static_cast<D_PAD*>( aBoardItem )->SetLocalCoord();
-        break;
-
-    default:
-        // Huh? It should have been filtered out by the previous switch
-        assert(false);
-        break;
-    }
 }
 
 
@@ -464,7 +443,14 @@ void MODULE::DrawEdgesOnly( EDA_DRAW_PANEL* panel, wxDC* DC, const wxPoint& offs
 void MODULE::CalculateBoundingBox()
 {
     m_BoundaryBox = GetFootprintRect();
-    m_Surface = std::abs( (double) m_BoundaryBox.GetWidth() * m_BoundaryBox.GetHeight() );
+}
+
+
+double MODULE::GetArea( int aPadding ) const
+{
+    double w = std::abs( m_BoundaryBox.GetWidth() ) + aPadding;
+    double h = std::abs( m_BoundaryBox.GetHeight() ) + aPadding;
+    return w * h;
 }
 
 
@@ -478,10 +464,8 @@ EDA_RECT MODULE::GetFootprintRect() const
 
     for( const BOARD_ITEM* item = m_Drawings.GetFirst(); item; item = item->Next() )
     {
-        const EDGE_MODULE* edge = dyn_cast<const EDGE_MODULE*>( item );
-
-        if( edge )
-            area.Merge( edge->GetBoundingBox() );
+        if( item->Type() == PCB_MODULE_EDGE_T )
+            area.Merge( item->GetBoundingBox() );
     }
 
     for( D_PAD* pad = m_Pads;  pad;  pad = pad->Next() )
@@ -493,7 +477,19 @@ EDA_RECT MODULE::GetFootprintRect() const
 
 const EDA_RECT MODULE::GetBoundingBox() const
 {
-    return GetFootprintRect();
+    EDA_RECT area = GetFootprintRect();
+
+    // Add in items not collected by GetFootprintRect():
+    for( const BOARD_ITEM* item = m_Drawings.GetFirst(); item; item = item->Next() )
+    {
+        if( item->Type() != PCB_MODULE_EDGE_T )
+            area.Merge( item->GetBoundingBox() );
+    }
+
+    area.Merge( m_Value->GetBoundingBox() );
+    area.Merge( m_Reference->GetBoundingBox() );
+
+    return area;
 }
 
 
@@ -546,7 +542,7 @@ SHAPE_POLY_SET MODULE::GetBoundingPoly() const
 }
 
 
-void MODULE::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
+void MODULE::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList )
 {
     int      nbpad;
     wxString msg;
@@ -867,14 +863,14 @@ SEARCH_RESULT MODULE::Visit( INSPECTOR inspector, void* testData, const KICAD_T 
 }
 
 
-wxString MODULE::GetSelectMenuText() const
+wxString MODULE::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
-    wxString text;
-    text.Printf( _( "Footprint %s on %s" ),
-                 GetChars ( GetReference() ),
-                 GetChars ( GetLayerName() ) );
+    wxString reference = GetReference();
 
-    return text;
+    if( reference.IsEmpty() )
+        reference = _( "<no reference>" );
+
+    return wxString::Format( _( "Footprint %s on %s" ), reference, GetLayerName() );
 }
 
 
@@ -992,7 +988,7 @@ unsigned int MODULE::ViewGetLOD( int aLayer, KIGFX::VIEW* aView ) const
 
     // Currently it is only for anchor layer
     if( aView->IsLayerVisible( layer ) )
-        return 30;
+        return 3;
 
     return std::numeric_limits<unsigned int>::max();
 }
@@ -1016,8 +1012,7 @@ const BOX2I MODULE::ViewBBox() const
         area.Inflate( biggest_clearance );
     }
 
-
-    return BOX2I( area );
+    return area;
 }
 
 
@@ -1053,10 +1048,21 @@ void MODULE::Move( const wxPoint& aMoveVector )
 
 void MODULE::Rotate( const wxPoint& aRotCentre, double aAngle )
 {
+    double  orientation = GetOrientation();
+    double  newOrientation = orientation + aAngle;
     wxPoint newpos = m_Pos;
     RotatePoint( &newpos, aRotCentre, aAngle );
     SetPosition( newpos );
-    SetOrientation( GetOrientation() + aAngle );
+    SetOrientation( newOrientation );
+
+    m_Reference->KeepUpright( orientation, newOrientation );
+    m_Value->KeepUpright( orientation, newOrientation );
+
+    for( EDA_ITEM* item = m_Drawings; item; item = item->Next() )
+    {
+        if( item->Type() == PCB_MODULE_TEXT_T )
+            static_cast<TEXTE_MODULE*>( item )->KeepUpright(  orientation, newOrientation  );
+    }
 }
 
 
@@ -1181,34 +1187,19 @@ void MODULE::MoveAnchorPosition( const wxPoint& aMoveVector )
         switch( item->Type() )
         {
         case PCB_MODULE_EDGE_T:
-        {
+            {
             EDGE_MODULE* edge = static_cast<EDGE_MODULE*>( item );
-
-            // Polygonal shape coordinates are specific:
-            // m_Start0 and m_End0 have no meaning. So we have to move corner positions
-            if( edge->GetShape() == S_POLYGON )
-            {
-                for( auto iter = edge->GetPolyShape().Iterate(); iter; iter++ )
-                {
-                    (*iter) += VECTOR2I( moveVector );
-                }
-            }
-            else
-            {
-                edge->m_Start0 += moveVector;
-                edge->m_End0   += moveVector;
-                edge->SetDrawCoord();
+            edge->Move( moveVector );
             }
             break;
-        }
 
         case PCB_MODULE_TEXT_T:
-        {
+            {
             TEXTE_MODULE* text = static_cast<TEXTE_MODULE*>( item );
             text->SetPos0( text->GetPos0() + moveVector );
             text->SetDrawCoord();
+            }
             break;
-        }
 
         default:
             break;
@@ -1314,7 +1305,7 @@ BOARD_ITEM* MODULE::Duplicate( const BOARD_ITEM* aItem,
         break;
     }
 
-    if( aIncrementPadNumbers && new_pad )
+    if( aIncrementPadNumbers && new_pad && !new_pad->IsAperturePad() )
     {
         new_pad->IncrementPadName( true, true );
     }
@@ -1330,7 +1321,7 @@ wxString MODULE::GetNextPadName( bool aFillSequenceGaps ) const
     // Create a set of used pad numbers
     for( D_PAD* pad = PadsList(); pad; pad = pad->Next() )
     {
-        int padNumber = getTrailingInt( pad->GetName() );
+        int padNumber = GetTrailingInt( pad->GetName() );
         usedNumbers.insert( padNumber );
     }
 
@@ -1340,25 +1331,11 @@ wxString MODULE::GetNextPadName( bool aFillSequenceGaps ) const
 }
 
 
-wxString MODULE::GetReferencePrefix() const
+void MODULE::IncrementReference( int aDelta )
 {
-    wxString prefix = GetReference();
-
-    int strIndex = prefix.length() - 1;
-    while( strIndex >= 0 )
-    {
-        const wxUniChar chr = prefix.GetChar( strIndex );
-
-        // numeric suffix
-        if( chr >= '0' && chr <= '9' )
-            break;
-
-        strIndex--;
-    }
-
-    prefix = prefix.Mid( 0, strIndex );
-
-    return prefix;
+    const auto& refdes = GetReference();
+    SetReference( wxString::Format( wxT( "%s%i" ), UTIL::GetReferencePrefix( refdes ),
+            GetTrailingInt( refdes ) + aDelta ) );
 }
 
 
@@ -1437,7 +1414,7 @@ double MODULE::CoverageRatio( const GENERAL_COLLECTOR& aCollector ) const
 
 // see convert_drawsegment_list_to_polygon.cpp:
 extern bool ConvertOutlineToPolygon( std::vector<DRAWSEGMENT*>& aSegList, SHAPE_POLY_SET& aPolygons,
-        wxString* aErrorText, unsigned int aTolerance );
+        wxString* aErrorText, unsigned int aTolerance, wxPoint* aErrorLocation = nullptr );
 
 bool MODULE::BuildPolyCourtyard()
 {
@@ -1467,18 +1444,19 @@ bool MODULE::BuildPolyCourtyard()
     wxString error_msg;
 
     bool success = ConvertOutlineToPolygon( list_front, m_poly_courtyard_front,
-            &error_msg, Millimeter2iu( 0.05 ) );
+                                            &error_msg, (unsigned) Millimeter2iu( 0.05 ) );
 
     if( success )
     {
         success = ConvertOutlineToPolygon( list_back, m_poly_courtyard_back,
-            &error_msg, Millimeter2iu( 0.05 ) );
+                                           &error_msg, (unsigned) Millimeter2iu( 0.05 ) );
     }
 
     if( !error_msg.IsEmpty() )
     {
-        error_msg.Prepend( GetReference() + ": " );
-        wxLogMessage( error_msg );
+        wxLogMessage( wxString::Format( _( "Processing courtyard of \"%s\": %s" ),
+                                        GetChars( GetFPID().Format() ),
+                                        error_msg) );
     }
 
     return success;

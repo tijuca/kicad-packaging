@@ -25,13 +25,14 @@
 #define  WXPCB_STRUCT_H_
 
 #include <unordered_map>
+#include <map>
 #include "pcb_base_edit_frame.h"
 #include "config_params.h"
 #include "undo_redo_container.h"
 #include "zones.h"
 
-
 /*  Forward declarations of classes. */
+class ACTION_PLUGIN;
 class PCB_SCREEN;
 class BOARD;
 class BOARD_COMMIT;
@@ -61,9 +62,18 @@ class REPORTER;
 struct PARSE_ERROR;
 class IO_ERROR;
 class FP_LIB_TABLE;
-struct AUTOROUTER_CONTEXT;
 
 namespace PCB { struct IFACE; }     // KIFACE_I is in pcbnew.cpp
+
+/**
+ * Enum to signify the result of editing tracks and vias
+ */
+enum TRACK_ACTION_RESULT
+{
+    TRACK_ACTION_DRC_ERROR = -1,//!< TRACK_ACTION_DRC_ERROR - Track not changed to to DRC
+    TRACK_ACTION_SUCCESS,       //!< TRACK_ACTION_SUCCESS - Track changed successfully
+    TRACK_ACTION_NONE           //!< TRACK_ACTION_NONE - Nothing to change
+};
 
 /**
  * Class PCB_EDIT_FRAME
@@ -78,12 +88,8 @@ class PCB_EDIT_FRAME : public PCB_BASE_EDIT_FRAME
     friend struct PCB::IFACE;
     friend class PCB_LAYER_WIDGET;
 
-    void updateTraceWidthSelectBox();
-    void updateViaSizeSelectBox();
-
     /// The auxiliary right vertical tool bar used to access the microwave tools.
     wxAuiToolBar* m_microWaveToolBar;
-
 
 protected:
     PCB_LAYER_WIDGET* m_Layers;
@@ -107,6 +113,8 @@ protected:
     void createPopUpBlockMenu( wxMenu* menu );
     void createPopUpMenuForMarkers( MARKER_PCB* aMarker, wxMenu* aPopMenu );
 
+    wxString createBackupFile( const wxString& aFileName );
+
     /**
      * an helper function to enable some menus only active when the display
      * is switched to GAL mode and which do nothing in legacy mode
@@ -115,22 +123,43 @@ protected:
 
     /**
      * switches currently used canvas (default / Cairo / OpenGL).
+     * It also reinit the layers manager that slightly changes with canvases
      */
     virtual void OnSwitchCanvas( wxCommandEvent& aEvent ) override;
 
 #if defined(KICAD_SCRIPTING) && defined(KICAD_SCRIPTING_ACTION_MENU)
     /**
      * Function RebuildActionPluginMenus
-     * Fill action menu with all registred action plugins
+     * Fill action menu with all registered action plugins
      */
     void RebuildActionPluginMenus();
 
     /**
-     * Function OnActionPlugin
+     * Function AddActionPluginTools
+     * Append action plugin buttons to main toolbar
+     */
+    void AddActionPluginTools();
+
+	/**
+	 * Function RunActionPlugin
+	 * Executes action plugin's Run() method and updates undo buffer
+	 * @param aActionPlugin action plugin
+	 */
+	void RunActionPlugin( ACTION_PLUGIN* aActionPlugin );
+
+    /**
+     * Function OnActionPluginMenu
      * Launched by the menu when an action is called
      * @param aEvent sent by wx
      */
-    void OnActionPlugin( wxCommandEvent& aEvent);
+    void OnActionPluginMenu( wxCommandEvent& aEvent);
+
+    /**
+     * Function OnActionPluginButton
+     * Launched by the button when an action is called
+     * @param aEvent sent by wx
+     */
+    void OnActionPluginButton( wxCommandEvent& aEvent );
 
     /**
      * Function OnActionPluginRefresh
@@ -191,8 +220,6 @@ protected:
      * helpful immediately after loading a BOARD which may have state information in it.
      */
     void syncLayerVisibilities();
-
-    virtual void unitsChangeRefresh() override;
 
     /**
      * Function doAutoSave
@@ -266,7 +293,7 @@ public:
      * @throw IO_ERROR if an I/O error occurs or a #PARSE_ERROR if a file parsing error
      *           occurs while reading footprint library files.
      */
-    void LoadFootprints( NETLIST& aNetlist, REPORTER* aReporter );
+    void LoadFootprints( NETLIST& aNetlist, REPORTER& aReporter );
 
     void OnQuit( wxCommandEvent& event );
 
@@ -284,13 +311,6 @@ public:
     void UpdateUserInterface();
 
     /**
-     * Function GetAutoSaveFilePrefix
-     *
-     * @return the string to prepend to a file name for automatic save.
-     */
-    static wxString GetAutoSaveFilePrefix();
-
-    /**
      * Execute a remote command send by Eeschema via a socket,
      * port KICAD_PCB_PORT_SERVICE_NUMBER (currently 4242)
      * this is a virtual function called by EDA_DRAW_FRAME::OnSockRequest().
@@ -302,22 +322,21 @@ public:
 
     /**
      * Function ToPlotter
-     * Open a dialog frame to create plot and drill files
-     * relative to the current board
+     * Open a dialog frame to create plot and drill files relative to the current board.
      */
     void ToPlotter( wxCommandEvent& event );
 
     /**
      * Function ToPrinter
-     * Install the print dialog
+     * Install the print dialog.
      */
     void ToPrinter( wxCommandEvent& event );
 
     /**
      * Function SVG_Print
-     * shows the print SVG file dialog.
+     * Shows the Export to SVG file dialog.
      */
-    void SVG_Print( wxCommandEvent& event );
+    void ExportSVG( wxCommandEvent& event );
 
     // User interface update command event handlers.
     void OnUpdateSave( wxUpdateUIEvent& aEvent );
@@ -334,31 +353,14 @@ public:
     void OnUpdateSelectViaSize( wxUpdateUIEvent& aEvent );
     void OnUpdateZoneDisplayStyle( wxUpdateUIEvent& aEvent );
     void OnUpdateSelectTrackWidth( wxUpdateUIEvent& aEvent );
-    void OnUpdateSelectAutoTrackWidth( wxUpdateUIEvent& aEvent );
-    void OnUpdateSelectCustomTrackWidth( wxUpdateUIEvent& aEvent );
-    void OnUpdateAutoPlaceModulesMode( wxUpdateUIEvent& aEvent );
-    void OnUpdateAutoPlaceTracksMode( wxUpdateUIEvent& aEvent );
     void OnUpdateMuWaveToolbar( wxUpdateUIEvent& aEvent );
     void OnLayerColorChange( wxCommandEvent& aEvent );
     void OnConfigurePaths( wxCommandEvent& aEvent );
     void OnUpdatePCBFromSch( wxCommandEvent& event );
+    void OnRunEeschema( wxCommandEvent& event );
 
-    /**
-     * called when the alt key is pressed during a mouse wheel action
-     */
-    void OnAltWheel( wxCommandEvent& event );
-
-    /**
-     * Function PrintPage , virtual
-     * used to print a page
-     * Print the page pointed by the current screen, set by the calling print function
-     * @param aDC = wxDC given by the calling print function
-     * @param aPrintMaskLayer = a 32 bits mask: bit n = 1 -> layer n is printed
-     * @param aPrintMirrorMode = true to plot mirrored
-     * @param aData = a pointer on an auxiliary data (NULL if not used)
-     */
-    virtual void PrintPage( wxDC* aDC, LSET aPrintMaskLayer, bool aPrintMirrorMode,
-                            void* aData = NULL ) override;
+    void UpdateTrackWidthSelectBox( wxChoice* aTrackWidthSelectBox, const bool aEdit = true );
+    void UpdateViaSizeSelectBox( wxChoice* aViaSizeSelectBox, const bool aEdit = true );
 
     void GetKicadAbout( wxCommandEvent& event );
 
@@ -390,6 +392,36 @@ public:
 
     // Configurations:
     void Process_Config( wxCommandEvent& event );
+
+#if defined(KICAD_SCRIPTING) && defined(KICAD_SCRIPTING_ACTION_MENU)
+
+    /**
+     * Function SetActionPluginSettings
+     * Set a set of plugins that have visible buttons on toolbar
+     * Plugins are identified by their module path
+     */
+    void SetActionPluginSettings( const std::vector< std::pair<wxString, wxString> >& aPluginsWithButtons );
+
+    /**
+     * Function GetActionPluginSettings
+     * Get a set of plugins that have visible buttons on toolbar
+     */
+    std::vector< std::pair<wxString, wxString> > GetActionPluginSettings();
+
+    /**
+     * Function GetActionPluginButtonVisible
+     * Returns true if button visibility action plugin setting was set to true
+     * or it is unset and plugin defaults to true.
+     */
+    bool GetActionPluginButtonVisible( const wxString& aPluginPath, bool aPluginDefault );
+
+    /**
+     * Function GetOrderedActionPlugins
+     * Returns ordered list of plugins in sequence in which they should appear on toolbar or in settings
+     */
+    std::vector<ACTION_PLUGIN*> GetOrderedActionPlugins();
+
+#endif
 
     /**
      * Function GetProjectFileParameters
@@ -445,7 +477,6 @@ public:
 
     /**
      * Get the last net list read with the net list dialog box.
-     *
      * @return - Absolute path and file name of the last net list file successfully read.
      */
     wxString GetLastNetListRead();
@@ -566,11 +597,18 @@ public:
     void OnSelectTool( wxCommandEvent& aEvent );
 
     /**
-     * Function OnResetModuleTextSizes
-     * resets text size and width of all module text fields of given field
-     * type to current settings in Preferences
+     * Function OnEditTextAndGraphics
+     * Dialog for editing properties of text and graphic items, selected by type, layer,
+     * and/or parent footprint.
      */
-    void OnResetModuleTextSizes( wxCommandEvent& event );
+    void OnEditTextAndGraphics( wxCommandEvent& event );
+
+    /**
+     * Function OnEditTracksAndVias
+     * Dialog for editing the properties of tracks and vias, selected by net, netclass,
+     * and/or layer.
+     */
+    void OnEditTracksAndVias( wxCommandEvent& event );
 
     void ProcessMuWaveFunctions( wxCommandEvent& event );
     void MuWaveCommand( wxDC* DC, const wxPoint& MousePos );
@@ -673,10 +711,11 @@ public:
     bool GeneralControl( wxDC* aDC, const wxPoint& aPosition, EDA_KEY aHotKey = 0 ) override;
 
     /**
-     * Function ShowDesignRulesEditor
-     * displays the Design Rules Editor.
+     * Function ShowBoardSetupDialog
      */
-    void ShowDesignRulesEditor( wxCommandEvent& event );
+    void ShowBoardSetupDialog( wxCommandEvent& event );
+    void DoShowBoardSetupDialog( const wxString& aInitialPage = wxEmptyString,
+                                 const wxString& aInitialParentPage = wxEmptyString );
 
     /* toolbars update UI functions: */
 
@@ -769,12 +808,6 @@ public:
     void Block_Move();
 
     /**
-     * Function Block_Mirror_X
-     * mirrors all items within the currently selected block in the X axis.
-     */
-    void Block_Mirror_X();
-
-    /**
      * Function Block_Duplicate
      * Duplicate all items within the selected block.
      * New location is determined by the current offset from the selected
@@ -782,9 +815,6 @@ public:
      */
     void Block_Duplicate( bool aIncrement );
 
-    void Process_Settings( wxCommandEvent& event );
-    void OnConfigurePcbOptions( wxCommandEvent& aEvent );
-    void InstallDisplayOptionsDialog( wxCommandEvent& aEvent );
     void InstallPcbGlobalDeleteFrame( const wxPoint& pos );
 
     /**
@@ -830,7 +860,6 @@ public:
 
     void InstallDrillFrame( wxCommandEvent& event );
     void GenD356File( wxCommandEvent& event );
-    void ToPostProcess( wxCommandEvent& event );
 
     void OnFileHistory( wxCommandEvent& event );
 
@@ -856,7 +885,7 @@ public:
      * ID_SAVE_BOARD_AS
      * Files_io_from_id prepare parameters and calls the specialized function
      */
-    void Files_io_from_id( int aId );
+    bool Files_io_from_id( int aId );
 
     /**
      * Function OpenProjectFiles    (was LoadOnePcbFile)
@@ -926,9 +955,8 @@ public:
     ///> @copydoc PCB_BASE_FRAME::SetPageSettings()
     void SetPageSettings( const PAGE_INFO& aPageSettings ) override;
 
-    // Drc control
-
-    /* function GetDrcController
+    /**
+     * Function GetDrcController
      * @return the DRC controller
      */
     DRC* GetDrcController() { return m_drc; }
@@ -955,7 +983,8 @@ public:
      *              optional library name to create, stops dialog call.
      *              must be called with aStoreInNewLib as true
      */
-    void ArchiveModulesOnBoard( bool aStoreInNewLib, const wxString& aLibName = wxEmptyString ,  wxString* aLibPath = NULL );
+    void ArchiveModulesOnBoard( bool aStoreInNewLib, const wxString& aLibName = wxEmptyString,
+                                wxString* aLibPath = NULL );
 
     /**
      * Function RecreateBOMFileFromBoard
@@ -1029,7 +1058,6 @@ public:
     bool Export_IDF3( BOARD* aPcb, const wxString& aFullFileName,
                       bool aUseThou, double aXRef, double aYRef );
 
-
     /**
      * Function OnExportSTEP
      * Exports the current BOARD to a STEP assembly.
@@ -1095,14 +1123,12 @@ public:
     void Delete_Texte_Pcb( TEXTE_PCB* TextePcb, wxDC* DC );
     void StartMoveTextePcb( TEXTE_PCB* aTextePcb, wxDC* aDC, bool aErase = true );
     void Place_Texte_Pcb( TEXTE_PCB* TextePcb, wxDC* DC );
-    void InstallTextPCBOptionsFrame( TEXTE_PCB* TextPCB, wxDC* DC );
 
     // Graphic Segments type DRAWSEGMENT
     void Start_Move_DrawItem( DRAWSEGMENT* drawitem, wxDC* DC );
     void Place_DrawItem( DRAWSEGMENT* drawitem, wxDC* DC );
-    void InstallGraphicItemPropertiesDialog( DRAWSEGMENT* aItem, wxDC* aDC );
 
-    // Footprint edition (see also PCB_BASE_FRAME)
+    // Footprint editing (see also PCB_BASE_FRAME)
     void InstallFootprintPropertiesDialog( MODULE* Module, wxDC* DC );
 
     /**
@@ -1116,14 +1142,13 @@ public:
     void StartMoveModule( MODULE* aModule, wxDC* aDC, bool aDragConnectedTracks );
 
     /**
-     * Function DlgGlobalChange_PadSettings
+     * Function PushPadProperties
      * Function to change pad caracteristics for the given footprint
      * or all footprints which look like the given footprint
      * Options are set by the opened dialog.
      * @param aPad is the pattern. The given footprint is the parent of this pad
-     * @param aRedraw: if true: redraws the footprint
      */
-    void DlgGlobalChange_PadSettings( D_PAD* aPad, bool aRedraw );
+    void PushPadProperties( D_PAD* aPad );
 
     /**
      * Function Delete Module
@@ -1145,18 +1170,20 @@ public:
      */
     void Change_Side_Module( MODULE* Module, wxDC* DC );
 
-    int InstallExchangeModuleFrame( MODULE* ExchangeModuleModule, bool updateMode );
+    int InstallExchangeModuleFrame( MODULE* aModule, bool updateMode, bool selectedMode );
 
     /**
      * Function Exchange_Module
      * Replaces OldModule by NewModule, using OldModule settings:
      * position, orientation, pad netnames ...)
      * OldModule is deleted or put in undo list.
-     * @param aOldModule = footprint to replace
-     * @param aNewModule = footprint to put
+     * @param aSrc = footprint to replace
+     * @param aDest = footprint to put
      * @param aCommit = commit that should store the changes
      */
-    void Exchange_Module( MODULE* aOldModule, MODULE* aNewModule, BOARD_COMMIT& aCommit );
+    void Exchange_Module( MODULE* aSrc, MODULE* aDest, BOARD_COMMIT& aCommit,
+                          bool deleteExtraTexts = true,
+                          bool resetTextLayers = true, bool resetTextEffects = true );
 
     // loading modules: see PCB_BASE_FRAME
 
@@ -1183,9 +1210,6 @@ public:
      */
     void HighLight( wxDC* DC );
 
-    // Track and via edition:
-    void Via_Edit_Control( wxCommandEvent& event );
-
     /**
      * Function IsMicroViaAcceptable
      * return true if a microvia can be placed on the board.
@@ -1196,7 +1220,7 @@ public:
      * And it is allowed from an external layer to the first inner layer
      * </p>
      */
-    bool IsMicroViaAcceptable( void );
+    bool IsMicroViaAcceptable();
 
     /**
      * Function Other_Layer_Route
@@ -1211,7 +1235,6 @@ public:
      *                the case where DRC would not allow a via.
      */
     bool Other_Layer_Route( TRACK* track, wxDC* DC );
-    void HighlightUnconnectedPads( wxDC* DC );
 
     /**
      * Function Delete_Segment
@@ -1231,25 +1254,6 @@ public:
      * until a pad or a junction point of more than 2 segments is found
      */
     void Remove_One_Track( wxDC* DC, TRACK* pt_segm );
-
-    /**
-     * Function Reset_All_Tracks_And_Vias_To_Netclass_Values
-     * Reset all tracks width and/or vias diameters and drill
-     * to their default Netclass value
-     * @param aTrack : bool true to modify tracks
-     * @param aVia : bool true to modify vias
-     */
-    bool Reset_All_Tracks_And_Vias_To_Netclass_Values( bool aTrack, bool aVia );
-
-    /**
-     * Function Change_Net_Tracks_And_Vias_Sizes
-     * Reset all tracks width and vias diameters and drill
-     * to their default Netclass value or current values
-     * @param aNetcode : the netcode of the net to edit
-     * @param aUseNetclassValue : bool. True to use netclass values, false to
-     *                            use current values
-     */
-    bool Change_Net_Tracks_And_Vias_Sizes( int  aNetcode, bool aUseNetclassValue );
 
     /**
      * Function Edit_Track_Width
@@ -1353,15 +1357,19 @@ public:
     /**
      * Function SetTrackSegmentWidth
      *  Modify one track segment width or one via diameter (using DRC control).
-     *  Basic routine used by other routines when editing tracks or vias
+     *  Basic routine used by other routines when editing tracks or vias.
+     *  Note that casting this to boolean will allow you to determine whether any action
+     *  happened.
      * @param aTrackItem = the track segment or via to modify
      * @param aItemsListPicker = the list picker to use for an undo command
      *                           (can be NULL)
      * @param aUseNetclassValue = true to use NetClass value, false to use
      *                            current designSettings value
-     * @return  true if done, false if no not change (because DRC error)
+     * @return  0 if items successfully changed,
+     *          -1 if there was a DRC error,
+     *          1 if items were changed successfully
      */
-    bool SetTrackSegmentWidth( TRACK*             aTrackItem,
+    int SetTrackSegmentWidth( TRACK*             aTrackItem,
                                PICKED_ITEMS_LIST* aItemsListPicker,
                                bool               aUseNetclassValue );
 
@@ -1548,8 +1556,7 @@ public:
      * @param aNetlistFileName = netlist file name (*.net)
      * @param aCmpFileName = cmp/footprint link file name (*.cmp).
      *                       if not found or empty, only the netlist will be used
-     * @param aReporter is a pointer to a #REPORTER object to write display messages.
-     *                  can be NULL.
+     * @param aReporter a #REPORTER object to write display messages.
      * @param aChangeFootprint if true, footprints that have changed in netlist will be changed
      * @param aDeleteBadTracks if true, erroneous tracks will be deleted
      * @param aDeleteExtraFootprints if true, remove unlocked footprints that are not in netlist
@@ -1559,16 +1566,18 @@ public:
      * @param aDeleteSinglePadNets if true, remove nets counting only one pad
      *                             and set net code to 0 for these pads
      * @param aIsDryRun performs a dry run without making any changes if true.
+     * @param runDragCommand indicates that a selection was created which should be dragged.
      */
     void ReadPcbNetlist( const wxString&  aNetlistFileName,
                          const wxString&  aCmpFileName,
-                         REPORTER*        aReporter,
+                         REPORTER&        aReporter,
                          bool             aChangeFootprint,
                          bool             aDeleteBadTracks,
                          bool             aDeleteExtraFootprints,
                          bool             aSelectByTimestamp,
                          bool             aDeleteSinglePadNets,
-                         bool             aIsDryRun );
+                         bool             aIsDryRun,
+                         bool*            runDragCommand );
 
     /**
      * Function RemoveMisConnectedTracks
@@ -1595,23 +1604,6 @@ public:
 
 #endif
 
-    void OnSelectAutoPlaceMode( wxCommandEvent& aEvent );
-
-    /**
-     * Function OnOrientFootprints
-     * install the dialog box for the common Orient Footprints
-     */
-    void OnOrientFootprints( wxCommandEvent& event );
-
-    /**
-     * Function ReOrientModules
-     * Set the orientation of footprints
-     * @param ModuleMask = mask (wildcard allowed) selection
-     * @param Orient = new orientation
-     * @param include_fixe = true to orient locked footprints
-     * @return true if some footprints modified, false if no change
-     */
-    bool ReOrientModules( const wxString& ModuleMask, double Orient, bool include_fixe );
     void LockModule( MODULE* aModule, bool aLocked );
 
     /**
@@ -1718,8 +1710,15 @@ public:
      */
     void UpdateTitle();
 
-    int GetIconScale() override;
-    void SetIconScale( int aScale ) override;
+    /**
+     * Allows Pcbnew to install its preferences panel into the preferences dialog.
+     */
+    void InstallPreferences( PAGED_DIALOG* aParent ) override;
+
+    /**
+     * Called after the preferences dialog is run.
+     */
+    void CommonSettingsChanged() override;
 
     void SyncMenusAndToolbars( wxEvent& aEvent ) override;
 

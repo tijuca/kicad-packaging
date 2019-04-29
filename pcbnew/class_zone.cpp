@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2017 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -473,21 +473,17 @@ void ZONE_CONTAINER::DrawFilledArea( EDA_DRAW_PANEL* panel,
         {
             int ilim = CornersBuffer.size() - 1;
 
+            int line_thickness = m_ZoneMinThickness;
+
             for( int is = 0, ie = ilim; is <= ilim; ie = is, is++ )
             {
-                int x0 = CornersBuffer[is].x;
-                int y0 = CornersBuffer[is].y;
-                int x1 = CornersBuffer[ie].x;
-                int y1 = CornersBuffer[ie].y;
-
                 // Draw only basic outlines, not extra segments.
                 if( !displ_opts->m_DisplayPcbTrackFill || GetState( FORCE_SKETCH ) )
                     GRCSegm( panel->GetClipBox(), DC,
-                             x0, y0, x1, y1,
-                             m_ZoneMinThickness, color );
+                             CornersBuffer[is], CornersBuffer[ie], line_thickness, color );
                 else
-                    GRFillCSegm( panel->GetClipBox(), DC,
-                                 x0, y0, x1, y1, m_ZoneMinThickness, color );
+                    GRFilledSegment( panel->GetClipBox(), DC,
+                                 CornersBuffer[is], CornersBuffer[ie], line_thickness, color );
             }
         }
 
@@ -646,24 +642,26 @@ int ZONE_CONTAINER::GetThermalReliefCopperBridge( D_PAD* aPad ) const
 void ZONE_CONTAINER::SetCornerRadius( unsigned int aRadius )
 {
     m_cornerRadius = aRadius;
-    if( m_cornerRadius > (unsigned int) Mils2iu( MAX_ZONE_CORNER_RADIUS_MILS ) )
-        m_cornerRadius = Mils2iu( MAX_ZONE_CORNER_RADIUS_MILS );
 }
 
 
 bool ZONE_CONTAINER::HitTest( const wxPoint& aPosition ) const
 {
-    return HitTestForCorner( aPosition ) || HitTestForEdge( aPosition ) ||
-            HitTestFilledArea( aPosition );
+    // Normally accuracy is zoom-relative, but for the generic HitTest we just use
+    // a fixed (small) value.
+    int accuracy = Millimeter2iu( 0.05 );
+
+    return HitTestForCorner( aPosition, accuracy * 2 ) || HitTestForEdge( aPosition, accuracy );
 }
 
 
-void ZONE_CONTAINER::SetSelectedCorner( const wxPoint& aPosition )
+void ZONE_CONTAINER::SetSelectedCorner( const wxPoint& aPosition, int aAccuracy )
 {
     SHAPE_POLY_SET::VERTEX_INDEX corner;
 
     // If there is some corner to be selected, assign it to m_CornerSelection
-    if( HitTestForCorner( aPosition, corner ) || HitTestForEdge( aPosition, corner ) )
+    if( HitTestForCorner( aPosition, aAccuracy * 2, corner )
+        || HitTestForEdge( aPosition, aAccuracy, corner ) )
     {
         if( m_CornerSelection == nullptr )
             m_CornerSelection = new SHAPE_POLY_SET::VERTEX_INDEX;
@@ -672,40 +670,31 @@ void ZONE_CONTAINER::SetSelectedCorner( const wxPoint& aPosition )
     }
 }
 
-// Zones outlines have no thickness, so it Hit Test functions
-// we must have a default distance between the test point
-// and a corner or a zone edge:
-#define MAX_DIST_IN_MM 0.25
-
-bool ZONE_CONTAINER::HitTestForCorner( const wxPoint& refPos,
+bool ZONE_CONTAINER::HitTestForCorner( const wxPoint& refPos, int aAccuracy,
                                        SHAPE_POLY_SET::VERTEX_INDEX& aCornerHit ) const
 {
-    int distmax = Millimeter2iu( MAX_DIST_IN_MM );
-
-    return m_Poly->CollideVertex( VECTOR2I( refPos ), aCornerHit, distmax );
+    return m_Poly->CollideVertex( VECTOR2I( refPos ), aCornerHit, aAccuracy );
 }
 
 
-bool ZONE_CONTAINER::HitTestForCorner( const wxPoint& refPos ) const
+bool ZONE_CONTAINER::HitTestForCorner( const wxPoint& refPos, int aAccuracy ) const
 {
     SHAPE_POLY_SET::VERTEX_INDEX dummy;
-    return HitTestForCorner( refPos, dummy );
+    return HitTestForCorner( refPos, aAccuracy, dummy );
 }
 
 
-bool ZONE_CONTAINER::HitTestForEdge( const wxPoint& refPos,
+bool ZONE_CONTAINER::HitTestForEdge( const wxPoint& refPos, int aAccuracy,
                                      SHAPE_POLY_SET::VERTEX_INDEX& aCornerHit ) const
 {
-    int distmax = Millimeter2iu( MAX_DIST_IN_MM );
-
-    return m_Poly->CollideEdge( VECTOR2I( refPos ), aCornerHit, distmax );
+    return m_Poly->CollideEdge( VECTOR2I( refPos ), aCornerHit, aAccuracy );
 }
 
 
-bool ZONE_CONTAINER::HitTestForEdge( const wxPoint& refPos ) const
+bool ZONE_CONTAINER::HitTestForEdge( const wxPoint& refPos, int aAccuracy ) const
 {
     SHAPE_POLY_SET::VERTEX_INDEX dummy;
-    return HitTestForEdge( refPos, dummy );
+    return HitTestForEdge( refPos, aAccuracy, dummy );
 }
 
 
@@ -811,7 +800,7 @@ bool ZONE_CONTAINER::HitTestFilledArea( const wxPoint& aRefPos ) const
 }
 
 
-void ZONE_CONTAINER::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
+void ZONE_CONTAINER::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList )
 {
     wxString msg;
 
@@ -1045,53 +1034,20 @@ bool ZONE_CONTAINER::AppendCorner( wxPoint aPosition, int aHoleIdx, bool aAllowD
 }
 
 
-wxString ZONE_CONTAINER::GetSelectMenuText() const
+wxString ZONE_CONTAINER::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
     wxString text;
-    NETINFO_ITEM* net;
-    BOARD* board = GetBoard();
 
     // Check whether the selected contour is a hole (contour index > 0)
     if( m_CornerSelection != nullptr &&  m_CornerSelection->m_contour > 0 )
-            text << wxT( " " ) << _( "(Cutout)" );
+        text << wxT( " " ) << _( "(Cutout)" );
 
     if( GetIsKeepout() )
         text << wxT( " " ) << _( "(Keepout)" );
+    else
+        text << GetNetnameMsg();
 
-    text << wxString::Format( wxT( " (%08lX)" ), m_TimeStamp );
-
-    // Display net name for copper zones
-    if( !GetIsKeepout() )
-    {
-        if( GetNetCode() >= 0 )
-        {
-            if( board )
-            {
-                net = GetNet();
-
-                if( net )
-                {
-                    text << wxT( " [" ) << net->GetNetname() << wxT( "]" );
-                }
-            }
-            else
-            {
-                text << _( "** NO BOARD DEFINED **" );
-            }
-        }
-        else
-        {   // A netcode < 0 is an error:
-            // Netname not found or area not initialised
-            text << wxT( " [" ) << GetNetname() << wxT( "]" );
-            text << wxT( " <" ) << _( "Not Found" ) << wxT( ">" );
-        }
-    }
-
-    wxString msg;
-    msg.Printf( _( "Zone Outline %s on %s" ), GetChars( text ),
-                 GetChars( GetLayerName() ) );
-
-    return msg;
+    return wxString::Format( _( "Zone Outline %s on %s" ), text, GetLayerName() );
 }
 
 
@@ -1381,7 +1337,7 @@ void ZONE_CONTAINER::TransformOutlinesShapeWithClearanceToPolygon(
     // Calculate the polygon with clearance
     // holes are linked to the main outline, so only one polygon is created.
     if( clearance )
-        polybuffer.Inflate( clearance, 16 );
+        polybuffer.Inflate( clearance, ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF );
 
     polybuffer.Fracture( SHAPE_POLY_SET::PM_FAST );
     aCornerBuffer.Append( polybuffer );

@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -87,14 +87,23 @@ public:
 
     void SetTextAngle( double aAngle );
 
-    bool IsUnlocked()
+    /**
+     * Called when rotating the parent footprint.
+     */
+    void KeepUpright( double aOldOrientation, double aNewOrientation );
+
+    /**
+     * @return force the text rotation to be always between -90 .. 90 deg. Otherwise the text is not easy to read
+     * if false, the text rotation is free.
+     */
+    bool IsKeepUpright()
     {
-        return m_unlocked;
+        return m_keepUpright;
     }
 
-    void SetUnlocked( bool unlocked )
+    void SetKeepUpright( bool aKeepUpright )
     {
-        m_unlocked = unlocked;
+        m_keepUpright = aKeepUpright;
     }
 
     /// Rotate text, in footprint editor
@@ -106,7 +115,7 @@ public:
 
     bool IsParentFlipped() const;
 
-    /// Mirror text position in footprint edition
+    /// Mirror text position in footprint editing
     /// the text itself is not mirrored, and the layer not modified,
     /// only position is mirrored.
     /// (use Flip to change layer to its paired and mirror the text in fp editor).
@@ -194,7 +203,7 @@ public:
                         GR_DRAWMODE     aDrawMode,
                         const wxPoint&  aOffset = ZeroOffset );
 
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
+    void GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList ) override;
 
     virtual bool TextHitTest( const wxPoint& aPoint, int aAccuracy = 0 ) const override;
 
@@ -215,7 +224,7 @@ public:
         return wxT( "MTEXT" );
     }
 
-    wxString GetSelectMenuText() const override;
+    wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
 
     BITMAP_DEF GetMenuImage() const override;
 
@@ -243,7 +252,9 @@ private:
     wxPoint   m_Pos0;       ///< text coordinates relative to the footprint anchor, orient 0.
                             ///< text coordinate ref point is the text center
 
-    bool      m_unlocked;
+    bool      m_keepUpright;    ///< if true, keep rotation angle between -90 .. 90 deg.
+                                ///< to keep the text more easy to read
+
 };
 
 #endif // TEXT_MODULE_H_

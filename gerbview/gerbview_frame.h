@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2016 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2013 Wayne Stambaugh <stambaughw@gmail.com>
- * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -19,18 +19,14 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/**
- * @file gerbview_frame.h
- */
-
 #ifndef  WX_GERBER_STRUCT_H
 #define  WX_GERBER_STRUCT_H
 
 
+#include <pgm_base.h>
 #include <config_params.h>
 #include <draw_frame.h>
 #include <layers_id_colors_and_visibility.h>
-
 #include <gerbview.h>
 #include <convert_to_biu.h>
 #include <gbr_layout.h>
@@ -99,13 +95,6 @@ public:
     unsigned ImagesMaxCount() const;    ///< The max number of file images
 
 
-    /**
-     * Function GetGerberLayoutBoundingBox
-     * calculates the bounding box containing all gerber items.
-     * @return EDA_RECT - the items bounding box
-     */
-    EDA_RECT GetGerberLayoutBoundingBox();
-
     void SetPageSettings( const PAGE_INFO& aPageSettings ) override;
     const PAGE_INFO& GetPageSettings() const override;
     const wxSize GetPageSizeIU() const override;
@@ -114,10 +103,7 @@ public:
     void SetAuxOrigin( const wxPoint& aPoint ) override;
 
     const wxPoint& GetGridOrigin() const override { return m_grid_origin; }
-    void SetGridOrigin( const wxPoint& aPoint ) override
-    {
-        m_grid_origin = aPoint;
-    }
+    void SetGridOrigin( const wxPoint& aPoint ) override { m_grid_origin = aPoint; }
 
     const TITLE_BLOCK&  GetTitleBlock() const override;
     void SetTitleBlock( const TITLE_BLOCK& aTitleBlock ) override;
@@ -157,17 +143,11 @@ public:
 protected:
     GERBER_LAYER_WIDGET*    m_LayersManager;
 
-    // Auxiliary file history used to store zip files history.
-    wxFileHistory           m_zipFileHistory;
+    FILE_HISTORY            m_zipFileHistory;
+    FILE_HISTORY            m_drillFileHistory;
+    FILE_HISTORY            m_jobFileHistory;
 
-    // Auxiliary file history used to store drill files history.
-    wxFileHistory           m_drillFileHistory;
-
-    // Auxiliary file history used to store job files history.
-    wxFileHistory           m_jobFileHistory;
-
-    /// The last filename chosen to be proposed to the user
-    wxString                m_lastFileName;
+    wxString                m_lastFileName;     // The last filename chosen to be proposed to the user
 
 public:
     wxChoice* m_SelComponentBox;                // a choice box to display and highlight component graphic items
@@ -201,24 +181,27 @@ private:
     void            updateNetnameListSelectBox();
     void            updateAperAttributesSelectBox();
     void            updateDCodeSelectBox();
-    virtual void    unitsChangeRefresh() override;      // See class EDA_DRAW_FRAME
+    void            updateGridSelectBox();
+    void            updateZoomSelectBox();
+    void            unitsChangeRefresh() override;      // See class EDA_DRAW_FRAME
 
     // The Tool Framework initalization
     void setupTools();
-
-    // An array string to store warning messages when reading a gerber file.
-    wxArrayString   m_Messages;
 
     /// Updates the GAL with display settings changes
     void applyDisplaySettingsToGAL();
 
     /**
-     * Loads a list of Gerber files and updates the view based on them
+     * Loads a list of Gerber and NC drill files and updates the view based on them
      * @param aPath is the base path for the filenames if they are relative
      * @param aFilenameList is a list of filenames to load
+     * @param aFileType is a list of type of files to load (0 = Gerber, 1 = NC drill)
+     * if nullptr, files are expected Gerber type.
      * @return true if every file loaded successfully
      */
-    bool loadListOfGerberFiles( const wxString& aPath, const wxArrayString& aFilenameList );
+    bool loadListOfGerberAndDrillFiles( const wxString& aPath,
+                                        const wxArrayString& aFilenameList,
+                                        const std::vector<int>* aFileType = nullptr );
 
 public:
     GERBVIEW_FRAME( KIWAY* aKiway, wxWindow* aParent );
@@ -251,6 +234,7 @@ public:
     void OnLeftDClick( wxDC* aDC, const wxPoint& aMousePos ) override;
     bool OnRightClick( const wxPoint& aMousePos, wxMenu* aPopMenu ) override;
     void OnUpdateSelectTool( wxUpdateUIEvent& aEvent );
+    void OnUpdateSelectZoom( wxUpdateUIEvent& aEvent );
     double BestZoom() override;
     void UpdateStatusBar() override;
 
@@ -261,27 +245,6 @@ public:
      * Virtual from the base class
      */
     const wxString GetZoomLevelIndicator() const override;
-
-    /**
-     * Function ReportMessage
-     * Add a message (a string) in message list
-     * for instance when reading a Gerber file
-     * @param aMessage = the string to add in list
-     */
-    void ReportMessage( const wxString aMessage )
-    {
-        m_Messages.Add( aMessage );
-    }
-
-    /**
-     * Function ClearMessageList
-     * Clear the message list
-     * Call it before reading a Gerber file
-     */
-    void ClearMessageList()
-    {
-        m_Messages.Clear();
-    }
 
     /**
      * Function GetDisplayMode
@@ -303,10 +266,10 @@ public:
      * Function IsElementVisible
      * tests whether a given element category is visible. Keep this as an
      * inline function.
-     * @param aItemIdVisible is an item id from the enum GERBVIEW_LAYER_ID
+     * @param aLayerID is an item id from the enum GERBVIEW_LAYER_ID
      * @return bool - true if the element is visible.
      */
-    bool IsElementVisible( GERBVIEW_LAYER_ID aItemIdVisible ) const;
+    bool IsElementVisible( int aLayerID ) const;
 
     /**
      * Function SetElementVisibility
@@ -315,7 +278,7 @@ public:
      * @param aNewState = The new visibility state of the element category
      *  (see enum PCB)
      */
-    void SetElementVisibility( GERBVIEW_LAYER_ID aItemIdVisible, bool aNewState );
+    void SetElementVisibility( int aLayerID, bool aNewState );
 
     /**
      * Function SetGridVisibility(), virtual from EDA_DRAW_FRAME
@@ -327,18 +290,16 @@ public:
     /**
      * Function GetVisibleLayers
      * is a proxy function that calls the correspondent function in m_BoardSettings
-     * Returns a bit-mask of all the layers that are visible
-     * @return long - the visible layers in bit-mapped form.
+     * @return LSET of the visible layers
      */
-    long GetVisibleLayers() const;
+    LSET GetVisibleLayers() const;
 
     /**
      * Function SetVisibleLayers
      * is a proxy function that calls the correspondent function in m_BoardSettings
-     * changes the bit-mask of visible layers
-     * @param aLayerMask = The new bit-mask of visible layers
+     * @param aLayerMask = The new set of visible layers
      */
-    void SetVisibleLayers( long aLayerMask );
+    void SetVisibleLayers( LSET aLayerMask );
 
     /**
      * Function IsLayerVisible
@@ -352,9 +313,9 @@ public:
      * Function GetVisibleElementColor
      * returns the color of a gerber visible element.
      */
-    COLOR4D GetVisibleElementColor( GERBVIEW_LAYER_ID aItemIdVisible );
+    COLOR4D GetVisibleElementColor( int aLayerID );
 
-    void SetVisibleElementColor( GERBVIEW_LAYER_ID aItemIdVisible, COLOR4D aColor );
+    void SetVisibleElementColor( int aLayerID, COLOR4D aColor );
 
     /**
      * Function GetLayerColor
@@ -375,36 +336,6 @@ public:
      * in order to see negative objects
      */
     COLOR4D GetNegativeItemsColor();
-
-    /**
-     * Function DisplayLinesSolidMode
-     * @return true to draw gerber lines in solid (filled) mode,
-     * false to draw gerber lines in sketch mode
-     */
-    bool DisplayLinesSolidMode()
-    {
-        return  m_DisplayOptions.m_DisplayLinesFill;
-    }
-
-    /**
-     * Function DisplayPolygonsSolidMode
-     * @return true to draw polygon in solid (filled) mode,
-     * false to draw polygon outlines only
-     */
-    bool DisplayPolygonsSolidMode()
-    {
-        return  m_DisplayOptions.m_DisplayPolygonsFill;
-    }
-
-    /**
-     * Function DisplayFlashedItemsSolidMode
-     * @return true to draw flashed items in solid (filled) mode,
-     * false to draw draw flashed in sketch mode
-     */
-    bool DisplayFlashedItemsSolidMode()
-    {
-        return  m_DisplayOptions.m_DisplayFlashedItemsFill;
-    }
 
     /**
      * Function ReFillLayerWidget
@@ -553,7 +484,6 @@ public:
     GERBER_DRAW_ITEM* Locate( const wxPoint& aPosition, int typeloc );
 
     void Process_Config( wxCommandEvent& event );
-    void InstallGerberOptionsDialog( wxCommandEvent& event );
 
     void OnUpdateDrawMode( wxUpdateUIEvent& aEvent );
     void OnUpdateCoordType( wxUpdateUIEvent& aEvent );
@@ -733,16 +663,6 @@ public:
         // currently: do nothing in GerbView.
     }
 
-    /** Virtual function PrintPage
-     * used to print a page
-     * @param aDC = wxDC given by the calling print function
-     * @param aPrintMasklayer = a 32 bits mask: bit n = 1 -> layer n is printed
-     * @param aPrintMirrorMode = not used here (Set when printing in mirror mode)
-     * @param aData = a pointer on an auxiliary data (not always used, NULL if not used)
-     */
-    virtual void PrintPage( wxDC* aDC, LSET aPrintMasklayer, bool aPrintMirrorMode,
-                            void* aData = NULL ) override;
-
     ///> @copydoc EDA_DRAW_FRAME::UseGalCanvas
     virtual void UseGalCanvas( bool aEnable ) override;
 
@@ -756,8 +676,15 @@ public:
      */
     void OnUpdateSwitchCanvas( wxUpdateUIEvent& aEvent );
 
-    int GetIconScale() override;
-    void SetIconScale( int aScale ) override;
+    /**
+     * Allows Gerbview to install its preferences panels into the preferences dialog.
+     */
+    void InstallPreferences( PAGED_DIALOG* aParent ) override;
+
+    /**
+     * Called after the preferences dialog is run.
+     */
+    void CommonSettingsChanged() override;
 
     DECLARE_EVENT_TABLE()
 };

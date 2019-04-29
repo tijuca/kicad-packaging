@@ -50,6 +50,51 @@ developers. The other KiCad developers will appreciate your effort.
 **Do not modify this document without the consent of the project
 leader. All changes to this document require approval.**
 
+## 1.3 Tools
+
+There are some tools that can help you format your code easily.
+
+[`clang-format`][clang-format] is a formatting tool that can both be used to
+provide code-style automation to your editor of choice, as well as allow git to
+check formatting when committing (using a "Git hook"). You should install this
+program to be able to use the Git hooks.
+
+The style config file is `_clang-format`, and should be picked up automatically
+by `clang-format` when the `--style=file` option is set.
+
+To enable the Git hooks (only needs to be done once per Git repo):
+
+    git config core.hooksPath .githooks
+
+Set the `git clang-format` tool to use the provided `_clang-format` file:
+
+    git config clangFormat.style file
+
+Then, to enable the format checker, set the `kicad.check-format` Git config
+to "true" for the KiCad repo:
+
+    git config kicad.check-format true
+
+Without this config, the format checker will not run on commit, but you can
+still check files staged for commit manually:
+
+    tools/check_coding.sh --diff
+
+If the hook is enabled, when you commit a change, you will be told if you
+have caused any style violations (only in your changed code). You can fix your
+staged changes automatically with this tool:
+
+    tools/check_coding.sh
+
+Or you can proceed anyway, if you are sure your style is correct:
+
+    git commit --no-verify
+
+The `check_coding.sh` tool has other modes:
+
+* Make (or see only) changes to files modified in the previous commit:
+    * `check_coding.sh --amend [--diff]`
+
 
 # 2. Naming Conventions # {#naming_conventions}
 Before delving into anything as esoteric as indentation and formatting,
@@ -201,8 +246,8 @@ good practice to actually generate the Doxygen \*.html files by
 building target doxygen-docs, and then to review the quality of your
 Doxygen comments with a web browser before submitting a patch.
 
-[doccode]: http://www.stack.nl/~dimitri/doxygen/manual/docblocks.html
-[manual]:  http://www.stack.nl/~dimitri/doxygen/manual.html
+[doccode]: http://www.doxygen.nl/manual/docblocks.html
+[manual]:  http://www.doxygen.nl/manual
 
 ### 3.2.1 Function Comments ### {#function_comments}
 These go into a header file, unless the function is a private (i.e.
@@ -788,6 +833,7 @@ learn something new.
 - [C++ Operator Overloading Guidelines][overloading]
 - [Wikipedia's Programming Style Page][style]
 
+[clang-format]: https://clang.llvm.org/docs/ClangFormat.html
 [cppstandard]:http://www.possibility.com/Cpp/CppCodingStandard.html
 [kernel]:http://git.kernel.org/cgit/linux/kernel/git/stable/linux-stable.git/tree/Documentation/CodingStyle
 [overloading]:http://www.cs.caltech.edu/courses/cs11/material/cpp/donnie/cpp-ops.html

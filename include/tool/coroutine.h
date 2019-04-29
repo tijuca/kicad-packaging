@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2013 CERN
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
- * Copyright (C) 2016 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2016-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,6 +26,7 @@
 #ifndef __COROUTINE_H
 #define __COROUTINE_H
 
+#include <cassert>
 #include <cstdlib>
 
 #include <type_traits>
@@ -135,6 +136,7 @@ public:
         m_func( std::move( aEntry ) ),
         m_running( false ),
         m_args( 0 ),
+        m_caller( nullptr ),
         m_callContext( nullptr ),
         m_callee( nullptr ),
         m_retVal( 0 )

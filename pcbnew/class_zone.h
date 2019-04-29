@@ -36,7 +36,6 @@
 #include <class_board_item.h>
 #include <board_connected_item.h>
 #include <layers_id_colors_and_visibility.h>
-#include <PolyLine.h>
 #include <geometry/shape_poly_set.h>
 #include <zone_settings.h>
 
@@ -80,15 +79,6 @@ public:
     }
 
     /**
-     * Function GetPosition
-     *
-     * Returns a reference to the first corner of the polygon set.
-     *
-     * \warning The implementation of this function relies on the fact that wxPoint and VECTOR2I
-     * have the same layout. If you intend to use the returned reference directly, please note
-     * that you are _only_ allowed to use members x and y. Any use on anything that is not one of
-     * these members will have undefined behaviour.
-     *
      * @return a wxPoint, position of the first point of the outline
      */
     const wxPoint GetPosition() const override;
@@ -106,7 +96,7 @@ public:
      */
     unsigned GetPriority() const { return m_priority; }
 
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
+    void GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList ) override;
 
     void SetLayerSet( LSET aLayerSet );
 
@@ -207,8 +197,10 @@ public:
     int GetSelectedCorner() const
     {
         // Transform relative indices to global index
-        int globalIndex;
-        m_Poly->GetGlobalIndex( *m_CornerSelection, globalIndex );
+        int globalIndex = -1;
+
+        if( m_CornerSelection )
+            m_Poly->GetGlobalIndex( *m_CornerSelection, globalIndex );
 
         return globalIndex;
     }
@@ -231,7 +223,7 @@ public:
 
     ///
     // Like HitTest but selects the current corner to be operated on
-    void SetSelectedCorner( const wxPoint& aPosition );
+    void SetSelectedCorner( const wxPoint& aPosition, int aAccuracy );
 
     int GetLocalFlags() const { return m_localFlgs; }
     void SetLocalFlags( int aFlags ) { m_localFlgs = aFlags; }
@@ -305,48 +297,69 @@ public:
                                                         int aMinClearanceValue,
                                                         bool aUseNetClearance ) const;
 
+    /**
+     * Function TransformShapeWithClearanceToPolygon
+     * Convert the zone shape to a closed polygon
+     * Used in filling zones calculations
+     * Circles and arcs are approximated by segments
+     * @param aCornerBuffer = a buffer to store the polygon
+     * @param aClearanceValue = the clearance around the pad
+     * @param aCircleToSegmentsCount = the number of segments to approximate a circle
+     * @param aCorrectionFactor = the correction to apply to circles radius to keep
+     * clearance when the circle is approximated by segment bigger or equal
+     * to the real clearance value (usually near from 1.0)
+     * @param ignoreLineWidth = used for edge cut items where the line width is only
+     * for visualization
+     */
     void TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
                                                int aClearanceValue,
                                                int aCircleToSegmentsCount,
-                                               double aCorrectionFactor ) const override;
+                                               double aCorrectionFactor,
+                                               bool ignoreLineWidth = false ) const override;
 
     /**
      * Function HitTestForCorner
      * tests if the given wxPoint is near a corner.
      * @param  refPos     is the wxPoint to test.
+     * @param  aAccuracy  increase the item bounding box by this amount.
      * @param  aCornerHit [out] is the index of the closest vertex found, useless when return
      *                    value is false.
      * @return bool - true if some corner was found to be closer to refPos than aClearance; false
      *              otherwise.
      */
-    bool HitTestForCorner( const wxPoint& refPos, SHAPE_POLY_SET::VERTEX_INDEX& aCornerHit ) const;
+    bool HitTestForCorner( const wxPoint& refPos, int aAccuracy,
+                           SHAPE_POLY_SET::VERTEX_INDEX& aCornerHit ) const;
 
     /**
      * Function HitTestForCorner
      * tests if the given wxPoint is near a corner.
      * @param  refPos     is the wxPoint to test.
+     * @param  aAccuracy  increase the item bounding box by this amount.
      * @return bool - true if some corner was found to be closer to refPos than aClearance; false
      *              otherwise.
      */
-    bool HitTestForCorner( const wxPoint& refPos ) const;
+    bool HitTestForCorner( const wxPoint& refPos, int aAccuracy ) const;
 
     /**
      * Function HitTestForEdge
      * tests if the given wxPoint is near a segment defined by 2 corners.
      * @param  refPos     is the wxPoint to test.
+     * @param  aAccuracy  increase the item bounding box by this amount.
      * @param  aCornerHit [out] is the index of the closest vertex found, useless when return
      *                    value is false.
      * @return bool - true if some edge was found to be closer to refPos than aClearance.
      */
-    bool HitTestForEdge( const wxPoint& refPos, SHAPE_POLY_SET::VERTEX_INDEX& aCornerHit ) const;
+    bool HitTestForEdge( const wxPoint& refPos, int aAccuracy,
+                         SHAPE_POLY_SET::VERTEX_INDEX& aCornerHit ) const;
 
     /**
      * Function HitTestForEdge
      * tests if the given wxPoint is near a segment defined by 2 corners.
      * @param  refPos     is the wxPoint to test.
+     * @param  aAccuracy  increase the item bounding box by this amount.
      * @return bool - true if some edge was found to be closer to refPos than aClearance.
      */
-    bool HitTestForEdge( const wxPoint& refPos ) const;
+    bool HitTestForEdge( const wxPoint& refPos, int aAccuracy ) const;
 
     /** @copydoc BOARD_ITEM::HitTest(const EDA_RECT& aRect,
      *                               bool aContained = true, int aAccuracy ) const
@@ -534,14 +547,14 @@ public:
      * returns a reference to the list of filled polygons.
      * @return Reference to the list of filled polygons.
      */
-
-    //TODO - This should be called for each layer on which the zone exists
-
     const SHAPE_POLY_SET& GetFilledPolysList() const
     {
         return m_FilledPolysList;
     }
 
+    /** (re)create a list of triangles that "fill" the solid areas.
+     * used for instance to draw these solid areas on opengl
+     */
     void CacheTriangulation();
 
    /**
@@ -596,7 +609,7 @@ public:
         return m_RawPolysList;
     }
 
-    wxString GetSelectMenuText() const override;
+    wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
 
     BITMAP_DEF GetMenuImage() const override;
 
@@ -667,6 +680,19 @@ public:
     bool   GetHV45() const { return m_hv45; }
     void   SetHV45( bool aConstrain ) { m_hv45 = aConstrain; }
 
+    /** @return the hash value previously calculated by BuildHashValue().
+     * used in zone filling calculations
+     */
+    MD5_HASH GetHashValue() { return m_filledPolysHash; }
+
+    /** Build the hash value of m_FilledPolysList, and store it internally
+     *  in m_filledPolysHash.
+     *  Used in zone filling calculations, to know if m_FilledPolysList is up to date.
+     */
+    void BuildHashValue() { m_filledPolysHash = m_FilledPolysList.GetHash(); }
+
+
+
 #if defined(DEBUG)
     virtual void Show( int nestLevel, std::ostream& os ) const override { ShowDummy( os ); }
 #endif
@@ -704,7 +730,7 @@ private:
     int                   m_ZoneMinThickness;        ///< Minimum thickness value in filled areas.
 
     /** The number of segments to convert a circle to a polygon.  Valid values are
-        #ARC_APPROX_SEGMENTS_COUNT_LOW_DEF or #ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF. */
+        #ARC_APPROX_SEGMENTS_COUNT_LOW_DEF or #ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF. */
     int                   m_ArcToSegmentsCount;
 
     /** True when a zone was filled, false after deleting the filled areas. */
@@ -741,6 +767,8 @@ private:
      */
     SHAPE_POLY_SET        m_FilledPolysList;
     SHAPE_POLY_SET        m_RawPolysList;
+    MD5_HASH              m_filledPolysHash;    // A hash value used in zone filling calculations
+                                                // to see if the filled areas are up to date
 
     HATCH_STYLE           m_hatchStyle;     // hatch style, see enum above
     int                   m_hatchPitch;     // for DIAGONAL_EDGE, distance between 2 hatch lines
@@ -748,43 +776,6 @@ private:
     std::vector<int>      m_insulatedIslands;
 
     bool                  m_hv45;           // constrain edges to horizontal, vertical or 45º
-
-    /**
-     * Union to handle conversion between references to wxPoint and to VECTOR2I.
-     *
-     * The function GetPosition(), that returns a reference to a wxPoint, needs some existing
-     * wxPoint object that it can point to. The header of this function cannot be changed, as it
-     * overrides the function from the base class BOARD_ITEM. This made sense when ZONE_CONTAINER
-     * was implemented using the legacy CPolyLine class, that worked with wxPoints. However,
-     * m_Poly is now a SHAPE_POLY_SET, whose corners are objects of type VECTOR2I, not wxPoint.
-     * Thus, we cannot directly reference the first corner of m_Poly, so a modified version of it
-     * that can be read as a wxPoint needs to be handled.
-     * Taking advantage of the fact that both wxPoint and VECTOR2I have the same memory layout
-     * (two integers: x, y), this union let us convert a reference to a VECTOR2I into a reference
-     * to a wxPoint.
-     *
-     * The idea is the following: in GetPosition(), m_Poly->GetCornerPosition( 0 ) returns a
-     * reference to the first corner of the polygon set. If we retrieve its memory direction, we
-     * can tell the compiler to cast that pointer to a WX_VECTOR_CONVERTER pointer. We can finally
-     * shape that memory layout as a wxPoint picking the wx member of the union.
-     *
-     * Although this solution is somewhat unstable, as it relies on the fact that the memory
-     * layout is exactly the same, it is the best attempt to keep backwards compatibility while
-     * using the new SHAPE_POLY_SET.
-     */
-    typedef union {
-        wxPoint wx;
-        VECTOR2I vector;
-    } WX_VECTOR_CONVERTER;
-
-    // Sanity check: assure that the conversion VECTOR2I->wxPoint using the previous union is
-    // correct, making sure that the access for x and y attributes is still safe.
-    static_assert(offsetof(wxPoint,x) == offsetof(VECTOR2I,x),
-                  "wxPoint::x and VECTOR2I::x have different offsets");
-
-    static_assert(offsetof(wxPoint,y) == offsetof(VECTOR2I,y),
-                  "wxPoint::y and VECTOR2I::y have different offsets");
-
 };
 
 

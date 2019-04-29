@@ -205,9 +205,15 @@ public:
             return KiROUND( m_DefaultLineWidth * m_WSunits2Iu );
     }
 
-    static int GetMarkerSizeUi()
+    /** @return the size of markers used in page layout editor to draw
+     * the anchor points of selected items.
+     * @param aZoomScale is a scaling factor that can be used to adjust
+     * the final marker size depending on zoom level
+     */
+    static int GetMarkerSizeUi( double aZoomScale = 1.0 )
     {
-        return KiROUND( 0.5 * m_WSunits2Iu );
+        #define MARKER_DRAW_SIZE 0.5    // Is a value choosen for a suitable size on screen
+        return KiROUND( MARKER_DRAW_SIZE * m_WSunits2Iu * aZoomScale );
     }
 
     /**
@@ -266,7 +272,7 @@ public:
 
     /**
      * Function SetSelected
-     * Toggles on/off the selected flag (used in edition functions
+     * Toggles on/off the selected flag (used in editing functions)
      * @param aState = the flag value
      */
     void SetSelected( bool aState )

@@ -7,6 +7,7 @@ add_definitions(-DPL_EDITOR)
 
 include_directories(BEFORE ${INC_BEFORE})
 include_directories(
+    ../include/legacy_wx
     dialogs
     ../common/dialogs
     ${INC_AFTER}
@@ -80,8 +81,17 @@ target_link_libraries( pl_editor
     #singletop  # replaces common, giving us restrictive control and link warnings.
     # There's way too much crap coming in from common yet.
     common
-    bitmaps
     gal
+    legacy_wx
+    common
+    gal
+    legacy_wx
+    common
+    gal
+    legacy_wx
+    common
+    gal
+    legacy_wx
     ${wxWidgets_LIBRARIES}
     )
 
@@ -99,9 +109,14 @@ add_library( pl_editor_kiface MODULE
     )
 target_link_libraries( pl_editor_kiface
     common
-    polygon
-    bitmaps
     gal
+    legacy_wx
+    common
+    gal
+    legacy_wx
+    common
+    gal
+    legacy_wx
     ${wxWidgets_LIBRARIES}
     ${GDI_PLUS_LIBRARIES}
     )

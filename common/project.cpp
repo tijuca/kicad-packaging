@@ -48,7 +48,7 @@ void PROJECT::ElemsClear()
 {
     // careful here, this should work, but the virtual destructor may not
     // be in the same link image as PROJECT.
-    for( unsigned i = 0;  i < DIM( m_elems );  ++i )
+    for( unsigned i = 0;  i < arrayDim( m_elems );  ++i )
     {
         SetElem( ELEM_T( i ), NULL );
     }
@@ -172,7 +172,7 @@ void PROJECT::SetRString( RSTRING_T aIndex, const wxString& aString )
 {
     unsigned ndx = unsigned( aIndex );
 
-    if( ndx < DIM( m_rstrings ) )
+    if( ndx < arrayDim( m_rstrings ) )
     {
         m_rstrings[ndx] = aString;
     }
@@ -187,7 +187,7 @@ const wxString& PROJECT::GetRString( RSTRING_T aIndex )
 {
     unsigned ndx = unsigned( aIndex );
 
-    if( ndx < DIM( m_rstrings ) )
+    if( ndx < arrayDim( m_rstrings ) )
     {
         return m_rstrings[ndx];
     }
@@ -206,7 +206,7 @@ PROJECT::_ELEM* PROJECT::GetElem( ELEM_T aIndex )
 {
     // This is virtual, so implement it out of line
 
-    if( unsigned( aIndex ) < DIM( m_elems ) )
+    if( unsigned( aIndex ) < arrayDim( m_elems ) )
     {
         return m_elems[aIndex];
     }
@@ -218,7 +218,7 @@ void PROJECT::SetElem( ELEM_T aIndex, _ELEM* aElem )
 {
     // This is virtual, so implement it out of line
 
-    if( unsigned( aIndex ) < DIM( m_elems ) )
+    if( unsigned( aIndex ) < arrayDim( m_elems ) )
     {
 #if defined(DEBUG) && 0
         if( aIndex == ELEM_SCH_PART_LIBS )
@@ -294,6 +294,11 @@ wxConfigBase* PROJECT::configCreate( const SEARCH_STACK& aSList,
     wxConfigBase*   cfg = 0;
     wxString        cur_pro_fn = !aProjectFileName ? GetProjectFullName() : aProjectFileName;
 
+    // If we do not have a project name or specified name, choose an empty file to store the
+    // temporary configuration data in.
+    if( cur_pro_fn.IsEmpty() )
+        cur_pro_fn = wxFileName::CreateTempFileName( GetProjectPath() );
+
     if( wxFileName( cur_pro_fn ).IsFileReadable() )
     {
         // Note: currently, aGroupName is not used.
@@ -362,19 +367,16 @@ bool PROJECT::ConfigLoad( const SEARCH_STACK& aSList, const wxString&  aGroupNam
         return false;
     }
 
+    // We do not want expansion of env var values when reading our project config file
+    cfg.get()->SetExpandEnvVars( false );
+
     cfg->SetPath( wxCONFIG_PATH_SEPARATOR );
 
     wxString timestamp = cfg->Read( wxT( "update" ) );
 
     m_pro_date_and_time = timestamp;
 
-    // We do not want expansion of env var values when reading our project config file
-    bool state = cfg.get()->IsExpandingEnvVars();
-    cfg.get()->SetExpandEnvVars( false );
-
     wxConfigLoadParams( cfg.get(), aParams, aGroupName );
-
-    cfg.get()->SetExpandEnvVars( state );
 
     return true;
 }
@@ -402,7 +404,7 @@ FP_LIB_TABLE* PROJECT::PcbFootprintLibs( KIWAY& aKiway )
     FP_LIB_TABLE*   tbl = (FP_LIB_TABLE*) GetElem( ELEM_FPTBL );
 
     // its gotta be NULL or a FP_LIB_TABLE, or a bug.
-    wxASSERT( !tbl || dynamic_cast<FP_LIB_TABLE*>( tbl ) );
+    wxASSERT( !tbl || tbl->Type() == FP_LIB_TABLE_T );
 
     if( !tbl )
     {

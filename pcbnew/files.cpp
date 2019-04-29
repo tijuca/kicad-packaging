@@ -62,16 +62,6 @@
 #define     USE_INSTRUMENTATION     0
 
 
-static const wxChar backupSuffix[]   = wxT( "-bak" );
-static const wxChar autosavePrefix[] = wxT( "_autosave-" );
-
-
-wxString PCB_EDIT_FRAME::GetAutoSaveFilePrefix()
-{
-    return wxString( autosavePrefix );
-}
-
-
 /**
  * Function AskLoadBoardFileName
  * puts up a wxFileDialog asking for a BOARD filename to open.
@@ -117,7 +107,7 @@ bool AskLoadBoardFileName( wxWindow* aParent, int* aCtl, wxString* aFileName, bo
     }
     else
     {
-        for( unsigned ii = 2; ii < DIM( loaders ); ++ii )
+        for( unsigned ii = 2; ii < arrayDim( loaders ); ++ii )
         {
             if( !fileFilters.IsEmpty() )
                 fileFilters += wxChar( '|' );
@@ -225,11 +215,12 @@ void PCB_EDIT_FRAME::Files_io( wxCommandEvent& event )
     Files_io_from_id( id );
 }
 
-void PCB_EDIT_FRAME::Files_io_from_id( int id )
+
+bool PCB_EDIT_FRAME::Files_io_from_id( int id )
 {
     wxString   msg;
 
-    // If an edition is in progress, stop it.
+    // If an edit is in progress, stop it.
     // For something else than save, get rid of current tool.
     if( id == ID_SAVE_BOARD )
         m_canvas->EndMouseCapture( -1, m_canvas->GetDefaultCursor() );
@@ -243,24 +234,18 @@ void PCB_EDIT_FRAME::Files_io_from_id( int id )
             int         open_ctl = 0;
             wxString    fileName = Prj().AbsolutePath( GetBoard()->GetFileName() );
 
-            if( !AskLoadBoardFileName( this, &open_ctl, &fileName, true ) )
-                return;
-
-            OpenProjectFiles( std::vector<wxString>( 1, fileName ), open_ctl );
+            return AskLoadBoardFileName( this, &open_ctl, &fileName, true )
+                       && OpenProjectFiles( std::vector<wxString>( 1, fileName ), open_ctl );
         }
-        break;
 
     case ID_IMPORT_NON_KICAD_BOARD:
         {
             int         open_ctl = 1;
-            wxString    fileName;// = Prj().AbsolutePath( GetBoard()->GetFileName() );
+            wxString    fileName; // = Prj().AbsolutePath( GetBoard()->GetFileName() );
 
-            if( !AskLoadBoardFileName( this, &open_ctl, &fileName, false ) )
-                return;
-
-            OpenProjectFiles( std::vector<wxString>( 1, fileName ), open_ctl );
+            return AskLoadBoardFileName( this, &open_ctl, &fileName, false )
+                       && OpenProjectFiles( std::vector<wxString>( 1, fileName ), open_ctl );
         }
-        break;
 
     case ID_MENU_READ_BOARD_BACKUP_FILE:
     case ID_MENU_RECOVER_BOARD_AUTOSAVE:
@@ -270,39 +255,38 @@ void PCB_EDIT_FRAME::Files_io_from_id( int id )
 
             if( id == ID_MENU_RECOVER_BOARD_AUTOSAVE )
             {
-                wxString rec_name = wxString( autosavePrefix ) + fn.GetName();
+                wxString rec_name = GetAutoSaveFilePrefix() + fn.GetName();
                 fn.SetName( rec_name );
             }
             else
             {
-                wxString backup_ext = fn.GetExt()+ backupSuffix;
+                wxString backup_ext = fn.GetExt() + GetBackupSuffix();
                 fn.SetExt( backup_ext );
             }
 
             if( !fn.FileExists() )
             {
-                msg.Printf( _( "Recovery file \"%s\" not found." ),
-                            GetChars( fn.GetFullPath() ) );
+                msg.Printf( _( "Recovery file \"%s\" not found." ), fn.GetFullPath() );
                 DisplayInfoMessage( this, msg );
-                break;
+                return false;
             }
 
-            msg.Printf( _( "OK to load recovery or backup file \"%s\"" ),
-                            GetChars(fn.GetFullPath() ) );
+            msg.Printf( _( "OK to load recovery or backup file \"%s\"" ), fn.GetFullPath() );
 
             if( !IsOK( this, msg ) )
-                break;
+                return false;
 
             GetScreen()->ClrModify();    // do not prompt the user for changes
 
-            // LoadOnePcbFile( fn.GetFullPath(), aAppend=false, aForceFileDialog=false );
-            OpenProjectFiles( std::vector<wxString>( 1, fn.GetFullPath() ) );
-
-            // Re-set the name since name or extension was changed
-            GetBoard()->SetFileName( currfn.GetFullPath() );
-            UpdateTitle();
+            if( OpenProjectFiles( std::vector<wxString>( 1, fn.GetFullPath() ) ) )
+            {
+                // Re-set the name since name or extension was changed
+                GetBoard()->SetFileName( currfn.GetFullPath() );
+                UpdateTitle();
+                return true;
+            }
+            return false;
         }
-        break;
 
     case ID_APPEND_FILE:
         {
@@ -310,18 +294,20 @@ void PCB_EDIT_FRAME::Files_io_from_id( int id )
             wxString    fileName;
 
             if( !AskLoadBoardFileName( this, &open_ctl, &fileName, true ) )
-                break;
+                return false;
 
-            AppendBoardFile( fileName, open_ctl );
-
-            m_canvas->Refresh();
+            if( AppendBoardFile( fileName, open_ctl ) )
+            {
+                m_canvas->Refresh();
+                return true;
+            }
+            return false;
         }
-        break;
 
     case ID_NEW_BOARD:
     {
         if( !Clear_Pcb( true ) )
-            break;
+            return false;
 
         wxFileName fn( wxStandardPaths::Get().GetDocumentsDir(), wxT( "noname" ),
                        ProjectFileExtension );
@@ -335,16 +321,14 @@ void PCB_EDIT_FRAME::Files_io_from_id( int id )
         onBoardLoaded();
 
         OnModify();
-        break;
+        return true;
     }
 
     case ID_SAVE_BOARD:
-        if( ! GetBoard()->GetFileName().IsEmpty() )
-        {
-            SavePcbFile( Prj().AbsolutePath( GetBoard()->GetFileName() ) );
-            break;
-        }
-    // Fall through
+        if( !GetBoard()->GetFileName().IsEmpty() )
+            return SavePcbFile( Prj().AbsolutePath( GetBoard()->GetFileName() ) );
+        // Fall through
+
     case ID_COPY_BOARD_AS:
     case ID_SAVE_BOARD_AS:
         {
@@ -355,16 +339,16 @@ void PCB_EDIT_FRAME::Files_io_from_id( int id )
             if( AskSaveBoardFileName( this, &filename ) )
             {
                 if( id == ID_COPY_BOARD_AS )
-                    SavePcbCopy( filename );
+                    return SavePcbCopy( filename );
                 else
-                    SavePcbFile( filename, NO_BACKUP_FILE );
+                    return SavePcbFile( filename, NO_BACKUP_FILE );
             }
+            return false;
         }
-        break;
 
     default:
-        DisplayError( this, wxT( "File_io Internal Error" ) );
-        break;
+        wxLogDebug( wxT( "File_io Internal Error" ) );
+        return false;
     }
 }
 
@@ -386,10 +370,6 @@ IO_MGR::PCB_FILE_T plugin_type( const wxString& aFileName, int aCtl )
     {
         // both legacy and eagle share a common file extension.
         pluginType = ( aCtl & KICTL_EAGLE_BRD ) ? IO_MGR::EAGLE : IO_MGR::LEGACY;
-    }
-    else if( fn.GetExt().CmpNoCase(  IO_MGR::GetFileExtension( IO_MGR::LEGACY ) + backupSuffix ) == 0 )
-    {
-        pluginType = IO_MGR::LEGACY;
     }
     else if( fn.GetExt().CmpNoCase(  IO_MGR::GetFileExtension( IO_MGR::PCAD ) ) == 0 )
     {
@@ -417,17 +397,13 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
     wxString fullFileName( aFileSet[0] );
 
     // We insist on caller sending us an absolute path, if it does not, we say it's a bug.
-    wxASSERT_MSG( wxFileName( fullFileName ).IsAbsolute(),
-        wxT( "bug in single_top.cpp or project manager." ) );
+    wxASSERT_MSG( wxFileName( fullFileName ).IsAbsolute(), wxT( "Path is not absolute!" ) );
 
     std::unique_ptr<wxSingleInstanceChecker> lockFile = ::LockFile( fullFileName );
 
     if( !lockFile )
     {
-        wxString msg = wxString::Format( _(
-                "PCB file \"%s\" is already open." ),
-                GetChars( fullFileName )
-                );
+        wxString msg = wxString::Format( _( "PCB file \"%s\" is already open." ), fullFileName );
         DisplayError( this, msg );
         return false;
     }
@@ -436,20 +412,10 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
 
     if( GetScreen()->IsModify() && !GetBoard()->IsEmpty() )
     {
-        int response = YesNoCancelDialog( this, _(
-            "The current board has been modified.  Do you wish to save the changes?" ),
-            wxEmptyString,
-            _( "Save and Load" ),
-            _( "Load Without Saving" )
-            );
-
-        if( response == wxID_CANCEL )
-            return false;
-        else if( response == wxID_YES )
-            SavePcbFile( GetBoard()->GetFileName(), CREATE_BACKUP_FILE );
-        else
+        if( !HandleUnsavedChanges( this, _( "The current PCB has been modified.  Save changes?" ),
+            [&]()->bool { return SavePcbFile( GetBoard()->GetFileName(), CREATE_BACKUP_FILE ); } ) )
         {
-            // response == wxID_NO, fall thru
+            return false;
         }
     }
 
@@ -462,10 +428,8 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
     if( is_new && !( aCtl & KICTL_CREATE ) )
     {
         // notify user that fullFileName does not exist, ask if user wants to create it.
-        wxString ask = wxString::Format( _(
-                "Board \"%s\" does not exist.  Do you wish to create it?" ),
-                GetChars( fullFileName )
-                );
+        wxString ask = wxString::Format( _( "PCB \"%s\" does not exist.  Do you wish to create it?" ),
+                                         fullFileName );
         if( !IsOK( this, ask ) )
             return false;
     }
@@ -500,6 +464,9 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
 
         PLUGIN::RELEASER pi( IO_MGR::PluginFind( pluginType ) );
 
+        // This will rename the file if there is an autosave and the user want to recover
+		CheckForAutoSaveFile( fullFileName );
+
         try
         {
             PROPERTIES  props;
@@ -527,11 +494,33 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
         }
         catch( const IO_ERROR& ioe )
         {
-            DisplayErrorMessage( this,
-                                 wxString::Format( _( "Error loading board file:\n%s" ), fullFileName ),
-                                 ioe.What() );
+            if( ioe.Problem() != wxT( "CANCEL" ) )
+            {
+                wxString msg = wxString::Format( _( "Error loading board file:\n%s" ), fullFileName );
+                DisplayErrorMessage( this, msg, ioe.What() );
+            }
+
             return false;
         }
+
+        // 6.0 TODO: some settings didn't make it into the board file in 5.1 so as not to
+        // change the file format.  For 5.1 we must copy them across from the config-initialized
+        // board.
+        BOARD_DESIGN_SETTINGS& bds = loadedBoard->m_designSettings;
+        BOARD_DESIGN_SETTINGS& configBds = GetBoard()->GetDesignSettings();
+
+        bds.m_RequireCourtyards                 = configBds.m_RequireCourtyards;
+        bds.m_ProhibitOverlappingCourtyards     = configBds.m_ProhibitOverlappingCourtyards;
+        bds.m_HoleToHoleMin                     = configBds.m_HoleToHoleMin;
+        bds.m_LineThickness[LAYER_CLASS_OTHERS] = configBds.m_LineThickness[LAYER_CLASS_OTHERS];
+        bds.m_TextSize[LAYER_CLASS_OTHERS]      = configBds.m_TextSize[LAYER_CLASS_OTHERS];
+        bds.m_TextThickness[LAYER_CLASS_OTHERS] = configBds.m_TextThickness[LAYER_CLASS_OTHERS];
+        std::copy( configBds.m_TextItalic,  configBds.m_TextItalic + 4,  bds.m_TextItalic );
+        std::copy( configBds.m_TextUpright, configBds.m_TextUpright + 4, bds.m_TextUpright );
+        bds.m_DiffPairDimensionsList            = configBds.m_DiffPairDimensionsList;
+
+        bds.SetElementVisibility( LAYER_GRID,     configBds.IsElementVisible( LAYER_GRID ) );
+        bds.SetElementVisibility( LAYER_RATSNEST, configBds.IsElementVisible( LAYER_RATSNEST ) );
 
         SetBoard( loadedBoard );
 
@@ -540,11 +529,6 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
         loadedBoard->SynchronizeNetsAndNetClasses();
 
         GetScreen()->ClrModify();
-
-        {
-            wxFileName fn = fullFileName;
-            CheckForAutoSaveFile( fullFileName, fn.GetExt() );
-        }
 
         if( pluginType == IO_MGR::LEGACY &&
             loadedBoard->GetFileFormatVersionAtLoad() < LEGACY_BOARD_FILE_VERSION )
@@ -618,12 +602,12 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
 }
 
 
-static wxString create_backup_file( const wxString& aFileName )
+wxString PCB_EDIT_FRAME::createBackupFile( const wxString& aFileName )
 {
     wxFileName  fn = aFileName;
     wxFileName  backupFileName = aFileName;
 
-    backupFileName.SetExt( fn.GetExt() + backupSuffix );
+    backupFileName.SetExt( fn.GetExt() + GetBackupSuffix() );
 
     // If an old backup file exists, delete it.  If an old board file exists,
     // rename it to the backup file name.
@@ -674,11 +658,9 @@ bool PCB_EDIT_FRAME::SavePcbFile( const wxString& aFileName, bool aCreateBackupF
 
     wxString backupFileName;
 
-    // aCreateBackupFile == false is mainly used to write autosave files
-    // or new files in save as... command
     if( aCreateBackupFile )
     {
-        backupFileName = create_backup_file( aFileName );
+        backupFileName = createBackupFile( aFileName );
     }
 
     GetBoard()->SynchronizeNetsAndNetClasses();
@@ -729,7 +711,7 @@ bool PCB_EDIT_FRAME::SavePcbFile( const wxString& aFileName, bool aCreateBackupF
     // Delete auto save file on successful save.
     wxFileName autoSaveFileName = pcbFileName;
 
-    autoSaveFileName.SetName( wxString( autosavePrefix ) + pcbFileName.GetName() );
+    autoSaveFileName.SetName( GetAutoSaveFilePrefix() + pcbFileName.GetName() );
 
     if( autoSaveFileName.FileExists() )
         wxRemoveFile( autoSaveFileName.GetFullPath() );
@@ -816,7 +798,7 @@ bool PCB_EDIT_FRAME::doAutoSave()
     wxFileName autoSaveFileName = tmpFileName;
 
     // Auto save file name is the board file name prepended with autosaveFilePrefix string.
-    autoSaveFileName.SetName( wxString( autosavePrefix ) + autoSaveFileName.GetName() );
+    autoSaveFileName.SetName( GetAutoSaveFilePrefix() + autoSaveFileName.GetName() );
 
     if( !autoSaveFileName.IsOk() )
         return false;

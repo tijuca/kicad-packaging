@@ -37,12 +37,9 @@ class PCB_BASE_EDIT_FRAME : public PCB_BASE_FRAME
 public:
     PCB_BASE_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrameType,
                 const wxString& aTitle, const wxPoint& aPos, const wxSize& aSize,
-                long aStyle, const wxString& aFrameName ) :
-    PCB_BASE_FRAME( aKiway, aParent, aFrameType, aTitle, aPos, aSize, aStyle, aFrameName ),
-    m_rotationAngle( 900 ), m_undoRedoBlocked( false )
-    {}
+                long aStyle, const wxString& aFrameName );
 
-    virtual ~PCB_BASE_EDIT_FRAME() {};
+    virtual ~PCB_BASE_EDIT_FRAME();
 
     /**
      * Function GetModel()
@@ -62,6 +59,14 @@ public:
      *   created, else wxEmptyString because user aborted or error.
      */
     wxString CreateNewLibrary(const wxString& aLibName = wxEmptyString);
+
+    /**
+     * Function AddLibrary
+     * Add an existing library to either the global or project library table.
+     * @param aFileName the library to add; a file open dialog will be displayed if empty.
+     * @return true if successfully added
+     */
+    bool AddLibrary(const wxString& aLibName = wxEmptyString);
 
     /**
      * Function OnEditItemRequest
@@ -98,7 +103,7 @@ public:
                             const wxPoint& aTransformPoint = wxPoint( 0, 0 ) ) override;
     /**
      * Function RestoreCopyFromRedoList
-     *  Redo the last edition:
+     *  Redo the last edit:
      *  - Save the current board in Undo list
      *  - Get an old version of the board from Redo list
      *  @return none
@@ -107,7 +112,7 @@ public:
 
     /**
      * Function RestoreCopyFromUndoList
-     *  Undo the last edition:
+     *  Undo the last edit:
      *  - Save the current board in Redo list
      *  - Get an old version of the board from Undo list
      *  @return none
@@ -158,11 +163,17 @@ public:
      */
     void SetRotationAngle( int aRotationAngle );
 
+    void InstallTextOptionsFrame( BOARD_ITEM* aText, wxDC* aDC );
+    void InstallGraphicItemPropertiesDialog( BOARD_ITEM* aItem );
+
     ///> @copydoc EDA_DRAW_FRAME::UseGalCanvas()
     void UseGalCanvas( bool aEnable ) override;
 
     ///> @copydoc PCB_BASE_FRAME::SetBoard()
     virtual void SetBoard( BOARD* aBoard ) override;
+
+    void OnGridSettings( wxCommandEvent& aEvent ) override;
+    bool InvokeDialogGrid();
 
 protected:
     /// User defined rotation angle (in tenths of a degree).
@@ -201,6 +212,8 @@ protected:
      * duplicateItem(BOARD_ITEM*, bool) above
      */
     virtual void duplicateItems( bool aIncrement ) = 0;
+
+    void unitsChangeRefresh() override;
 };
 
 #endif

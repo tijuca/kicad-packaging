@@ -44,9 +44,12 @@ class OUTPUTFORMATTER;
 class EXCELLON_WRITER: public GENDRILL_WRITER_BASE
 {
 private:
-    FILE*                    m_file;                    // The output file
-    bool                     m_minimalHeader;           // True to use minimal header
+    FILE*                    m_file;                // The output file
+    bool                     m_minimalHeader;       // True to use minimal header
     bool                     m_mirror;
+    bool                     m_useRouteModeForOval; // True to use a route command for oval holes
+                                                    // False to use a G85 canned mode for oval holes
+
 
 public:
     EXCELLON_WRITER( BOARD* aPcb );
@@ -60,6 +63,14 @@ public:
      * of the auxiliary axis
      */
     const wxPoint GetOffset() { return m_offset; }
+
+    /**
+     *
+     */
+    void SetRouteModeForOvalHoles( bool aUseRouteModeForOvalHoles )
+    {
+        m_useRouteModeForOval = aUseRouteModeForOvalHoles;
+    }
 
     /**
      * Function SetFormat
@@ -114,17 +125,22 @@ private:
      * @param aFile = an opened file to write to will be closed by CreateDrillFile
      * @return hole count
      */
-    int  createDrillFile( FILE * aFile );
+    int  createDrillFile( FILE * aFile, DRILL_LAYER_PAIR aLayerPair,
+                          bool aGenerateNPTH_list );
 
 
-    /* Print the DRILL file header. The full header is:
+    /* Print the DRILL file header. The full header is somethink like:
      * M48
      * ;DRILL file {PCBNEW (2007-11-29-b)} date 17/1/2008-21:02:35
      * ;FORMAT={ <precision> / absolute / <units> / <numbers format>}
+     * ; #@! TF.FileFunction,Plated,1,4,PTH
+     * ; #@! TF.CreationDate,2018-11-23T15:59:51+01:00
+     * ; #@! TF.GenerationSoftware,Kicad,Pcbnew,2017.04
      * FMAT,2
      * INCH,TZ
      */
-    void writeEXCELLONHeader();
+    void writeEXCELLONHeader( DRILL_LAYER_PAIR aLayerPair,
+                              bool aGenerateNPTH_list);
 
     void writeEXCELLONEndOfFile();
 

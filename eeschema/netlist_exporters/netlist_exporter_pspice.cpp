@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1992-2013 jp.charras at wanadoo.fr
  * Copyright (C) 2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2016 KiCad Developers, see AUTHORS.TXT for contributors.
+ * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.TXT for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -149,6 +149,15 @@ bool NETLIST_EXPORTER_PSPICE::Format( OUTPUTFORMATTER* aFormatter, unsigned aCtl
 
                 // Replace parenthesis with underscore to prevent parse issues with simulators
                 ReplaceForbiddenChars( netName );
+
+                // Add quotes to nets containing slashes. This isn't added to ReplaceForbidenChars
+                // because this is only necessary for file writing; nets with slashes can be
+                // handled by ngspice after loading.
+                if( netName.Contains( "/" ) )
+                {
+                    netName.Prepend( '"' );
+                    netName.Append( '"' );
+                }
 
                 // Borrow LTSpice's nomenclature for unconnected nets
                 if( netName.IsEmpty() )
@@ -377,6 +386,8 @@ bool NETLIST_EXPORTER_PSPICE::ProcessNetlist( unsigned aCtl )
 void NETLIST_EXPORTER_PSPICE::UpdateDirectives( unsigned aCtl )
 {
     const SCH_SHEET_LIST& sheetList = g_RootSheet;
+    wxRegEx couplingK( "^[kK][[:digit:]]*[[:space:]]+[[:alnum:]]+[[:space:]]+[[:alnum:]]+",
+            wxRE_ADVANCED );
 
     m_directives.clear();
     bool controlBlock = false;
@@ -439,6 +450,7 @@ void NETLIST_EXPORTER_PSPICE::UpdateDirectives( unsigned aCtl )
                 else if( lowercaseline.IsSameAs( ".control" ) && ( !controlBlock ) )
                 {
                     controlBlock = true;
+                    m_directives.push_back( line );
                 }
                 else if( lowercaseline.IsSameAs( ".endc" ) && controlBlock )
                 {
@@ -448,12 +460,8 @@ void NETLIST_EXPORTER_PSPICE::UpdateDirectives( unsigned aCtl )
 
                 else if( line.StartsWith( '.' )                           // one-line directives
                         || controlBlock                                   // .control .. .endc block
+                        || couplingK.Matches( line )                      // K## L## L## coupling constant
                         || ( directiveStarted && line.StartsWith( '+' ) ) ) // multiline directives
-                {
-                    m_directives.push_back( line );
-                }
-
-                if( controlBlock )
                 {
                     m_directives.push_back( line );
                 }

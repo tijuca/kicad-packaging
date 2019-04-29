@@ -27,11 +27,6 @@
  * @brief wxLogTrace helper implementation.
  */
 
-#include <wx/defs.h>
-#include <wx/string.h>
-#include <wx/event.h>
-#include <wx/arrstr.h>
-
 #include <trace_helpers.h>
 
 
@@ -46,6 +41,9 @@ const wxChar* const traceKicadPcbPlugin = wxT( "KICAD_PCB_PLUGIN" );
 const wxChar* const tracePrinting = wxT( "KICAD_PRINT" );
 const wxChar* const traceAutoSave = wxT( "KICAD_AUTOSAVE" );
 const wxChar* const tracePathsAndFiles = wxT( "KICAD_PATHS_AND_FILES" );
+const wxChar* const traceLocale = wxT( "KICAD_LOCALE" );
+const wxChar* const traceScreen = wxT( "KICAD_SCREEN" );
+const wxChar* const traceZoomScroll = wxT( "KICAD_ZOOM_SCROLL" );
 
 
 wxString dump( const wxArrayString& aArray )

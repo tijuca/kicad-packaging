@@ -212,7 +212,7 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
             if( net )
             {
                 MSG_PANEL_ITEMS items;
-                net->GetMsgPanelInfo( items );
+                net->GetMsgPanelInfo( m_UserUnits, items );
                 SetMsgPanel( items );
             }
         }
@@ -240,7 +240,7 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         }
         else
         {
-            DisplayError( this, wxT( "OnLeftClick err: not a PCB_TARGET_T" ) );
+            wxLogDebug( wxT( "OnLeftClick err: not a PCB_TARGET_T" ) );
         }
 
         break;
@@ -256,12 +256,6 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
 
             if( GetToolId() == ID_PCB_ARC_BUTT )
                 shape = S_ARC;
-
-            if( IsCopperLayer( GetActiveLayer() ) )
-            {
-                DisplayError( this, _( "Graphic not allowed on Copper layers" ) );
-                break;
-            }
 
             if( (curr_item == NULL) || (curr_item->GetFlags() == 0) )
             {
@@ -333,7 +327,7 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         }
         else
         {
-            DisplayError( this, wxT( "PCB_EDIT_FRAME::OnLeftClick() zone internal error" ) );
+            wxLogDebug( wxT( "PCB_EDIT_FRAME::OnLeftClick() zone internal error" ) );
         }
 
         break;
@@ -359,7 +353,7 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         }
         else
         {
-            DisplayError( this, wxT( "OnLeftClick err: not a PCB_TEXT_T" ) );
+            wxLogDebug( wxT( "OnLeftClick err: not a PCB_TEXT_T" ) );
         }
 
         break;
@@ -368,14 +362,19 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         if( (curr_item == NULL) || (curr_item->GetFlags() == 0) )
         {
             m_canvas->MoveCursorToCrossHair();
-            MODULE* module = LoadModuleFromLibrary( wxEmptyString, Prj().PcbFootprintLibs() );
+            MODULE* module = SelectFootprintFromLibTree();
 
             SetCurItem( (BOARD_ITEM*) module );
 
             if( module )
             {
                 m_canvas->MoveCursorToCrossHair();
-                AddModuleToBoard( module, aDC );
+                module->SetLink( 0 );
+                AddModuleToBoard( module );
+
+                if( aDC )
+                    module->Draw( m_canvas, aDC, GR_OR );
+
                 StartMoveModule( module, aDC, false );
             }
         }
@@ -386,7 +385,7 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         }
         else
         {
-            DisplayError( this, wxT( "Internal err: Struct not PCB_MODULE_T" ) );
+            wxLogDebug( wxT( "Internal err: Struct not PCB_MODULE_T" ) );
         }
 
         break;
@@ -412,8 +411,7 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         }
         else
         {
-            DisplayError( this,
-                          wxT( "PCB_EDIT_FRAME::OnLeftClick() error item is not a DIMENSION" ) );
+            wxLogDebug( wxT( "PCB_EDIT_FRAME::OnLeftClick() error item is not a DIMENSION" ) );
         }
 
         break;
@@ -457,7 +455,7 @@ void PCB_EDIT_FRAME::OnLeftClick( wxDC* aDC, const wxPoint& aPosition )
         break;
 
     default:
-        DisplayError( this, wxT( "PCB_EDIT_FRAME::OnLeftClick() id error" ) );
+        wxLogDebug( wxT( "PCB_EDIT_FRAME::OnLeftClick() id error" ) );
         SetNoToolSelected();
         break;
     }
@@ -585,7 +583,7 @@ void PCB_EDIT_FRAME::OnEditItemRequest( wxDC* aDC, BOARD_ITEM* aItem )
         break;
 
     case PCB_TEXT_T:
-        InstallTextPCBOptionsFrame( static_cast<TEXTE_PCB*>( aItem ), aDC );
+        InstallTextOptionsFrame( aItem, aDC );
         break;
 
     case PCB_PAD_T:
@@ -605,11 +603,11 @@ void PCB_EDIT_FRAME::OnEditItemRequest( wxDC* aDC, BOARD_ITEM* aItem )
         break;
 
     case PCB_MODULE_TEXT_T:
-        InstallTextModOptionsFrame( static_cast<TEXTE_MODULE*>( aItem ), aDC );
+        InstallTextOptionsFrame( aItem, aDC );
         break;
 
     case PCB_LINE_T:
-        InstallGraphicItemPropertiesDialog( static_cast<DRAWSEGMENT*>( aItem ), aDC );
+        InstallGraphicItemPropertiesDialog( aItem );
         break;
 
     case PCB_ZONE_AREA_T:

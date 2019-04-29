@@ -28,12 +28,26 @@
 
 #include <math/vector2d.h>
 #include <tools/pcb_tool.h>
+#include <tools/selection_tool.h>
+#include <status_popup.h>
 
 
 class BOARD_COMMIT;
 class BOARD_ITEM;
-class SELECTION_TOOL;
 class CONNECTIVITY_DATA;
+
+/**
+ * Function EditToolSelectionFilter
+ *
+ * A CLIENT_SELECTION_FILTER which promotes pad selections to their parent modules and
+ * optionally excludes locked items and/or transient items (such as markers).
+ */
+
+#define EXCLUDE_LOCKED      0x0001
+#define EXCLUDE_LOCKED_PADS 0x0002
+#define EXCLUDE_TRANSIENTS  0x0004
+
+void EditToolSelectionFilter( GENERAL_COLLECTOR& aCollector, int aFlags );
 
 /**
  * Class EDIT_TOOL
@@ -144,6 +158,14 @@ public:
      */
     static void FootprintFilter( const VECTOR2I&, GENERAL_COLLECTOR& aCollector );
 
+    /**
+     * Function PadFilter()
+     *
+     * A selection filter which prunes the selection to contain only items
+     * of type PCB_PAD_T
+     */
+    static void PadFilter( const VECTOR2I&, GENERAL_COLLECTOR& aCollector );
+
     ///> Sets up handlers for various events.
     void setTransitions() override;
 
@@ -154,6 +176,10 @@ public:
      * @return True if it was sent succesfully
      */
     int copyToClipboard( const TOOL_EVENT& aEvent );
+
+    int copyToClipboardWithAnchor( const TOOL_EVENT& aEvent );
+
+    int doCopyToClipboard( bool withAnchor );
 
     /**
      * Function cutToClipboard()
@@ -175,6 +201,9 @@ private:
     ///> Flag determining if anything is being dragged right now
     bool m_dragging;
 
+    ///> Flag determining whether we are prompting for locked removal
+    bool m_lockedSelected;
+
     ///> Last cursor position (needed for getModificationPoint() to avoid changes
     ///> of edit reference point).
     VECTOR2I m_cursor;
@@ -190,21 +219,6 @@ private:
 
     bool changeTrackWidthOnClick( const SELECTION& selection );
     bool pickCopyReferencePoint( VECTOR2I& aP );
-
-
-    /**
-     * Function hoverSelection()
-     *
-     * If there are no items currently selected, it tries to choose the
-     * item that is under he cursor or displays a disambiguation menu
-     * if there are multiple items.
-     *
-     * @param aSanitize sanitize selection using SanitizeSelection()
-     * @return true if the eventual selection contains any items, or
-     * false if it fails to select any items.
-     */
-    bool hoverSelection( bool aSanitize = true );
-
 
     std::unique_ptr<BOARD_COMMIT> m_commit;
 };

@@ -28,7 +28,7 @@
  */
 
 #include <fctsys.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <draw_graphic_text.h>
 #include <trigo.h>
 #include <richio.h>
@@ -389,15 +389,16 @@ int SCH_SHEET::GetPenSize() const
 wxPoint SCH_SHEET::GetSheetNamePosition()
 {
     wxPoint pos = m_pos;
+    int      margin = KiROUND( GetPenSize() / 2.0 + 4 + m_sheetNameSize * 0.3 );
 
     if( IsVerticalOrientation() )
     {
-        pos.x -= 8;
+        pos.x -= margin;
         pos.y += m_size.y;
     }
     else
     {
-        pos.y -= 8;
+        pos.y -= margin;
     }
 
     return pos;
@@ -407,7 +408,7 @@ wxPoint SCH_SHEET::GetSheetNamePosition()
 wxPoint SCH_SHEET::GetFileNamePosition()
 {
     wxPoint  pos = m_pos;
-    int      margin = GetPenSize() + 4;
+    int      margin = KiROUND( GetPenSize() / 2.0 + 4 + m_fileNameSize * 0.4 );
 
     if( IsVerticalOrientation() )
     {
@@ -423,6 +424,15 @@ wxPoint SCH_SHEET::GetFileNamePosition()
 }
 
 
+void SCH_SHEET::ViewGetLayers( int aLayers[], int& aCount ) const
+{
+    aCount      = 3;
+    aLayers[0]  = LAYER_HIERLABEL;
+    aLayers[1]  = LAYER_SHEET;
+    aLayers[2]  = LAYER_SHEET_BACKGROUND;
+}
+
+
 void SCH_SHEET::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
                       const wxPoint& aOffset, GR_DRAWMODE aDrawMode, COLOR4D aColor )
 {
@@ -433,6 +443,8 @@ void SCH_SHEET::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
     wxPoint  pos_sheetname,pos_filename;
     wxPoint  pos = m_pos + aOffset;
     int      lineWidth = GetPenSize();
+    int      textWidth;
+    wxSize   textSize;
     EDA_RECT* clipbox  = aPanel? aPanel->GetClipBox() : NULL;
 
     if( aColor != COLOR4D::UNSPECIFIED )
@@ -460,10 +472,12 @@ void SCH_SHEET::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
         txtcolor = GetLayerColor( LAYER_SHEETNAME );
 
     Text = wxT( "Sheet: " ) + m_name;
+    textSize = wxSize( m_sheetNameSize, m_sheetNameSize );
+    textWidth = Clamp_Text_PenSize( lineWidth, textSize, false );
     DrawGraphicText( clipbox, aDC, pos_sheetname,
                      txtcolor, Text, name_orientation,
-                     wxSize( m_sheetNameSize, m_sheetNameSize ),
-                     GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_BOTTOM, lineWidth,
+                     textSize,
+                     GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_BOTTOM, textWidth,
                      false, false );
 
     /* Draw text : FileName */
@@ -473,10 +487,12 @@ void SCH_SHEET::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
         txtcolor = GetLayerColor( LAYER_SHEETFILENAME );
 
     Text = wxT( "File: " ) + m_fileName;
+    textSize = wxSize( m_fileNameSize, m_fileNameSize );
+    textWidth = Clamp_Text_PenSize( lineWidth, textSize, false );
     DrawGraphicText( clipbox, aDC, pos_filename,
                      txtcolor, Text, name_orientation,
-                     wxSize( m_fileNameSize, m_fileNameSize ),
-                     GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_TOP, lineWidth,
+                     textSize,
+                     GR_TEXT_HJUSTIFY_LEFT, GR_TEXT_VJUSTIFY_TOP, textWidth,
                      false, false );
 
     /* Draw text : SheetLabel */
@@ -649,7 +665,7 @@ wxString SCH_SHEET::GetFileName( void ) const
 }
 
 
-void SCH_SHEET::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
+void SCH_SHEET::GetMsgPanelInfo( EDA_UNITS_T aUnits, MSG_PANEL_ITEMS& aList )
 {
     aList.push_back( MSG_PANEL_ITEM( _( "Sheet Name" ), m_name, CYAN ) );
     aList.push_back( MSG_PANEL_ITEM( _( "File Name" ), m_fileName, BROWN ) );
@@ -735,7 +751,7 @@ void SCH_SHEET::Resize( const wxSize& aSize )
 
 bool SCH_SHEET::Matches( wxFindReplaceData& aSearchData, void* aAuxData, wxPoint* aFindLocation )
 {
-    wxLogTrace( traceFindItem, wxT( "  item " ) + GetSelectMenuText() );
+    wxLogTrace( traceFindItem, wxT( "  item " ) + GetSelectMenuText( MILLIMETRES ) );
 
     // Ignore the sheet file name if searching to replace.
     if( !(aSearchData.GetFlags() & FR_SEARCH_REPLACE)
@@ -791,29 +807,14 @@ void SCH_SHEET::GetEndPoints( std::vector <DANGLING_END_ITEM>& aItemList )
 }
 
 
-bool SCH_SHEET::IsDanglingStateChanged( std::vector< DANGLING_END_ITEM >& aItemList )
+bool SCH_SHEET::UpdateDanglingState( std::vector<DANGLING_END_ITEM>& aItemList )
 {
-    bool currentState = IsDangling();
+    bool changed = false;
 
     for( SCH_SHEET_PIN& pinsheet : GetPins() )
-    {
-        pinsheet.IsDanglingStateChanged( aItemList );
-    }
+        changed |= pinsheet.UpdateDanglingState( aItemList );
 
-    return currentState != IsDangling();
-}
-
-
-bool SCH_SHEET::IsDangling() const
-{
-    // If any hierarchical label in the sheet is dangling, then the sheet is dangling.
-    for( size_t i = 0; i < GetPins().size(); i++ )
-    {
-        if( GetPins()[i].IsDangling() )
-            return true;
-    }
-
-    return false;
+    return changed;
 }
 
 
@@ -866,11 +867,9 @@ SEARCH_RESULT SCH_SHEET::Visit( INSPECTOR aInspector, void* testData, const KICA
 }
 
 
-wxString SCH_SHEET::GetSelectMenuText() const
+wxString SCH_SHEET::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
-    wxString tmp;
-    tmp.Printf( _( "Hierarchical Sheet %s" ), GetChars( m_name ) );
-    return tmp;
+    return wxString::Format( _( "Hierarchical Sheet %s" ), m_name );
 }
 
 

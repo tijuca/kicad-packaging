@@ -27,9 +27,8 @@
  */
 
 #include <fctsys.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <confirm.h>
-#include <base_units.h>
 #include <kiface_i.h>
 #include <project.h>
 #include <wildcards_and_files_ext.h>
@@ -38,11 +37,13 @@
 #include <sch_legacy_plugin.h>
 #include <sch_sheet.h>
 #include <sch_sheet_path.h>
+#include <sch_view.h>
 
 #include <dialogs/dialog_sch_sheet_props.h>
 
 
-bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy, bool* aClearAnnotationNewItems )
+bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy,
+                                bool* aClearAnnotationNewItems )
 {
     if( aSheet == NULL || aHierarchy == NULL )
         return false;
@@ -50,51 +51,13 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy, b
     SCH_SHEET_LIST hierarchy( g_RootSheet );       // This is the schematic sheet hierarchy.
 
     // Get the new texts
-    DIALOG_SCH_SHEET_PROPS dlg( this );
-
-    wxString units = GetUnitsLabel( g_UserUnit );
-    dlg.SetFileName( aSheet->GetFileName() );
-    dlg.SetFileNameTextSize( StringFromValue( g_UserUnit, aSheet->GetFileNameSize() ) );
-    dlg.SetFileNameTextSizeUnits( units );
-    dlg.SetSheetName( aSheet->GetName() );
-    dlg.SetSheetNameTextSize( StringFromValue( g_UserUnit, aSheet->GetSheetNameSize() ) );
-    dlg.SetSheetNameTextSizeUnits( units );
-    dlg.SetSheetTimeStamp( wxString::Format( wxT( "%8.8lX" ),
-                           (unsigned long) aSheet->GetTimeStamp() ) );
-
-    /* This ugly hack fixes a bug in wxWidgets 2.8.7 and likely earlier
-     * versions for the flex grid sizer in wxGTK that prevents the last
-     * column from being sized correctly.  It doesn't cause any problems
-     * on win32 so it doesn't need to wrapped in ugly #ifdef __WXGTK__
-     * #endif.
-     * Still present in wxWidgets 3.0.2
-     */
-    dlg.Layout();
-    dlg.Fit();
-    dlg.SetMinSize( dlg.GetSize() );
-    dlg.GetSizer()->Fit( &dlg );
+    DIALOG_SCH_SHEET_PROPS dlg( this, aSheet );
 
     if( dlg.ShowModal() == wxID_CANCEL )
         return false;
 
     wxFileName fileName = dlg.GetFileName();
     fileName.SetExt( SchematicFileExtension );
-
-    if( !fileName.IsOk() )
-    {
-        DisplayError( this, _( "File name is not valid!" ) );
-        return false;
-    }
-
-    // Duplicate sheet names are not valid.
-    const SCH_SHEET* sheet = hierarchy.FindSheetByName( dlg.GetSheetName() );
-
-    if( sheet && (sheet != aSheet) )
-    {
-        DisplayError( this, wxString::Format( _( "A sheet named \"%s\" already exists." ),
-                                              dlg.GetSheetName() ) );
-        return false;
-    }
 
     wxString msg;
     bool loadFromFile = false;
@@ -122,8 +85,9 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy, b
     if( !g_RootSheet->SearchHierarchy( newFilename, &useScreen ) )
     {
         loadFromFile = wxFileExists( newFilename );
-        wxLogDebug( "Sheet requested file \"%s\", %s", newFilename,
-                ( loadFromFile ) ? "found" : "not found" );
+        wxLogDebug( "Sheet requested file \"%s\", %s",
+                    newFilename,
+                    ( loadFromFile ) ? "found" : "not found" );
     }
 
     // Inside Eeschema, filenames are stored using unix notation
@@ -273,9 +237,8 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy, b
             if( !pi->GetError().IsEmpty() )
             {
                 DisplayErrorMessage( this,
-                                     _( "The entire schematic could not be load.  Errors "
-                                        "occurred attempting to load hierarchical sheet "
-                                        "schematics." ),
+                                     _( "The entire schematic could not be loaded.\n"
+                                        "Errors occurred loading hierarchical sheets." ),
                                      pi->GetError() );
             }
         }
@@ -291,9 +254,9 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy, b
         }
     }
 
-    aSheet->SetFileNameSize( ValueFromString( g_UserUnit, dlg.GetFileNameTextSize() ) );
+    aSheet->SetFileNameSize( dlg.GetFileNameTextSize() );
     aSheet->SetName( dlg.GetSheetName() );
-    aSheet->SetSheetNameSize( ValueFromString( g_UserUnit, dlg.GetSheetNameTextSize() ) );
+    aSheet->SetSheetNameSize( dlg.GetSheetNameTextSize() );
 
     if( aSheet->GetName().IsEmpty() )
         aSheet->SetName( wxString::Format( wxT( "Sheet%8.8lX" ),
@@ -323,12 +286,12 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy, b
 
     if( newScreens.HasNoFullyDefinedLibIds() )
     {
-        msg.Printf(_( "The schematic \"%s\" has not been remapped to the symbol library table. "
-                      "Most if not all of the symbol library links will be broken.  Do you "
-                      "want to continue?" ), fileName.GetFullName() );
+        msg.Printf(_( "The schematic \"%s\" has not been remapped to the symbol\nlibrary table. "
+                      " The project this schematic belongs to must first be remapped\nbefore it "
+                      "can be imported into the current project." ), fileName.GetFullName() );
 
-        if( !IsOK( this, msg ) )
-            return false;
+        DisplayInfoMessage( this, msg );
+        return false;
     }
 
     if( aClearAnnotationNewItems )
@@ -336,6 +299,9 @@ bool SCH_EDIT_FRAME::EditSheet( SCH_SHEET* aSheet, SCH_SHEET_PATH* aHierarchy, b
 
     m_canvas->MoveCursorToCrossHair();
     m_canvas->SetIgnoreMouseEvents( false );
+
+    GetCanvas()->GetView()->Update( aSheet );
+
     OnModify();
 
     return true;
@@ -355,9 +321,6 @@ static void resizeSheetWithMouseCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const
 
     if( sheet == nullptr )  // Be sure we are using the right object
         return;
-
-    if( aErase )
-        sheet->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode );
 
     wxPoint pos = sheet->GetPosition();
 
@@ -384,7 +347,12 @@ static void resizeSheetWithMouseCursor( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const
                     wxPoint( pos.x + width, pos.y + height ) );
     sheet->Resize( wxSize( grid.x - pos.x, grid.y - pos.y ) );
 
-    sheet->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode );
+    auto panel = static_cast<SCH_DRAW_PANEL*>( aPanel );
+    auto view = panel->GetView();
+
+    view->Hide( sheet );
+    view->ClearPreview();
+    view->AddToPreview( sheet->Clone() );
 }
 
 
@@ -401,32 +369,34 @@ static void ExitSheet( EDA_DRAW_PANEL* aPanel, wxDC* aDC )
 
     parent->SetRepeatItem( NULL );
 
-    item->Draw( aPanel, aDC, wxPoint( 0, 0 ), g_XorMode );
-
     if( item->IsNew() )
     {
         delete item;
     }
     else if( item->IsMoving() || item->IsResized() )
     {
-        screen->Remove( item );
+        parent->RemoveFromScreen( item );
         delete item;
 
         item = parent->GetUndoItem();
 
         wxCHECK_RET( item != NULL, wxT( "Cannot restore undefined last sheet item." ) );
 
-        screen->Append( item );
+        parent->AddToScreen( item );
+
         // the owner of item is no more parent, this is the draw list of screen:
         parent->SetUndoItem( NULL );
 
-        item->Draw( aPanel, aDC, wxPoint( 0, 0 ), GR_DEFAULT_DRAWMODE );
         item->ClearFlags();
     }
     else
     {
         item->ClearFlags();
     }
+
+    auto panel = static_cast<SCH_DRAW_PANEL*>( aPanel );
+    auto view = panel->GetView();
+    view->ClearPreview();
 
     screen->SetCurItem( NULL );
 }
@@ -478,6 +448,9 @@ void SCH_EDIT_FRAME::ReSizeSheet( SCH_SHEET* aSheet, wxDC* aDC )
     SetUndoItem( aSheet );
     aSheet->SetFlags( IS_RESIZED );
 
+    std::vector<DANGLING_END_ITEM> emptySet;
+    aSheet->UpdateDanglingState( emptySet );
+
     m_canvas->SetMouseCapture( resizeSheetWithMouseCursor, ExitSheet );
     m_canvas->CallMouseCapture( aDC, wxDefaultPosition, true );
 
@@ -512,7 +485,7 @@ void SCH_EDIT_FRAME::RotateHierarchicalSheet( SCH_SHEET* aSheet, bool aRotCCW )
         aSheet->Rotate( rotPoint );
     }
 
-    GetCanvas()->Refresh();
+    GetCanvas()->GetView()->Update( aSheet );
     OnModify();
 }
 
@@ -535,6 +508,6 @@ void SCH_EDIT_FRAME::MirrorSheet( SCH_SHEET* aSheet, bool aFromXaxis )
     else                // Mirror relative to vertical axis
         aSheet->MirrorY( mirrorPoint.x );
 
-    GetCanvas()->Refresh();
+    GetCanvas()->GetView()->Update( aSheet );
     OnModify();
 }

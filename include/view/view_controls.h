@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2012 Torsten Hueter, torstenhtr <at> gmx.de
  * Copyright (C) 2013 CERN
- * Copyright (C) 2013-2016 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2013-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
  *
@@ -92,6 +92,12 @@ struct VC_SETTINGS
 
     ///> Allow panning with the left button in addition to middle
     bool m_panWithLeftButton;
+
+    ///> Is last cursor motion event coming from keyboard arrow cursor motion action
+    bool m_lastKeyboardCursorPositionValid;
+
+    ///> Position of the above event
+    VECTOR2D m_lastKeyboardCursorPosition;
 };
 
 
@@ -103,7 +109,8 @@ struct VC_SETTINGS
 class VIEW_CONTROLS
 {
 public:
-    VIEW_CONTROLS( VIEW* aView ) : m_view( aView )
+    VIEW_CONTROLS( VIEW* aView ) :
+        m_view( aView ), m_cursorWarped( false )
     {
     }
 
@@ -120,6 +127,14 @@ public:
     virtual void SetSnapping( bool aEnabled )
     {
         m_settings.m_snappingEnabled = aEnabled;
+    }
+
+    /**
+     * @return the current state of the snapping cursor to grid.
+     */
+    virtual bool GetSnappingState()
+    {
+        return m_settings.m_snappingEnabled;
     }
 
     /**
@@ -233,7 +248,7 @@ public:
      * @param aPosition is the requested cursor position in the world coordinates.
      * @param aWarpView enables/disables view warp if the cursor is outside the current viewport.
      */
-    virtual void SetCursorPosition( const VECTOR2D& aPosition, bool aWarpView = true ) = 0;
+    virtual void SetCursorPosition( const VECTOR2D& aPosition, bool aWarpView = true, bool aTriggeredByArrows = false ) = 0;
 
 
     /**
@@ -370,6 +385,9 @@ public:
 protected:
     ///> Pointer to controlled VIEW.
     VIEW* m_view;
+
+    ///> Application warped the cursor, not the user (keyboard)
+    bool m_cursorWarped;
 
     ///> Current VIEW_CONTROLS settings
     VC_SETTINGS m_settings;

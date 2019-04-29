@@ -23,9 +23,12 @@
 #include <class_board.h>
 #include <board_connected_item.h>
 #include <class_module.h>
+#include <class_text_mod.h>
+#include <class_edge_mod.h>
 #include <class_track.h>
 #include <class_zone.h>
 #include <class_drawsegment.h>
+#include <class_pcb_text.h>
 #include <board_commit.h>
 #include <layers_id_colors_and_visibility.h>
 #include <geometry/convex_hull.h>
@@ -151,7 +154,7 @@ PNS_PCBNEW_RULE_RESOLVER::PNS_PCBNEW_RULE_RESOLVER( BOARD* aBoard, PNS::ROUTER* 
     {
         m_defaultClearance = defaultRule->GetClearance();
     }
-    else 
+    else
     {
         m_defaultClearance = Millimeter2iu(0.254);
     }
@@ -708,7 +711,7 @@ std::unique_ptr<PNS::SOLID> PNS_KICAD_IFACE::syncPad( D_PAD* aPad )
             case PAD_SHAPE_ROUNDRECT:
             {
                 SHAPE_POLY_SET outline;
-                const int segmentToCircleCount = 32;
+                const int segmentToCircleCount = ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF;
                 aPad->BuildPadShapePolygon( outline, wxSize( 0, 0 ),
                                             segmentToCircleCount, 1.0 );
 
@@ -791,8 +794,9 @@ bool PNS_KICAD_IFACE::syncZone( PNS::NODE* aWorld, ZONE_CONTAINER* aZone )
                 aZone->GetPosition().x, aZone->GetPosition().y ), KIDIALOG::KD_WARNING );
         dlg.ShowDetailedText(
             wxString::Format( _( "%s\nThis zone cannot be handled by the track layout tool.\n"
-                "Please verify it is not a self-intersecting polygon." ), aZone->GetSelectMenuText() ) );
-        dlg.DoNotShowCheckbox();
+                                 "Please verify it is not a self-intersecting polygon." ),
+                              aZone->GetSelectMenuText( MILLIMETRES ) ) );
+        dlg.DoNotShowCheckbox( __FILE__, __LINE__ );
         dlg.ShowModal();
 
         return false;
@@ -809,7 +813,7 @@ bool PNS_KICAD_IFACE::syncZone( PNS::NODE* aWorld, ZONE_CONTAINER* aZone )
         {
             auto tri = poly.TriangulatedPolygon( outline );
 
-            for( size_t i = 0; i < tri->GetTriangleCount(); i++ )
+            for( size_t i = 0; i < tri->GetTriangleCount(); i++)
             {
                 VECTOR2I a, b, c;
                 tri->GetTriangle( i, a, b, c );
@@ -835,63 +839,141 @@ bool PNS_KICAD_IFACE::syncZone( PNS::NODE* aWorld, ZONE_CONTAINER* aZone )
     return true;
 }
 
+
+bool PNS_KICAD_IFACE::syncTextItem( PNS::NODE* aWorld, EDA_TEXT* aText, PCB_LAYER_ID aLayer )
+{
+    if( !IsCopperLayer( aLayer ) )
+        return false;
+
+    int textWidth = aText->GetThickness();
+    std::vector<wxPoint> textShape;
+
+    aText->TransformTextShapeToSegmentList( textShape );
+
+    if( textShape.size() < 2 )
+        return false;
+
+    for( size_t jj = 0; jj < textShape.size(); jj += 2 )
+    {
+        VECTOR2I start( textShape[jj] );
+        VECTOR2I end( textShape[jj+1] );
+        std::unique_ptr< PNS::SOLID > solid( new PNS::SOLID );
+
+        solid->SetLayer( aLayer );
+        solid->SetNet( -1 );
+        solid->SetParent( nullptr );
+        solid->SetShape( new SHAPE_SEGMENT( start, end, textWidth ) );
+        solid->SetRoutable( false );
+
+        aWorld->Add( std::move( solid ) );
+    }
+
+    return true;
+
+    /* A coarser (but faster) method:
+     *
+    SHAPE_POLY_SET outline;
+    SHAPE_SIMPLE* shape = new SHAPE_SIMPLE();
+
+    aText->TransformBoundingBoxWithClearanceToPolygon( &outline, 0 );
+
+    for( auto iter = outline.CIterate( 0 ); iter; iter++ )
+        shape->Append( *iter );
+
+    solid->SetShape( shape );
+
+    solid->SetLayer( aLayer );
+    solid->SetNet( -1 );
+    solid->SetParent( nullptr );
+    solid->SetRoutable( false );
+    aWorld->Add( std::move( solid ) );
+    return true;
+     */
+}
+
+
 bool PNS_KICAD_IFACE::syncGraphicalItem( PNS::NODE* aWorld, DRAWSEGMENT* aItem )
 {
     std::vector<SHAPE_SEGMENT*> segs;
 
-    if( aItem->GetLayer() != Edge_Cuts )
+    if( aItem->GetLayer() != Edge_Cuts && !IsCopperLayer( aItem->GetLayer() ) )
         return false;
 
     switch( aItem->GetShape() )
     {
-        case S_ARC:
+    case S_ARC:
+    {
+        SHAPE_ARC arc( aItem->GetCenter(), aItem->GetArcStart(), aItem->GetAngle() / 10.0 );
+        auto l = arc.ConvertToPolyline();
+
+        for( int i = 0; i < l.SegmentCount(); i++ )
         {
-            SHAPE_ARC arc( aItem->GetCenter(), aItem->GetArcStart(), (double) aItem->GetAngle() / 10.0 );
-
-            auto l = arc.ConvertToPolyline();
-
-            for( int i = 0; i < l.SegmentCount(); i++ )
-            {
-                SHAPE_SEGMENT *seg = new SHAPE_SEGMENT( l.CSegment(i), aItem->GetWidth() );
-                segs.push_back( seg );
-            }
-
-            break;
-        }
-
-        case S_SEGMENT:
-        {
-            SHAPE_SEGMENT *seg = new SHAPE_SEGMENT( aItem->GetStart(), aItem->GetEnd(), aItem->GetWidth() );
+            SHAPE_SEGMENT* seg = new SHAPE_SEGMENT( l.CSegment( i ), aItem->GetWidth() );
             segs.push_back( seg );
-
-            break;
         }
 
-        case S_CIRCLE:
+        break;
+    }
+
+    case S_SEGMENT:
+        segs.push_back(
+                new SHAPE_SEGMENT( aItem->GetStart(), aItem->GetEnd(), aItem->GetWidth() ) );
+
+        break;
+
+    case S_CIRCLE:
+    {
+        // SHAPE_CIRCLE has no ConvertToPolyline() method, so use a 360.0 SHAPE_ARC
+        SHAPE_ARC circle( aItem->GetCenter(), aItem->GetEnd(), 360.0 );
+        auto l = circle.ConvertToPolyline();
+
+        for( int i = 0; i < l.SegmentCount(); i++ )
+            segs.push_back( new SHAPE_SEGMENT( l.CSegment( i ), aItem->GetWidth() ) );
+
+        break;
+    }
+
+    case S_CURVE:
+    {
+        aItem->RebuildBezierToSegmentsPointsList( aItem->GetWidth() );
+        auto pts = aItem->GetBezierPoints();
+
+        for( size_t ii = 1; ii < pts.size(); ii++ )
         {
-            // SHAPE_CIRCLE has no ConvertToPolyline() method, so use a 360.0 SHAPE_ARC
-            SHAPE_ARC circle( aItem->GetCenter(), aItem->GetEnd(), 360.0 );
+            segs.push_back( new SHAPE_SEGMENT(
+                    VECTOR2I( pts[ii - 1] ), VECTOR2I( pts[ii] ), aItem->GetWidth() ) );
+        }
+        break;
+    }
 
-            auto l = circle.ConvertToPolyline();
-
-            for( int i = 0; i < l.SegmentCount(); i++ )
+    case S_POLYGON:
+        if( !aItem->IsPolygonFilled() )
+        {
+            auto poly = aItem->BuildPolyPointsList();
+            for( size_t ii = 1; ii < poly.size(); ii++ )
             {
-                SHAPE_SEGMENT *seg = new SHAPE_SEGMENT( l.CSegment(i), aItem->GetWidth() );
-                segs.push_back( seg );
+                segs.push_back( new SHAPE_SEGMENT(
+                        VECTOR2I( poly[ii - 1] ), VECTOR2I( poly[ii] ), aItem->GetWidth() ) );
             }
 
-            break;
+            segs.push_back( new SHAPE_SEGMENT(
+                    VECTOR2I( poly.back() ), VECTOR2I( poly.front() ), aItem->GetWidth() ) );
         }
+        break;
 
-        default:
-            break;
+    default:
+        break;
     }
 
     for( auto seg : segs )
     {
         std::unique_ptr< PNS::SOLID > solid( new PNS::SOLID );
 
-        solid->SetLayers( LAYER_RANGE( F_Cu, B_Cu ) );
+        if( aItem->GetLayer() == Edge_Cuts )
+            solid->SetLayers( LAYER_RANGE( F_Cu, B_Cu ) );
+        else
+            solid->SetLayer( aItem->GetLayer() );
+
         solid->SetNet( -1 );
         solid->SetParent( nullptr );
         solid->SetShape( seg );
@@ -926,6 +1008,10 @@ void PNS_KICAD_IFACE::SyncWorld( PNS::NODE *aWorld )
         {
             syncGraphicalItem( aWorld, static_cast<DRAWSEGMENT*>( gitem ) );
         }
+        else if( gitem->Type() == PCB_TEXT_T )
+        {
+            syncTextItem( aWorld, static_cast<TEXTE_PCB*>( gitem ), gitem->GetLayer() );
+        }
     }
 
     for( auto zone : m_board->Zones() )
@@ -937,13 +1023,28 @@ void PNS_KICAD_IFACE::SyncWorld( PNS::NODE *aWorld )
     {
         for( auto pad : module->Pads() )
         {
-            std::unique_ptr< PNS::SOLID > solid = syncPad( pad );
-
-            if( solid )
+            if( auto solid = syncPad( pad ) )
                 aWorld->Add( std::move( solid ) );
 
-
             worstPadClearance = std::max( worstPadClearance, pad->GetLocalClearance() );
+        }
+
+        syncTextItem( aWorld, &module->Reference(), module->Reference().GetLayer() );
+        syncTextItem( aWorld, &module->Value(), module->Value().GetLayer() );
+
+        if( module->IsNetTie() )
+            continue;
+
+        for( auto mgitem : module->GraphicalItems() )
+        {
+            if( mgitem->Type() == PCB_MODULE_EDGE_T )
+            {
+                syncGraphicalItem( aWorld, static_cast<DRAWSEGMENT*>( mgitem ) );
+            }
+            else if( mgitem->Type() == PCB_MODULE_TEXT_T )
+            {
+                syncTextItem( aWorld, dynamic_cast<TEXTE_MODULE*>( mgitem ), mgitem->GetLayer() );
+            }
         }
     }
 
@@ -951,16 +1052,15 @@ void PNS_KICAD_IFACE::SyncWorld( PNS::NODE *aWorld )
     {
         KICAD_T type = t->Type();
 
-        if( type == PCB_TRACE_T ) {
-            std::unique_ptr< PNS::SEGMENT > segment = syncTrack( t );
-            if( segment ) {
+        if( type == PCB_TRACE_T )
+        {
+            if( auto segment = syncTrack( t ) )
                 aWorld->Add( std::move( segment ) );
-            }
-        } else if( type == PCB_VIA_T ) {
-            std::unique_ptr< PNS::VIA > via = syncVia( static_cast<VIA*>( t ) );
-            if( via ) {
+        }
+        else if( type == PCB_VIA_T )
+        {
+            if( auto via = syncVia( static_cast<VIA*>( t ) ) )
                 aWorld->Add( std::move( via ) );
-            }
         }
     }
 
@@ -992,7 +1092,7 @@ void PNS_KICAD_IFACE::EraseView()
 }
 
 
-void PNS_KICAD_IFACE::DisplayItem( const PNS::ITEM* aItem, int aColor, int aClearance )
+void PNS_KICAD_IFACE::DisplayItem( const PNS::ITEM* aItem, int aColor, int aClearance, bool aEdit )
 {
     wxLogTrace( "PNS", "DisplayItem %p", aItem );
 
@@ -1007,10 +1107,28 @@ void PNS_KICAD_IFACE::DisplayItem( const PNS::ITEM* aItem, int aColor, int aClea
 
         if( m_dispOptions )
         {
-            auto clearanceDisp = m_dispOptions->m_ShowTrackClearanceMode;
-            pitem->ShowTrackClearance( clearanceDisp != PCB_DISPLAY_OPTIONS::DO_NOT_SHOW_CLEARANCE );
-            pitem->ShowViaClearance( clearanceDisp != PCB_DISPLAY_OPTIONS::DO_NOT_SHOW_CLEARANCE
-                    && clearanceDisp != PCB_DISPLAY_OPTIONS::SHOW_CLEARANCE_NEW_TRACKS );
+            switch( m_dispOptions->m_ShowTrackClearanceMode )
+            {
+            case PCB_DISPLAY_OPTIONS::DO_NOT_SHOW_CLEARANCE:
+                pitem->ShowTrackClearance( false );
+                pitem->ShowViaClearance( false );
+                break;
+            case PCB_DISPLAY_OPTIONS::SHOW_CLEARANCE_ALWAYS:
+            case PCB_DISPLAY_OPTIONS::SHOW_CLEARANCE_NEW_AND_EDITED_TRACKS_AND_VIA_AREAS:
+                pitem->ShowTrackClearance( true );
+                pitem->ShowViaClearance( true );
+                break;
+
+            case PCB_DISPLAY_OPTIONS::SHOW_CLEARANCE_NEW_TRACKS_AND_VIA_AREAS:
+                pitem->ShowTrackClearance( !aEdit );
+                pitem->ShowViaClearance( !aEdit );
+                break;
+
+            case PCB_DISPLAY_OPTIONS::SHOW_CLEARANCE_NEW_TRACKS:
+                pitem->ShowTrackClearance( !aEdit );
+                pitem->ShowViaClearance( false );
+                break;
+            }
         }
     }
 

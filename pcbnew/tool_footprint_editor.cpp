@@ -22,7 +22,7 @@
 
 /**
  * @file tool_footprint_editor.cpp
- * @brief Footprint editor tool bars
+ * @brief methods to build Footprint Editor toolbars
  */
 
 #include <fctsys.h>
@@ -37,6 +37,13 @@
 
 void FOOTPRINT_EDIT_FRAME::ReCreateHToolbar()
 {
+    // Note:
+    // To rebuild the aui toolbar, the more easy way is to clear ( calling m_mainToolBar.Clear() )
+    // all wxAuiToolBarItems.
+    // However the wxAuiToolBarItems are not the owners of controls managed by
+    // them ( m_zoomSelectBox and m_gridSelectBox ), and therefore do not delete them
+    // So we do not recreate them after clearing the tools.
+
     if( m_mainToolBar )
         m_mainToolBar->Clear();
     else
@@ -46,26 +53,8 @@ void FOOTPRINT_EDIT_FRAME::ReCreateHToolbar()
     wxString msg;
 
     // Set up toolbar
-    m_mainToolBar->AddTool( ID_MODEDIT_SELECT_CURRENT_LIB, wxEmptyString,
-                            KiScaledBitmap( open_library_xpm, this ),
-                            _( "Select active library" ) );
-
-    m_mainToolBar->AddTool( ID_MODEDIT_SAVE_LIBMODULE, wxEmptyString, KiScaledBitmap( save_library_xpm, this ),
-                            _( "Save footprint in active library" ) );
-
-    m_mainToolBar->AddTool( ID_MODEDIT_CREATE_NEW_LIB_AND_SAVE_CURRENT_PART, wxEmptyString,
-                            KiScaledBitmap( new_library_xpm, this ),
-                            _( "Create new library and save current footprint" ) );
-
-    m_mainToolBar->AddTool( ID_OPEN_MODULE_VIEWER, wxEmptyString, KiScaledBitmap( modview_icon_xpm, this ),
-                            _( "Open footprint viewer" ) );
-
-    KiScaledSeparator( m_mainToolBar, this );
-    m_mainToolBar->AddTool( ID_MODEDIT_DELETE_PART, wxEmptyString, KiScaledBitmap( delete_xpm, this ),
-                            _( "Delete part from active library" ) );
-
-    KiScaledSeparator( m_mainToolBar, this );
-    m_mainToolBar->AddTool( ID_MODEDIT_NEW_MODULE, wxEmptyString, KiScaledBitmap( new_footprint_xpm, this ),
+    m_mainToolBar->AddTool( ID_MODEDIT_NEW_MODULE, wxEmptyString,
+                            KiScaledBitmap( new_footprint_xpm, this ),
                             _( "New footprint" ) );
 
 #ifdef KICAD_SCRIPTING
@@ -74,50 +63,25 @@ void FOOTPRINT_EDIT_FRAME::ReCreateHToolbar()
                             _( "New footprint using footprint wizard" ) );
 #endif
 
-
-    m_mainToolBar->AddTool( ID_MODEDIT_LOAD_MODULE, wxEmptyString,
-                            KiScaledBitmap( load_module_lib_xpm, this ),
-                            _( "Load footprint from library" ) );
-
-    KiScaledSeparator( m_mainToolBar, this );
-    m_mainToolBar->AddTool( ID_MODEDIT_LOAD_MODULE_FROM_BOARD, wxEmptyString,
-                            KiScaledBitmap( load_module_board_xpm, this ),
-                            _( "Load footprint from current board" ) );
-
-    m_mainToolBar->AddTool( ID_MODEDIT_UPDATE_MODULE_IN_BOARD, wxEmptyString,
-                            KiScaledBitmap( update_module_board_xpm, this ),
-                            _( "Update footprint into current board" ) );
-
-    m_mainToolBar->AddTool( ID_MODEDIT_INSERT_MODULE_IN_BOARD, wxEmptyString,
-                            KiScaledBitmap( insert_module_board_xpm, this ),
-                            _( "Insert footprint into current board" ) );
+    m_mainToolBar->AddTool( ID_MODEDIT_SAVE, wxEmptyString,
+                            KiScaledBitmap( IsCurrentFPFromBoard() ? save_fp_to_board_xpm : save_xpm,
+                                            this ),
+                            IsCurrentFPFromBoard() ?
+                                _( "Save changes to board" ) : _( "Save changes to library" ) );
 
     KiScaledSeparator( m_mainToolBar, this );
-    m_mainToolBar->AddTool( ID_MODEDIT_IMPORT_PART, wxEmptyString, KiScaledBitmap( import_module_xpm, this ),
-                            _( "Import footprint" ) );
-
-    m_mainToolBar->AddTool( ID_MODEDIT_EXPORT_PART, wxEmptyString, KiScaledBitmap( export_module_xpm, this ),
-                            _( "Export footprint" ) );
-
+    m_mainToolBar->AddTool( wxID_PRINT, wxEmptyString,
+                            KiScaledBitmap( print_button_xpm, this ),
+                            _( "Print footprint" ) );
 
     KiScaledSeparator( m_mainToolBar, this );
     m_mainToolBar->AddTool( wxID_UNDO, wxEmptyString, KiScaledBitmap( undo_xpm, this ),
-                            _( "Undo last edition" ) );
+                            _( "Undo last edit" ) );
     m_mainToolBar->AddTool( wxID_REDO, wxEmptyString, KiScaledBitmap( redo_xpm, this ),
                             _( "Redo last undo command" ) );
 
     KiScaledSeparator( m_mainToolBar, this );
-    m_mainToolBar->AddTool( ID_MODEDIT_EDIT_MODULE_PROPERTIES, wxEmptyString,
-                            KiScaledBitmap( module_options_xpm, this ),
-                            _( "Footprint properties" ) );
-
-    KiScaledSeparator( m_mainToolBar, this );
-    m_mainToolBar->AddTool( wxID_PRINT, wxEmptyString, KiScaledBitmap( print_button_xpm, this ),
-                            _( "Print footprint" ) );
-
-    KiScaledSeparator( m_mainToolBar, this );
-    msg = AddHotkeyName( _( "Redraw view" ), g_Module_Editor_Hotkeys_Descr, HK_ZOOM_REDRAW,
-                         IS_COMMENT );
+    msg = AddHotkeyName( _( "Redraw view" ), g_Module_Editor_Hotkeys_Descr, HK_ZOOM_REDRAW, IS_COMMENT );
     m_mainToolBar->AddTool( ID_ZOOM_REDRAW, wxEmptyString, KiScaledBitmap( zoom_redraw_xpm, this ), msg );
 
     msg = AddHotkeyName( _( "Zoom in" ), g_Module_Editor_Hotkeys_Descr, HK_ZOOM_IN, IS_COMMENT );
@@ -133,8 +97,22 @@ void FOOTPRINT_EDIT_FRAME::ReCreateHToolbar()
                             _( "Zoom to selection" ), wxITEM_CHECK );
 
     KiScaledSeparator( m_mainToolBar, this );
-    m_mainToolBar->AddTool( ID_MODEDIT_PAD_SETTINGS, wxEmptyString, KiScaledBitmap( options_pad_xpm, this ),
-                            _( "Pad properties" ) );
+    m_mainToolBar->AddTool( ID_MODEDIT_EDIT_MODULE_PROPERTIES, wxEmptyString,
+                            KiScaledBitmap( module_options_xpm, this ),
+                            _( "Footprint properties" ) );
+
+    m_mainToolBar->AddTool( ID_MODEDIT_PAD_SETTINGS, wxEmptyString,
+                            KiScaledBitmap( options_pad_xpm, this ),
+                            _( "Default pad properties" ) );
+
+    KiScaledSeparator( m_mainToolBar, this );
+    m_mainToolBar->AddTool( ID_MODEDIT_LOAD_MODULE_FROM_BOARD, wxEmptyString,
+                            KiScaledBitmap( load_module_board_xpm, this ),
+                            _( "Load footprint from current board" ) );
+
+    m_mainToolBar->AddTool( ID_MODEDIT_INSERT_MODULE_IN_BOARD, wxEmptyString,
+                            KiScaledBitmap( insert_module_board_xpm, this ),
+                            _( "Insert footprint into current board" ) );
 
 #if 0       // Currently there is no check footprint function defined, so do not show this tool
     KiScaledSeparator( m_mainToolBar, this );
@@ -142,6 +120,26 @@ void FOOTPRINT_EDIT_FRAME::ReCreateHToolbar()
                             KiScaledBitmap( module_check_xpm, this ),
                             _( "Check footprint" ) );
 #endif
+
+    KiScaledSeparator( m_mainToolBar, this );
+
+    // Grid selection choice box.
+    if( m_gridSelectBox == nullptr )
+        m_gridSelectBox = new wxChoice( m_mainToolBar, ID_ON_GRID_SELECT,
+                                    wxDefaultPosition, wxDefaultSize, 0, NULL );
+
+    UpdateGridSelectBox();
+    m_mainToolBar->AddControl( m_gridSelectBox );
+
+    KiScaledSeparator( m_mainToolBar, this );
+
+    // Zoom selection choice box.
+    if( m_zoomSelectBox == nullptr )
+        m_zoomSelectBox = new wxChoice( m_mainToolBar, ID_ON_ZOOM_SELECT,
+                                    wxDefaultPosition, wxDefaultSize, 0, NULL );
+
+    updateZoomSelectBox();
+    m_mainToolBar->AddControl( m_zoomSelectBox );
 
     // after adding the buttons to the toolbar, must call Realize() to reflect the changes
     m_mainToolBar->Realize();
@@ -158,7 +156,7 @@ void FOOTPRINT_EDIT_FRAME::ReCreateVToolbar()
 
     // Set up toolbar
     m_drawToolBar->AddTool( ID_NO_TOOL_SELECTED, wxEmptyString, KiScaledBitmap( cursor_xpm, this ),
-                            wxEmptyString, wxITEM_CHECK );
+                            _( "Select item" ), wxITEM_CHECK );
 
     KiScaledSeparator( m_drawToolBar, this );
     m_drawToolBar->AddTool( ID_MODEDIT_PAD_TOOL, wxEmptyString, KiScaledBitmap( pad_xpm, this ),
@@ -211,7 +209,8 @@ void FOOTPRINT_EDIT_FRAME::ReCreateOptToolbar()
         m_optionsToolBar = new wxAuiToolBar( this, ID_OPT_TOOLBAR, wxDefaultPosition, wxDefaultSize,
                                              KICAD_AUI_TB_STYLE | wxAUI_TB_VERTICAL );
 
-    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_GRID, wxEmptyString, KiScaledBitmap( grid_xpm, this ),
+    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_GRID, wxEmptyString,
+                               KiScaledBitmap( grid_xpm, this ),
                                _( "Hide grid" ), wxITEM_CHECK );
 
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_POLAR_COORD, wxEmptyString,
@@ -226,16 +225,9 @@ void FOOTPRINT_EDIT_FRAME::ReCreateOptToolbar()
                                KiScaledBitmap( unit_mm_xpm, this ),
                                _( "Set units to millimeters" ), wxITEM_CHECK );
 
-#ifndef __APPLE__
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_CURSOR, wxEmptyString,
                                KiScaledBitmap( cursor_shape_xpm, this ),
                                _( "Change cursor shape" ), wxITEM_CHECK  );
-#else
-    m_optionsToolBar->AddTool( ID_TB_OPTIONS_SELECT_CURSOR, wxEmptyString,
-                               KiScaledBitmap( cursor_shape_xpm, this ),
-                               _( "Change cursor shape (not supported in Legacy Toolset)" ),
-                               wxITEM_CHECK  );
-#endif
 
     KiScaledSeparator( m_optionsToolBar, this );
     m_optionsToolBar->AddTool( ID_TB_OPTIONS_SHOW_PADS_SKETCH, wxEmptyString,
@@ -255,39 +247,12 @@ void FOOTPRINT_EDIT_FRAME::ReCreateOptToolbar()
                                _( "Enable high contrast display mode" ),
                                wxITEM_CHECK );
 
+    KiScaledSeparator( m_optionsToolBar, this );
+    m_optionsToolBar->AddTool( ID_MODEDIT_SHOW_HIDE_SEARCH_TREE, wxEmptyString,
+                               KiScaledBitmap( search_tree_xpm, this ),
+                               _( "Toggles the search tree" ), wxITEM_CHECK );
+
     m_optionsToolBar->Realize();
 }
 
 
-void FOOTPRINT_EDIT_FRAME::ReCreateAuxiliaryToolbar()
-{
-    if( m_auxiliaryToolBar )
-        m_auxiliaryToolBar->Clear();
-    else
-        m_auxiliaryToolBar = new wxAuiToolBar( this, ID_AUX_TOOLBAR, wxDefaultPosition, wxDefaultSize,
-                                               KICAD_AUI_TB_STYLE | wxAUI_TB_HORZ_LAYOUT );
-
-    // Set up toolbar
-    KiScaledSeparator( m_auxiliaryToolBar, this );
-
-    // Grid selection choice box.
-    m_gridSelectBox = new wxChoice( m_auxiliaryToolBar,
-                                      ID_ON_GRID_SELECT,
-                                      wxDefaultPosition, wxDefaultSize,
-                                      0, NULL );
-    // Update tool bar to reflect setting.
-    updateGridSelectBox();
-    m_auxiliaryToolBar->AddControl( m_gridSelectBox );
-
-    // Zoom selection choice box.
-    KiScaledSeparator( m_auxiliaryToolBar, this );
-    m_zoomSelectBox = new wxChoice( m_auxiliaryToolBar,
-                                      ID_ON_ZOOM_SELECT,
-                                      wxDefaultPosition, wxDefaultSize,
-                                      0, NULL );
-    updateZoomSelectBox();
-    m_auxiliaryToolBar->AddControl( m_zoomSelectBox );
-
-    // after adding the buttons to the toolbar, must call Realize() to reflect the changes
-    m_auxiliaryToolBar->Realize();
-}

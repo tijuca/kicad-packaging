@@ -71,7 +71,6 @@ class BOARD_ITEM : public EDA_ITEM
 protected:
     PCB_LAYER_ID    m_Layer;
 
-    static int getTrailingInt( const wxString& aStr );
     static int getNextNumberInSequence( const std::set<int>& aSeq, bool aFillSequenceGaps );
 
 public:
@@ -156,7 +155,7 @@ public:
      * Swap data between aItem and aImage.
      * aItem and aImage should have the same type
      * Used in undo redo command to swap values between an item and its copy
-     * Only values like layer, size .. which are modified by edition are swapped,
+     * Only values like layer, size .. which are modified by editing are swapped,
      * not the pointers like
      * Pnext and Pback because aItem is not changed in the linked list
      * @param aImage = the item image which contains data to swap
@@ -308,40 +307,27 @@ public:
     }
 
 
-    /**
-     * Function FormatInternalUnits
-     * converts \a aValue from board internal units to a string appropriate for writing to file.
-     *
-     * @note Internal units for board items can be either deci-mils or nanometers depending
-     *       on how KiCad is build.
-     * @param aValue A coordinate value to convert.
-     * @return A std::string object containing the converted value.
-     */
-    static std::string FormatInternalUnits( int aValue );
-
-    /**
-     * Function FormatAngle
-     * converts \a aAngle from board units to a string appropriate for writing to file.
-     *
-     * @note Internal angles for board items can be either degrees or tenths of degree
-     *       on how KiCad is built.
-     * @param aAngle A angle value to convert.
-     * @return A std::string object containing the converted angle.
-     */
-    static std::string FormatAngle( double aAngle );
-
-    static std::string FormatInternalUnits( const wxPoint& aPoint );
-
-    static std::string FormatInternalUnits( const VECTOR2I& aPoint );
-
-    static std::string FormatInternalUnits( const wxSize& aSize );
-
     virtual void ViewGetLayers( int aLayers[], int& aCount ) const override;
 
+    /**
+     * Function TransformShapeWithClearanceToPolygon
+     * Convert the item shape to a closed polygon
+     * Used in filling zones calculations
+     * Circles and arcs are approximated by segments
+     * @param aCornerBuffer = a buffer to store the polygon
+     * @param aClearanceValue = the clearance around the pad
+     * @param aCircleToSegmentsCount = the number of segments to approximate a circle
+     * @param aCorrectionFactor = the correction to apply to circles radius to keep
+     * clearance when the circle is approximated by segment bigger or equal
+     * to the real clearance value (usually near from 1.0)
+     * @param ignoreLineWidth = used for edge cut items where the line width is only
+     * for visualization
+     */
     virtual void TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
                                                int aClearanceValue,
                                                int aCircleToSegmentsCount,
-                                               double aCorrectionFactor ) const;
+                                               double aCorrectionFactor,
+                                               bool ignoreLineWidth = false ) const;
 };
 
 #endif /* BOARD_ITEM_STRUCT_H */

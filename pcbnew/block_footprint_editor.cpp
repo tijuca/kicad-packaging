@@ -187,26 +187,31 @@ bool FOOTPRINT_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
 
         if( itemsCount )
         {
-            MOVE_PARAMETERS params;
-            params.allowOverride = false;
+            wxPoint         translation;
+            double          rotation;
+            ROTATION_ANCHOR rotationAnchor = ROTATE_AROUND_SEL_CENTER;
 
-            DIALOG_MOVE_EXACT dialog( this, params );
+            DIALOG_MOVE_EXACT dialog( this, translation, rotation, rotationAnchor );
 
-            int ret = dialog.ShowModal();
-
-            if( ret == wxID_OK )
+            if( dialog.ShowModal() == wxID_OK )
             {
                 SaveCopyInUndoList( currentModule, UR_CHANGED );
                 wxPoint blockCentre = GetScreen()->m_BlockLocate.Centre();
+                blockCentre += translation;
 
-                if( params.origin == RELATIVE_TO_CURRENT_POSITION )
+                switch( rotationAnchor )
                 {
-                    blockCentre = wxPoint( 0, 0 );
+                case ROTATE_AROUND_SEL_CENTER:
+                    MoveMarkedItemsExactly( currentModule, blockCentre, translation, rotation );
+                    break;
+                case ROTATE_AROUND_USER_ORIGIN:
+                    MoveMarkedItemsExactly( currentModule, GetScreen()->m_O_Curseur, translation, rotation );
+                    break;
+                default:
+                    wxFAIL_MSG( "Rotation choice shouldn't have been available in this context." );
                 }
 
-                wxPoint finalMoveVector = params.translation - blockCentre;
-
-                MoveMarkedItemsExactly( currentModule, blockCentre, finalMoveVector, params.rotation );
+                OnModify();
             }
         }
         break;
@@ -224,6 +229,7 @@ bool FOOTPRINT_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
             SaveCopyInUndoList( currentModule, UR_CHANGED );
 
         DeleteMarkedItems( currentModule );
+        OnModify();
         break;
 
     case BLOCK_COPY:     // Copy
@@ -238,6 +244,7 @@ bool FOOTPRINT_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
             SaveCopyInUndoList( currentModule, UR_CHANGED );
 
         RotateMarkedItems( currentModule, GetScreen()->m_BlockLocate.Centre() );
+        OnModify();
         break;
 
     case BLOCK_MIRROR_X:
@@ -249,6 +256,7 @@ bool FOOTPRINT_EDIT_FRAME::HandleBlockEnd( wxDC* DC )
             SaveCopyInUndoList( currentModule, UR_CHANGED );
 
         MirrorMarkedItems( currentModule, GetScreen()->m_BlockLocate.Centre() );
+        OnModify();
         break;
 
     case BLOCK_ZOOM:     // Window Zoom
@@ -530,10 +538,11 @@ void MoveMarkedItems( MODULE* module, wxPoint offset )
         case PCB_MODULE_EDGE_T:
         {
             EDGE_MODULE* em = (EDGE_MODULE*) item;
-            em->SetStart( em->GetStart() + offset );
-            em->SetEnd( em->GetEnd() + offset );
+            em->Move( offset );
             em->SetStart0( em->GetStart0() + offset );
             em->SetEnd0( em->GetEnd0() + offset );
+            em->SetBezier0_C1( em->GetBezier0_C1() + offset );
+            em->SetBezier0_C2( em->GetBezier0_C2() + offset );
         }
         break;
 

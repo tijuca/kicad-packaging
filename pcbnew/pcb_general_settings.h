@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
- * Copyright (C) 2012-2017 Kicad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012-2019 Kicad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,6 +25,7 @@
 #define __PCBNEW_GENERAL_SETTINGS_H
 
 #include <colors_design_settings.h>
+#include <vector>
 
 class wxConfigBase;
 class wxString;
@@ -64,6 +65,11 @@ public:
 
     MAGNETIC_PAD_OPTION_VALUES  m_magneticPads  = CAPTURE_CURSOR_IN_TRACK_TOOL;
     MAGNETIC_PAD_OPTION_VALUES  m_magneticTracks = CAPTURE_CURSOR_IN_TRACK_TOOL;
+    bool                        m_magneticGraphics = true;
+
+#if defined(KICAD_SCRIPTING) && defined(KICAD_SCRIPTING_ACTION_MENU)
+    std::vector< std::pair<wxString, wxString> > m_pluginSettings;  // Settings for action plugins
+#endif
 
 protected:
     const FRAME_T m_frameType;

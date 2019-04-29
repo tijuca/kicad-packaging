@@ -53,7 +53,7 @@ public:
     void SyncWorld( PNS::NODE* aWorld ) override;
     void EraseView() override;
     void HideItem( PNS::ITEM* aItem ) override;
-    void DisplayItem( const PNS::ITEM* aItem, int aColor = 0, int aClearance = 0 ) override;
+    void DisplayItem( const PNS::ITEM* aItem, int aColor = 0, int aClearance = 0, bool aEdit = false ) override;
     void AddItem( PNS::ITEM* aItem ) override;
     void RemoveItem( PNS::ITEM* aItem ) override;
     void Commit() override;
@@ -70,6 +70,7 @@ private:
     std::unique_ptr<PNS::SOLID> syncPad( D_PAD* aPad );
     std::unique_ptr<PNS::SEGMENT> syncTrack( TRACK* aTrack );
     std::unique_ptr<PNS::VIA> syncVia( VIA* aVia );
+    bool syncTextItem( PNS::NODE* aWorld, EDA_TEXT* aText, PCB_LAYER_ID aLayer );
     bool syncGraphicalItem( PNS::NODE* aWorld, DRAWSEGMENT* aItem );
     bool syncZone( PNS::NODE* aWorld, ZONE_CONTAINER* aZone );
 

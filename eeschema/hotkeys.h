@@ -43,12 +43,14 @@ enum hotkey_id_commnand {
     HK_LIBEDIT_MOVE_GRAPHIC_ITEM,
     HK_MOVEBLOCK_TO_DRAGBLOCK,
     HK_LIBEDIT_CREATE_PIN,
+    HK_LIBEDIT_VIEW_DOC,
     HK_DELETE_PIN,
     HK_ROTATE,
     HK_EDIT,
     HK_EDIT_COMPONENT_VALUE,
     HK_EDIT_COMPONENT_REFERENCE,
     HK_EDIT_COMPONENT_FOOTPRINT,
+    HK_SHOW_COMPONENT_DATASHEET,
     HK_EDIT_COMPONENT_WITH_LIBEDIT,
     HK_MIRROR_X,
     HK_MIRROR_Y,
@@ -71,26 +73,27 @@ enum hotkey_id_commnand {
     HK_ADD_GRAPHIC_TEXT,
     HK_ADD_GRAPHIC_POLYLINE,
     HK_ADD_NOCONN_FLAG,
-    HK_SAVE_ALL_LIBS,
     HK_LEFT_CLICK,
     HK_LEFT_DCLICK,
     HK_LEAVE_SHEET,
     HK_DELETE_NODE,
     HK_AUTOPLACE_FIELDS,
     HK_UPDATE_PCB_FROM_SCH,
-    HK_SELECT_ITEMS_ON_PCB
+    HK_SELECT_ITEMS_ON_PCB,
+    HK_CANVAS_OPENGL,
+    HK_CANVAS_CAIRO,
 };
 
 // List of hotkey descriptors for Eeschema
-extern struct EDA_HOTKEY_CONFIG g_Eeschema_Hokeys_Descr[];
+extern struct EDA_HOTKEY_CONFIG g_Eeschema_Hotkeys_Descr[];
 
 // List of hotkey descriptors for the schematic editor only
-extern struct EDA_HOTKEY_CONFIG g_Schematic_Hokeys_Descr[];
+extern struct EDA_HOTKEY_CONFIG g_Schematic_Hotkeys_Descr[];
 
 // List of hotkey descriptors for the lib editor only
-extern struct EDA_HOTKEY_CONFIG g_Libedit_Hokeys_Descr[];
+extern struct EDA_HOTKEY_CONFIG g_Libedit_Hotkeys_Descr[];
 
 // List of hotkey descriptors for the lib browser only
-extern struct EDA_HOTKEY_CONFIG g_Viewlib_Hokeys_Descr[];
+extern struct EDA_HOTKEY_CONFIG g_Viewlib_Hotkeys_Descr[];
 
 #endif      // EESCHEMA_KOTKEYS_H_

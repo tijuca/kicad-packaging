@@ -28,6 +28,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include <sch_reference_list.h>
 
 #include <wx/regex.h>
 #include <algorithm>
@@ -35,11 +36,11 @@
 #include <unordered_set>
 
 #include <fctsys.h>
-#include <kicad_string.h>
-#include <sch_edit_frame.h>
-#include <sch_reference_list.h>
-#include <sch_component.h>
+#include <refdes_utils.h>
 #include <reporter.h>
+
+#include <sch_component.h>
+#include <sch_edit_frame.h>
 
 
 //#define USE_OLD_ALGO
@@ -113,7 +114,7 @@ bool SCH_REFERENCE_LIST::sortByReferenceOnly( const SCH_REFERENCE& item1,
 {
     int             ii;
 
-    ii = RefDesStringCompare( item1.GetRef(), item2.GetRef() );
+    ii = UTIL::RefDesStringCompare( item1.GetRef(), item2.GetRef() );
 
     if( ii == 0 )
     {
@@ -552,8 +553,8 @@ int SCH_REFERENCE_LIST::CheckAnnotation( REPORTER& aReporter )
               && ( componentFlatList[ii].m_Unit < 0x7FFFFFFF )  )
             {
                 msg.Printf( _( "Item not annotated: %s%s (unit %d)\n" ),
-                            GetChars( componentFlatList[ii].GetRef() ),
-                            GetChars( tmp ),
+                            componentFlatList[ii].GetRef(),
+                            tmp,
                             componentFlatList[ii].m_Unit );
             }
             else
@@ -580,8 +581,8 @@ int SCH_REFERENCE_LIST::CheckAnnotation( REPORTER& aReporter )
                 tmp = wxT( "?" );
 
             msg.Printf( _( "Error: symbol %s%s unit %d and symbol has only %d units defined\n" ),
-                        GetChars( componentFlatList[ii].GetRef() ),
-                        GetChars( tmp ),
+                        componentFlatList[ii].GetRef(),
+                        tmp,
                         componentFlatList[ii].m_Unit,
                         componentFlatList[ii].GetLibPart()->GetUnitCount() );
 
@@ -597,7 +598,7 @@ int SCH_REFERENCE_LIST::CheckAnnotation( REPORTER& aReporter )
     // count the duplicated elements (if all are annotated)
     int imax = componentFlatList.size() - 1;
 
-    for( int ii = 0; (ii < imax) && (error < 4); ii++ )
+    for( int ii = 0; ii < imax; ii++ )
     {
         msg.Empty();
         tmp.Empty();
@@ -618,15 +619,15 @@ int SCH_REFERENCE_LIST::CheckAnnotation( REPORTER& aReporter )
              && ( componentFlatList[ii].m_Unit < 0x7FFFFFFF ) )
             {
                 msg.Printf( _( "Multiple item %s%s (unit %d)\n" ),
-                            GetChars( componentFlatList[ii].GetRef() ),
-                            GetChars( tmp ),
+                            componentFlatList[ii].GetRef(),
+                            tmp,
                             componentFlatList[ii].m_Unit );
             }
             else
             {
                 msg.Printf( _( "Multiple item %s%s\n" ),
-                            GetChars( componentFlatList[ii].GetRef() ),
-                            GetChars( tmp ) );
+                            componentFlatList[ii].GetRef(),
+                            tmp );
             }
 
             aReporter.Report( msg, REPORTER::RPT_ERROR );
@@ -669,16 +670,14 @@ int SCH_REFERENCE_LIST::CheckAnnotation( REPORTER& aReporter )
         if( componentFlatList[ii].CompareValue( componentFlatList[next] ) != 0 )
         {
             msg.Printf( _( "Different values for %s%d%s (%s) and %s%d%s (%s)" ),
-                        GetChars( componentFlatList[ii].GetRef() ),
+                        componentFlatList[ii].GetRef(),
                         componentFlatList[ii].m_NumRef,
-                        GetChars( LIB_PART::SubReference(
-                                  componentFlatList[ii].m_Unit ) ),
-                        GetChars( componentFlatList[ii].m_Value->GetText() ),
-                        GetChars( componentFlatList[next].GetRef() ),
+                        LIB_PART::SubReference( componentFlatList[ii].m_Unit ),
+                        componentFlatList[ii].m_Value->GetText(),
+                        componentFlatList[next].GetRef(),
                         componentFlatList[next].m_NumRef,
-                        GetChars( LIB_PART::SubReference(
-                                  componentFlatList[next].m_Unit ) ),
-                        GetChars( componentFlatList[next].m_Value->GetText() ) );
+                        LIB_PART::SubReference( componentFlatList[next].m_Unit ),
+                        componentFlatList[next].m_Value->GetText() );
 
             aReporter.Report( msg, REPORTER::RPT_ERROR );
             error++;
@@ -688,7 +687,7 @@ int SCH_REFERENCE_LIST::CheckAnnotation( REPORTER& aReporter )
     // count the duplicated time stamps
     SortByTimeStamp();
 
-    for( int ii = 0; ( ii < imax ) && ( error < 4 ); ii++ )
+    for( int ii = 0; ii < imax; ii++ )
     {
         if(  ( componentFlatList[ii].m_TimeStamp != componentFlatList[ii + 1].m_TimeStamp )
           || ( componentFlatList[ii].GetSheetPath() != componentFlatList[ii + 1].GetSheetPath() )  )
@@ -702,9 +701,10 @@ int SCH_REFERENCE_LIST::CheckAnnotation( REPORTER& aReporter )
                           componentFlatList[ii].m_TimeStamp );
 
         msg.Printf( _( "Duplicate time stamp (%s) for %s%d and %s%d" ),
-                    GetChars( full_path ),
-                    GetChars( componentFlatList[ii].GetRef() ), componentFlatList[ii].m_NumRef,
-                    GetChars( componentFlatList[ii + 1].GetRef() ),
+                    full_path,
+                    componentFlatList[ii].GetRef(),
+                    componentFlatList[ii].m_NumRef,
+                    componentFlatList[ii + 1].GetRef(),
                     componentFlatList[ii + 1].m_NumRef );
 
         aReporter.Report( msg, REPORTER::RPT_WARNING );
@@ -718,10 +718,11 @@ int SCH_REFERENCE_LIST::CheckAnnotation( REPORTER& aReporter )
 SCH_REFERENCE::SCH_REFERENCE( SCH_COMPONENT* aComponent, LIB_PART* aLibPart,
                               SCH_SHEET_PATH& aSheetPath )
 {
-    wxASSERT( aComponent != NULL && aLibPart != NULL );
+    wxASSERT( aComponent != NULL );
 
     m_RootCmp   = aComponent;
-    m_Entry     = aLibPart;
+    m_Entry     = aLibPart;     // Warning: can be nullptr for orphan components
+                                // (i.e. with a symbol library not found)
     m_Unit      = aComponent->GetUnitSelection( &aSheetPath );
     m_SheetPath = aSheetPath;
     m_IsNew     = false;
@@ -815,47 +816,43 @@ void SCH_REFERENCE::Split()
 wxString SCH_REFERENCE_LIST::Shorthand( std::vector<SCH_REFERENCE> aList )
 {
     wxString retVal;
-
-    std::sort( aList.begin(), aList.end(),
-               []( const SCH_REFERENCE& lhs, const SCH_REFERENCE& rhs ) -> bool
-               {
-                   wxString lhRef( lhs.GetRef() << lhs.GetRefNumber() );
-                   wxString rhRef( rhs.GetRef() << rhs.GetRefNumber() );
-                   return RefDesStringCompare( lhRef, rhRef ) < 0;
-               } );
-
-    size_t i = 0;
+    size_t   i = 0;
 
     while( i < aList.size() )
     {
         wxString ref = aList[ i ].GetRef();
+        int numRef = aList[ i ].m_NumRef;
 
-        size_t j = i;
+        size_t range = 1;
 
-        while( j + 1 < aList.size() && aList[ j + 1 ].GetRef() == ref )
-            j = j + 1;
+        while( i + range < aList.size()
+               && aList[ i + range ].GetRef() == ref
+               && aList[ i + range ].m_NumRef == int( numRef + range ) )
+        {
+            range++;
+        }
 
         if( !retVal.IsEmpty() )
             retVal << wxT( ", " );
 
-        if( j == i )
+        if( range == 1 )
         {
             retVal << ref << aList[ i ].GetRefNumber();
         }
-        else if( j == i + 1 )
+        else if( range == 2 )
         {
             retVal << ref << aList[ i ].GetRefNumber();
             retVal << wxT( ", " );
-            retVal << ref << aList[ j ].GetRefNumber();
+            retVal << ref << aList[ i + 1 ].GetRefNumber();
         }
         else
         {
             retVal << ref << aList[ i ].GetRefNumber();
-            retVal << wxT( " - " );
-            retVal << ref << aList[ j ].GetRefNumber();
+            retVal << wxT( "-" );
+            retVal << ref << aList[ i + ( range - 1 ) ].GetRefNumber();
         }
 
-        i = j + 1;
+        i+= range;
     }
 
     return retVal;

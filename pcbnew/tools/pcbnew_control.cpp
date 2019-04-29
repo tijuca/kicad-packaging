@@ -48,7 +48,7 @@
 #include <pcbnew_id.h>
 #include <pcb_edit_frame.h>
 #include <pcb_draw_panel_gal.h>
-#include <connectivity_data.h>
+#include <connectivity/connectivity_data.h>
 #include <tool/tool_manager.h>
 #include <gal/graphics_abstraction_layer.h>
 #include <view/view_controls.h>
@@ -173,41 +173,6 @@ TOOL_ACTION PCB_ACTIONS::layerAlphaDec( "pcbnew.Control.layerAlphaDec",
 TOOL_ACTION PCB_ACTIONS::layerChanged( "pcbnew.Control.layerChanged",
         AS_GLOBAL, 0,
         "", "", NULL, AF_NOTIFY );
-
-// Cursor control
-TOOL_ACTION PCB_ACTIONS::cursorUp( "pcbnew.Control.cursorUp",
-        AS_GLOBAL, WXK_UP, "", "", NULL, AF_NONE, (void*) CURSOR_UP );
-TOOL_ACTION PCB_ACTIONS::cursorDown( "pcbnew.Control.cursorDown",
-        AS_GLOBAL, WXK_DOWN, "", "" , NULL, AF_NONE, (void*) CURSOR_DOWN );
-TOOL_ACTION PCB_ACTIONS::cursorLeft( "pcbnew.Control.cursorLeft",
-        AS_GLOBAL, WXK_LEFT, "", "" , NULL, AF_NONE, (void*) CURSOR_LEFT );
-TOOL_ACTION PCB_ACTIONS::cursorRight( "pcbnew.Control.cursorRight",
-        AS_GLOBAL, WXK_RIGHT, "", "" , NULL, AF_NONE, (void*) CURSOR_RIGHT );
-
-TOOL_ACTION PCB_ACTIONS::cursorUpFast( "pcbnew.Control.cursorUpFast",
-        AS_GLOBAL, MD_CTRL + WXK_UP, "", "", NULL, AF_NONE, (void*) ( CURSOR_UP | CURSOR_FAST_MOVE ) );
-TOOL_ACTION PCB_ACTIONS::cursorDownFast( "pcbnew.Control.cursorDownFast",
-        AS_GLOBAL, MD_CTRL + WXK_DOWN, "", "" , NULL, AF_NONE, (void*) ( CURSOR_DOWN | CURSOR_FAST_MOVE ) );
-TOOL_ACTION PCB_ACTIONS::cursorLeftFast( "pcbnew.Control.cursorLeftFast",
-        AS_GLOBAL, MD_CTRL + WXK_LEFT, "", "" , NULL, AF_NONE, (void*) ( CURSOR_LEFT | CURSOR_FAST_MOVE ) );
-TOOL_ACTION PCB_ACTIONS::cursorRightFast( "pcbnew.Control.cursorRightFast",
-        AS_GLOBAL, MD_CTRL + WXK_RIGHT, "", "" , NULL, AF_NONE, (void*) ( CURSOR_RIGHT | CURSOR_FAST_MOVE ) );
-
-TOOL_ACTION PCB_ACTIONS::cursorClick( "pcbnew.Control.cursorClick",
-        AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_LEFT_CLICK ),
-        "", "", NULL, AF_NONE, (void*) CURSOR_CLICK );
-TOOL_ACTION PCB_ACTIONS::cursorDblClick( "pcbnew.Control.cursorDblClick",
-        AS_GLOBAL, TOOL_ACTION::LegacyHotKey( HK_LEFT_DCLICK ),
-        "", "", NULL, AF_NONE, (void*) CURSOR_DBL_CLICK );
-
-TOOL_ACTION PCB_ACTIONS::panUp( "pcbnew.Control.panUp",
-        AS_GLOBAL, MD_SHIFT + WXK_UP, "", "", NULL, AF_NONE, (void*) CURSOR_UP );
-TOOL_ACTION PCB_ACTIONS::panDown( "pcbnew.Control.panDown",
-        AS_GLOBAL, MD_SHIFT + WXK_DOWN, "", "" , NULL, AF_NONE, (void*) CURSOR_DOWN );
-TOOL_ACTION PCB_ACTIONS::panLeft( "pcbnew.Control.panLeft",
-        AS_GLOBAL, MD_SHIFT + WXK_LEFT, "", "" , NULL, AF_NONE, (void*) CURSOR_LEFT );
-TOOL_ACTION PCB_ACTIONS::panRight( "pcbnew.Control.panRight",
-        AS_GLOBAL, MD_SHIFT + WXK_RIGHT, "", "" , NULL, AF_NONE, (void*) CURSOR_RIGHT );
 
 // Miscellaneous
 TOOL_ACTION PCB_ACTIONS::selectionTool( "pcbnew.Control.selectionTool",
@@ -515,7 +480,7 @@ int PCBNEW_CONTROL::LayerToggle( const TOOL_EVENT& aEvent )
 }
 
 
-// It'd be nice to share the min/max with the COLOR4D_PICKER_DLG, but those are
+// It'd be nice to share the min/max with the DIALOG_COLOR_PICKER, but those are
 // set in wxFormBuilder.
 #define ALPHA_MIN 0.20
 #define ALPHA_MAX 1.00
@@ -564,109 +529,6 @@ int PCBNEW_CONTROL::LayerAlphaDec( const TOOL_EVENT& aEvent )
     }
     else
         wxBell();
-
-    return 0;
-}
-
-
-// Cursor control
-int PCBNEW_CONTROL::CursorControl( const TOOL_EVENT& aEvent )
-{
-    long type = aEvent.Parameter<intptr_t>();
-    bool fastMove = type & PCB_ACTIONS::CURSOR_FAST_MOVE;
-    type &= ~PCB_ACTIONS::CURSOR_FAST_MOVE;
-    bool mirroredX = getView()->IsMirroredX();
-
-    GRID_HELPER gridHelper( m_frame );
-    VECTOR2D cursor = getViewControls()->GetRawCursorPosition( true );
-    VECTOR2I gridSize = gridHelper.GetGrid();
-
-    if( fastMove )
-        gridSize = gridSize * 10;
-
-    switch( type )
-    {
-        case PCB_ACTIONS::CURSOR_UP:
-            cursor -= VECTOR2D( 0, gridSize.y );
-            break;
-
-        case PCB_ACTIONS::CURSOR_DOWN:
-            cursor += VECTOR2D( 0, gridSize.y );
-            break;
-
-        case PCB_ACTIONS::CURSOR_LEFT:
-            cursor -= VECTOR2D( mirroredX ? -gridSize.x : gridSize.x, 0 );
-            break;
-
-        case PCB_ACTIONS::CURSOR_RIGHT:
-            cursor += VECTOR2D( mirroredX ? -gridSize.x : gridSize.x, 0 );
-            break;
-
-        case PCB_ACTIONS::CURSOR_CLICK:              // fall through
-        case PCB_ACTIONS::CURSOR_DBL_CLICK:
-        {
-            TOOL_ACTIONS action = TA_NONE;
-            int modifiers = 0;
-
-            modifiers |= wxGetKeyState( WXK_SHIFT ) ? MD_SHIFT : 0;
-            modifiers |= wxGetKeyState( WXK_CONTROL ) ? MD_CTRL : 0;
-            modifiers |= wxGetKeyState( WXK_ALT ) ? MD_ALT : 0;
-
-            if( type == PCB_ACTIONS::CURSOR_CLICK )
-                action = TA_MOUSE_CLICK;
-            else if( type == PCB_ACTIONS::CURSOR_DBL_CLICK )
-                action = TA_MOUSE_DBLCLICK;
-            else
-                wxFAIL;
-
-            TOOL_EVENT evt( TC_MOUSE, action, BUT_LEFT | modifiers );
-            evt.SetMousePosition( getViewControls()->GetCursorPosition() );
-            m_toolMgr->ProcessEvent( evt );
-
-            return 0;
-        }
-        break;
-    }
-
-    getViewControls()->SetCursorPosition( cursor );
-
-    return 0;
-}
-
-
-int PCBNEW_CONTROL::PanControl( const TOOL_EVENT& aEvent )
-{
-    long type = aEvent.Parameter<intptr_t>();
-    KIGFX::VIEW* view = getView();
-    GRID_HELPER gridHelper( m_frame );
-    VECTOR2D center = view->GetCenter();
-    VECTOR2I gridSize = gridHelper.GetGrid() * 10;
-    bool mirroredX = view->IsMirroredX();
-
-    switch( type )
-    {
-        case PCB_ACTIONS::CURSOR_UP:
-            center -= VECTOR2D( 0, gridSize.y );
-            break;
-
-        case PCB_ACTIONS::CURSOR_DOWN:
-            center += VECTOR2D( 0, gridSize.y );
-            break;
-
-        case PCB_ACTIONS::CURSOR_LEFT:
-            center -= VECTOR2D( mirroredX ? -gridSize.x : gridSize.x, 0 );
-            break;
-
-        case PCB_ACTIONS::CURSOR_RIGHT:
-            center += VECTOR2D( mirroredX ? -gridSize.x : gridSize.x, 0 );
-            break;
-
-        default:
-            wxFAIL;
-            break;
-    }
-
-    view->SetCenter( center );
 
     return 0;
 }
@@ -780,7 +642,7 @@ int PCBNEW_CONTROL::SwitchUnits( const TOOL_EVENT& aEvent )
     // TODO should not it be refactored to pcb_frame member function?
     wxCommandEvent evt( wxEVT_COMMAND_MENU_SELECTED );
 
-    if( g_UserUnit == INCHES )
+    if( m_frame->GetUserUnits() == INCHES )
         evt.SetId( ID_TB_OPTIONS_SELECT_UNIT_MM );
     else
         evt.SetId( ID_TB_OPTIONS_SELECT_UNIT_INCH );
@@ -797,10 +659,10 @@ static bool deleteItem( TOOL_MANAGER* aToolMgr, const VECTOR2D& aPosition )
     wxCHECK( selectionTool, false );
 
     aToolMgr->RunAction( PCB_ACTIONS::selectionClear, true );
-    aToolMgr->RunAction( PCB_ACTIONS::selectionCursor, true );
-    selectionTool->SanitizeSelection();
 
-    const SELECTION& selection = selectionTool->GetSelection();
+    const SELECTION& selection = selectionTool->RequestSelection(
+            []( const VECTOR2I& aPt, GENERAL_COLLECTOR& aCollector )
+            { EditToolSelectionFilter( aCollector, EXCLUDE_LOCKED ); } );
 
     if( selection.Empty() )
         return true;
@@ -1161,24 +1023,6 @@ void PCBNEW_CONTROL::setTransitions()
     Go( &PCBNEW_CONTROL::LayerAlphaInc,      PCB_ACTIONS::layerAlphaInc.MakeEvent() );
     Go( &PCBNEW_CONTROL::LayerAlphaDec,      PCB_ACTIONS::layerAlphaDec.MakeEvent() );
 
-    // Cursor control
-    Go( &PCBNEW_CONTROL::CursorControl,      PCB_ACTIONS::cursorUp.MakeEvent() );
-    Go( &PCBNEW_CONTROL::CursorControl,      PCB_ACTIONS::cursorDown.MakeEvent() );
-    Go( &PCBNEW_CONTROL::CursorControl,      PCB_ACTIONS::cursorLeft.MakeEvent() );
-    Go( &PCBNEW_CONTROL::CursorControl,      PCB_ACTIONS::cursorRight.MakeEvent() );
-    Go( &PCBNEW_CONTROL::CursorControl,      PCB_ACTIONS::cursorUpFast.MakeEvent() );
-    Go( &PCBNEW_CONTROL::CursorControl,      PCB_ACTIONS::cursorDownFast.MakeEvent() );
-    Go( &PCBNEW_CONTROL::CursorControl,      PCB_ACTIONS::cursorLeftFast.MakeEvent() );
-    Go( &PCBNEW_CONTROL::CursorControl,      PCB_ACTIONS::cursorRightFast.MakeEvent() );
-    Go( &PCBNEW_CONTROL::CursorControl,      PCB_ACTIONS::cursorClick.MakeEvent() );
-    Go( &PCBNEW_CONTROL::CursorControl,      PCB_ACTIONS::cursorDblClick.MakeEvent() );
-
-    // Pan control
-    Go( &PCBNEW_CONTROL::PanControl,         PCB_ACTIONS::panUp.MakeEvent() );
-    Go( &PCBNEW_CONTROL::PanControl,         PCB_ACTIONS::panDown.MakeEvent() );
-    Go( &PCBNEW_CONTROL::PanControl,         PCB_ACTIONS::panLeft.MakeEvent() );
-    Go( &PCBNEW_CONTROL::PanControl,         PCB_ACTIONS::panRight.MakeEvent() );
-
     // Grid control
     Go( &PCBNEW_CONTROL::GridFast1,          ACTIONS::gridFast1.MakeEvent() );
     Go( &PCBNEW_CONTROL::GridFast2,          ACTIONS::gridFast2.MakeEvent() );
@@ -1194,11 +1038,9 @@ void PCBNEW_CONTROL::setTransitions()
     Go( &PCBNEW_CONTROL::ToBeDone,           PCB_ACTIONS::toBeDone.MakeEvent() );
 
     // Append control
-    Go( &PCBNEW_CONTROL::AppendBoardFromFile,
-            PCB_ACTIONS::appendBoard.MakeEvent() );
+    Go( &PCBNEW_CONTROL::AppendBoardFromFile, PCB_ACTIONS::appendBoard.MakeEvent() );
 
-    Go( &PCBNEW_CONTROL::PasteItemsFromClipboard,
-            PCB_ACTIONS::pasteFromClipboard.MakeEvent() );
+    Go( &PCBNEW_CONTROL::PasteItemsFromClipboard, PCB_ACTIONS::pasteFromClipboard.MakeEvent() );
 }
 
 

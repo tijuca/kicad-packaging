@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,28 +27,11 @@
  * @brief a few functions useful in geometry calculations.
  */
 
-#include <math.h>
-#include <common.h>
+#include <eda_rect.h>
 #include <geometry/geometry_utils.h>
 
-static const double correction_factor[58] =
-{
-        1.1547005383792515, 1.1099162641747424, 1.0823922002923940, 1.0641777724759121,
-        1.0514622242382672, 1.0422171162264056, 1.0352761804100830, 1.0299278309497275,
-        1.0257168632725540, 1.0223405948650293, 1.0195911582083184, 1.0173218375167883,
-        1.0154266118857451, 1.0138272827109369, 1.0124651257880029, 1.0112953333155177,
-        1.0102832265380361, 1.0094016211705981, 1.0086289605801528, 1.0079479708092973,
-        1.0073446768656829, 1.0068076733095861, 1.0063275765801780, 1.0058966090203618,
-        1.0055082795635164, 1.0051571362062028, 1.0048385723763114, 1.0045486741757732,
-        1.0042840989156745, 1.0040419778191385, 1.0038198375433474, 1.0036155364690280,
-        1.0034272126621453, 1.0032532411243213, 1.0030921984828256, 1.0029428336753463,
-        1.0028040434931396, 1.0026748520830480, 1.0025543936921142, 1.0024418980811722,
-        1.0023366781455456, 1.0022381193690537, 1.0021456708072995, 1.0020588373518127,
-        1.0019771730711422, 1.0019002754608142, 1.0018277804630289, 1.0017593581404958,
-        1.0016947089079804, 1.0016335602408475, 1.0015756637927993, 1.0015207928656586,
-        1.0014687401828848, 1.0014193159258358, 1.0013723459979209, 1.0013276704868976,
-        1.0012851422998732, 1.0012446259491854
-};
+// To approximate a circle by segments, a minimal seg count is mandatory
+#define MIN_SEGCOUNT_FOR_CIRCLE 6
 
 int GetArcToSegmentCount( int aRadius, int aErrorMax, double aArcAngleDegree )
 {
@@ -58,11 +41,15 @@ int GetArcToSegmentCount( int aRadius, int aErrorMax, double aArcAngleDegree )
     // error relative to the radius value:
     double rel_error = (double)aErrorMax / aRadius;
     // minimal arc increment in degrees:
-    double step = 180 / M_PI * acos( 1.0 - rel_error ) * 2;
-    // the minimal seg count for a arc
-    int segCount = KiROUND( fabs( aArcAngleDegree ) / step );
+    double arc_increment = 180 / M_PI * acos( 1.0 - rel_error ) * 2;
 
-    // Ensure at least one segment is used
+    // Ensure a minimal arc increment reasonable value for a circle
+    // (360.0 degrees). For very small radius values, this is mandatory.
+    arc_increment = std::min( 360.0/MIN_SEGCOUNT_FOR_CIRCLE, arc_increment );
+
+    int segCount = round_nearest( fabs( aArcAngleDegree ) / arc_increment );
+
+    // Ensure at least one segment is used (can happen for small arcs)
     return std::max( segCount, 1 );
 }
 
@@ -73,14 +60,100 @@ double GetCircletoPolyCorrectionFactor( int aSegCountforCircle )
      * due to the segment approx.
      * For a circle the min radius is radius * cos( 2PI / aSegCountforCircle / 2)
      * this is the distance between the center and the middle of the segment.
-     * therfore, to move the  middle of the segment to the circle (distance = radius)
+     * therefore, to move the middle of the segment to the circle (distance = radius)
      * the correctionFactor is 1 /cos( PI/aSegCountforCircle  )
      */
-    if( aSegCountforCircle < 6 )
-        aSegCountforCircle = 6;
-    if( 1 || aSegCountforCircle > 64 )
-        return 1.0 / cos( M_PI / aSegCountforCircle );
+    if( aSegCountforCircle < MIN_SEGCOUNT_FOR_CIRCLE )
+        aSegCountforCircle = MIN_SEGCOUNT_FOR_CIRCLE;
 
-    return correction_factor[ aSegCountforCircle - 6 ];
+    return 1.0 / cos( M_PI / aSegCountforCircle );
+}
+
+
+/***
+ * Utility for the line clipping code, returns the boundary code of
+ * a point. Bit allocation is arbitrary
+ */
+inline int clipOutCode( const EDA_RECT *aClipBox, int x, int y )
+{
+    int code;
+
+    if( y < aClipBox->GetY() )
+        code = 2;
+    else if( y > aClipBox->GetBottom() )
+        code = 1;
+    else
+        code = 0;
+
+    if( x < aClipBox->GetX() )
+        code |= 4;
+    else if( x > aClipBox->GetRight() )
+        code |= 8;
+
+    return code;
+}
+
+
+bool ClipLine( const EDA_RECT *aClipBox, int &x1, int &y1, int &x2, int &y2 )
+{
+    // Stock Cohen-Sutherland algorithm; check *any* CG book for details
+    int outcode1 = clipOutCode( aClipBox, x1, y1 );
+    int outcode2 = clipOutCode( aClipBox, x2, y2 );
+
+    while( outcode1 || outcode2 )
+    {
+        // Fast reject
+        if( outcode1 & outcode2 )
+            return true;
+
+        // Choose a side to clip
+        int thisoutcode, x, y;
+
+        if( outcode1 )
+            thisoutcode = outcode1;
+        else
+            thisoutcode = outcode2;
+
+        /* One clip round
+         * Since we use the full range of 32 bit ints, the proportion
+         * computation has to be done in 64 bits to avoid horrible
+         * results */
+        if( thisoutcode & 1 ) // Clip the bottom
+        {
+            y = aClipBox->GetBottom();
+            x = x1 + (x2 - x1) * int64_t(y - y1) / (y2 - y1);
+        }
+        else if( thisoutcode & 2 ) // Clip the top
+        {
+            y = aClipBox->GetY();
+            x = x1 + (x2 - x1) * int64_t(y - y1) / (y2 - y1);
+        }
+        else if( thisoutcode & 8 ) // Clip the right
+        {
+            x = aClipBox->GetRight();
+            y = y1 + (y2 - y1) * int64_t(x - x1) / (x2 - x1);
+        }
+        else // if( thisoutcode & 4), obviously, clip the left
+        {
+            x = aClipBox->GetX();
+            y = y1 + (y2 - y1) * int64_t(x - x1) / (x2 - x1);
+        }
+
+        // Put the result back and update the boundary code
+        // No ambiguity, otherwise it would have been a fast reject
+        if( thisoutcode == outcode1 )
+        {
+            x1 = x;
+            y1 = y;
+            outcode1 = clipOutCode( aClipBox, x1, y1 );
+        }
+        else
+        {
+            x2 = x;
+            y2 = y;
+            outcode2 = clipOutCode( aClipBox, x2, y2 );
+        }
+    }
+    return false;
 }
 

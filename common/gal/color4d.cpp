@@ -2,7 +2,7 @@
  * This program source code file is part of KICAD, a free EDA CAD application.
  *
  * Copyright 2012 Torsten Hueter, torstenhtr <at> gmx.de
- * Copyright 2017 Kicad Developers, see AUTHORS.txt for contributors.
+ * Copyright 2017-2019 Kicad Developers, see AUTHORS.txt for contributors.
  *
  *
  * This program is free software; you can redistribute it and/or
@@ -76,6 +76,20 @@ COLOR4D::COLOR4D( EDA_COLOR_T aColor )
     {
         wxColour c = ToColour();
         return c.GetAsString( flags );
+    }
+
+
+    wxColour COLOR4D::ToColour() const
+    {
+        using CHAN_T = wxColourBase::ChannelType;
+
+        const wxColour colour(
+            static_cast<CHAN_T>( r * 255 + 0.5 ),
+            static_cast<CHAN_T>( g * 255 + 0.5 ),
+            static_cast<CHAN_T>( b * 255 + 0.5 ),
+            static_cast<CHAN_T>( a * 255 + 0.5 )
+        );
+        return colour;
     }
 
 
@@ -269,6 +283,78 @@ std::ostream &operator<<( std::ostream &aStream, COLOR4D const &aColor )
 }
 
 
+void COLOR4D::ToHSL( double& aOutHue, double& aOutSaturation, double& aOutLightness ) const
+{
+    auto min = std::min( r, std::min( g, b ) );
+    auto max = std::max( r, std::max( g, b ) );
+    auto diff = max - min;
+
+    aOutLightness = ( max + min ) / 2.0;
+
+    if( aOutLightness >= 1.0 )
+        aOutSaturation = 0.0;
+    else
+        aOutSaturation = diff / ( 1.0 - std::abs( 2.0 * aOutLightness - 1.0 ) );
+
+    double hue;
+
+    if( diff <= 0.0 )
+        hue = 0.0;
+    else if( max == r )
+        hue = ( g - b ) / diff;
+    else if( max == g )
+        hue = ( b - r ) / diff + 2.0;
+    else
+        hue = ( r - g ) / diff + 4.0;
+
+    aOutHue = hue > 0.0 ? hue * 60.0 : hue * 60.0 + 360.0;
+
+    while( aOutHue < 0.0 )
+        aOutHue += 360.0;
+}
+
+
+void COLOR4D::FromHSL( double aInHue, double aInSaturation, double aInLightness )
+{
+    const auto P = ( 1.0 - std::abs( 2.0 * aInLightness - 1.0 ) ) * aInSaturation;
+    const auto scaled_hue = aInHue / 60.0;
+    const auto Q = P * ( 1.0 - std::abs( std::fmod( scaled_hue, 2.0 ) - 1.0 ) );
+
+    r = g = b = aInLightness - P / 2.0;
+
+    if (scaled_hue < 1.0)
+    {
+        r += P;
+        g += Q;
+    }
+    else if (scaled_hue < 2.0)
+    {
+        r += Q;
+        g += P;
+    }
+    else if (scaled_hue < 3.0)
+    {
+        g += P;
+        b += Q;
+    }
+    else if (scaled_hue < 4.0)
+    {
+        g += Q;
+        b += P;
+    }
+    else if (scaled_hue < 5.0)
+    {
+        r += Q;
+        b += P;
+    }
+    else
+    {
+        r += P;
+        b += Q;
+    }
+}
+
+
 void COLOR4D::ToHSV( double& aOutHue, double& aOutSaturation, double& aOutValue, bool aAlwaysDefineHue ) const
 {
     double min, max, delta;
@@ -398,9 +484,13 @@ void COLOR4D::FromHSV( double aInH, double aInS, double aInV )
 
 COLOR4D& COLOR4D::Saturate( double aFactor )
 {
+    // One can saturate a color only when r, v, b are not equal
+    if( r == g && r == b )
+        return *this;
+
     double h, s, v;
 
-    ToHSV( h, s, v );
+    ToHSV( h, s, v, true );
     FromHSV( h, aFactor, 1.0 );
 
     return *this;

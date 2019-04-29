@@ -30,7 +30,7 @@
 #include <fctsys.h>
 #include <gr_basic.h>
 #include <macros.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <trigo.h>
 #include <common.h>
 #include <richio.h>
@@ -100,6 +100,14 @@ void SCH_BUS_ENTRY_BASE::SwapData( SCH_ITEM* aItem )
 }
 
 
+void SCH_BUS_ENTRY_BASE::ViewGetLayers( int aLayers[], int& aCount ) const
+{
+    aCount      = 1;
+
+    aLayers[0]  = Type() == SCH_BUS_BUS_ENTRY_T ? LAYER_BUS : LAYER_WIRE;
+}
+
+
 const EDA_RECT SCH_BUS_ENTRY_BASE::GetBoundingBox() const
 {
     EDA_RECT box;
@@ -154,8 +162,10 @@ void SCH_BUS_ENTRY_BASE::Draw( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint&
 
     if( aColor != COLOR4D::UNSPECIFIED )
         color = aColor;
+    else if( aPanel->GetScreen() && !aPanel->GetScreen()->m_IsPrinting && GetState( BRIGHTENED ) )
+        color = GetLayerColor( LAYER_BRIGHTENED );
     else
-        color = GetLayerColor( GetState( BRIGHTENED ) ? LAYER_BRIGHTENED : m_Layer );
+        color = GetLayerColor( m_Layer );
 
     GRSetDrawMode( aDC, aDrawMode );
 
@@ -201,7 +211,7 @@ void SCH_BUS_ENTRY_BASE::Rotate( wxPoint aPosition )
 }
 
 
-bool SCH_BUS_WIRE_ENTRY::IsDanglingStateChanged( std::vector<DANGLING_END_ITEM>& aItemList )
+bool SCH_BUS_WIRE_ENTRY::UpdateDanglingState( std::vector<DANGLING_END_ITEM>& aItemList )
 {
     bool previousStateStart = m_isDanglingStart;
     bool previousStateEnd = m_isDanglingEnd;
@@ -267,7 +277,7 @@ bool SCH_BUS_WIRE_ENTRY::IsDanglingStateChanged( std::vector<DANGLING_END_ITEM>&
 }
 
 
-bool SCH_BUS_BUS_ENTRY::IsDanglingStateChanged( std::vector<DANGLING_END_ITEM>& aItemList )
+bool SCH_BUS_BUS_ENTRY::UpdateDanglingState( std::vector<DANGLING_END_ITEM>& aItemList )
 {
     bool previousStateStart = m_isDanglingStart;
     bool previousStateEnd = m_isDanglingEnd;
@@ -332,13 +342,13 @@ void SCH_BUS_ENTRY_BASE::GetConnectionPoints( std::vector< wxPoint >& aPoints ) 
 }
 
 
-wxString SCH_BUS_WIRE_ENTRY::GetSelectMenuText() const
+wxString SCH_BUS_WIRE_ENTRY::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
     return wxString( _( "Bus to Wire Entry" ) );
 }
 
 
-wxString SCH_BUS_BUS_ENTRY::GetSelectMenuText() const
+wxString SCH_BUS_BUS_ENTRY::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
     return wxString( _( "Bus to Bus Entry" ) );
 }

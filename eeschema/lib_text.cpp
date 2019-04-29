@@ -28,7 +28,7 @@
 #include <fctsys.h>
 #include <gr_basic.h>
 #include <macros.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <plotter.h>
 #include <draw_graphic_text.h>
 #include <trigo.h>
@@ -49,6 +49,13 @@ LIB_TEXT::LIB_TEXT( LIB_PART * aParent ) :
     SetTextSize( wxSize( 50, 50 ) );
     m_rotate     = false;
     m_updateText = false;
+}
+
+
+void LIB_TEXT::ViewGetLayers( int aLayers[], int& aCount ) const
+{
+    aCount      = 1;
+    aLayers[0]  = LAYER_DEVICE;
 }
 
 
@@ -290,13 +297,13 @@ void LIB_TEXT::drawGraphic( EDA_DRAW_PANEL* aPanel, wxDC* aDC, const wxPoint& aO
 }
 
 
-void LIB_TEXT::GetMsgPanelInfo( MSG_PANEL_ITEMS& aList )
+void LIB_TEXT::GetMsgPanelInfo( EDA_UNITS_T aUnits, MSG_PANEL_ITEMS& aList )
 {
     wxString msg;
 
-    LIB_ITEM::GetMsgPanelInfo( aList );
+    LIB_ITEM::GetMsgPanelInfo( aUnits, aList );
 
-    msg = StringFromValue( g_UserUnit, GetThickness(), true );
+    msg = MessageTextFromValue( aUnits, GetThickness(), true );
 
     aList.push_back( MSG_PANEL_ITEM( _( "Line Width" ), msg, BLUE ) );
 }
@@ -357,11 +364,9 @@ void LIB_TEXT::SetText( const wxString& aText )
 }
 
 
-wxString LIB_TEXT::GetSelectMenuText() const
+wxString LIB_TEXT::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
-    wxString msg;
-    msg.Printf( _( "Graphic Text %s" ), GetChars( ShortenedShownText() ) );
-    return msg;
+    return wxString::Format( _( "Graphic Text \"%s\"" ), ShortenedShownText() );
 }
 
 
@@ -380,7 +385,6 @@ void LIB_TEXT::BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition )
     {
         m_initialPos = GetTextPos();
         m_initialCursorPos = aPosition;
-        SetEraseLastDrawItem();
     }
     else
     {
@@ -408,12 +412,13 @@ void LIB_TEXT::EndEdit( const wxPoint& aPosition, bool aAbort )
     m_Flags = 0;
     m_rotate = false;
     m_updateText = false;
-    SetEraseLastDrawItem( false );
 }
 
 
-void LIB_TEXT::calcEdit( const wxPoint& aPosition )
+void LIB_TEXT::CalcEdit( const wxPoint& aPosition )
 {
+    DBG(printf("textCalcEdit %d %d\n", aPosition.x, aPosition.y );)
+
     if( m_rotate )
     {
         SetTextAngle( GetTextAngle() == TEXT_ANGLE_VERT ? TEXT_ANGLE_HORIZ : TEXT_ANGLE_VERT );
@@ -428,11 +433,13 @@ void LIB_TEXT::calcEdit( const wxPoint& aPosition )
 
     if( m_Flags == IS_NEW )
     {
-        SetEraseLastDrawItem();
         SetTextPos( aPosition );
     }
     else if( m_Flags == IS_MOVED )
     {
         Move( m_initialPos + aPosition - m_initialCursorPos );
+        DBG(printf("%p: move %d %d\n", this, GetPosition().x, GetPosition().y );)
     }
+
+    DBG(printf("%p: move2 %d %d\n", this, GetPosition().x, GetPosition().y );)
 }

@@ -197,7 +197,7 @@ static EXCELLON_CMD excellonHeaderCmdList[] =
     { "M15",    DRILL_M_TOOL_DOWN,            0 },  // tool down (starting a routed hole)
     { "M16",    DRILL_M_TOOL_UP,              0 },  // tool up (ending a routed hole)
     { "M17",    DRILL_M_TOOL_UP,              0 },  // tool up similar to M16 for a viewer
-    { "M30",    DRILL_M_ENDREWIND,           -1 },  // End of Program Rewind
+    { "M30",    DRILL_M_ENDFILE,             -1 },  // End of File (last line of NC drill)
     { "M47",    DRILL_M_MESSAGE,             -1 },  // Operator Message
     { "M45",    DRILL_M_LONGMESSAGE,         -1 },  // Long Operator message (use more than one line)
     { "M48",    DRILL_M_HEADER,              0  },  // beginning of a header
@@ -247,33 +247,30 @@ bool GERBVIEW_FRAME::Read_EXCELLON_File( const wxString& aFullFileName )
     int layerId = GetActiveLayer();      // current layer used in GerbView
     GERBER_FILE_IMAGE_LIST* images = GetGerberLayout()->GetImagesList();
     auto gerber_layer = images->GetGbrImage( layerId );
-    auto drill_layer = dynamic_cast<EXCELLON_IMAGE*>( gerber_layer );
 
-    if( gerber_layer && !drill_layer )
-    {
-        // The active layer contains old gerber data we have to clear
+    // OIf the active layer contains old gerber or nc drill data, remove it
+    if( gerber_layer )
         Erase_Current_DrawLayer( false );
-    }
 
-    if( drill_layer == nullptr )
-    {
-        drill_layer = new EXCELLON_IMAGE( layerId );
-        layerId = images->AddGbrImage( drill_layer, layerId );
-    }
-
-    if( layerId < 0 )
-    {
-        DisplayError( this, _( "No room to load file" ) );
-        return false;
-    }
+    EXCELLON_IMAGE* drill_layer = new EXCELLON_IMAGE( layerId );
 
     // Read the Excellon drill file:
     bool success = drill_layer->LoadFile( aFullFileName );
 
     if( !success )
     {
-        msg.Printf( _( "File %s not found" ), GetChars( aFullFileName ) );
+        delete drill_layer;
+        msg.Printf( _( "File %s not found" ), aFullFileName );
         DisplayError( this, msg );
+        return false;
+    }
+
+    layerId = images->AddGbrImage( drill_layer, layerId );
+
+    if( layerId < 0 )
+    {
+        delete drill_layer;
+        DisplayError( this, _( "No room to load file" ) );
         return false;
     }
 
@@ -322,11 +319,12 @@ bool EXCELLON_IMAGE::LoadFile( const wxString & aFullFileName )
     ResetDefaultValues();
     ClearMessageList();
 
-    m_Current_File = wxFopen( aFullFileName, wxT( "rt" ) );
+    m_Current_File = wxFopen( aFullFileName, "rt" );
 
     if( m_Current_File == NULL )
         return false;
 
+    wxString msg;
     m_FileName = aFullFileName;
 
     LOCALE_IO toggleIo;
@@ -342,7 +340,7 @@ bool EXCELLON_IMAGE::LoadFile( const wxString & aFullFileName )
         char* line = excellonReader.Line();
         char* text = StrPurge( line );
 
-        if( *text == ';' || *text == 0 )       // comment or empty line: skip line
+        if( *text == ';' || *text == 0 )       // comment: skip line or empty malformed line
             continue;
 
         if( m_State == EXCELLON_IMAGE::READ_HEADER_STATE )
@@ -357,7 +355,7 @@ bool EXCELLON_IMAGE::LoadFile( const wxString & aFullFileName )
                 Execute_HEADER_And_M_Command( text );
                 break;
 
-            case 'G': /* Line type Gxx : command */
+            case 'G':       // Line type Gxx : command
                 Execute_EXCELLON_G_Command( text );
                 break;
 
@@ -383,11 +381,8 @@ bool EXCELLON_IMAGE::LoadFile( const wxString & aFullFileName )
                 break;
 
             default:
-            {
-                wxString msg;
-                msg.Printf( wxT( "Unexpected symbol &lt;%c&gt;" ), *text );
+                msg.Printf( "Unexpected symbol 0x%2.2X &lt;%c&gt;", *text, *text );
                 AddMessageToList( msg );
-            }
                 break;
             }   // End switch
         }
@@ -431,7 +426,7 @@ bool EXCELLON_IMAGE::Execute_HEADER_And_M_Command( char*& text )
 
     if( !cmd )
     {
-        msg.Printf( wxT( "Unknown Excellon command &lt;%s&gt;" ), text );
+        msg.Printf( _( "Unknown Excellon command &lt;%s&gt;" ), text );
         AddMessageToList( msg );
         while( *text )
             text++;
@@ -448,9 +443,11 @@ bool EXCELLON_IMAGE::Execute_HEADER_And_M_Command( char*& text )
         break;
 
     case DRILL_M_END:
-        break;
+    case DRILL_M_ENDFILE:
+        // if a route command is in progress, finish it
+        if( m_RouteModeOn )
+            FinishRouteCommand();
 
-    case DRILL_M_ENDREWIND:
         break;
 
     case DRILL_M_MESSAGE:
@@ -481,10 +478,8 @@ bool EXCELLON_IMAGE::Execute_HEADER_And_M_Command( char*& text )
 
         if( *text != ',' )
         {
-            // No TZ or LZ specified. Can be a decimal format
-            // I am not sure this is incorrect and must be reported.
-            // AddMessageToList( _( "METRIC or INCH command has no parameter" ) );
-            // use default TZ setting, for now
+            // No TZ or LZ specified. Should be a decimal format
+            // but this is not always the case. Use default TZ setting as default
             m_NoTrailingZeros = false;
             break;
         }
@@ -514,7 +509,7 @@ bool EXCELLON_IMAGE::Execute_HEADER_And_M_Command( char*& text )
     case DRILL_INCREMENTALHEADER:
         if( *text != ',' )
         {
-            AddMessageToList( _( "ICI command has no parameter" ) );
+            AddMessageToList( "ICI command has no parameter" );
             break;
         }
         text++;     // skip separator
@@ -524,7 +519,7 @@ bool EXCELLON_IMAGE::Execute_HEADER_And_M_Command( char*& text )
         else if( strncasecmp( text, "ON", 2 ) == 0 )
             m_Relative = true;
         else
-            AddMessageToList( _( "ICI command has incorrect parameter" ) );
+            AddMessageToList( "ICI command has incorrect parameter" );
         break;
 
     case DRILL_TOOL_CHANGE_STOP:
@@ -557,45 +552,7 @@ bool EXCELLON_IMAGE::Execute_HEADER_And_M_Command( char*& text )
         break;
 
     case DRILL_M_TOOL_UP:        // tool up (ending a routed polyline)
-        {
-        D_CODE* tool = GetDCODE( m_Current_Tool );
-
-        for( size_t ii = 1; ii < m_RoutePositions.size(); ii++ )
-        {
-            GERBER_DRAW_ITEM* gbritem = new GERBER_DRAW_ITEM( this );
-
-            if( m_RoutePositions[ii].m_rmode == 0 )     // linear routing
-            {
-            fillLineGBRITEM( gbritem, tool->m_Num_Dcode,
-                            m_RoutePositions[ii-1].GetPos(), m_RoutePositions[ii].GetPos(),
-                            tool->m_Size, false );
-            }
-            else    // circular (cw or ccw) routing
-            {
-            bool rot_ccw = m_RoutePositions[ii].m_rmode == ROUTE_CW;
-            int radius = m_RoutePositions[ii].m_radius; // Can be adjusted by computeCenter.
-            wxPoint center;
-
-            if( m_RoutePositions[ii].m_arc_type_info == ARC_INFO_TYPE_CENTER )
-                center = wxPoint( m_RoutePositions[ii].m_cx, m_RoutePositions[ii].m_cy );
-            else
-                center = computeCenter( m_RoutePositions[ii-1].GetPos(),
-                                        m_RoutePositions[ii].GetPos(), radius, rot_ccw );
-
-            fillArcGBRITEM( gbritem, tool->m_Num_Dcode,
-                             m_RoutePositions[ii-1].GetPos(), m_RoutePositions[ii].GetPos(),
-                             center - m_RoutePositions[ii-1].GetPos(),
-                             tool->m_Size, not rot_ccw , true,
-                             false );
-            }
-
-            m_Drawings.Append( gbritem );
-
-            StepAndRepeatItem( *gbritem );
-        }
-
-        m_RoutePositions.clear();
-        }
+        FinishRouteCommand();
         break;
     }
 
@@ -822,6 +779,10 @@ bool EXCELLON_IMAGE::Execute_EXCELLON_G_Command( char*& text )
 
     case DRILL_G_ROUT:
         m_SlotOn = false;
+
+        if( m_RouteModeOn )
+            FinishRouteCommand();
+
         m_RouteModeOn = true;
         m_RoutePositions.clear();
         m_LastArcDataType = ARC_INFO_TYPE_NONE;
@@ -832,6 +793,10 @@ bool EXCELLON_IMAGE::Execute_EXCELLON_G_Command( char*& text )
 
     case DRILL_G_DRILL:
         m_SlotOn = false;
+
+        if( m_RouteModeOn )
+            FinishRouteCommand();
+
         m_RouteModeOn = false;
         m_RoutePositions.clear();
         m_LastArcDataType = ARC_INFO_TYPE_NONE;
@@ -921,4 +886,59 @@ void EXCELLON_IMAGE::SelectUnits( bool aMetric )
         m_FmtScale.x = m_FmtScale.y = fmtMantissaInch;
         m_FmtLen.x = m_FmtLen.y = fmtIntegerInch+fmtMantissaInch;
     }
+}
+
+
+void EXCELLON_IMAGE::FinishRouteCommand()
+{
+    // Ends a route command started by M15 ot G01, G02 or G03 command
+    // if a route command is not in progress, do nothing
+
+    if( !m_RouteModeOn )
+        return;
+
+    D_CODE* tool = GetDCODE( m_Current_Tool );
+
+    if( !tool )
+    {
+        AddMessageToList( wxString::Format( "Unknown tool code %d", m_Current_Tool ) );
+        return;
+    }
+
+    for( size_t ii = 1; ii < m_RoutePositions.size(); ii++ )
+    {
+        GERBER_DRAW_ITEM* gbritem = new GERBER_DRAW_ITEM( this );
+
+        if( m_RoutePositions[ii].m_rmode == 0 )     // linear routing
+        {
+        fillLineGBRITEM( gbritem, tool->m_Num_Dcode,
+                        m_RoutePositions[ii-1].GetPos(), m_RoutePositions[ii].GetPos(),
+                        tool->m_Size, false );
+        }
+        else    // circular (cw or ccw) routing
+        {
+        bool rot_ccw = m_RoutePositions[ii].m_rmode == ROUTE_CW;
+        int radius = m_RoutePositions[ii].m_radius; // Can be adjusted by computeCenter.
+        wxPoint center;
+
+        if( m_RoutePositions[ii].m_arc_type_info == ARC_INFO_TYPE_CENTER )
+            center = wxPoint( m_RoutePositions[ii].m_cx, m_RoutePositions[ii].m_cy );
+        else
+            center = computeCenter( m_RoutePositions[ii-1].GetPos(),
+                                    m_RoutePositions[ii].GetPos(), radius, rot_ccw );
+
+        fillArcGBRITEM( gbritem, tool->m_Num_Dcode,
+                         m_RoutePositions[ii-1].GetPos(), m_RoutePositions[ii].GetPos(),
+                         center - m_RoutePositions[ii-1].GetPos(),
+                         tool->m_Size, not rot_ccw , true,
+                         false );
+        }
+
+        m_Drawings.Append( gbritem );
+
+        StepAndRepeatItem( *gbritem );
+    }
+
+    m_RoutePositions.clear();
+    m_RouteModeOn = false;
 }

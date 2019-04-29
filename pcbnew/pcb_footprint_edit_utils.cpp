@@ -43,7 +43,7 @@
 #include <drag.h>
 #include <dialog_get_footprint_by_name.h>
 
-#include <connectivity_data.h>
+#include <connectivity/connectivity_data.h>
 
 static void MoveFootprint( EDA_DRAW_PANEL* aPanel, wxDC* aDC,
                            const wxPoint& aPosition, bool aErase );
@@ -294,7 +294,7 @@ void PCB_EDIT_FRAME::Change_Side_Module( MODULE* Module, wxDC* DC )
 
     OnModify();
 
-    if( !Module->IsMoving() ) /* This is a simple flip, no other edition in progress */
+    if( !Module->IsMoving() )        // This is a simple flip, no other edit in progress
     {
 
         if( DC )
@@ -396,6 +396,8 @@ void PCB_BASE_FRAME::PlaceModule( MODULE* aModule, wxDC* aDC, bool aRecreateRats
         aModule->Draw( m_canvas, aDC, GR_OR );
 
     // Redraw dragged track segments, if any
+    bool isDragged = g_DragSegmentList.size() > 0;
+
     for( unsigned ii = 0; ii < g_DragSegmentList.size(); ii++ )
     {
         TRACK * track = g_DragSegmentList[ii].m_Track;
@@ -412,7 +414,12 @@ void PCB_BASE_FRAME::PlaceModule( MODULE* aModule, wxDC* aDC, bool aRecreateRats
     m_canvas->SetMouseCapture( NULL, NULL );
 
     if( aRecreateRatsnest )
-        m_Pcb->GetConnectivity()->Update( aModule );
+    {
+        if( isDragged ) // Some tracks have positions modified: rebuild the connectivity
+            m_Pcb->GetConnectivity()->Build(m_Pcb);
+        else        // Only pad positions are modified: rebuild the connectivity only for this footprint (faster)
+            m_Pcb->GetConnectivity()->Update( aModule );
+    }
 
     if( ( GetBoard()->IsElementVisible( LAYER_RATSNEST ) || displ_opts->m_Show_Module_Ratsnest )
             && aRecreateRatsnest )
@@ -439,10 +446,9 @@ void PCB_BASE_FRAME::Rotate_Module( wxDC* DC, MODULE* module, double angle, bool
 
     OnModify();
 
-    if( !module->IsMoving() ) /* This is a simple rotation, no other
-                                           * edition in progress */
+    if( !module->IsMoving() )         // This is a simple rotation, no other edit in progress
     {
-        if( DC )                          // Erase footprint to screen
+        if( DC )                      // Erase footprint to screen
         {
             module->SetFlags( DO_NOT_DRAW );
             m_canvas->RefreshDrawingRect( module->GetBoundingBox() );

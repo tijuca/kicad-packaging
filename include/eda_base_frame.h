@@ -46,6 +46,7 @@
 #include <common.h>
 #include <layers_id_colors_and_visibility.h>
 #include <frame_type.h>
+#include "hotkeys_basic.h"
 
 #ifdef USE_WX_OVERLAY
 #include <wx/overlay.h>
@@ -58,18 +59,6 @@
 // Readability helper definitions for creating backup files.
 #define CREATE_BACKUP_FILE    true
 #define NO_BACKUP_FILE        false
-
-/**
- * Prefix to create filenames for schematic files or other difile when auto-saved
- * to retrieve a crash.
- *
- * The auto-saved filenames are AUTOSAVE_PREFIX_FILENAME + \<sourcefilename\>
- * where \<sourcefilename\> is the flename without path of the auto-saved file
- * Warning: avoid any special charactoer like / \\ \$ \% which can create issues on Unix
- * or Window with filenames or env var expansion.
- */
-#define AUTOSAVE_PREFIX_FILENAME wxT( "_saved_" )
-
 
 class EDA_ITEM;
 class EDA_RECT;
@@ -85,6 +74,8 @@ class MSG_PANEL_ITEM;
 class TOOL_MANAGER;
 class TOOL_DISPATCHER;
 class ACTIONS;
+class PAGED_DIALOG;
+class DIALOG_EDIT_LIBRARY_TABLES;
 
 
 enum id_librarytype {
@@ -123,11 +114,6 @@ class EDA_BASE_FRAME : public wxFrame
 
     wxWindow* findQuasiModalDialog();
 
-    /**
-     * Removes border from wxAui panes.
-     */
-    void removePaneBorder( wxShowEvent& event );
-
 protected:
     FRAME_T      m_Ident;           ///< Id Type (pcb, schematic, library..)
     wxPoint      m_FramePos;
@@ -160,6 +146,24 @@ protected:
 
     ///> Default style flags used for wxAUI toolbars
     static constexpr int KICAD_AUI_TB_STYLE = wxAUI_TB_DEFAULT_STYLE | wxAUI_TB_PLAIN_BACKGROUND;
+
+    /**
+     * Function GetBackupSuffix
+     * @return the suffix to be appended to the file extension on backup
+     */
+    static wxString GetBackupSuffix()
+    {
+        return wxT( "-bak" );
+    }
+
+    /**
+     * Function GetAutoSaveFilePrefix
+     * @return the string to prepend to a file name for automatic save.
+     */
+    static wxString GetAutoSaveFilePrefix()
+    {
+        return wxT( "_autosave-" );
+    }
 
     /**
      * Function onAutoSaveTimer
@@ -226,7 +230,18 @@ public:
 
     void GetKicadAbout( wxCommandEvent& event );
 
+    bool ShowPreferences( EDA_HOTKEY_CONFIG* aHotkeys, EDA_HOTKEY_CONFIG* aShowHotkeys,
+                          const wxString& aHotkeysNickname );
+
     void PrintMsg( const wxString& text );
+
+    /**
+     * Function InstallPreferences
+     * allows a Frame to load its preference panels (if any) into the preferences
+     * dialog.
+     * @param aParent a paged dialog into which the preference panels should be installed
+     */
+    virtual void InstallPreferences( PAGED_DIALOG* aParent ) { }
 
     /**
      * Function LoadSettings
@@ -272,14 +287,6 @@ public:
      * @param aAskForSave = true to open a dialog before saving the settings
      */
     virtual void SaveProjectSettings( bool aAskForSave ) {};
-
-    /**
-     * Function OnSelectPreferredEditor
-     * Open a dialog to select the editor that will used in KiCad
-     * to edit or display files (reports ... )
-     * The full filename editor is saved in configuration (global params)
-     */
-    virtual void OnSelectPreferredEditor( wxCommandEvent& event );
 
     // Read/Save and Import/export hotkeys config
 
@@ -385,10 +392,8 @@ public:
      * is removed.
      * </p>
      * @param aFileName A wxFileName object containing the file name to check.
-     * @param aBackupFileExtension A wxString object containing the backup file extension
-     *                             used to create the backup file name.
      */
-    void CheckForAutoSaveFile( const wxFileName& aFileName, const wxString& aBackupFileExtension );
+    void CheckForAutoSaveFile( const wxFileName& aFileName );
 
     /**
      * Function ShowChangedLanguage
@@ -397,28 +402,11 @@ public:
     virtual void ShowChangedLanguage();
 
     /**
-     * Function OnChangeIconsOptions
-     * Selects the current icons options in menus (or toolbars) in Kicad
-     * (the default for toolbars/menus is 26x26 pixels, and shows icons in menus).
+     * Function CommonSettingsChanged
+     * Notification event that some of the common (suite-wide) settings have changed.
+     * Update menus, toolbars, local variables, etc.
      */
-    virtual void OnChangeIconsOptions( wxCommandEvent& event );
-
-    /**
-     * Function ShowChangedIcons
-     * redraws items menus after a icon was changed option.
-     */
-    virtual void ShowChangedIcons();
-
-    /**
-     * Function AddMenuIconsOptions
-     * creates a menu list for icons in menu and icon sizes choice,
-     * and add it as submenu to \a MasterMenu.
-     *
-     * @param MasterMenu The main menu. The sub menu list will be accessible from the menu
-     *                   item with id ID_KICAD_SELECT_ICONS_OPTIONS
-     */
-    void AddMenuIconsOptions( wxMenu* MasterMenu );
-
+    virtual void CommonSettingsChanged();
 
     /**
      * Function PostCommandMenuEvent
@@ -427,21 +415,6 @@ public:
      * bound to menu items.
      */
     bool PostCommandMenuEvent( int evt_type );
-
-    /**
-     * Function GetIconScale
-     *
-     * Return the desired scaling for toolbar/menubar icons in fourths (e.g. 4 is unity).
-     * A negative number indicates autoscale based on font size.
-     */
-    virtual int GetIconScale() { return -1; }
-
-    /**
-     * Function SetIconScale
-     *
-     * Modify the scale of icons in the window; should refresh them and save the setting.
-     */
-    virtual void SetIconScale( int aScale ) {}
 };
 
 
@@ -466,85 +439,81 @@ public:
  * then after a //==// break has additional calls to anchor toolbars in a way that matches
  * present functionality.
  */
-class EDA_PANEINFO : public wxAuiPaneInfo
+class EDA_PANE : public wxAuiPaneInfo
 {
-
 public:
-
-    /**
-     * Function HorizontalToolbarPane
-     * Change *this to a horizontal toolbar for KiCad.
-     */
-    EDA_PANEINFO& HorizontalToolbarPane()
+    EDA_PANE()
     {
-        ToolbarPane();
-        CloseButton( false );
-        LeftDockable( false );
-        RightDockable( false );
-        //====================  Remove calls below here for movable toolbars //
         Gripper( false );
-        DockFixed( true );
-        Movable( false );
-        Resizable( true );
-        return *this;
+        CloseButton( false );
+        PaneBorder( false );
     }
 
     /**
-     * Function VerticalToolbarPane
-     * Change *this to a vertical toolbar for KiCad.
+     * Function HToolbar
+     * Turn *this to a horizontal toolbar for KiCad.
      */
-    EDA_PANEINFO& VerticalToolbarPane()
+    EDA_PANE& HToolbar()
     {
-        ToolbarPane();
-        CloseButton( false );
-        TopDockable( false );
-        BottomDockable( false );
-        //====================  Remove calls below here for movable toolbars //
-        Gripper( false );
-        DockFixed( true );
-        Movable( false );
-        Resizable( true );
-        return *this;
-    }
-
-    /**
-     * Function MessageToolbarPane
-     * Change *this to a message pane for KiCad.
-     *
-     */
-    EDA_PANEINFO& MessageToolbarPane()
-    {
-        Gripper( false );
-        DockFixed( true );
-        Movable( false );
-        Floatable( false );
-        CloseButton( false );
+        SetFlag( optionToolbar, true );
         CaptionVisible( false );
+        TopDockable().BottomDockable();
+        DockFixed( true );
+        Movable( false );
+        Resizable( true );      // expand to fit available space
         return *this;
     }
 
     /**
-     * Function LayersToolbarPane
-     * Change *this to a layers toolbar for KiCad.
+     * Function VToolbar
+     * Turn *this into a vertical toolbar for KiCad.
      */
-    EDA_PANEINFO& LayersToolbarPane()
+    EDA_PANE& VToolbar()
     {
-        CloseButton( false );
-        return *this;
-    }
-
-    /**
-     * Function InfoToolbarPane
-     * Change *this to a information panel for for KiCad.
-     *
-     * Info panes are used for vertical display of information next to the center pane.
-     * Used in CvPcb and the library viewer primarily.
-     */
-    EDA_PANEINFO& InfoToolbarPane()
-    {
-        Gripper( false );
-        CloseButton( false );
+        SetFlag( optionToolbar, true );
         CaptionVisible( false );
+        LeftDockable().RightDockable();
+        DockFixed( true );
+        Movable( false );
+        Resizable( true );      // expand to fit available space
+        return *this;
+    }
+
+    /**
+     * Function Palette
+     * Turn *this into a captioned palette suitable for a symbol tree, layers manager, etc.
+     */
+    EDA_PANE& Palette()
+    {
+        CaptionVisible( true );
+        PaneBorder( true );
+        return *this;
+    }
+
+    /**
+     * Function Canvas
+     * Turn *this into an undecorated pane suitable for a drawing canvas.
+     */
+    EDA_PANE& Canvas()
+    {
+        CaptionVisible( false );
+        Layer( 0 );
+        PaneBorder( true );
+        Resizable( true );      // expand to fit available space
+        return *this;
+    }
+
+    /**
+     * Function Messages
+     * Turn *this into a messages pane for KiCad.
+     */
+    EDA_PANE& Messages()
+    {
+        CaptionVisible( false );
+        BottomDockable( true );
+        DockFixed( true );
+        Movable( false );
+        Resizable( true );      // expand to fit available space
         return *this;
     }
 };

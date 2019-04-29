@@ -29,7 +29,7 @@
 #include <worksheet_viewitem.h>
 #include <ratsnest_viewitem.h>
 #include <ratsnest_data.h>
-#include <connectivity_data.h>
+#include <connectivity/connectivity_data.h>
 
 #include <colors_design_settings.h>
 #include <class_board.h>
@@ -42,6 +42,7 @@
 #include <gal/graphics_abstraction_layer.h>
 
 #include <functional>
+#include <thread>
 using namespace std::placeholders;
 
 const LAYER_NUM GAL_LAYER_ORDER[] =
@@ -105,7 +106,7 @@ const LAYER_NUM GAL_LAYER_ORDER[] =
 PCB_DRAW_PANEL_GAL::PCB_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWindowId,
                                         const wxPoint& aPosition, const wxSize& aSize,
                                         KIGFX::GAL_DISPLAY_OPTIONS& aOptions, GAL_TYPE aGalType ) :
-EDA_DRAW_PANEL_GAL( aParentWindow, aWindowId, aPosition, aSize, aOptions, aGalType )
+        EDA_DRAW_PANEL_GAL( aParentWindow, aWindowId, aPosition, aSize, aOptions, aGalType )
 {
     m_view = new KIGFX::PCB_VIEW( true );
     m_view->SetGAL( m_gal );
@@ -160,6 +161,9 @@ void PCB_DRAW_PANEL_GAL::DisplayBoard( BOARD* aBoard )
 
         t.detach();
     }
+
+    if( m_worksheet )
+        m_worksheet->SetFileName( TO_UTF8( aBoard->GetFileName() ) );
 
     // Load drawings
     for( auto drawing : const_cast<BOARD*>(aBoard)->Drawings() )
@@ -266,41 +270,39 @@ void PCB_DRAW_PANEL_GAL::SetTopLayer( PCB_LAYER_ID aLayer )
     m_view->SetTopLayer( aLayer );
 
     // Layers that should always have on-top attribute enabled
-    const LAYER_NUM layers[] = {
+    const std::vector<LAYER_NUM> layers = {
             LAYER_VIA_THROUGH, LAYER_VIAS_HOLES, LAYER_VIAS_NETNAMES,
             LAYER_PADS_TH, LAYER_PADS_PLATEDHOLES, LAYER_PADS_NETNAMES,
             LAYER_NON_PLATEDHOLES, LAYER_SELECT_OVERLAY, LAYER_GP_OVERLAY,
             LAYER_RATSNEST, LAYER_DRC
     };
 
-    for( unsigned int i = 0; i < sizeof( layers ) / sizeof( LAYER_NUM ); ++i )
-        m_view->SetTopLayer( layers[i] );
+    for( auto layer : layers )
+        m_view->SetTopLayer( layer );
 
     // Extra layers that are brought to the top if a F.* or B.* is selected
-    const LAYER_NUM frontLayers[] = {
-        F_Cu, F_Adhes, F_Paste, F_SilkS, F_Mask, F_CrtYd, F_Fab, LAYER_PAD_FR,
-        LAYER_PAD_FR_NETNAMES, NETNAMES_LAYER_INDEX( F_Cu ), -1
+    const std::vector<LAYER_NUM> frontLayers = {
+        F_Cu, F_Adhes, F_Paste, F_SilkS, F_Mask, F_Fab, LAYER_PAD_FR,
+        LAYER_PAD_FR_NETNAMES, NETNAMES_LAYER_INDEX( F_Cu )
     };
 
-    const LAYER_NUM backLayers[] = {
-        B_Cu, B_Adhes, B_Paste, B_SilkS, B_Mask, B_CrtYd, B_Fab, LAYER_PAD_BK,
-        LAYER_PAD_BK_NETNAMES, NETNAMES_LAYER_INDEX( B_Cu ), -1
+    const std::vector<LAYER_NUM> backLayers = {
+        B_Cu, B_Adhes, B_Paste, B_SilkS, B_Mask, B_Fab, LAYER_PAD_BK,
+        LAYER_PAD_BK_NETNAMES, NETNAMES_LAYER_INDEX( B_Cu )
     };
 
-    const LAYER_NUM* extraLayers = NULL;
+    const std::vector<LAYER_NUM>* extraLayers = NULL;
 
     // Bring a few more extra layers to the top depending on the selected board side
     if( IsFrontLayer( aLayer ) )
-        extraLayers = frontLayers;
+        extraLayers = &frontLayers;
     else if( IsBackLayer( aLayer ) )
-        extraLayers = backLayers;
+        extraLayers = &backLayers;
 
     if( extraLayers )
     {
-        const LAYER_NUM* l = extraLayers;
-
-        while( *l >= 0 )
-            m_view->SetTopLayer( *l++ );
+        for( auto layer : *extraLayers )
+            m_view->SetTopLayer( layer );
 
         // Move the active layer to the top
         if( !IsCopperLayer( aLayer ) )
@@ -312,6 +314,7 @@ void PCB_DRAW_PANEL_GAL::SetTopLayer( PCB_LAYER_ID aLayer )
         m_view->SetTopLayer( GetNetnameLayer( aLayer ) );
     }
 
+    m_view->EnableTopLayer( true );
     m_view->UpdateAllLayersOrder();
 }
 
@@ -338,7 +341,7 @@ void PCB_DRAW_PANEL_GAL::SyncLayersVisibility( const BOARD* aBoard )
 }
 
 
-void PCB_DRAW_PANEL_GAL::GetMsgPanelInfo( std::vector<MSG_PANEL_ITEM>& aList )
+void PCB_DRAW_PANEL_GAL::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector<MSG_PANEL_ITEM>& aList )
 {
     BOARD* board = static_cast<PCB_BASE_FRAME*>( m_parent )->GetBoard();
     wxString txt;
@@ -365,7 +368,7 @@ void PCB_DRAW_PANEL_GAL::GetMsgPanelInfo( std::vector<MSG_PANEL_ITEM>& aList )
     txt.Printf( wxT( "%d" ), board->GetNodesCount() );
     aList.push_back( MSG_PANEL_ITEM( _( "Nodes" ), txt, DARKCYAN ) );
 
-    txt.Printf( wxT( "%d" ), board->GetNetCount() );
+    txt.Printf( wxT( "%d" ), board->GetNetCount() - 1 /* don't include "No Net" in count */ );
     aList.push_back( MSG_PANEL_ITEM( _( "Nets" ), txt, RED ) );
 
     txt.Printf( wxT( "%d" ), board->GetConnectivity()->GetUnconnectedCount() );
@@ -387,15 +390,18 @@ void PCB_DRAW_PANEL_GAL::OnShow()
         // Fallback to software renderer
         DisplayError( frame, e.what() );
         bool use_gal = SwitchBackend( GAL_TYPE_CAIRO );
-        frame->UseGalCanvas( use_gal );
+
+        if( frame )
+            frame->UseGalCanvas( use_gal );
     }
 
     if( frame )
     {
         SetTopLayer( frame->GetActiveLayer() );
         PCB_DISPLAY_OPTIONS* displ_opts = (PCB_DISPLAY_OPTIONS*) frame->GetDisplayOptions();
-        static_cast<KIGFX::PCB_RENDER_SETTINGS*>(
-            m_view->GetPainter()->GetSettings() )->LoadDisplayOptions( displ_opts );
+        KIGFX::PAINTER* painter = m_view->GetPainter();
+        auto settings = static_cast<KIGFX::PCB_RENDER_SETTINGS*>( painter->GetSettings() );
+        settings->LoadDisplayOptions( displ_opts, frame->ShowPageLimits() );
     }
 }
 
@@ -416,6 +422,7 @@ bool PCB_DRAW_PANEL_GAL::SwitchBackend( GAL_TYPE aGalType )
 {
     bool rv = EDA_DRAW_PANEL_GAL::SwitchBackend( aGalType );
     setDefaultLayerDeps();
+    m_gal->SetWorldUnitLength( 1e-9 /* 1 nm */ / 0.0254 /* 1 inch in meters */ );
     return rv;
 }
 

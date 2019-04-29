@@ -100,15 +100,15 @@ COLORS_DESIGN_SETTINGS::COLORS_DESIGN_SETTINGS( FRAME_T aFrameType )
     m_frameType = aFrameType;
     m_legacyMode = false;
 
-    for( unsigned src = 0, dst = 0; dst < DIM( m_LayersColors ); ++dst )
+    for( unsigned src = 0, dst = 0; dst < arrayDim( m_LayersColors ); ++dst )
     {
         m_LayersColors[dst] = COLOR4D( default_layer_color[src++] );
 
-        if( src >= DIM( default_layer_color ) )
+        if( src >= arrayDim( default_layer_color ) )
             src = 0;        // wrap the source.
     }
 
-    for( unsigned src = 0, dst = LAYER_VIAS; src < DIM( default_items_color ); ++dst, ++src )
+    for( unsigned src = 0, dst = LAYER_VIAS; src < arrayDim( default_items_color ); ++dst, ++src )
     {
         m_LayersColors[dst] = COLOR4D( default_items_color[src] );
     }
@@ -125,7 +125,7 @@ COLORS_DESIGN_SETTINGS::COLORS_DESIGN_SETTINGS( FRAME_T aFrameType )
 
 COLOR4D COLORS_DESIGN_SETTINGS::GetLayerColor( LAYER_NUM aLayer ) const
 {
-    if( (unsigned) aLayer < DIM( m_LayersColors ) )
+    if( (unsigned) aLayer < arrayDim( m_LayersColors ) )
     {
         return m_legacyMode ? m_LayersColors[aLayer].AsLegacyColor()
                             : m_LayersColors[aLayer];
@@ -136,7 +136,7 @@ COLOR4D COLORS_DESIGN_SETTINGS::GetLayerColor( LAYER_NUM aLayer ) const
 
 void COLORS_DESIGN_SETTINGS::SetLayerColor( LAYER_NUM aLayer, COLOR4D aColor )
 {
-    if( (unsigned) aLayer < DIM( m_LayersColors ) )
+    if( (unsigned) aLayer < arrayDim( m_LayersColors ) )
     {
         m_LayersColors[aLayer] = aColor;
     }
@@ -145,7 +145,7 @@ void COLORS_DESIGN_SETTINGS::SetLayerColor( LAYER_NUM aLayer, COLOR4D aColor )
 
 COLOR4D COLORS_DESIGN_SETTINGS::GetItemColor( int aItemIdx ) const
 {
-    if( (unsigned) aItemIdx < DIM( m_LayersColors ) )
+    if( (unsigned) aItemIdx < arrayDim( m_LayersColors ) )
     {
         return m_legacyMode ? m_LayersColors[aItemIdx].AsLegacyColor()
                             : m_LayersColors[aItemIdx];
@@ -157,7 +157,7 @@ COLOR4D COLORS_DESIGN_SETTINGS::GetItemColor( int aItemIdx ) const
 
 void COLORS_DESIGN_SETTINGS::SetItemColor( int aItemIdx, COLOR4D aColor )
 {
-    if( (unsigned) aItemIdx < DIM( m_LayersColors ) )
+    if( (unsigned) aItemIdx < arrayDim( m_LayersColors ) )
     {
         m_LayersColors[aItemIdx] = aColor;
     }
@@ -166,7 +166,7 @@ void COLORS_DESIGN_SETTINGS::SetItemColor( int aItemIdx, COLOR4D aColor )
 
 void COLORS_DESIGN_SETTINGS::SetAllColorsAs( COLOR4D aColor )
 {
-    for( unsigned ii = 0; ii < DIM(m_LayersColors); ii++ )
+    for( unsigned ii = 0; ii < arrayDim(m_LayersColors); ii++ )
         m_LayersColors[ii] = aColor;
 }
 
@@ -175,33 +175,26 @@ void COLORS_DESIGN_SETTINGS::SetAllColorsAs( COLOR4D aColor )
 
 void COLORS_DESIGN_SETTINGS::setupConfigParams()
 {
-    wxASSERT( DIM( m_LayersColors ) >= PCB_LAYER_ID_COUNT );
+    wxASSERT( arrayDim( m_LayersColors ) >= PCB_LAYER_ID_COUNT );
 
     wxString currprefix = GetConfigPrefix();
 
     switch( m_frameType )
     {
-    case FRAME_PCB: break;   // no prefix
+    case FRAME_GERBER:
+    case FRAME_PCB:                      /* no prefix */               break;
 
-    case FRAME_PCB_MODULE_EDITOR:
-        SetConfigPrefix( "ModEdit" );
-        break;
-
+    case FRAME_CVPCB_DISPLAY:
     case FRAME_PCB_MODULE_VIEWER:
     case FRAME_PCB_MODULE_VIEWER_MODAL:
-    case FRAME_PCB_FOOTPRINT_WIZARD_MODAL:
+    case FRAME_PCB_FOOTPRINT_WIZARD:
     case FRAME_PCB_FOOTPRINT_PREVIEW:
-        SetConfigPrefix( "fpview_" );
-        break;
+    case FRAME_PCB_MODULE_EDITOR:        SetConfigPrefix( "ModEdit" ); break;
 
-    case FRAME_PCB_DISPLAY3D:
-        SetConfigPrefix( "fp3d_" );
-        break;
+    case FRAME_PCB_DISPLAY3D:            SetConfigPrefix( "fp3d_" );   break;
 
-    default:
-        break;
+    default:                                                           break;
     }
-
 
     wxString fmt( "Color4DPCBLayer_%s" );
 

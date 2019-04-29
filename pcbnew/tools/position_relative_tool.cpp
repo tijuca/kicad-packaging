@@ -27,10 +27,11 @@ using namespace std::placeholders;
 #include "position_relative_tool.h"
 #include "pcb_actions.h"
 #include "selection_tool.h"
+#include "edit_tool.h"
 #include "picker_tool.h"
 
 #include <dialogs/dialog_position_relative.h>
-
+#include <status_popup.h>
 #include <board_commit.h>
 #include <hotkeys.h>
 #include <bitmaps.h>
@@ -52,10 +53,11 @@ TOOL_ACTION PCB_ACTIONS::selectpositionRelativeItem(
 
 
 POSITION_RELATIVE_TOOL::POSITION_RELATIVE_TOOL() :
-    PCB_TOOL( "pcbnew.PositionRelative" ), m_position_relative_dialog( NULL ),
-    m_selectionTool( NULL ), m_anchor_item( NULL )
+    PCB_TOOL( "pcbnew.PositionRelative" ),
+    m_dialog( NULL ),
+    m_selectionTool( NULL ),
+    m_anchor_item( NULL )
 {
-    m_position_relative_rotation = 0.0;
 }
 
 
@@ -69,92 +71,67 @@ void POSITION_RELATIVE_TOOL::Reset( RESET_REASON aReason )
 bool POSITION_RELATIVE_TOOL::Init()
 {
     // Find the selection tool, so they can cooperate
-    m_selectionTool =
-        static_cast<SELECTION_TOOL*>( m_toolMgr->FindTool( "pcbnew.InteractiveSelection" ) );
+    m_selectionTool = m_toolMgr->GetTool<SELECTION_TOOL>();
 
-    if( !m_selectionTool )
-    {
-        DisplayError( NULL, wxT( "pcbnew.InteractiveSelection tool is not available" ) );
-        return false;
-    }
-
-    return true;
+    return m_selectionTool != nullptr;
 }
 
 
 int POSITION_RELATIVE_TOOL::PositionRelative( const TOOL_EVENT& aEvent )
 {
-    const auto& selection = m_selectionTool->RequestSelection();
+    PCB_BASE_FRAME*         editFrame = getEditFrame<PCB_BASE_FRAME>();
 
-    if( m_selectionTool->CheckLock() == SELECTION_LOCKED )
-        return 0;
+    const auto& selection = m_selectionTool->RequestSelection(
+            []( const VECTOR2I& aPt, GENERAL_COLLECTOR& aCollector )
+            { EditToolSelectionFilter( aCollector, EXCLUDE_LOCKED | EXCLUDE_TRANSIENTS ); } );
 
     if( selection.Empty() )
         return 0;
 
+    m_selection = selection;
 
-    m_position_relative_selection = selection;
+    if( !m_dialog )
+        m_dialog = new DIALOG_POSITION_RELATIVE( editFrame, m_translation, m_anchor );
 
-    PCB_BASE_FRAME* editFrame = getEditFrame<PCB_BASE_FRAME>();
-    m_position_relative_rotation = 0;
-
-    if( !m_position_relative_dialog )
-        m_position_relative_dialog = new DIALOG_POSITION_RELATIVE( editFrame,
-                m_toolMgr,
-                m_position_relative_translation,
-                m_position_relative_rotation,
-                m_anchor_position );
-
-    m_position_relative_dialog->Show( true );
+    m_dialog->Show( true );
 
     return 0;
 }
 
 
-static bool selectPRitem( TOOL_MANAGER* aToolMgr, const VECTOR2D& aPosition )
+int POSITION_RELATIVE_TOOL::RelativeItemSelectionMove( wxPoint aPosAnchor, wxPoint aTranslation )
 {
-    SELECTION_TOOL* selectionTool = aToolMgr->GetTool<SELECTION_TOOL>();
-    POSITION_RELATIVE_TOOL* positionRelativeTool = aToolMgr->GetTool<POSITION_RELATIVE_TOOL>();
-    wxCHECK( selectionTool, false );
-    wxCHECK( positionRelativeTool, false );
+    wxPoint aSelAnchor( INT_MAX, INT_MAX );
 
-    aToolMgr->RunAction( PCB_ACTIONS::selectionClear, true );
-    aToolMgr->RunAction( PCB_ACTIONS::selectionCursor, true );
-    selectionTool->SanitizeSelection();
-
-    const SELECTION& selection = selectionTool->GetSelection();
-
-    if( selection.Empty() )
-        return true;
-
-    positionRelativeTool->UpdateAnchor( static_cast<BOARD_ITEM*>( selection.Front() ) );
-
-    return true;
-}
-
-
-int POSITION_RELATIVE_TOOL::RelativeItemSelectionMove( wxPoint anchorPosition,
-        wxPoint relativePosition,
-        double rotation )
-{
-    VECTOR2I rp = m_position_relative_selection.GetCenter();
-    wxPoint rotPoint( rp.x, rp.y );
-    wxPoint translation = anchorPosition + relativePosition - rotPoint;
-
-    for( auto item : m_position_relative_selection )
+    // Find top-left item anchor in selection
+    for( auto item : m_selection )
     {
-        m_commit->Modify( item );
+        wxPoint itemAnchor = static_cast<BOARD_ITEM*>( item )->GetPosition();
 
-        static_cast<BOARD_ITEM*>( item )->Rotate( rotPoint, rotation );
-        static_cast<BOARD_ITEM*>( item )->Move( translation );
+        if( EuclideanNorm( itemAnchor ) < EuclideanNorm( aSelAnchor ) )
+            aSelAnchor = itemAnchor;
+    }
+
+    wxPoint aggregateTranslation = aPosAnchor + aTranslation - aSelAnchor;
+
+    for( auto item : m_selection )
+    {
+        // Don't move a pad by itself unless editing the footprint
+        if( item->Type() == PCB_PAD_T && frame()->IsType( FRAME_PCB ) )
+            item = item->GetParent();
+
+        m_commit->Modify( item );
+        static_cast<BOARD_ITEM*>( item )->Move( aggregateTranslation );
     }
 
     m_commit->Push( _( "Position Relative" ) );
 
-    if( m_position_relative_selection.IsHover() )
+    if( m_selection.IsHover() )
         m_toolMgr->RunAction( PCB_ACTIONS::selectionClear, true );
 
     m_toolMgr->RunAction( PCB_ACTIONS::selectionModified, true );
+
+    canvas()->Refresh();
     return 0;
 }
 
@@ -164,23 +141,52 @@ int POSITION_RELATIVE_TOOL::SelectPositionRelativeItem( const TOOL_EVENT& aEvent
     Activate();
 
     PICKER_TOOL* picker = m_toolMgr->GetTool<PICKER_TOOL>();
-    assert( picker );
+    STATUS_TEXT_POPUP statusPopup( frame() );
+    bool picking = true;
 
-    picker->SetSnapping( false );
-    picker->SetClickHandler( std::bind( selectPRitem, m_toolMgr, _1 ) );
+    statusPopup.SetText( _( "Select reference item..." ) );
     picker->Activate();
-    Wait();
+
+    picker->SetClickHandler( [&]( const VECTOR2D& aPoint ) -> bool
+            {
+                m_toolMgr->RunAction( PCB_ACTIONS::selectionClear, true );
+                const SELECTION& sel = m_selectionTool->RequestSelection(
+                        []( const VECTOR2I& aPt, GENERAL_COLLECTOR& aCollector )
+                        { EditToolSelectionFilter( aCollector, EXCLUDE_TRANSIENTS ); } );
+
+                if( sel.Empty() )
+                    return true;    // still looking for an item
+
+                m_anchor_item = sel.Front();
+                statusPopup.Hide();
+
+                if( m_dialog )
+                    m_dialog->UpdateAnchor( sel.Front() );
+
+                picking = false;
+                return false;       // got our item; don't need any more
+            } );
+
+    picker->SetCancelHandler( [&]()
+            {
+                statusPopup.Hide();
+
+                if( m_dialog )
+                    m_dialog->UpdateAnchor( m_anchor_item );
+
+                picking = false;
+            } );
+
+    statusPopup.Move( wxGetMousePosition() + wxPoint( 20, -50 ) );
+    statusPopup.Popup();
+
+    while( picking )
+    {
+        statusPopup.Move( wxGetMousePosition() + wxPoint( 20, -50 ) );
+        Wait();
+    }
 
     return 0;
-}
-
-
-void POSITION_RELATIVE_TOOL::UpdateAnchor( BOARD_ITEM* aItem )
-{
-    m_anchor_item = aItem;
-
-    if( m_position_relative_dialog )
-        m_position_relative_dialog->UpdateAnchor( aItem->GetPosition() );
 }
 
 

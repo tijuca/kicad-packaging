@@ -74,6 +74,10 @@ private:
     int m_NetCode;              ///< A number equivalent to the net name.
                                 ///< Used for fast comparisons in ratsnest and DRC computations.
 
+    bool m_isCurrent;           ///< Indicates the net is currently in use.  We still store those
+                                ///< that are not during a session for undo/redo and to keep
+                                ///< netclass membership information.
+
     wxString m_Netname;         ///< Full net name like /mysheet/mysubsheet/vout used by Eeschema
 
     wxString m_ShortNetname;    ///< short net name, like vout from /mysheet/mysubsheet/vout
@@ -89,7 +93,7 @@ public:
 
     static inline bool ClassOf( const EDA_ITEM* aItem )
     {
-        return aItem && PCB_T == aItem->Type();
+        return aItem && PCB_NETINFO_T == aItem->Type();
     }
 
     wxString GetClass() const override
@@ -240,6 +244,10 @@ public:
      */
     const wxString& GetShortNetname() const { return m_ShortNetname; }
 
+    bool IsCurrent() const { return m_isCurrent; }
+
+    void SetIsCurrent( bool isCurrent ) { m_isCurrent = isCurrent; }
+
     /**
      * Function GetMsgPanelInfo
      * returns the information about the #NETINFO_ITEM in \a aList to display in the
@@ -247,7 +255,7 @@ public:
      *
      * @param aList is the list in which to place the  status information.
      */
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
+    void GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList ) override;
 
     /**
      * Function Clear

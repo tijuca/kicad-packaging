@@ -44,9 +44,9 @@ class DIALOG_FOOTPRINT_WIZARD_LIST_BASE : public DIALOG_SHIM
 		wxPanel* m_panelGenerators;
 		wxGrid* m_footprintGeneratorsGrid;
 		wxPanel* m_panelInfo;
-		wxStaticText* m_staticText1;
+		wxStaticText* m_staticTextSearchPaths;
 		wxTextCtrl* m_tcSearchPaths;
-		wxStaticText* m_staticText11;
+		wxStaticText* m_staticTextNotLoaded;
 		wxTextCtrl* m_tcNotLoaded;
 		wxButton* m_buttonShowTrace;
 		wxButton* m_buttonUpdateModules;

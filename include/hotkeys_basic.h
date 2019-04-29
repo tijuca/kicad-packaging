@@ -71,6 +71,11 @@ public:
     EDA_HOTKEY( const wxChar* infomsg, int idcommand, int keycode, int idmenuevent = 0 );
     EDA_HOTKEY( const EDA_HOTKEY* base);
     void ResetKeyCodeToDefault() { m_KeyCode = m_defaultKeyCode; }
+
+    int GetDefaultKeyCode() const
+    {
+        return m_defaultKeyCode;
+    }
 };
 
 
@@ -275,6 +280,7 @@ enum common_hotkey_id_commnand {
     HK_ZOOM_CENTER,
     HK_ZOOM_AUTO,
     HK_ZOOM_SELECTION,
+    HK_PREFERENCES,
     HK_TOGGLE_CURSOR,
     HK_MEASURE_TOOL,
     HK_COMMON_END

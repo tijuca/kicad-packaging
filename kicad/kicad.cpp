@@ -127,8 +127,8 @@ bool PGM_KICAD::OnPgmInit()
 
     // Must be called before creating the main frame in order to
     // display the real hotkeys in menus or tool tips
-    extern struct EDA_HOTKEY_CONFIG kicad_Manager_Hokeys_Descr[];
-    ReadHotkeyConfig( KICAD_MANAGER_FRAME_NAME, kicad_Manager_Hokeys_Descr );
+    extern struct EDA_HOTKEY_CONFIG kicad_Manager_Hotkeys_Descr[];
+    ReadHotkeyConfig( KICAD_MANAGER_FRAME_NAME, kicad_Manager_Hotkeys_Descr );
 
     KICAD_MANAGER_FRAME* frame = new KICAD_MANAGER_FRAME( NULL, wxT( "KiCad" ),
                                                           wxDefaultPosition, wxSize( 775, -1 ) );
@@ -229,6 +229,17 @@ struct APP_KICAD : public wxApp
         {
             wxSetEnv ( wxT("UBUNTU_MENUPROXY" ), wxT( "0" ) );
         }
+
+        // Force the use of X11 backend (or wayland-x11 compatibilty layer).  This is required until wxWidgets
+        // supports the Wayland compositors
+        wxSetEnv( wxT( "GDK_BACKEND" ), wxT( "x11" ) );
+
+        // Disable overlay scrollbars as they mess up wxWidgets window sizing and cause excessive redraw requests
+        wxSetEnv( wxT( "GTK_OVERLAY_SCROLLING" ), wxT( "0" ) );
+
+        // Set GTK2-style input instead of xinput2.  This disables touchscreen and smooth scrolling
+        // Needed to ensure that we are not getting multiple mouse scroll events
+        wxSetEnv( wxT( "GDK_CORE_DEVICE_EVENTS" ), wxT( "1" ) );
     }
 #endif
 

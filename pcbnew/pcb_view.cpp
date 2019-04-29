@@ -37,6 +37,16 @@ namespace KIGFX {
 PCB_VIEW::PCB_VIEW( bool aIsDynamic ) :
     VIEW( aIsDynamic )
 {
+    // Set m_boundary to define the max area size. The default value
+    // is acceptable for Pcbnew and Gerbview.
+    // However, ensure this area has the right size (max size allowed by integer coordinates)
+    // in case of the default value is changed.
+    // Could be a size depending on the worksheet size.
+    typedef std::numeric_limits<int> coord_limits;
+    double pos = coord_limits::lowest() / 2 + coord_limits::epsilon();
+    double size = coord_limits::max() - coord_limits::epsilon();
+    m_boundary.SetOrigin( pos, pos );
+    m_boundary.SetSize( size, size );
 }
 
 
@@ -105,6 +115,6 @@ void PCB_VIEW::UpdateDisplayOptions( PCB_DISPLAY_OPTIONS* aOptions )
     auto    painter     = static_cast<KIGFX::PCB_PAINTER*>( GetPainter() );
     auto    settings    = static_cast<KIGFX::PCB_RENDER_SETTINGS*>( painter->GetSettings() );
 
-    settings->LoadDisplayOptions( aOptions );
+    settings->LoadDisplayOptions( aOptions, settings->GetShowPageLimits() );
 }
 }

@@ -1,9 +1,9 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2017 Jean_Pierre Charras <jp.charras at wanadoo.fr>
+ * Copyright (C) 2018 Jean_Pierre Charras <jp.charras at wanadoo.fr>
  * Copyright (C) 2015 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -45,15 +45,22 @@
 
 #include <pcbplot.h>
 #include <pcbnew.h>
+#include <class_board.h>
 #include <gendrill_Excellon_writer.h>
 #include <wildcards_and_files_ext.h>
 #include <reporter.h>
+#include <gbr_metadata.h>
 
 // Comment/uncomment this to write or not a comment
 // in drill file when PTH and NPTH are merged to flag
 // tools used for PTH and tools used for NPTH
 // #define WRITE_PTH_NPTH_COMMENT
 
+// Oblong holes can be drilled by a "canned slot" command (G85) or a routing command
+// a linear routing command (G01) is perhaps more usual for drill files
+//
+// set m_useRouteModeForOval to false to use a canned slot hole (old way)
+// set m_useRouteModeForOval to true (prefered mode) to use a linear routed hole (new way)
 
 EXCELLON_WRITER::EXCELLON_WRITER( BOARD* aPcb )
     : GENDRILL_WRITER_BASE( aPcb )
@@ -65,6 +72,7 @@ EXCELLON_WRITER::EXCELLON_WRITER( BOARD* aPcb )
     m_merge_PTH_NPTH = false;
     m_minimalHeader = false;
     m_drillFileExtension = DrillFileExtension;
+    m_useRouteModeForOval = true;
 }
 
 
@@ -121,7 +129,7 @@ void EXCELLON_WRITER::CreateDrillandMapFilesSet( const wxString& aPlotDirectory,
                     }
                 }
 
-                createDrillFile( file );
+                createDrillFile( file, pair, doing_npth );
             }
         }
     }
@@ -131,7 +139,8 @@ void EXCELLON_WRITER::CreateDrillandMapFilesSet( const wxString& aPlotDirectory,
 }
 
 
-int EXCELLON_WRITER::createDrillFile( FILE* aFile )
+int EXCELLON_WRITER::createDrillFile( FILE* aFile, DRILL_LAYER_PAIR aLayerPair,
+                                      bool aGenerateNPTH_list )
 {
     m_file = aFile;
 
@@ -142,7 +151,7 @@ int EXCELLON_WRITER::createDrillFile( FILE* aFile )
 
     LOCALE_IO dummy;    // Use the standard notation for double numbers
 
-    writeEXCELLONHeader();
+    writeEXCELLONHeader( aLayerPair, aGenerateNPTH_list );
 
     holes_count = 0;
 
@@ -264,25 +273,41 @@ int EXCELLON_WRITER::createDrillFile( FILE* aFile )
 
         xt = x0 * m_conversionUnits;
         yt = y0 * m_conversionUnits;
+
+        if( m_useRouteModeForOval )
+            fputs( "G00", m_file );    // Select the routing mode
+
         writeCoordinates( line, xt, yt );
 
-        /* remove the '\n' from end of line, because we must add the "G85"
-         * command to the line: */
-        for( int kk = 0; line[kk] != 0; kk++ )
+        if( !m_useRouteModeForOval )
         {
-            if( line[kk] == '\n' || line[kk] =='\r' )
-                line[kk] = 0;
-        }
+            /* remove the '\n' from end of line, because we must add the "G85"
+             * command to the line: */
+            for( int kk = 0; line[kk] != 0; kk++ )
+            {
+                if( line[kk] < ' ' )
+                    line[kk] = 0;
+            }
 
-        fputs( line, m_file );
-        fputs( "G85", m_file );    // add the "G85" command
+            fputs( line, m_file );
+            fputs( "G85", m_file );         // add the "G85" command
+        }
+        else
+        {
+            fputs( line, m_file );
+            fputs( "M15\nG01", m_file );    // tool down and linear routing from last coordinates
+        }
 
         xt = xf * m_conversionUnits;
         yt = yf * m_conversionUnits;
         writeCoordinates( line, xt, yt );
 
         fputs( line, m_file );
-        fputs( "G05\n", m_file );
+
+        if( m_useRouteModeForOval )
+            fputs( "M16\n", m_file );       // Tool up (end routing)
+
+        fputs( "G05\n", m_file );           // Select drill mode
         holes_count++;
     }
 
@@ -353,8 +378,14 @@ void EXCELLON_WRITER::writeCoordinates( char* aLine, double aCoordX, double aCoo
         while( xs.Last() == '0' )
             xs.RemoveLast();
 
+        if( xs.Last() == '.' )      // however keep a trailing 0 after the floating point separator
+            xs << '0';
+
         while( ys.Last() == '0' )
             ys.RemoveLast();
+
+        if( ys.Last() == '.' )
+            ys << '0';
 
         sprintf( aLine, "X%sY%s\n", TO_UTF8( xs ), TO_UTF8( ys ) );
         break;
@@ -419,27 +450,30 @@ void EXCELLON_WRITER::writeCoordinates( char* aLine, double aCoordX, double aCoo
 }
 
 
-void EXCELLON_WRITER::writeEXCELLONHeader()
+void EXCELLON_WRITER::writeEXCELLONHeader( DRILL_LAYER_PAIR aLayerPair,
+                                           bool aGenerateNPTH_list)
 {
     fputs( "M48\n", m_file );    // The beginning of a header
 
     if( !m_minimalHeader )
     {
-        // The next 2 lines in EXCELLON files are comments:
+        // The next lines in EXCELLON files are comments:
         wxString msg;
-        msg << wxT("KiCad") << wxT( " " ) << GetBuildVersion();
+        msg << "KiCad " << GetBuildVersion();
 
-        fprintf( m_file, ";DRILL file {%s} date %s\n", TO_UTF8( msg ), TO_UTF8( DateAndTime() ) );
-        msg = wxT( ";FORMAT={" );
+        fprintf( m_file, "; DRILL file {%s} date %s\n", TO_UTF8( msg ), TO_UTF8( DateAndTime() ) );
+        msg = "; FORMAT={";
 
         // Print precision:
+        // Note in decimal format the precision is not used.
+        // the floating point notation has higher priority than the precision.
         if( m_zeroFormat != DECIMAL_FORMAT )
             msg << m_precision.GetPrecisionString();
         else
-            msg << wxT( "-:-" );  // in decimal format the precision is irrelevant
+            msg << "-:-";  // in decimal format the precision is irrelevant
 
-        msg << wxT( "/ absolute / " );
-        msg << ( m_unitsMetric ? wxT( "metric" ) :  wxT( "inch" ) );
+        msg << "/ absolute / ";
+        msg << ( m_unitsMetric ? "metric" :  "inch" );
 
         /* Adding numbers notation format.
          * this is same as m_Choice_Zeros_Format strings, but NOT translated
@@ -452,15 +486,34 @@ void EXCELLON_WRITER::writeEXCELLONHeader()
 
         const wxString zero_fmt[4] =
         {
-            wxT( "decimal" ),
-            wxT( "suppress leading zeros" ),
-            wxT( "suppress trailing zeros" ),
-            wxT( "keep zeros" )
+            "decimal",
+            "suppress leading zeros",
+            "suppress trailing zeros",
+            "keep zeros"
         };
 
-        msg << zero_fmt[m_zeroFormat];
-        msg << wxT( "}\n" );
+        msg << zero_fmt[m_zeroFormat] << "}\n";
         fputs( TO_UTF8( msg ), m_file );
+
+        // add the structured comment TF.CreationDate:
+        // The attribute value must conform to the full version of the ISO 8601
+        msg = GbrMakeCreationDateAttributeString( GBR_NC_STRING_FORMAT_NCDRILL ) + "\n";
+        fputs( TO_UTF8( msg ), m_file );
+
+        // Add the application name that created the drill file
+        msg = "; #@! TF.GenerationSoftware,Kicad,Pcbnew,";
+        msg << GetBuildVersion() << "\n";
+        fputs( TO_UTF8( msg ), m_file );
+
+        if( !m_merge_PTH_NPTH )
+        {
+            // Add the standard X2 FileFunction for drill files
+            // TF.FileFunction,Plated[NonPlated],layer1num,layer2num,PTH[NPTH]
+            msg = BuildFileFunctionAttributeString( aLayerPair, aGenerateNPTH_list, true )
+                  + "\n";
+            fputs( TO_UTF8( msg ), m_file );
+        }
+
         fputs( "FMAT,2\n", m_file );     // Use Format 2 commands (version used since 1979)
     }
 
@@ -468,8 +521,11 @@ void EXCELLON_WRITER::writeEXCELLONHeader()
 
     switch( m_zeroFormat )
     {
-    case SUPPRESS_LEADING:
     case DECIMAL_FORMAT:
+        fputs( "\n", m_file );
+        break;
+
+    case SUPPRESS_LEADING:
         fputs( ",TZ\n", m_file );
         break;
 
@@ -478,7 +534,8 @@ void EXCELLON_WRITER::writeEXCELLONHeader()
         break;
 
     case KEEP_ZEROS:
-        fputs( ",TZ\n", m_file ); // TZ is acceptable when all zeros are kept
+        // write nothing, but TZ is acceptable when all zeros are kept
+        fputs( "\n", m_file );
         break;
     }
 }

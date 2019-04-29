@@ -31,12 +31,10 @@
 #include <fctsys.h>
 #include <gr_basic.h>
 #include <macros.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <confirm.h>
 #include <sch_edit_frame.h>
-#include <base_units.h>
 
-#include <general.h>
 #include <sch_sheet.h>
 #include <dialog_helpers.h>
 
@@ -58,56 +56,25 @@ const wxSize &SCH_EDIT_FRAME::GetLastSheetPinTextSize()
     return m_lastSheetPinTextSize;
 }
 
+
 int SCH_EDIT_FRAME::EditSheetPin( SCH_SHEET_PIN* aSheetPin, bool aRedraw )
 {
     if( aSheetPin == NULL )
         return wxID_CANCEL;
 
-    DIALOG_SCH_EDIT_SHEET_PIN dlg( this );
-
-    dlg.SetLabelName( aSheetPin->GetText() );
-    dlg.SetTextHeight( StringFromValue( g_UserUnit, aSheetPin->GetTextHeight() ) );
-    dlg.SetTextHeightUnits( GetUnitsLabel( g_UserUnit ) );
-    dlg.SetTextWidth( StringFromValue( g_UserUnit, aSheetPin->GetTextWidth() ) );
-    dlg.SetTextWidthUnits( GetUnitsLabel( g_UserUnit ) );
-    dlg.SetConnectionType( aSheetPin->GetShape() );
-
-    /* This ugly hack fixes a bug in wxWidgets 2.8.7 and likely earlier versions for
-     * the flex grid sizer in wxGTK that prevents the last column from being sized
-     * correctly.  It doesn't cause any problems on win32 so it doesn't need to wrapped
-     * in ugly #ifdef __WXGTK__ #endif.
-     */
-    dlg.Layout();
-    dlg.Fit();
-    dlg.SetMinSize( dlg.GetSize() );
+    DIALOG_SCH_EDIT_SHEET_PIN dlg( this, aSheetPin );
 
     if( dlg.ShowModal() == wxID_CANCEL )
         return wxID_CANCEL;
 
-    if( !aSheetPin->IsNew() )
-    {
-        SaveCopyInUndoList( (SCH_ITEM*) aSheetPin->GetParent(), UR_CHANGED );
-        GetScreen()->SetCurItem( NULL );
-    }
-
-    aSheetPin->SetText( dlg.GetLabelName() );
-
-    aSheetPin->SetTextSize( wxSize(
-            ValueFromString( g_UserUnit, dlg.GetTextWidth() ),
-            ValueFromString( g_UserUnit, dlg.GetTextHeight() ) ) );
-
-    aSheetPin->SetShape( dlg.GetConnectionType() );
-
-    OnModify();
-
     if( aRedraw )
-        m_canvas->Refresh();
+        RefreshItem( aSheetPin );
 
     return wxID_OK;
 }
 
 
-SCH_SHEET_PIN* SCH_EDIT_FRAME::CreateSheetPin( SCH_SHEET* aSheet, wxDC* aDC )
+SCH_SHEET_PIN* SCH_EDIT_FRAME::CreateSheetPin( SCH_SHEET* aSheet )
 {
     wxString       line;
     SCH_SHEET_PIN* sheetPin;
@@ -129,15 +96,14 @@ SCH_SHEET_PIN* SCH_EDIT_FRAME::CreateSheetPin( SCH_SHEET* aSheet, wxDC* aDC )
     m_lastSheetPinTextSize = sheetPin->GetTextSize();
 
     sheetPin->SetPosition( GetCrossHairPosition() );
-    sheetPin->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
-    PrepareMoveItem( (SCH_ITEM*) sheetPin, aDC );
+    PrepareMoveItem( sheetPin );
 
     OnModify();
     return sheetPin;
 }
 
 
-SCH_SHEET_PIN* SCH_EDIT_FRAME::ImportSheetPin( SCH_SHEET* aSheet, wxDC* aDC )
+SCH_SHEET_PIN* SCH_EDIT_FRAME::ImportSheetPin( SCH_SHEET* aSheet )
 {
     EDA_ITEM*      item;
     SCH_SHEET_PIN* sheetPin;
@@ -175,8 +141,7 @@ SCH_SHEET_PIN* SCH_EDIT_FRAME::ImportSheetPin( SCH_SHEET* aSheet, wxDC* aDC )
     sheetPin->SetShape( label->GetShape() );
     sheetPin->SetPosition( GetCrossHairPosition() );
 
-    sheetPin->Draw( m_canvas, aDC, wxPoint( 0, 0 ), g_XorMode );
-    PrepareMoveItem( (SCH_ITEM*) sheetPin, aDC );
+    PrepareMoveItem( sheetPin );
 
     return sheetPin;
 }

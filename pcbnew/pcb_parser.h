@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 CERN
- * Copyright (C) 2012-2018 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -70,6 +70,7 @@ class PCB_PARSER : public PCB_LEXER
     BOARD*              m_board;
     LAYER_ID_MAP        m_layerIndices;     ///< map layer name to it's index
     LSET_MAP            m_layerMasks;       ///< map layer names to their masks
+    std::set<wxString>  m_undefinedLayers;  ///< set of layers not defined in layers section
     std::vector<int>    m_netCodes;         ///< net codes mapping for boards being loaded
     bool                m_tooRecent;        ///< true if version parses as later than supported
     int                 m_requiredVersion;  ///< set to the KiCad format version this board requires
@@ -100,6 +101,14 @@ class PCB_PARSER : public PCB_LEXER
      * is encountered.
      */
     void init();
+
+    /**
+     * Creates a mapping from the (short-lived) bug where layer names were translated
+     * TODO: Remove this once we support custom layer names
+     *
+     * @param aMap string mapping from translated to English layer names
+     */
+    void createOldLayerMapping( std::unordered_map< std::string, std::string >& aMap );
 
     void parseHeader();
     void parseGeneralSection();
@@ -232,15 +241,29 @@ class PCB_PARSER : public PCB_LEXER
         // to confirm or experiment.  Use a similar strategy in both places, here
         // and in the test program. Make that program with:
         // $ make test-nm-biu-to-ascii-mm-round-tripping
-        return KiROUND( parseDouble() * IU_PER_MM );
+        auto retval = parseDouble() * IU_PER_MM;
+
+        // N.B. we currently represent board units as integers.  Any values that are
+        // larger or smaller than those board units represent undefined behavior for
+        // the system.  We limit values to the largest that is visible on the screen
+        // This is the diagonal distance of the full screen ~1.5m
+        double int_limit = std::numeric_limits<int>::max() * 0.7071;    // 0.7071 = roughly 1/sqrt(2)
+        return KiROUND( Clamp<double>( -int_limit, retval, int_limit ) );
     }
 
     inline int parseBoardUnits( const char* aExpected )
     {
+        auto retval = parseDouble( aExpected ) * IU_PER_MM;
+
+        // N.B. we currently represent board units as integers.  Any values that are
+        // larger or smaller than those board units represent undefined behavior for
+        // the system.  We limit values to the largest that is visible on the screen
+        double int_limit = std::numeric_limits<int>::max() * 0.7071;
+
         // Use here KiROUND, not KIROUND (see comments about them)
         // when having a function as argument, because it will be called twice
         // with KIROUND
-        return KiROUND( parseDouble( aExpected ) * IU_PER_MM );
+        return KiROUND( Clamp<double>( -int_limit, retval, int_limit ) );
     }
 
     inline int parseBoardUnits( PCB_KEYS_T::T aToken )

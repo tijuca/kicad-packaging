@@ -29,7 +29,8 @@
 #include <fctsys.h>
 #include <kiway.h>
 #include <pgm_base.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
+#include <sch_view.h>
 #include <confirm.h>
 #include <eda_doc.h>
 
@@ -38,53 +39,51 @@
 #include <class_library.h>
 #include <dialog_helpers.h>
 #include <dialog_choose_component.h>
-#include <cmp_tree_model_adapter.h>
+#include <symbol_tree_model_adapter.h>
 #include <symbol_lib_table.h>
 
 void LIB_VIEW_FRAME::OnSelectSymbol( wxCommandEvent& aEvent )
 {
     std::unique_lock<std::mutex> dialogLock( DIALOG_CHOOSE_COMPONENT::g_Mutex, std::defer_lock );
-    wxString                     dialogTitle;
-    SYMBOL_LIB_TABLE*            libs = Prj().SchSymbolLibTable();
 
     // One CHOOSE_COMPONENT dialog at a time.  User probaby can't handle more anyway.
     if( !dialogLock.try_lock() )
         return;
 
     // Container doing search-as-you-type.
-    auto adapter( CMP_TREE_MODEL_ADAPTER::Create( libs ) );
+    SYMBOL_LIB_TABLE* libs = Prj().SchSymbolLibTable();
+    auto adapterPtr( SYMBOL_TREE_MODEL_ADAPTER::Create( libs ) );
+    auto adapter = static_cast<SYMBOL_TREE_MODEL_ADAPTER*>( adapterPtr.get() );
 
     const auto libNicknames = libs->GetLogicalLibs();
+    adapter->AddLibraries( libNicknames, this );
 
-    adapter->AddLibrariesWithProgress( libNicknames, this );
+    LIB_ALIAS *current = getSelectedAlias();
+    LIB_ID id;
+    int unit = 0;
 
-    dialogTitle.Printf( _( "Choose Symbol (%d items loaded)" ),
-                        adapter->GetComponentsCount() );
-    DIALOG_CHOOSE_COMPONENT dlg( this, dialogTitle, adapter, m_convert, false, false );
+    if( current )
+    {
+        id = current->GetLibId();
+        adapter->SetPreselectNode( id, unit );
+    }
+
+    wxString dialogTitle;
+    dialogTitle.Printf( _( "Choose Symbol (%d items loaded)" ), adapter->GetItemCount() );
+
+    DIALOG_CHOOSE_COMPONENT dlg( this, dialogTitle, adapterPtr, m_convert, false, false, false );
 
     if( dlg.ShowQuasiModal() == wxID_CANCEL )
         return;
 
-    /// @todo: The unit selection gets reset to 1 by SetSelectedComponent() so the unit
-    ///        selection feature of the choose symbol dialog doesn't work.
-    LIB_ID id = dlg.GetSelectedLibId( &m_unit );
+    id = dlg.GetSelectedLibId( &unit );
 
-    if( !id.IsValid() || id.GetLibNickname().empty() )
+    if( !id.IsValid() )
         return;
 
-    if( m_libraryName == id.GetLibNickname() )
-    {
-        if( m_entryName != id.GetLibItemName() )
-            SetSelectedComponent( id.GetLibItemName() );
-    }
-    else
-    {
-        m_entryName = id.GetLibItemName();
-        SetSelectedLibrary( id.GetLibNickname() );
-        SetSelectedComponent( id.GetLibItemName() );
-    }
-
-    Zoom_Automatique( false );
+    SetSelectedLibrary( id.GetLibNickname() );
+    SetSelectedComponent( id.GetLibItemName() );
+    SetUnitAndConvert( unit, 1 );
 }
 
 
@@ -116,10 +115,17 @@ void LIB_VIEW_FRAME::onSelectPreviousSymbol( wxCommandEvent& aEvent )
 }
 
 
+void LIB_VIEW_FRAME::onUpdateDocButton( wxUpdateUIEvent& aEvent )
+{
+    LIB_ALIAS* entry = getSelectedAlias();
+
+    aEvent.Enable( entry && !entry->GetDocFileName().IsEmpty() );
+}
+
+
 void LIB_VIEW_FRAME::onViewSymbolDocument( wxCommandEvent& aEvent )
 {
-    LIB_ID id( m_libraryName, m_entryName );
-    LIB_ALIAS* entry = Prj().SchSymbolLibTable()->LoadSymbol( id );
+    LIB_ALIAS* entry = getSelectedAlias();
 
     if( entry && !entry->GetDocFileName().IsEmpty() )
     {
@@ -138,27 +144,28 @@ void LIB_VIEW_FRAME::onSelectSymbolBodyStyle( wxCommandEvent& aEvent )
     {
     default:
     case ID_LIBVIEW_DE_MORGAN_NORMAL_BUTT:
-        m_convert = 1;
+        m_convert = LIB_ITEM::LIB_CONVERT::BASE;
         break;
 
     case ID_LIBVIEW_DE_MORGAN_CONVERT_BUTT:
-        m_convert = 2;
+        m_convert = LIB_ITEM::LIB_CONVERT::DEMORGAN;
         break;
     }
 
-    m_canvas->Refresh();
+    updatePreviewSymbol();
 }
 
 
 void LIB_VIEW_FRAME::onSelectSymbolUnit( wxCommandEvent& aEvent )
 {
-    int ii = m_selpartBox->GetCurrentSelection();
+    int ii = m_unitChoice->GetSelection();
 
     if( ii < 0 )
         return;
 
     m_unit = ii + 1;
-    m_canvas->Refresh();
+
+    updatePreviewSymbol();
 }
 
 
@@ -188,58 +195,6 @@ void LIB_VIEW_FRAME::DisplayLibInfos()
 
 void LIB_VIEW_FRAME::RedrawActiveWindow( wxDC* DC, bool EraseBg )
 {
-    LIB_ID id( m_libraryName, m_entryName );
-    LIB_ALIAS* entry = nullptr;
-
-    try
-    {
-        entry = Prj().SchSymbolLibTable()->LoadSymbol( id );
-    }
-    catch( const IO_ERROR& ) {} // ignore, it is handled below
-
-    if( !entry )
-        return;
-
-    LIB_PART* part = entry->GetPart();
-
-    if( !part )
-        return;
-
-    wxString    msg;
-    wxString    tmp;
-
-    m_canvas->DrawBackGround( DC );
-
-    if( !entry->IsRoot() )
-    {
-        // Temporarily change the name field text to reflect the alias name.
-        msg = entry->GetName();
-        tmp = part->GetName();
-
-        part->SetName( msg );
-
-        if( m_unit < 1 )
-            m_unit = 1;
-
-        if( m_convert < 1 )
-            m_convert = 1;
-    }
-    else
-        msg = _( "None" );
-
-    auto opts = PART_DRAW_OPTIONS::Default();
-    opts.show_elec_type = GetShowElectricalType();
-    part->Draw( m_canvas, DC, wxPoint( 0, 0 ), m_unit, m_convert, opts );
-
-    // Redraw the cursor
-    m_canvas->DrawCrossHair( DC );
-
-    if( !tmp.IsEmpty() )
-        part->SetName( tmp );
-
-    ClearMsgPanel();
-    AppendMsgPanel( _( "Name" ), part->GetName(), BLUE, 6 );
-    AppendMsgPanel( _( "Alias" ), msg, RED, 6 );
-    AppendMsgPanel( _( "Description" ), entry->GetDescription(), CYAN, 6 );
-    AppendMsgPanel( _( "Key words" ), entry->GetKeyWords(), DARKDARKGRAY );
+    DisplayLibInfos();
+    UpdateStatusBar();
 }

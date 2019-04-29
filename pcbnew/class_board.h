@@ -44,6 +44,7 @@
 #include <zone_settings.h>
 #include <pcb_plot_params.h>
 #include <board_item_container.h>
+#include <eda_rect.h>
 
 #include <memory>
 
@@ -63,6 +64,7 @@ class NETLIST;
 class REPORTER;
 class SHAPE_POLY_SET;
 class CONNECTIVITY_DATA;
+class COMPONENT;
 
 /**
  * Enum LAYER_T
@@ -253,7 +255,7 @@ public:
     DLIST_ITERATOR_WRAPPER<MODULE> Modules() { return DLIST_ITERATOR_WRAPPER<MODULE>(m_Modules); }
     DLIST_ITERATOR_WRAPPER<BOARD_ITEM> Drawings() { return DLIST_ITERATOR_WRAPPER<BOARD_ITEM>(m_Drawings); }
     ZONE_CONTAINERS& Zones() { return m_ZoneDescriptorList; }
-
+    const std::vector<BOARD_CONNECTED_ITEM*> AllConnectedItems();
 
     // will be deprecated as soon as append board functionality is fixed
     DLIST<BOARD_ITEM>&          DrawingsList() { return m_Drawings; }
@@ -282,6 +284,8 @@ public:
     void Add( BOARD_ITEM* aItem, ADD_MODE aMode = ADD_INSERT ) override;
 
     void Remove( BOARD_ITEM* aBoardItem ) override;
+
+    BOARD_ITEM* GetItem( void* aWeakReference );
 
     BOARD_ITEM* Duplicate( const BOARD_ITEM* aItem, bool aAddToBoard = false );
 
@@ -559,6 +563,8 @@ public:
     const ZONE_SETTINGS& GetZoneSettings() const            { return m_zoneSettings; }
     void SetZoneSettings( const ZONE_SETTINGS& aSettings )  { m_zoneSettings = aSettings; }
 
+    wxString    GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
+
     /**
      * Function GetColorSettings
      * @return the current COLORS_DESIGN_SETTINGS in use
@@ -582,11 +588,14 @@ public:
      * @param aOutlines The SHAPE_POLY_SET to fill in with outlines/holes.
      * @param aErrorText = a wxString reference to display an error message
      *          with the coordinate of the point which creates the error
-     *          (default = NULL , no message returned on error)
+     *          (default = nullptr , no message returned on error)
+     * @param aErrorLocation = a wxPoint giving the location of the Error message on the board
+     *          if left null (default), no location is returned
+     *
      * @return true if success, false if a contour is not valid
      */
     bool GetBoardPolygonOutlines( SHAPE_POLY_SET& aOutlines,
-                                  wxString* aErrorText = NULL );
+                                  wxString* aErrorText = nullptr, wxPoint* aErrorLocation = nullptr );
 
     /**
      * Function ConvertBrdLayerToPolygonalContours
@@ -803,7 +812,7 @@ public:
         return ComputeBoundingBox( true );
     }
 
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
+    void GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList ) override;
 
     /**
      * Function Draw.
@@ -894,11 +903,13 @@ public:
      * @param aNewFootprints is a pointer the to a list of new footprints used when updating
      *                       the netlist.
      * @param aReporter is a #REPORTER object to report the changes \a aNetlist makes to
-     *                  the #BOARD.  If NULL, no change reporting occurs.
+     *                  the #BOARD.
      */
     void ReplaceNetlist( NETLIST& aNetlist, bool aDeleteSinglePadNets,
-                         std::vector<MODULE*>* aNewFootprints, REPORTER* aReporter = NULL );
+                         std::vector<MODULE*>* aNewFootprints, REPORTER& aReporter );
 
+    void updateComponentPadConnections( NETLIST& aNetlist, MODULE* footprint,
+                                        COMPONENT* component, REPORTER& aReporter );
     /**
      * Function SortedNetnamesList
      * @param aNames An array string to fill with net names.
@@ -911,7 +922,7 @@ public:
     /**
      * Function SynchronizeNetsAndNetClasses
      * copies NETCLASS info to each NET, based on NET membership in a NETCLASS.
-     * Must be called after a Design Rules edition, or after reading a netlist (or editing
+     * Must be called after a Design Rules edit, or after reading a netlist (or editing
      * the list of nets)  Also this function removes the non existing nets in netclasses
      * and add net nets in default netclass (this happens after reading a netlist)
      */
@@ -1260,7 +1271,7 @@ public:
      *                   integrated circuits from the pads connected to this track to the
      *                   die (if any) (can be NULL).
      * @param aReorder true for reorder the interesting segments (useful for
-     *                 track edition/deletion) in this case the flag BUSY is
+     *                 track editing/deleting) in this case the flag BUSY is
      *                 set (the user is responsible of flag clearing). False
      *                 for no reorder : useful when we want just calculate the
      *                 track length in this case, flags are reset
@@ -1353,6 +1364,8 @@ public:
      * Resets all items' netcodes to 0 (no net).
      */
     void ClearAllNetCodes();
+
+    void SanitizeNetcodes();
 };
 
 #endif      // CLASS_BOARD_H_

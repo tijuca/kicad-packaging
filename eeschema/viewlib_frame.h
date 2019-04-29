@@ -23,15 +23,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-/**
- * @file viewlib_frame.h
- */
 
-#ifndef LIBVIEWFRM_H_
-#define LIBVIEWFRM_H_
+#ifndef LIB_VIEW_FRAME_H__
 
-
-#include <wx/gdicmn.h>
+#define LIB_VIEW_FRAME_H__
 
 #include <sch_base_frame.h>
 #include <sch_screen.h>
@@ -62,6 +57,15 @@ public:
                     FRAME_T aFrameType, const wxString& aLibraryName = wxEmptyString );
 
     ~LIB_VIEW_FRAME();
+
+    /**
+     * Function ShowModal
+     *
+     * Runs the Symbol Viewer as a modal dialog.
+     * @param aSymbol an optional FPID string to initialize the viewer with and to
+     *                return a selected footprint through.
+     */
+    bool ShowModal( wxString* aSymbol, wxWindow* aParent ) override;
 
     void OnSize( wxSizeEvent& event ) override;
 
@@ -96,7 +100,7 @@ public:
     void OnSelectSymbol( wxCommandEvent& aEvent );
     void OnShowElectricalType( wxCommandEvent& event );
 
-    bool GeneralControl( wxDC* aDC, const wxPoint& aPosition, EDA_KEY aHotKey = 0 ) override;
+    bool GeneralControl( wxDC* aDC, const wxPoint& aPosition, EDA_KEY aHotKey ) override;
 
     ///> @copydoc EDA_DRAW_FRAME::GetHotKeyDescription()
     EDA_HOTKEY* GetHotKeyDescription( int aCommand ) const override;
@@ -109,8 +113,7 @@ public:
      * case insensitive
      * </p>
      */
-    bool OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition,
-                   EDA_ITEM* aItem = NULL ) override;
+    bool OnHotKey( wxDC* aDC, int aHotKey, const wxPoint& aPosition, EDA_ITEM* aItem ) override;
 
     void LoadSettings( wxConfigBase* aCfg ) override;
     void SaveSettings( wxConfigBase* aCfg ) override;
@@ -146,11 +149,13 @@ public:
      * @param aConvert - convert; if invalid will be set to 1
      */
     void SetUnitAndConvert( int aUnit, int aConvert );
-    int GetUnit( void ) { return m_unit; }
-    int GetConvert( void ) { return m_convert; }
+    int GetUnit() const { return m_unit; }
+    int GetConvert() const { return m_convert; }
 
-    bool GetShowElectricalType() { return m_showPinElectricalTypeName; }
+    bool GetShowElectricalType() const { return m_showPinElectricalTypeName; }
     void SetShowElectricalType( bool aShow ) { m_showPinElectricalTypeName = aShow; }
+
+    const BOX2I GetDocumentExtents() const override;
 
 private:
     /**
@@ -167,21 +172,23 @@ private:
     bool OnRightClick( const wxPoint& MousePos, wxMenu* PopMenu ) override;
     void DClickOnCmpList( wxCommandEvent& event );
 
-    void onUpdateAlternateBodyStyleButton( wxUpdateUIEvent& aEvent );
+    void onUpdateAltBodyStyleButton( wxUpdateUIEvent& aEvent );
     void onUpdateNormalBodyStyleButton( wxUpdateUIEvent& aEvent );
-    void onUpdateViewDoc( wxUpdateUIEvent& aEvent );
+    void onUpdateDocButton( wxUpdateUIEvent& aEvent );
     void OnUpdateElectricalType( wxUpdateUIEvent& aEvent );
+    void onUpdateUnitChoice( wxUpdateUIEvent& aEvent );
     void onSelectNextSymbol( wxCommandEvent& aEvent );
     void onSelectPreviousSymbol( wxCommandEvent& aEvent );
     void onViewSymbolDocument( wxCommandEvent& aEvent );
     void onSelectSymbolBodyStyle( wxCommandEvent& aEvent );
     void onSelectSymbolUnit( wxCommandEvent& aEvent );
 
-    LIB_ALIAS* getSelectedAlias();
-    LIB_PART* getSelectedSymbol();
+    LIB_ALIAS* getSelectedAlias() const;
+    LIB_PART* getSelectedSymbol() const;
+    void updatePreviewSymbol();
 
 // Private members:
-    wxComboBox*         m_selpartBox;
+    wxChoice*           m_unitChoice;
 
     // List of libraries (for selection )
     wxListBox*          m_libList;          // The list of libs
@@ -211,6 +218,8 @@ private:
      */
     bool m_selection_changed;
 
+    LIB_ALIAS*      m_previewItem;
+
     /**
      * the option to show the pin electrical name in the component editor
      */
@@ -219,4 +228,5 @@ private:
     DECLARE_EVENT_TABLE()
 };
 
-#endif  // LIBVIEWFRM_H_
+#endif  // LIB_VIEW_FRAME_H__
+

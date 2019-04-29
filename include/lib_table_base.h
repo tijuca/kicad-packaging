@@ -265,7 +265,7 @@ private:
  */
 class LIB_TABLE : public PROJECT::_ELEM
 {
-    friend class DIALOG_FP_LIB_TABLE;
+    friend class PANEL_FP_LIB_TABLE;
     friend class LIB_TABLE_GRID;
 
 public:
@@ -304,7 +304,7 @@ public:
      *                       a row is not found in this table.  No ownership is
      *                       taken of aFallBackTable.
      */
-    LIB_TABLE( LIB_TABLE* aFallBackTable = NULL );
+    LIB_TABLE( LIB_TABLE* aFallBackTable = nullptr );
 
     virtual ~LIB_TABLE();
 
@@ -315,6 +315,12 @@ public:
         nickIndex.clear();
     }
 
+    /**
+     * Compares this table against another.
+     *
+     * This compares the row *contents* against each other.
+     * Any fallback tables are not checked.
+     */
     bool operator==( const LIB_TABLE& r ) const
     {
         if( rows.size() == r.rows.size() )
@@ -333,9 +339,31 @@ public:
 
     bool operator!=( const LIB_TABLE& r ) const  { return !( *this == r ); }
 
-    int GetCount()       { return rows.size(); }
+    /**
+     * Get the number of rows contained in the table
+     */
+    unsigned GetCount() const
+    {
+        return rows.size();
+    }
 
-    LIB_TABLE_ROW* At( int aIndex ) { return &rows[aIndex]; }
+    /**
+     * Get the 'n'th #LIB_TABLE_ROW object
+     * @param  aIndex index of row (must exist: from 0 to GetCount() - 1)
+     * @return        reference to the row
+     */
+    LIB_TABLE_ROW& At( unsigned aIndex )
+    {
+        return rows[aIndex];
+    }
+
+    /**
+     * @copydoc At()
+     */
+    const LIB_TABLE_ROW& At( unsigned aIndex ) const
+    {
+        return rows[aIndex];
+    }
 
     /**
      * Return true if the table is empty.
@@ -385,6 +413,24 @@ public:
      * @return bool - true if the operation succeeded.
      */
     bool InsertRow( LIB_TABLE_ROW* aRow, bool doReplace = false );
+
+    /**
+     * Removes a row from the table.
+     * @param aRow is the row to remove
+     * @return true if the row was found (and removed)
+     */
+    bool RemoveRow( LIB_TABLE_ROW* aRow )
+    {
+        for( auto iter = rows.begin(); iter != rows.end(); ++iter )
+        {
+            if( *iter == *aRow )
+            {
+                rows.erase( iter, iter + 1 );
+                return true;
+            }
+        }
+        return false;
+    }
 
     /**
      * @return a #LIB_TABLE_ROW pointer if \a aURI is found in this table or in any chained

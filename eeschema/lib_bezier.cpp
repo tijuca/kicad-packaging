@@ -28,7 +28,7 @@
 #include <fctsys.h>
 #include <gr_basic.h>
 #include <macros.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <plotter.h>
 #include <trigo.h>
 #include <bezier_curves.h>
@@ -103,9 +103,23 @@ bool LIB_BEZIER::Inside( EDA_RECT& aRect ) const
 
 void LIB_BEZIER::Move( const wxPoint& aPosition )
 {
+    if ( !m_PolyPoints.size() )
+    {
+        m_PolyPoints.push_back( wxPoint(0, 0) );
+    }
+
     SetOffset( aPosition - m_PolyPoints[0] );
 }
 
+const wxPoint LIB_BEZIER::GetOffset() const
+{
+    if ( !m_PolyPoints.size() )
+    {
+        return wxPoint(0, 0);
+    }
+
+    return m_PolyPoints[0];
+}
 
 void LIB_BEZIER::MirrorHorizontal( const wxPoint& aCenter )
 {
@@ -191,14 +205,26 @@ void LIB_BEZIER::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
     }
 
     bool already_filled = m_Fill == FILLED_WITH_BG_BODYCOLOR;
-    aPlotter->SetColor( GetLayerColor( LAYER_DEVICE ) );
-    aPlotter->PlotPoly( cornerList, already_filled ? NO_FILL : m_Fill, GetPenSize() );
+    auto pen_size = GetPenSize();
+
+    if( !already_filled || pen_size > 0 )
+    {
+        pen_size = std::max( 0, pen_size );
+        aPlotter->SetColor( GetLayerColor( LAYER_DEVICE ) );
+        aPlotter->PlotPoly( cornerList, already_filled ? NO_FILL : m_Fill, GetPenSize() );
+    }
 }
 
 
 int LIB_BEZIER::GetPenSize() const
 {
-    return ( m_Width == 0 ) ? GetDefaultLineThickness() : m_Width;
+    if( m_Width > 0 )
+        return m_Width;
+
+    if( m_Width == 0 )
+       return GetDefaultLineThickness();
+
+    return -1;   // a value to use a minimal pen size
 }
 
 
@@ -319,14 +345,14 @@ const EDA_RECT LIB_BEZIER::GetBoundingBox() const
 }
 
 
-void LIB_BEZIER::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
+void LIB_BEZIER::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList )
 {
     wxString msg;
     EDA_RECT bBox = GetBoundingBox();
 
-    LIB_ITEM::GetMsgPanelInfo( aList );
+    LIB_ITEM::GetMsgPanelInfo( aUnits, aList );
 
-    msg = StringFromValue( g_UserUnit, m_Width, true );
+    msg = MessageTextFromValue( aUnits, m_Width, true );
 
     aList.push_back( MSG_PANEL_ITEM( _( "Line Width" ), msg, BLUE ) );
 
@@ -334,4 +360,12 @@ void LIB_BEZIER::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
                 bBox.GetOrigin().y, bBox.GetEnd().x, bBox.GetEnd().y );
 
     aList.push_back( MSG_PANEL_ITEM( _( "Bounding Box" ), msg, BROWN ) );
+}
+
+wxPoint LIB_BEZIER::GetPosition() const
+{
+    if( !m_PolyPoints.size() )
+        return wxPoint(0, 0);
+
+    return m_PolyPoints[0];
 }

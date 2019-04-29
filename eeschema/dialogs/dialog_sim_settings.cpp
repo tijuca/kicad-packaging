@@ -63,6 +63,15 @@ DIALOG_SIM_SETTINGS::DIALOG_SIM_SETTINGS( wxWindow* aParent )
     m_transFinal->SetValidator( m_spiceValidator );
     m_transInitial->SetValidator( m_spiceEmptyValidator );
 
+    // Hide pages that aren't fully implemented yet
+    // wxPanel::Hide() isn't enough on some platforms
+    m_simPages->RemovePage( m_simPages->FindPage( m_pgDistortion ) );
+    m_simPages->RemovePage( m_simPages->FindPage( m_pgNoise ) );
+    m_simPages->RemovePage( m_simPages->FindPage( m_pgOP ) );
+    m_simPages->RemovePage( m_simPages->FindPage( m_pgPoleZero ) );
+    m_simPages->RemovePage( m_simPages->FindPage( m_pgSensitivity ) );
+    m_simPages->RemovePage( m_simPages->FindPage( m_pgTransferFunction ) );
+
     m_sdbSizerOK->SetDefault();
     updateNetlistOpts();
 
@@ -158,6 +167,9 @@ bool DIALOG_SIM_SETTINGS::TransferDataFromWindow()
             {
                 wxString dcSource = m_exporter->GetSpiceDevice( m_dcSource2->GetValue() );
 
+                if( m_dcEnable1->IsChecked() )
+                    simCmd += " ";
+
                 simCmd += wxString::Format( "%s %s %s %s",
                     dcSource,
                     SPICE_VALUE( m_dcStart2->GetValue() ).ToSpiceString(),
@@ -203,7 +215,7 @@ bool DIALOG_SIM_SETTINGS::TransferDataFromWindow()
         if( noiseSource[0] != 'v' && noiseSource[0] != 'V' )
             noiseSource += 'v' + noiseSource;
 
-        m_simCommand = wxString::Format( ".noise v(%d%s) v%s %s %s %s %s",
+        m_simCommand = wxString::Format( ".noise v(%d%s) %s %s %s %s %s",
             netMap.at( m_noiseMeas->GetValue() ), ref,
             noiseSource, scaleToString( m_noiseScale->GetSelection() ),
             m_noisePointsNumber->GetValue(),

@@ -1,13 +1,13 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2018 Jean-Pierre Charras jp.charras at wanadoo.fr
- * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2019 Jean-Pierre Charras jp.charras at wanadoo.fr
+ * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -22,60 +22,50 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-/**
- * @file dialog_graphic_item_properties.cpp
+/*
+ * Edit properties of Lines, Circles, Arcs and Polygons for PCBNew and ModEdit
  */
 
-/* Edit parameters values of graphic items type DRAWSEGMENTS:
- * Lines
- * Circles
- * Arcs
- * polygon (only layer and contour thickness)
- * used as graphic elements found on non copper layers in boards
- * items on edge layers are considered as graphic items
- * Pcb texts are not always graphic items and are not handled here
- */
 #include <fctsys.h>
 #include <macros.h>
-#include <gr_basic.h>
 #include <confirm.h>
 #include <class_drawpanel.h>
-#include <pcbnew.h>
-#include <pcb_edit_frame.h>
-#include <board_design_settings.h>
-#include <base_units.h>
+#include <pcb_base_edit_frame.h>
 #include <wx/valnum.h>
 #include <board_commit.h>
-#include <widgets/text_ctrl_eval.h>
-
-#include <class_board.h>
-#include <class_drawsegment.h>
-
-#include <dialog_graphic_item_properties_base.h>
 #include <pcb_layer_box_selector.h>
 #include <html_messagebox.h>
-#include <widgets/text_ctrl_eval.h>
+#include <class_board.h>
+#include <class_drawsegment.h>
+#include <class_edge_mod.h>
+#include <widgets/unit_binder.h>
 
+#include <dialog_graphic_item_properties_base.h>
 
 class DIALOG_GRAPHIC_ITEM_PROPERTIES : public DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE
 {
 private:
-    PCB_EDIT_FRAME*       m_parent;
-    wxDC*                 m_DC;
+    PCB_BASE_EDIT_FRAME*  m_parent;
     DRAWSEGMENT*          m_item;
-    BOARD_DESIGN_SETTINGS m_brdSettings;
+    EDGE_MODULE*          m_moduleItem;
+
+    UNIT_BINDER           m_startX, m_startY;
+    UNIT_BINDER           m_endX, m_endY;
+    UNIT_BINDER           m_angle;
+    UNIT_BINDER           m_thickness;
+    UNIT_BINDER           m_bezierCtrl1X, m_bezierCtrl1Y;
+    UNIT_BINDER           m_bezierCtrl2X, m_bezierCtrl2Y;
 
     wxFloatingPointValidator<double>    m_AngleValidator;
     double                m_AngleValue;
 
 public:
-    DIALOG_GRAPHIC_ITEM_PROPERTIES( PCB_EDIT_FRAME* aParent, DRAWSEGMENT* aItem, wxDC* aDC );
+    DIALOG_GRAPHIC_ITEM_PROPERTIES( PCB_BASE_EDIT_FRAME* aParent, BOARD_ITEM* aItem );
     ~DIALOG_GRAPHIC_ITEM_PROPERTIES() {};
 
 private:
     bool TransferDataToWindow() override;
     bool TransferDataFromWindow() override;
-    void OnLayerChoice( wxCommandEvent& event );
 
     void OnInitDlg( wxInitDialogEvent& event ) override
     {
@@ -89,85 +79,101 @@ private:
     bool Validate() override;
 };
 
-DIALOG_GRAPHIC_ITEM_PROPERTIES::DIALOG_GRAPHIC_ITEM_PROPERTIES( PCB_EDIT_FRAME* aParent,
-                                                                DRAWSEGMENT* aItem, wxDC* aDC ):
+DIALOG_GRAPHIC_ITEM_PROPERTIES::DIALOG_GRAPHIC_ITEM_PROPERTIES( PCB_BASE_EDIT_FRAME* aParent,
+                                                                BOARD_ITEM* aItem ):
     DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE( aParent ),
+    m_startX( aParent, m_startXLabel, m_startXCtrl, m_startXUnits ),
+    m_startY( aParent, m_startYLabel, m_startYCtrl, m_startYUnits ),
+    m_endX( aParent, m_endXLabel, m_endXCtrl, m_endXUnits ),
+    m_endY( aParent, m_endYLabel, m_endYCtrl, m_endYUnits ),
+    m_angle( aParent, m_angleLabel, m_angleCtrl, m_angleUnits ),
+    m_thickness( aParent, m_thicknessLabel, m_thicknessCtrl, m_thicknessUnits, true ),
+    m_bezierCtrl1X( aParent, m_BezierPointC1XLabel, m_BezierC1X_Ctrl, m_BezierPointC1XUnit ),
+    m_bezierCtrl1Y( aParent, m_BezierPointC1YLabel, m_BezierC1Y_Ctrl, m_BezierPointC1YUnit ),
+    m_bezierCtrl2X( aParent, m_BezierPointC2XLabel, m_BezierC2X_Ctrl, m_BezierPointC2XUnit ),
+    m_bezierCtrl2Y( aParent, m_BezierPointC2YLabel, m_BezierC2Y_Ctrl, m_BezierPointC2YUnit ),
     m_AngleValidator( 1, &m_AngleValue ),
     m_AngleValue( 0.0 )
 {
     m_parent = aParent;
-    m_DC = aDC;
-    m_item = aItem;
-    m_brdSettings = m_parent->GetDesignSettings();
+    m_item = dynamic_cast<DRAWSEGMENT*>( aItem );
+    m_moduleItem = dynamic_cast<EDGE_MODULE*>( aItem );
 
+    m_angle.SetUnits( DEGREES );
     m_AngleValidator.SetRange( -360.0, 360.0 );
-    m_AngleCtrl->SetValidator( m_AngleValidator );
-    m_AngleValidator.SetWindow( m_AngleCtrl );
+    m_angleCtrl->SetValidator( m_AngleValidator );
+    m_AngleValidator.SetWindow( m_angleCtrl );
+
+    // Configure the layers list selector
+    if( m_moduleItem )
+    {
+        LSET forbiddenLayers = LSET::ForbiddenFootprintLayers();
+
+        // If someone went to the trouble of setting the layer in a text editor, then there's
+        // very little sense in nagging them about it.
+        forbiddenLayers.set( m_item->GetLayer(), false );
+
+        m_LayerSelectionCtrl->SetNotAllowedLayerSet( forbiddenLayers );
+    }
+
+    m_LayerSelectionCtrl->SetLayersHotkeys( false );
+    m_LayerSelectionCtrl->SetBoardFrame( m_parent );
+    m_LayerSelectionCtrl->Resync();
+
+    SetInitialFocus( m_startXCtrl );
 
     m_StandardButtonsSizerOK->SetDefault();
-
 }
 
 
-void PCB_EDIT_FRAME::InstallGraphicItemPropertiesDialog( DRAWSEGMENT* aItem, wxDC* aDC )
+void PCB_BASE_EDIT_FRAME::InstallGraphicItemPropertiesDialog( BOARD_ITEM* aItem )
 {
     wxCHECK_RET( aItem != NULL, wxT( "InstallGraphicItemPropertiesDialog() error: NULL item" ) );
 
     m_canvas->SetIgnoreMouseEvents( true );
-    DIALOG_GRAPHIC_ITEM_PROPERTIES dlg( this, aItem, aDC );
+    DIALOG_GRAPHIC_ITEM_PROPERTIES dlg( this, aItem );
     dlg.ShowModal();
     m_canvas->MoveCursorToCrossHair();
     m_canvas->SetIgnoreMouseEvents( false );
+    m_canvas->Refresh();
 }
 
 
 bool DIALOG_GRAPHIC_ITEM_PROPERTIES::TransferDataToWindow()
 {
-    // Set unit symbol
-    wxStaticText* texts_unit[] =
-    {
-        m_StartPointXUnit,
-        m_StartPointYUnit,
-        m_EndPointXUnit,
-        m_EndPointYUnit,
-        m_ThicknessTextUnit,
-        m_DefaulThicknessTextUnit,
-    };
-
-    for( size_t ii = 0; ii < DIM( texts_unit ); ii++ )
-    {
-        texts_unit[ii]->SetLabel( GetAbbreviatedUnitsLabel() );
-    }
+    if( !m_item )
+        return false;
 
     // Only an arc has a angle parameter. So do not show this parameter for other shapes
     if( m_item->GetShape() != S_ARC )
-    {
-        m_AngleText->Show( false );
-        m_AngleCtrl->Show( false );
-        m_AngleUnit->Show( false );
-    }
+        m_angle.Show( false );
 
-    wxString msg;
+    // Only a Bezeier curve has control points. So do not show these parameters for other shapes
+    if( m_item->GetShape() != S_CURVE )
+    {
+        m_bezierCtrl1X.Show( false );
+        m_bezierCtrl1Y.Show( false );
+        m_bezierCtrl2X.Show( false );
+        m_bezierCtrl2Y.Show( false );
+    }
 
     // Change texts according to the segment shape:
     switch( m_item->GetShape() )
     {
     case S_CIRCLE:
         SetTitle( _( "Circle Properties" ) );
-        m_StartPointXLabel->SetLabel( _( "Center X:" ) );
-        m_StartPointYLabel->SetLabel( _( "Center Y:" ) );
-        m_EndPointXLabel->SetLabel( _( "Radius:" ) );
-        m_EndPointYLabel->Show( false );
-        m_EndPointYUnit->Show( false );
-        m_EndY_Ctrl->Show( false );
+        m_startXLabel->SetLabel( _( "Center X:" ) );
+        m_startYLabel->SetLabel( _( "Center Y:" ) );
+        m_endXLabel->SetLabel( _( "Radius:" ) );
+        m_endY.Show( false );
         break;
 
     case S_ARC:
         SetTitle( _( "Arc Properties" ) );
-        m_StartPointXLabel->SetLabel( _( "Center X:" ) );
-        m_StartPointYLabel->SetLabel( _( "Center Y:" ) );
-        m_EndPointXLabel->SetLabel( _( "Start Point X:" ) );
-        m_EndPointYLabel->SetLabel( _( "Start Point Y:" ) );
+        m_startXLabel->SetLabel( _( "Center X:" ) );
+        m_startYLabel->SetLabel( _( "Center Y:" ) );
+        m_endXLabel->SetLabel( _( "Start Point X:" ) );
+        m_endYLabel->SetLabel( _( "Start Point Y:" ) );
 
         m_AngleValue = m_item->GetAngle() / 10.0;
         break;
@@ -185,60 +191,35 @@ bool DIALOG_GRAPHIC_ITEM_PROPERTIES::TransferDataToWindow()
         break;
     }
 
-    PutValueInLocalUnits( *m_Center_StartXCtrl, m_item->GetStart().x );
-
-    PutValueInLocalUnits( *m_Center_StartYCtrl, m_item->GetStart().y );
+    m_startX.SetValue( m_item->GetStart().x );
+    m_startY.SetValue( m_item->GetStart().y );
 
     if(  m_item->GetShape() == S_CIRCLE )
     {
-        PutValueInLocalUnits( *m_EndX_Radius_Ctrl, m_item->GetRadius() );
+        m_endX.SetValue( m_item->GetRadius() );
     }
     else
     {
-        PutValueInLocalUnits( *m_EndX_Radius_Ctrl, m_item->GetEnd().x );
-        PutValueInLocalUnits( *m_EndY_Ctrl, m_item->GetEnd().y );
+        m_endX.SetValue( m_item->GetEnd().x );
+        m_endY.SetValue( m_item->GetEnd().y );
     }
 
-    PutValueInLocalUnits( *m_ThicknessCtrl, m_item->GetWidth() );
+    // For Bezier curve:
+    m_bezierCtrl1X.SetValue( m_item->GetBezControl1().x );
+    m_bezierCtrl1Y.SetValue( m_item->GetBezControl1().y );
+    m_bezierCtrl2X.SetValue( m_item->GetBezControl2().x );
+    m_bezierCtrl2Y.SetValue( m_item->GetBezControl2().y );
 
-    int thickness;
-
-    if( m_item->GetLayer() == Edge_Cuts )
-        thickness = m_brdSettings.m_EdgeSegmentWidth;
-    else
-        thickness = m_brdSettings.m_DrawSegmentWidth;
-
-    PutValueInLocalUnits( *m_DefaultThicknessCtrl, thickness );
-
-    // Configure the layers list selector
-    m_LayerSelectionCtrl->SetLayersHotkeys( false );
-    m_LayerSelectionCtrl->SetNotAllowedLayerSet( LSET::AllCuMask() );
-    m_LayerSelectionCtrl->SetBoardFrame( m_parent );
-    m_LayerSelectionCtrl->Resync();
+    m_thickness.SetValue( m_item->GetWidth() );
 
     if( m_LayerSelectionCtrl->SetLayerSelection( m_item->GetLayer() ) < 0 )
     {
-        wxMessageBox( _( "This item was on a not allowed or non existing layer.\n"
-                         "It has been moved to the first allowed layer.\n\n"
-                         "Please fix it." ) );
-        //m_LayerSelectionCtrl->SetLayerSelection( Dwgs_User );
+        wxMessageBox( _( "This item was on a non-existing or forbidden layer.\n"
+                         "It has been moved to the first allowed layer. Please fix it." ) );
         m_LayerSelectionCtrl->SetSelection( 0 );
     }
 
     return DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::TransferDataToWindow();
-}
-
-
-void DIALOG_GRAPHIC_ITEM_PROPERTIES::OnLayerChoice( wxCommandEvent& event )
-{
-    int thickness;
-
-    if( m_LayerSelectionCtrl->GetLayerSelection() == Edge_Cuts )
-        thickness = m_brdSettings.m_EdgeSegmentWidth;
-    else
-        thickness = m_brdSettings.m_DrawSegmentWidth;
-
-    PutValueInLocalUnits( *m_DefaultThicknessCtrl, thickness );
 }
 
 
@@ -247,61 +228,56 @@ bool DIALOG_GRAPHIC_ITEM_PROPERTIES::TransferDataFromWindow()
     if( !DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::TransferDataFromWindow() )
         return false;
 
+    LAYER_NUM layer = m_LayerSelectionCtrl->GetLayerSelection();
+
     BOARD_COMMIT commit( m_parent );
     commit.Modify( m_item );
 
-    wxString msg;
-
-    if( m_DC )
-        m_item->Draw( m_parent->GetCanvas(), m_DC, GR_XOR );
-
-    msg = m_Center_StartXCtrl->GetValue();
-    m_item->SetStartX( ValueFromString( g_UserUnit, msg ) );
-
-    msg = m_Center_StartYCtrl->GetValue();
-    m_item->SetStartY( ValueFromString( g_UserUnit, msg ) );
+    m_item->SetStartX( m_startX.GetValue() );
+    m_item->SetStartY( m_startY.GetValue() );
 
     if( m_item->GetShape() == S_CIRCLE )
     {
-        msg = m_EndX_Radius_Ctrl->GetValue();
-        m_item->SetEnd( m_item->GetStart() + wxPoint( ValueFromString( g_UserUnit, msg ), 0 ) );
+        m_item->SetEnd( m_item->GetStart() + wxPoint( m_endX.GetValue(), 0 ) );
     }
     else
     {
-        msg = m_EndX_Radius_Ctrl->GetValue();
-        m_item->SetEndX( ValueFromString( g_UserUnit, msg ) );
-
-        msg = m_EndY_Ctrl->GetValue();
-        m_item->SetEndY( ValueFromString( g_UserUnit, msg ) );
+        m_item->SetEndX( m_endX.GetValue() );
+        m_item->SetEndY( m_endY.GetValue() );
     }
 
-    msg = m_ThicknessCtrl->GetValue();
-    m_item->SetWidth( ValueFromString( g_UserUnit, msg ) );
+    // For Bezier curve: Set the two control points
+    if( m_item->GetShape() == S_CURVE )
+    {
+        m_item->SetBezControl1( wxPoint( m_bezierCtrl1X.GetValue(), m_bezierCtrl1Y.GetValue() ) );
+        m_item->SetBezControl2( wxPoint( m_bezierCtrl2X.GetValue(), m_bezierCtrl2Y.GetValue() ) );
+    }
 
-    msg = m_DefaultThicknessCtrl->GetValue();
-    int thickness = ValueFromString( g_UserUnit, msg );
+    if( m_moduleItem )
+    {   // We are editing a footprint.
+        // Init the item coordinates relative to the footprint anchor,
+        // that are coordinate references
+        m_moduleItem->SetStart0( m_moduleItem->GetStart() );
+        m_moduleItem->SetEnd0( m_moduleItem->GetEnd() );
 
-    m_item->SetLayer( ToLAYER_ID( m_LayerSelectionCtrl->GetLayerSelection() ) );
+        if( m_moduleItem->GetShape() == S_CURVE )
+        {
+            m_moduleItem->SetBezier0_C1( wxPoint( m_bezierCtrl1X.GetValue(), m_bezierCtrl1Y.GetValue() ) );
+            m_moduleItem->SetBezier0_C2( wxPoint( m_bezierCtrl2X.GetValue(), m_bezierCtrl2Y.GetValue() ) );
+        }
+    }
 
-    if( m_item->GetLayer() == Edge_Cuts )
-        m_brdSettings.m_EdgeSegmentWidth = thickness;
-    else
-        m_brdSettings.m_DrawSegmentWidth = thickness;
+    m_item->SetWidth( m_thickness.GetValue() );
+    m_item->SetLayer( ToLAYER_ID( layer ) );
 
     if( m_item->GetShape() == S_ARC )
-    {
         m_item->SetAngle( m_AngleValue * 10.0 );
-    }
+
+    m_item->RebuildBezierToSegmentsPointsList( m_item->GetWidth() );
 
     commit.Push( _( "Modify drawing properties" ) );
 
-    if( m_DC )
-        m_item->Draw( m_parent->GetCanvas(), m_DC, GR_OR );
-
     m_parent->SetMsgPanel( m_item );
-
-    m_parent->SetDesignSettings( m_brdSettings );
-    m_parent->OnModify();
 
     return true;
 }
@@ -314,33 +290,19 @@ bool DIALOG_GRAPHIC_ITEM_PROPERTIES::Validate()
     if( !DIALOG_GRAPHIC_ITEM_PROPERTIES_BASE::Validate() )
         return false;
 
-    // Load the start and end points -- all types use these in the checks.
-    int startx = ValueFromString( g_UserUnit, m_Center_StartXCtrl->GetValue() );
-    int starty = ValueFromString( g_UserUnit, m_Center_StartYCtrl->GetValue() );
-    int endx   = ValueFromString( g_UserUnit, m_EndX_Radius_Ctrl->GetValue() );
-    int endy   = ValueFromString( g_UserUnit, m_EndY_Ctrl->GetValue() );
-
     // Type specific checks.
     switch( m_item->GetShape() )
     {
     case S_ARC:
         // Check angle of arc.
-        double angle;
-        m_AngleCtrl->GetValue().ToDouble( &angle );
-
-        if( angle == 0.0 )
-        {
+        if( m_angle.GetValue() == 0 )
             error_msgs.Add( _( "The arc angle cannot be zero." ) );
-        }
-
         // Fall through.
+
     case S_CIRCLE:
         // Check radius.
-        if( (startx == endx) && (starty == endy) )
-        {
+        if( m_startX.GetValue() == m_endX.GetValue() && m_startY.GetValue() == m_endY.GetValue() )
             error_msgs.Add( _( "The radius must be greater than zero." ) );
-        }
-
         break;
 
     case S_POLYGON:
@@ -348,32 +310,26 @@ bool DIALOG_GRAPHIC_ITEM_PROPERTIES::Validate()
 
     default:
         // Check start and end are not the same.
-        if( (startx == endx) && (starty == endy) )
-        {
+        if( m_startX.GetValue() == m_endX.GetValue() && m_startY.GetValue() == m_endY.GetValue() )
             error_msgs.Add( _( "The start and end points cannot be the same." ) );
-        }
-
         break;
     }
 
     // Check the item thickness. Note the polygon outline thickness is allowed
     // to be set to 0, because if the shape is exactly the polygon, its outline
     // thickness must be 0
-    int thickness = ValueFromString( g_UserUnit, m_ThicknessCtrl->GetValue() );
+    int thickness = m_thickness.GetValue();
 
     if( m_item->GetShape() == S_POLYGON )
     {
         if( thickness < 0 )
             error_msgs.Add( _( "The polygon outline thickness must be >= 0." ) );
     }
-    else if( thickness <= 0 )
-        error_msgs.Add( _( "The item thickness must be greater than zero." ) );
-
-    // And the default thickness.
-    thickness = ValueFromString( g_UserUnit, m_DefaultThicknessCtrl->GetValue() );
-
-    if( thickness <= 0 )
-        error_msgs.Add( _( "The default thickness must be greater than zero." ) );
+    else
+    {
+        if( thickness <= 0 )
+            error_msgs.Add( _( "The item thickness must be greater than zero." ) );
+    }
 
     if( error_msgs.GetCount() )
     {

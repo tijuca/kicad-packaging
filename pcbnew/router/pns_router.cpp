@@ -157,6 +157,9 @@ bool ROUTER::StartDragging( const VECTOR2I& aP, ITEM* aStartItem, int aDragMode 
 
 bool ROUTER::isStartingPointRoutable( const VECTOR2I& aWhere, int aLayer )
 {
+    if( Settings().CanViolateDRC() && Settings().Mode() == RM_MarkObstacles )
+        return true;
+
     auto candidates = QueryHoverItems( aWhere );
 
     for( ITEM* item : candidates.Items() )
@@ -252,7 +255,7 @@ void ROUTER::moveDragging( const VECTOR2I& aP, ITEM* aEndItem )
     m_dragger->Drag( aP );
     ITEM_SET dragged = m_dragger->Traces();
 
-    updateView( m_dragger->CurrentNode(), dragged );
+    updateView( m_dragger->CurrentNode(), dragged, true );
 }
 
 
@@ -287,7 +290,7 @@ void ROUTER::markViolations( NODE* aNode, ITEM_SET& aCurrent, NODE::ITEM_VECTOR&
 }
 
 
-void ROUTER::updateView( NODE* aNode, ITEM_SET& aCurrent )
+void ROUTER::updateView( NODE* aNode, ITEM_SET& aCurrent, bool aDragging )
 {
     NODE::ITEM_VECTOR removed, added;
     NODE::OBSTACLES obstacles;
@@ -301,7 +304,11 @@ void ROUTER::updateView( NODE* aNode, ITEM_SET& aCurrent )
     aNode->GetUpdatedItems( removed, added );
 
     for( auto item : added )
-        m_iface->DisplayItem( item );
+    {
+        int clearance = GetRuleResolver()->Clearance( item->Net() );
+
+        m_iface->DisplayItem( item, -1, clearance, aDragging );
+    }
 
     for( auto item : removed )
         m_iface->HideItem( item );

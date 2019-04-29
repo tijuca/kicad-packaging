@@ -75,7 +75,7 @@ DLG_SELECT_3DMODEL::DLG_SELECT_3DMODEL( wxWindow* aParent, S3D_CACHE* aCacheMana
 
     m_FileTree = new wxGenericDirCtrl( this, ID_FILE_TREE, prevModelSelectDir, wxDefaultPosition,
         wxSize( 300,100 ), wxDIRCTRL_3D_INTERNAL | wxDIRCTRL_EDIT_LABELS
-        | wxDIRCTRL_SELECT_FIRST | wxDIRCTRL_SHOW_FILTERS|wxSUNKEN_BORDER, wxEmptyString, 0 );
+        | wxDIRCTRL_SELECT_FIRST | wxDIRCTRL_SHOW_FILTERS | wxBORDER_SIMPLE, wxEmptyString, 0 );
 
 
     m_FileTree->ShowHidden( false );
@@ -111,7 +111,7 @@ DLG_SELECT_3DMODEL::DLG_SELECT_3DMODEL( wxWindow* aParent, S3D_CACHE* aCacheMana
         if( !filter.empty() )
             m_FileTree->SetFilter( filter );
         else
-            m_FileTree->SetFilter( wxT( "*.*" ) );
+            m_FileTree->SetFilter( wxFileSelectorDefaultWildcardStr );
 
         if( prevModelWildcard >= 0 && prevModelWildcard < (int)fl->size() )
             m_FileTree->SetFilterIndex( prevModelWildcard );
@@ -123,7 +123,7 @@ DLG_SELECT_3DMODEL::DLG_SELECT_3DMODEL( wxWindow* aParent, S3D_CACHE* aCacheMana
     }
     else
     {
-        m_FileTree->SetFilter( wxT( "*.*" ) );
+        m_FileTree->SetFilter( wxFileSelectorDefaultWildcardStr );
         prevModelWildcard = 0;
         m_FileTree->SetFilterIndex( 0 );
     }
@@ -240,9 +240,9 @@ void DLG_SELECT_3DMODEL::updateDirChoiceList( void )
     if( NULL == m_FileTree || NULL == m_resolver || NULL == dirChoices )
         return;
 
-    std::list< S3D_ALIAS > const* md = m_resolver->GetPaths();
-    std::list< S3D_ALIAS >::const_iterator sL = md->begin();
-    std::list< S3D_ALIAS >::const_iterator eL = md->end();
+    std::list< SEARCH_PATH > const* md = m_resolver->GetPaths();
+    std::list< SEARCH_PATH >::const_iterator sL = md->begin();
+    std::list< SEARCH_PATH >::const_iterator eL = md->end();
     std::set< wxString > cl;
     wxString prjDir;
 

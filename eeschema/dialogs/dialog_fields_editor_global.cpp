@@ -25,21 +25,101 @@
 
 #include <wx/msgdlg.h>
 #include <wx/grid.h>
-
+#include <widgets/wx_grid.h>
+#include <base_units.h>
 #include <confirm.h>
 #include <bitmaps.h>
 #include <grid_tricks.h>
 #include <kicad_string.h>
-
+#include <refdes_utils.h>
 #include <build_version.h>
 #include <general.h>
+#include <sch_view.h>
 #include <class_library.h>
-
 #include <sch_edit_frame.h>
 #include <sch_reference_list.h>
 #include <kiface_i.h>
+#include <eda_doc.h>
+#include <widgets/grid_text_button_helpers.h>
 
 #include "dialog_fields_editor_global.h"
+
+
+enum
+{
+    MYID_SELECT_FOOTPRINT = 991,         // must be within GRID_TRICKS' enum range
+    MYID_SHOW_DATASHEET
+};
+
+
+class FIELDS_EDITOR_GRID_TRICKS : public GRID_TRICKS
+{
+public:
+    FIELDS_EDITOR_GRID_TRICKS( DIALOG_SHIM* aParent, WX_GRID* aGrid,
+                               wxDataViewListCtrl* aFieldsCtrl ) :
+            GRID_TRICKS( aGrid ),
+            m_dlg( aParent ),
+            m_fieldsCtrl( aFieldsCtrl )
+    {}
+
+protected:
+    void showPopupMenu( wxMenu& menu ) override
+    {
+        if( m_grid->GetGridCursorCol() == FOOTPRINT )
+        {
+            menu.Append( MYID_SELECT_FOOTPRINT, _( "Select Footprint..." ), _( "Browse for footprint" ) );
+            menu.AppendSeparator();
+        }
+        else if( m_grid->GetGridCursorCol() == DATASHEET )
+        {
+            menu.Append( MYID_SHOW_DATASHEET,   _( "Show Datasheet" ),      _( "Show datasheet in browser" ) );
+            menu.AppendSeparator();
+        }
+
+        GRID_TRICKS::showPopupMenu( menu );
+    }
+
+    void doPopupSelection( wxCommandEvent& event ) override
+    {
+        if( event.GetId() == MYID_SELECT_FOOTPRINT )
+        {
+            // pick a footprint using the footprint picker.
+            wxString      fpid = m_grid->GetCellValue( m_grid->GetGridCursorRow(), FOOTPRINT );
+            KIWAY_PLAYER* frame = m_dlg->Kiway().Player( FRAME_PCB_MODULE_VIEWER_MODAL, true, m_dlg );
+
+            if( frame->ShowModal( &fpid, m_dlg ) )
+                m_grid->SetCellValue( m_grid->GetGridCursorRow(), FOOTPRINT, fpid );
+
+            frame->Destroy();
+        }
+        else if (event.GetId() == MYID_SHOW_DATASHEET )
+        {
+            wxString datasheet_uri = m_grid->GetCellValue( m_grid->GetGridCursorRow(), DATASHEET );
+            GetAssociatedDocument( m_dlg, datasheet_uri );
+        }
+        else
+        {
+            GRID_TRICKS::doPopupSelection( event );
+        }
+
+        if( event.GetId() >= GRIDTRICKS_FIRST_SHOWHIDE && event.GetId() < GRIDTRICKS_LAST_ID )
+        {
+            if( !m_grid->IsColShown( REFERENCE ) )
+            {
+                DisplayError( m_dlg, _( "The Reference column cannot be hidden." ) );
+
+                m_grid->ShowCol( REFERENCE );
+            }
+
+            // Refresh Show checkboxes from grid columns
+            for( int i = 0; i < m_fieldsCtrl->GetItemCount(); ++i )
+                m_fieldsCtrl->SetToggleValue( m_grid->IsColShown( i ), i, 1 );
+        }
+    }
+
+    DIALOG_SHIM*        m_dlg;
+    wxDataViewListCtrl* m_fieldsCtrl;
+};
 
 
 enum GROUP_TYPE
@@ -71,14 +151,10 @@ struct DATA_MODEL_ROW
 #define QUANTITY_COLUMN   ( GetNumberCols() - 1 )
 
 #ifdef __WXMAC__
-#define CHECKBOX_COLUMN_MARGIN 5
+#define COLUMN_MARGIN 5
 #else
-#define CHECKBOX_COLUMN_MARGIN 15
+#define COLUMN_MARGIN 15
 #endif
-
-
-// Indicator that multiple values exist in child rows
-#define ROW_MULT_ITEMS wxString( "< ... >" )
 
 
 class FIELDS_EDITOR_GRID_DATA_MODEL : public wxGridTableBase
@@ -113,6 +189,7 @@ public:
             m_frame( aFrame ),
             m_componentRefs( aComponentList ),
             m_edited( false ),
+            m_sortColumn( 0 ),
             m_sortAscending( false )
     {
         m_componentRefs.SplitReferences();
@@ -142,7 +219,7 @@ public:
     wxString GetColLabelValue( int aCol ) override
     {
         if( aCol == QUANTITY_COLUMN )
-            return _T( "Qty" );
+            return _( "Qty" );
         else
             return m_fieldNames[ aCol ];
     }
@@ -193,26 +270,40 @@ public:
             {
                 timestamp_t compID = ref.GetComp()->GetTimeStamp();
 
+                if( !m_dataStore.count( compID ) ||
+                        !m_dataStore[ compID ].count( m_fieldNames[ aCol ] ) )
+                    return INDETERMINATE;
+
                 if( &ref == &group.m_Refs.front() )
                     fieldValue = m_dataStore[ compID ][ m_fieldNames[ aCol ] ];
                 else if ( fieldValue != m_dataStore[ compID ][ m_fieldNames[ aCol ] ] )
-                    return ROW_MULT_ITEMS;
+                    return INDETERMINATE;
             }
         }
 
         if( aCol == REFERENCE || aCol == QUANTITY_COLUMN )
         {
             // Remove duplicates (other units of multi-unit parts)
-            auto logicalEnd = std::unique( references.begin(), references.end(),
-                    []( const SCH_REFERENCE& l, const SCH_REFERENCE& r )
-                    {
-                        // If unannotated then we can't tell what units belong together
-                        // so we have to leave them all
-                        if( l.GetRefNumber() == wxT( "?" ) )
-                            return false;
+            std::sort( references.begin(), references.end(),
+                       []( const SCH_REFERENCE& l, const SCH_REFERENCE& r ) -> bool
+                       {
+                           wxString l_ref( l.GetRef() << l.GetRefNumber() );
+                           wxString r_ref( r.GetRef() << r.GetRefNumber() );
+                           return UTIL::RefDesStringCompare( l_ref, r_ref ) < 0;
+                       } );
 
-                        return( l.GetRef() == r.GetRef() && l.GetRefNumber() == r.GetRefNumber() );
-                    } );
+            auto logicalEnd = std::unique( references.begin(), references.end(),
+                       []( const SCH_REFERENCE& l, const SCH_REFERENCE& r ) -> bool
+                       {
+                           // If unannotated then we can't tell what units belong together
+                           // so we have to leave them all
+                           if( l.GetRefNumber() == wxT( "?" ) )
+                               return false;
+
+                           wxString l_ref( l.GetRef() << l.GetRefNumber() );
+                           wxString r_ref( r.GetRef() << r.GetRefNumber() );
+                           return l_ref == r_ref;
+                       } );
             references.erase( logicalEnd, references.end() );
         }
 
@@ -225,7 +316,7 @@ public:
             fieldValue = wxString::Format( wxT( "%d" ), ( int )references.size() );
         }
 
-        return fieldValue;
+        return UnescapeString( fieldValue );
     }
 
 
@@ -234,11 +325,13 @@ public:
         if( aCol == REFERENCE || aCol == QUANTITY_COLUMN )
             return;             // Can't modify references or quantity
 
+        wxString value = EscapeString( aValue );
+
         DATA_MODEL_ROW& rowGroup = m_rows[ aRow ];
         wxString fieldName = m_fieldNames[ aCol ];
 
         for( const auto& ref : rowGroup.m_Refs )
-            m_dataStore[ ref.GetComp()->GetTimeStamp() ][ fieldName ] = aValue;
+            m_dataStore[ ref.GetComp()->GetTimeStamp() ][ fieldName ] = value;
 
         m_edited = true;
     }
@@ -264,7 +357,7 @@ public:
         {
             wxString lhRef = lhGroup.m_Refs[ 0 ].GetRef() + lhGroup.m_Refs[ 0 ].GetRefNumber();
             wxString rhRef = rhGroup.m_Refs[ 0 ].GetRef() + rhGroup.m_Refs[ 0 ].GetRefNumber();
-            retVal = RefDesStringCompare( lhRef, rhRef ) < 0;
+            retVal = UTIL::RefDesStringCompare( lhRef, rhRef ) < 0;
         }
         else
             retVal = ValueStringCompare( lhs, rhs ) < 0;
@@ -351,7 +444,7 @@ public:
         {
             // Commit any pending in-place edits before the row gets moved out from under
             // the editor.
-            GetView()->DisableCellEditControl();
+            static_cast<WX_GRID*>( GetView() )->CommitPendingChanges( true );
 
             wxGridTableMessage msg( this, wxGRIDTABLE_NOTIFY_ROWS_DELETED, 0, m_rows.size() );
             GetView()->ProcessTableMessage( msg );
@@ -497,29 +590,62 @@ public:
     {
         for( unsigned i = 0; i < m_componentRefs.GetCount(); ++i )
         {
-            SCH_COMPONENT* comp = m_componentRefs[ i ].GetComp();
+            SCH_COMPONENT& comp = *m_componentRefs[i].GetComp();
 
-            m_frame->SetCurrentSheet( m_componentRefs[ i ].GetSheetPath() );
-            m_frame->SaveCopyInUndoList( comp, UR_CHANGED, true );
+            m_frame->SetCurrentSheet( m_componentRefs[i].GetSheetPath() );
+            m_frame->SaveCopyInUndoList( &comp, UR_CHANGED, true );
 
-            std::map<wxString, wxString>& fieldStore = m_dataStore[ comp->GetTimeStamp() ];
+            const std::map<wxString, wxString>& fieldStore = m_dataStore[comp.GetTimeStamp()];
 
-            for( std::pair<wxString, wxString> srcData : fieldStore )
+            for( const std::pair<wxString, wxString> srcData : fieldStore )
             {
-                wxString   srcName = srcData.first;
-                wxString   srcValue = srcData.second;
-                SCH_FIELD* destField = comp->FindField( srcName );
+                const wxString& srcName = srcData.first;
+                const wxString& srcValue = srcData.second;
+                SCH_FIELD*      destField = comp.FindField( srcName );
 
                 if( !destField && !srcValue.IsEmpty() )
-                    destField = comp->AddField( SCH_FIELD( wxPoint( 0, 0 ), -1, comp, srcName ) );
+                {
+                    const auto compOrigin = comp.GetPosition();
+                    destField = comp.AddField( SCH_FIELD( compOrigin, -1, &comp, srcName ) );
+                }
 
-                if( destField )
+                if( destField && !srcValue.IsEmpty() )
                     destField->SetText( srcValue );
+                else
+                    comp.RemoveField( srcName );
             }
         }
 
         m_edited = false;
     }
+
+
+    int GetDataWidth( int aCol )
+    {
+        int width = 0;
+
+        if( aCol == REFERENCE )
+        {
+            for( int row = 0; row < GetNumberRows(); ++row )
+            {
+                width = std::max( width, GetTextSize( GetValue( row, aCol ), GetView() ).x );
+            }
+        }
+        else
+        {
+            wxString column_label = GetColLabelValue( aCol );  // component fieldName or Qty string
+
+            for( unsigned compRef = 0; compRef < m_componentRefs.GetCount(); ++ compRef )
+            {
+                timestamp_t compId = m_componentRefs[ compRef ].GetComp()->GetTimeStamp();
+                wxString text = m_dataStore[ compId ][ column_label ];
+                width = std::max( width, GetTextSize( text, GetView() ).x );
+            }
+        }
+
+        return width;
+    }
+
 
     bool IsEdited()
     {
@@ -533,6 +659,8 @@ DIALOG_FIELDS_EDITOR_GLOBAL::DIALOG_FIELDS_EDITOR_GLOBAL( SCH_EDIT_FRAME* parent
         m_config( Kiface().KifaceSettings() ),
         m_parent( parent )
 {
+    wxSize defaultDlgSize = ConvertDialogToPixels( wxSize( 600, 300 ) );
+
     // Get all components from the list of schematic sheets
     SCH_SHEET_LIST sheets( g_RootSheet );
     sheets.GetComponents( m_componentRefs, false );
@@ -546,11 +674,11 @@ DIALOG_FIELDS_EDITOR_GLOBAL::DIALOG_FIELDS_EDITOR_GLOBAL( SCH_EDIT_FRAME* parent
     // SetWidth( wxCOL_WIDTH_AUTOSIZE ) fails here on GTK, so we calculate the title sizes and
     // set the column widths ourselves.
     auto column = m_fieldsCtrl->GetColumn( SHOW_FIELD_COLUMN );
-    m_showColWidth = GetTextSize( column->GetTitle(), m_fieldsCtrl ).x + CHECKBOX_COLUMN_MARGIN;
+    m_showColWidth = GetTextSize( column->GetTitle(), m_fieldsCtrl ).x + COLUMN_MARGIN;
     column->SetWidth( m_showColWidth );
 
     column = m_fieldsCtrl->GetColumn( GROUP_BY_COLUMN );
-    m_groupByColWidth = GetTextSize( column->GetTitle(), m_fieldsCtrl ).x + CHECKBOX_COLUMN_MARGIN;
+    m_groupByColWidth = GetTextSize( column->GetTitle(), m_fieldsCtrl ).x + COLUMN_MARGIN;
     column->SetWidth( m_groupByColWidth );
 
     // The fact that we're a list should keep the control from reserving space for the
@@ -577,7 +705,9 @@ DIALOG_FIELDS_EDITOR_GLOBAL::DIALOG_FIELDS_EDITOR_GLOBAL( SCH_EDIT_FRAME* parent
     m_dataModel->RebuildRows( m_groupComponentsBox, m_fieldsCtrl );
     m_dataModel->Sort( 0, true );
 
-    m_grid->UseNativeColHeader( true );
+    // wxGrid's column moving is buggy with native headers and this is one dialog where you'd
+    // really like to be able to rearrange columns.
+    m_grid->UseNativeColHeader( false );
     m_grid->SetTable( m_dataModel, true );
 
     // sync m_grid's column visiblities to Show checkboxes in m_fieldsCtrl
@@ -590,33 +720,56 @@ DIALOG_FIELDS_EDITOR_GLOBAL::DIALOG_FIELDS_EDITOR_GLOBAL( SCH_EDIT_FRAME* parent
     }
 
     // add Cut, Copy, and Paste to wxGrid
-    m_grid->PushEventHandler( new GRID_TRICKS( m_grid ) );
+    m_grid->PushEventHandler( new FIELDS_EDITOR_GRID_TRICKS( this, m_grid, m_fieldsCtrl ) );
 
-    // give a bit more room for editing
-    m_grid->SetDefaultRowSize( m_grid->GetDefaultRowSize() + 2 );
+    // give a bit more room for comboboxes
+    m_grid->SetDefaultRowSize( m_grid->GetDefaultRowSize() + 4 );
 
     // set reference column attributes
     wxGridCellAttr* attr = new wxGridCellAttr;
     attr->SetReadOnly();
-    m_grid->SetColAttr( 0, attr );
-    m_grid->SetColMinimalWidth( 0, 100 );
+    m_grid->SetColAttr( REFERENCE, attr );
+
+    // set footprint column browse button
+    attr = new wxGridCellAttr;
+    attr->SetEditor( new GRID_CELL_FOOTPRINT_ID_EDITOR( this ) );
+    m_grid->SetColAttr( FOOTPRINT, attr );
+
+    // set datasheet column viewer button
+    attr = new wxGridCellAttr;
+    attr->SetEditor( new GRID_CELL_URL_EDITOR( this ) );
+    m_grid->SetColAttr( DATASHEET, attr );
 
     // set quantities column attributes
     attr = new wxGridCellAttr;
     attr->SetReadOnly();
     m_grid->SetColAttr( m_dataModel->GetColsCount() - 1, attr );
     m_grid->SetColFormatNumber( m_dataModel->GetColsCount() - 1 );
-    m_grid->SetColMinimalWidth( m_dataModel->GetColsCount() - 1, 50 );
 
     m_grid->AutoSizeColumns( false );
+    for( int col = 0; col < m_grid->GetNumberCols(); ++ col )
+    {
+        // Columns are hidden by setting their width to 0 so if we resize them they will
+        // become unhidden.
+        if( m_grid->IsColShown( col ) )
+        {
+            int textWidth = m_dataModel->GetDataWidth( col ) + COLUMN_MARGIN;
+            int maxWidth = defaultDlgSize.x / 3;
+
+            if( col == m_grid->GetNumberCols() - 1 )
+                m_grid->SetColSize( col, std::min( std::max( 50, textWidth ), maxWidth ) );
+            else
+                m_grid->SetColSize( col, std::min( std::max( 100, textWidth ), maxWidth ) );
+        }
+    }
 
     m_grid->SetGridCursor( 0, 1 );
-    m_grid->SetFocus();
+    SetInitialFocus( m_grid );
 
     m_sdbSizer1OK->SetDefault();
 
     FinishDialogSettings();
-    SetSizeInDU( 600, 300 );
+    SetSize( defaultDlgSize );
     Center();
 
     // Connect Events
@@ -633,13 +786,17 @@ DIALOG_FIELDS_EDITOR_GLOBAL::~DIALOG_FIELDS_EDITOR_GLOBAL()
     m_grid->PopEventHandler( true );
 
     // we gave ownership of m_dataModel to the wxGrid...
+
+    // Clear highligted symbols, if any
+    m_parent->GetCanvas()->GetView()->HighlightItem( nullptr, nullptr );
+    m_parent->GetCanvas()->Refresh();
 }
 
 
 bool DIALOG_FIELDS_EDITOR_GLOBAL::TransferDataFromWindow()
 {
-    // Commit any pending in-place edits and close the editor
-    m_grid->DisableCellEditControl();
+    if( !m_grid->CommitPendingChanges() )
+        return false;
 
     if( !wxDialog::TransferDataFromWindow() )
         return false;
@@ -647,6 +804,7 @@ bool DIALOG_FIELDS_EDITOR_GLOBAL::TransferDataFromWindow()
     SCH_SHEET_PATH currentSheet = m_parent->GetCurrentSheet();
 
     m_dataModel->ApplyData();
+    m_parent->SyncView();
     m_parent->OnModify();
 
     // Reset the view to where we left the user
@@ -664,8 +822,8 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::AddField( const wxString& aName,
 
     wxVector<wxVariant> fieldsCtrlRow;
 
-    m_config->Read("SymbolFieldEditor/Show/" + aName, &defaultShow);
-    m_config->Read("SymbolFieldEditor/GroupBy/" + aName, &defaultSortBy);
+    m_config->Read( "SymbolFieldEditor/Show/" + aName, &defaultShow );
+    m_config->Read( "SymbolFieldEditor/GroupBy/" + aName, &defaultSortBy );
 
     fieldsCtrlRow.push_back( wxVariant( aName ) );
     fieldsCtrlRow.push_back( wxVariant( defaultShow ) );
@@ -691,6 +849,9 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::LoadFieldNames()
             userFieldNames.insert( comp->GetField( j )->GetName() );
     }
 
+    // Force References to always be shown
+    m_config->Write( "SymbolFieldEditor/Show/Reference", true );
+
     AddField( _( "Reference" ), true, true  );
     AddField( _( "Value" ),     true, true  );
     AddField( _( "Footprint" ), true, true  );
@@ -703,6 +864,51 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::LoadFieldNames()
     for( auto templateFieldName : m_parent->GetTemplateFieldNames() )
         if( userFieldNames.count( templateFieldName.m_Name ) == 0 )
             AddField( templateFieldName.m_Name, false, false );
+}
+
+
+void DIALOG_FIELDS_EDITOR_GLOBAL::OnAddField( wxCommandEvent& event )
+{
+    // quantities column will become new field column, so it needs to be reset
+    auto attr = new wxGridCellAttr;
+    m_grid->SetColAttr( m_dataModel->GetColsCount() - 1, attr );
+    m_grid->SetColFormatCustom( m_dataModel->GetColsCount() - 1, wxGRID_VALUE_STRING );
+
+    wxTextEntryDialog dlg( this, _( "New field name:" ), _( "Add Field" ) );
+
+    if( dlg.ShowModal() != wxID_OK )
+        return;
+
+    wxString fieldName = dlg.GetValue();
+
+    if( fieldName.IsEmpty() )
+    {
+        DisplayError( this, _( "Field must have a name." ) );
+        return;
+    }
+
+    for( int i = 0; i < m_dataModel->GetNumberCols(); ++i )
+    {
+        if( fieldName == m_dataModel->GetColLabelValue( i ) )
+        {
+            DisplayError( this, wxString::Format( _( "Field name \"%s\" already in use." ), fieldName ) );
+            return;
+        }
+    }
+
+    m_config->Write( "SymbolFieldEditor/Show/" + fieldName, true );
+
+    AddField( fieldName, true, false );
+
+    wxGridTableMessage msg( m_dataModel, wxGRIDTABLE_NOTIFY_COLS_INSERTED, m_fieldsCtrl->GetItemCount(), 1 );
+    m_grid->ProcessTableMessage( msg );
+
+    // set up attributes on the new quantities column
+    attr = new wxGridCellAttr;
+    attr->SetReadOnly();
+    m_grid->SetColAttr( m_dataModel->GetColsCount() - 1, attr );
+    m_grid->SetColFormatNumber( m_dataModel->GetColsCount() - 1 );
+    m_grid->SetColSize( m_dataModel->GetColsCount() - 1, 50 );
 }
 
 
@@ -721,6 +927,15 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::OnColumnItemToggled( wxDataViewEvent& event )
     case SHOW_FIELD_COLUMN:
     {
         bool value = m_fieldsCtrl->GetToggleValue( row, col );
+
+        if( row == REFERENCE && !value )
+        {
+            DisplayError( this, _( "The Reference column cannot be hidden." ) );
+
+            value = true;
+            m_fieldsCtrl->SetToggleValue( value, row, col );
+        }
+
         wxString fieldName = m_fieldsCtrl->GetTextValue( row, FIELD_NAME_COLUMN );
         m_config->Write( "SymbolFieldEditor/Show/" + fieldName, value );
 
@@ -789,6 +1004,13 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::OnTableCellClick( wxGridEvent& event )
 {
     if( event.GetCol() == REFERENCE )
     {
+        m_grid->ClearSelection();
+        m_grid->SetGridCursor( event.GetRow(), event.GetCol() );
+
+        // Clear highligted symbols, if any
+        m_parent->GetCanvas()->GetView()->HighlightItem( nullptr, nullptr );
+        m_parent->GetCanvas()->Refresh();
+
         m_dataModel->ExpandCollapseRow( event.GetRow() );
         std::vector<SCH_REFERENCE> refs = m_dataModel->GetRowReferences( event.GetRow() );
 
@@ -796,7 +1018,7 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::OnTableCellClick( wxGridEvent& event )
         if( refs.size() == 1 )
         {
             m_parent->FindComponentAndItem( refs[0].GetRef() + refs[0].GetRefNumber(),
-                                            true, FIND_COMPONENT_ONLY, wxEmptyString, false );
+                                            true, FIND_COMPONENT_ONLY, wxEmptyString );
         }
     }
     else
@@ -833,10 +1055,7 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::OnSizeFieldList( wxSizeEvent& event )
 void DIALOG_FIELDS_EDITOR_GLOBAL::OnSaveAndContinue( wxCommandEvent& aEvent )
 {
     if( TransferDataFromWindow() )
-    {
-        wxCommandEvent dummyEvent;
-        m_parent->OnSaveProject( dummyEvent );
-    }
+        m_parent->SaveProject();
 }
 
 
@@ -848,29 +1067,18 @@ void DIALOG_FIELDS_EDITOR_GLOBAL::OnCancel( wxCommandEvent& event )
 
 void DIALOG_FIELDS_EDITOR_GLOBAL::OnClose( wxCloseEvent& event )
 {
-    // Commit any pending in-place edits and close the editor
-    m_grid->DisableCellEditControl();
+    // This is a cancel, so commit quietly as we're going to throw the results away anyway.
+    m_grid->CommitPendingChanges( true );
 
     if( m_dataModel->IsEdited() )
     {
-        switch( DisplayExitDialog( this, wxEmptyString ) )
+        if( !HandleUnsavedChanges( this, wxEmptyString,
+                                   [&]()->bool { return TransferDataFromWindow(); } ) )
         {
-        case wxID_CANCEL:
             event.Veto();
-            break;
-
-        case wxID_YES:
-            if( TransferDataFromWindow() )
-                event.Skip();
-            break;
-
-        case wxID_NO:
-            event.Skip();
-            break;
+            return;
         }
     }
-    else
-    {
-        event.Skip();
-    }
+
+    event.Skip();
 }

@@ -102,11 +102,13 @@ private:
 class SYMBOL_LIB_TABLE : public LIB_TABLE
 {
     friend class SYMBOL_LIB_TABLE_GRID;
-    friend class DIALOG_SYMBOL_LIB_TABLE;
+    friend class PANEL_SYM_LIB_TABLE;
 
     static int m_modifyHash;     ///< helper for GetModifyHash()
 
 public:
+    KICAD_T Type() override { return SYMBOL_LIB_TABLE_T; }
+
     static const char* PropPowerSymsOnly;
     static const char* PropNonPowerSymsOnly;
 

@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2015-2016 Mario Luzeiro <mrluzeiro@ua.pt>
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,22 +28,30 @@
  */
 
 #include "eda_3d_viewer.h"
+
 #include "../3d_viewer_id.h"
-#include <project.h>
+#include "../common_ogl/cogl_att_list.h"
+
+#include <bitmaps.h>
+#include <dpi_scaling.h>
 #include <gestfich.h>
+#include <lru_cache.h>
+#include <pgm_base.h>
+#include <project.h>
+#include <wildcards_and_files_ext.h>
+
+#include <hotkeys_basic.h>
 #include <wx/colordlg.h>
 #include <wx/colourdata.h>
-#include <lru_cache.h>
-#include  "../common_ogl/cogl_att_list.h"
-#include <hotkeys_basic.h>
 #include <wx/toolbar.h>
-#include <bitmaps.h>
+
 
 /**
- *  Trace mask used to enable or disable the trace output of this class.
- *  The debug output can be turned on by setting the WXTRACE environment variable to
- *  "KI_TRACE_EDA_3D_VIEWER".  See the wxWidgets documentation on wxLogTrace for
- *  more information.
+ * Flag to enable 3D viewer main frame window debug tracing.
+ *
+ * Use "KI_TRACE_EDA_3D_VIEWER" to enable.
+ *
+ * @ingroup trace_env_vars
  */
 const wxChar * EDA_3D_VIEWER::m_logTrace = wxT( "KI_TRACE_EDA_3D_VIEWER" );
 
@@ -116,42 +124,48 @@ BEGIN_EVENT_TABLE( EDA_3D_VIEWER, EDA_BASE_FRAME )
     EVT_ACTIVATE( EDA_3D_VIEWER::OnActivate )
     EVT_SET_FOCUS( EDA_3D_VIEWER::OnSetFocus )
 
-    EVT_TOOL_RANGE( ID_ZOOM_IN, ID_ZOOM_REDRAW,
-                    EDA_3D_VIEWER::ProcessZoom )
+    EVT_TOOL_RANGE( ID_ZOOM_IN, ID_ZOOM_REDRAW, EDA_3D_VIEWER::ProcessZoom )
 
     EVT_TOOL_RANGE( ID_START_COMMAND_3D, ID_MENU_COMMAND_END,
                     EDA_3D_VIEWER::Process_Special_Functions )
 
     EVT_TOOL( ID_TOOL_SET_VISIBLE_ITEMS, EDA_3D_VIEWER::Install3DViewOptionDialog )
 
-    EVT_MENU( wxID_EXIT,
-              EDA_3D_VIEWER::Exit3DFrame )
+    EVT_MENU( wxID_EXIT, EDA_3D_VIEWER::Exit3DFrame )
+    EVT_MENU( ID_RENDER_CURRENT_VIEW, EDA_3D_VIEWER::OnRenderEngineSelection )
+    EVT_MENU( ID_DISABLE_RAY_TRACING, EDA_3D_VIEWER::OnDisableRayTracing )
 
-    EVT_MENU_RANGE( ID_MENU3D_GRID, ID_MENU3D_GRID_END,
-                    EDA_3D_VIEWER::On3DGridSelection )
-
-    EVT_MENU_RANGE( ID_MENU3D_ENGINE, ID_MENU3D_ENGINE_END,
-                    EDA_3D_VIEWER::OnRenderEngineSelection )
+    EVT_MENU_RANGE( ID_MENU3D_GRID, ID_MENU3D_GRID_END, EDA_3D_VIEWER::On3DGridSelection )
+    EVT_MENU( wxID_ABOUT, EDA_BASE_FRAME::GetKicadAbout )
 
     EVT_CLOSE( EDA_3D_VIEWER::OnCloseWindow )
 
-    EVT_UPDATE_UI_RANGE( ID_START_COMMAND_3D, ID_MENU_COMMAND_END,
-                         EDA_3D_VIEWER::OnUpdateMenus )
+    EVT_UPDATE_UI_RANGE( ID_MENU3D_FL_RENDER_MATERIAL_MODE_NORMAL,
+                         ID_MENU3D_FL_RENDER_MATERIAL_MODE_CAD_MODE,
+                         EDA_3D_VIEWER::OnUpdateUIMaterial )
+    EVT_UPDATE_UI_RANGE( ID_MENU3D_FL_OPENGL_RENDER_COPPER_THICKNESS,
+                         ID_MENU3D_FL_OPENGL_RENDER_SHOW_MODEL_BBOX,
+                         EDA_3D_VIEWER::OnUpdateUIOpenGL )
+    EVT_UPDATE_UI_RANGE( ID_MENU3D_FL_RAYTRACING_RENDER_SHADOWS,
+                         ID_MENU3D_FL_RAYTRACING_PROCEDURAL_TEXTURES,
+                         EDA_3D_VIEWER::OnUpdateUIRayTracing )
 
+    EVT_UPDATE_UI( ID_RENDER_CURRENT_VIEW, EDA_3D_VIEWER::OnUpdateUIEngine )
+    EVT_UPDATE_UI( ID_MENU3D_AXIS_ONOFF, EDA_3D_VIEWER::OnUpdateUIAxis )
 END_EVENT_TABLE()
 
 
 EDA_3D_VIEWER::EDA_3D_VIEWER( KIWAY *aKiway, PCB_BASE_FRAME *aParent,
                               const wxString &aTitle, long style ) :
-
                 KIWAY_PLAYER( aKiway, aParent,
                               FRAME_PCB_DISPLAY3D, aTitle,
                               wxDefaultPosition, wxDefaultSize,
                               style, VIEWER3D_FRAMENAME )
 {
-    wxLogTrace( m_logTrace, wxT( "EDA_3D_VIEWER::EDA_3D_VIEWER %s" ), aTitle );
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::EDA_3D_VIEWER %s", aTitle );
 
     m_canvas = NULL;
+    m_disable_ray_tracing = false;
 
     // Give it an icon
     wxIcon icon;
@@ -164,11 +178,8 @@ EDA_3D_VIEWER::EDA_3D_VIEWER( KIWAY *aKiway, PCB_BASE_FRAME *aParent,
     // Create the status line
     static const int status_dims[4] = { -1, 130, 130, 170 };
 
-    wxStatusBar *status_bar = CreateStatusBar( DIM( status_dims ) );
-    SetStatusWidths( DIM( status_dims ), status_dims );
-
-    CreateMenuBar();
-    ReCreateMainToolbar();
+    wxStatusBar *status_bar = CreateStatusBar( arrayDim( status_dims ) );
+    SetStatusWidths( arrayDim( status_dims ), status_dims );
 
     m_canvas = new EDA_3D_CANVAS( this,
                                   COGL_ATT_LIST::GetAttributesList( true ),
@@ -179,24 +190,21 @@ EDA_3D_VIEWER::EDA_3D_VIEWER( KIWAY *aKiway, PCB_BASE_FRAME *aParent,
     if( m_canvas )
         m_canvas->SetStatusBar( status_bar );
 
+    // Some settings need the canvas
+    loadCommonSettings();
+
+    CreateMenuBar();
+    ReCreateMainToolbar();
+
     m_auimgr.SetManagedWindow( this );
 
-    EDA_PANEINFO horiztb;
-    horiztb.HorizontalToolbarPane();
-
-    m_auimgr.AddPane( m_mainToolBar,
-                      wxAuiPaneInfo( horiztb ).Name( wxT( "m_mainToolBar" ) ).Top() );
-
-    if( m_canvas )
-        m_auimgr.AddPane( m_canvas,
-                          wxAuiPaneInfo().Name( wxT( "DrawFrame" ) ).CentrePane() );
+    m_auimgr.AddPane( m_mainToolBar, EDA_PANE().HToolbar().Name( "MainToolbar" ).Top().Layer( 6 ) );
+    m_auimgr.AddPane( m_canvas, EDA_PANE().Canvas().Name( "DrawFrame" ).Center() );
 
     m_auimgr.Update();
 
-    m_mainToolBar->EnableTool( ID_RENDER_CURRENT_VIEW,
-                               (m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY) );
-
-    m_mainToolBar->Connect( wxEVT_KEY_DOWN, wxKeyEventHandler( EDA_3D_VIEWER::OnKeyEvent ), NULL, this );
+    m_mainToolBar->Connect( wxEVT_KEY_DOWN, wxKeyEventHandler( EDA_3D_VIEWER::OnKeyEvent ),
+                            NULL, this );
 
     // Fixes bug in Windows (XP and possibly others) where the canvas requires the focus
     // in order to receive mouse events.  Otherwise, the user has to click somewhere on
@@ -208,7 +216,8 @@ EDA_3D_VIEWER::EDA_3D_VIEWER( KIWAY *aKiway, PCB_BASE_FRAME *aParent,
 
 EDA_3D_VIEWER::~EDA_3D_VIEWER()
 {
-    m_mainToolBar->Disconnect( wxEVT_KEY_DOWN, wxKeyEventHandler( EDA_3D_VIEWER::OnKeyEvent ), NULL, this );
+    m_mainToolBar->Disconnect( wxEVT_KEY_DOWN, wxKeyEventHandler( EDA_3D_VIEWER::OnKeyEvent ),
+                               NULL, this );
 
     m_auimgr.UnInit();
 
@@ -239,7 +248,7 @@ void EDA_3D_VIEWER::NewDisplay( bool aForceImmediateRedraw )
 
 void EDA_3D_VIEWER::Exit3DFrame( wxCommandEvent &event )
 {
-    wxLogTrace( m_logTrace, wxT( "EDA_3D_VIEWER::Exit3DFrame" ) );
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::Exit3DFrame" );
 
     Close( true );
 }
@@ -247,7 +256,7 @@ void EDA_3D_VIEWER::Exit3DFrame( wxCommandEvent &event )
 
 void EDA_3D_VIEWER::OnCloseWindow( wxCloseEvent &event )
 {
-    wxLogTrace( m_logTrace, wxT( "EDA_3D_VIEWER::OnCloseWindow" ) );
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::OnCloseWindow" );
 
     if( m_canvas )
         m_canvas->Close();
@@ -268,7 +277,7 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
     bool    isChecked = event.IsChecked();
 
     wxLogTrace( m_logTrace,
-                wxT( "EDA_3D_VIEWER::Process_Special_Functions id:%d isChecked:%d" ),
+                "EDA_3D_VIEWER::Process_Special_Functions id %d isChecked %d",
                 id, isChecked );
 
     if( m_canvas == NULL )
@@ -276,42 +285,68 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
 
     switch( id )
     {
-    case ID_RENDER_CURRENT_VIEW:
-        m_canvas->RenderRaytracingRequest();
-        break;
-
     case ID_RELOAD3D_BOARD:
         NewDisplay( true );
         break;
 
     case ID_ROTATE3D_X_POS:
         m_settings.CameraGet().RotateX( glm::radians(ROT_ANGLE) );
-        m_canvas->Request_refresh();
+
+        if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
+            m_canvas->Request_refresh();
+        else
+            m_canvas->RenderRaytracingRequest();
+
         break;
 
     case ID_ROTATE3D_X_NEG:
         m_settings.CameraGet().RotateX( -glm::radians(ROT_ANGLE) );
-        m_canvas->Request_refresh();
+
+        if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
+            m_canvas->Request_refresh();
+        else
+            m_canvas->RenderRaytracingRequest();
+
         break;
 
     case ID_ROTATE3D_Y_POS:
         m_settings.CameraGet().RotateY( glm::radians(ROT_ANGLE) );
-        m_canvas->Request_refresh();
+
+        if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
+            m_canvas->Request_refresh();
+        else
+            m_canvas->RenderRaytracingRequest();
+
         break;
 
     case ID_ROTATE3D_Y_NEG:
         m_settings.CameraGet().RotateY( -glm::radians(ROT_ANGLE) );
-        m_canvas->Request_refresh();
+
+        if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
+            m_canvas->Request_refresh();
+        else
+            m_canvas->RenderRaytracingRequest();
+
         break;
 
     case ID_ROTATE3D_Z_POS:
         m_settings.CameraGet().RotateZ( glm::radians(ROT_ANGLE) );
-        m_canvas->Request_refresh();
+
+        if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
+            m_canvas->Request_refresh();
+        else
+            m_canvas->RenderRaytracingRequest();
+
         break;
 
     case ID_ROTATE3D_Z_NEG:
         m_settings.CameraGet().RotateZ( -glm::radians(ROT_ANGLE) );
-        m_canvas->Request_refresh();
+
+        if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
+            m_canvas->Request_refresh();
+        else
+            m_canvas->RenderRaytracingRequest();
+
         break;
 
     case ID_MOVE3D_LEFT:
@@ -342,7 +377,8 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
         return;
 
     case ID_MENU3D_BGCOLOR_BOTTOM_SELECTION:
-        if( Set3DColorFromUser( m_settings.m_BgColorBot, _( "Background Color, Bottom" ) ) )
+        if( Set3DColorFromUser( m_settings.m_BgColorBot, _( "Background Color, Bottom" ),
+                                nullptr ) )
         {
             if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
                 m_canvas->Request_refresh();
@@ -352,7 +388,7 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
         return;
 
     case ID_MENU3D_BGCOLOR_TOP_SELECTION:
-        if( Set3DColorFromUser( m_settings.m_BgColorTop, _( "Background Color, Top" ) ) )
+        if( Set3DColorFromUser( m_settings.m_BgColorTop, _( "Background Color, Top" ), nullptr ) )
         {
             if( m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY )
                 m_canvas->Request_refresh();
@@ -381,13 +417,8 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
         Set3DBoardBodyColorFromUser();
         break;
 
-    case ID_MENU3D_MOUSEWHEEL_PANNING:
-        m_settings.SetFlag( FL_MOUSEWHEEL_PANNING, isChecked );
-        break;
-
     case ID_MENU3D_REALISTIC_MODE:
         m_settings.SetFlag( FL_USE_REALISTIC_MODE, isChecked );
-        SetMenuBarOptionsState();
         NewDisplay( true );
         return;
 
@@ -514,12 +545,9 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
     case ID_MENU3D_RESET_DEFAULTS:
     {
         // Reload settings with a dummy config, so it will load the defaults
-        wxConfig *fooconfig = new wxConfig("FooBarApp");
+        wxConfig *fooconfig = new wxConfig( "FooBarApp" );
         LoadSettings( fooconfig );
         delete fooconfig;
-
-        // Refresh menu option state
-        SetMenuBarOptionsState();
 
         // Tell canvas that we (may have) changed the render engine
         RenderEngineChanged();
@@ -535,7 +563,7 @@ void EDA_3D_VIEWER::Process_Special_Functions( wxCommandEvent &event )
         return;
 
     default:
-        wxLogMessage( wxT( "EDA_3D_VIEWER::Process_Special_Functions() error: unknown command %d" ), id );
+        wxFAIL_MSG( "Invalid event in EDA_3D_VIEWER::Process_Special_Functions()" );
         return;
     }
 }
@@ -548,7 +576,7 @@ void EDA_3D_VIEWER::On3DGridSelection( wxCommandEvent &event )
     wxASSERT( id < ID_MENU3D_GRID_END );
     wxASSERT( id > ID_MENU3D_GRID );
 
-    wxLogTrace( m_logTrace, wxT( "EDA_3D_VIEWER::On3DGridSelection id:%d" ), id );
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::On3DGridSelection id %d", id );
 
     switch( id )
     {
@@ -573,7 +601,7 @@ void EDA_3D_VIEWER::On3DGridSelection( wxCommandEvent &event )
         break;
 
     default:
-        wxLogMessage( wxT( "EDA_3D_VIEWER::On3DGridSelection() error: unknown command %d" ), id );
+        wxFAIL_MSG( "Invalid event in EDA_3D_VIEWER::On3DGridSelection()" );
         return;
     }
 
@@ -584,31 +612,16 @@ void EDA_3D_VIEWER::On3DGridSelection( wxCommandEvent &event )
 
 void EDA_3D_VIEWER::OnRenderEngineSelection( wxCommandEvent &event )
 {
-    int id = event.GetId();
-
-    wxASSERT( id < ID_MENU3D_ENGINE_END );
-    wxASSERT( id > ID_MENU3D_ENGINE );
-
-    wxLogTrace( m_logTrace, wxT( "EDA_3D_VIEWER::OnRenderEngineSelection id:%d" ), id );
-
     const RENDER_ENGINE old_engine = m_settings.RenderEngineGet();
 
-    switch( id )
-    {
-    case ID_MENU3D_ENGINE_OPENGL_LEGACY:
-        if( old_engine != RENDER_ENGINE_OPENGL_LEGACY )
-            m_settings.RenderEngineSet( RENDER_ENGINE_OPENGL_LEGACY );
-        break;
+    if( old_engine == RENDER_ENGINE_OPENGL_LEGACY )
+        m_settings.RenderEngineSet( RENDER_ENGINE_RAYTRACING );
+    else
+        m_settings.RenderEngineSet( RENDER_ENGINE_OPENGL_LEGACY );
 
-    case ID_MENU3D_ENGINE_RAYTRACING:
-        if( old_engine != RENDER_ENGINE_RAYTRACING )
-            m_settings.RenderEngineSet( RENDER_ENGINE_RAYTRACING );
-        break;
-
-    default:
-        wxLogMessage( wxT( "EDA_3D_VIEWER::OnRenderEngineSelection() error: unknown command %d" ), id );
-        return;
-    }
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::OnRenderEngineSelection type %s ",
+                ( m_settings.RenderEngineGet() == RENDER_ENGINE_RAYTRACING ) ?
+                "Ray Trace" : "OpenGL Legacy" );
 
     if( old_engine != m_settings.RenderEngineGet() )
     {
@@ -617,19 +630,11 @@ void EDA_3D_VIEWER::OnRenderEngineSelection( wxCommandEvent &event )
 }
 
 
-void EDA_3D_VIEWER::OnUpdateMenus(wxUpdateUIEvent &event)
-{
-    //!TODO: verify how many times this event is called and check if that is OK
-    // to have it working this way
-    SetMenuBarOptionsState();
-}
-
-
 void EDA_3D_VIEWER::ProcessZoom( wxCommandEvent &event )
 {
     int id = event.GetId();
 
-    wxLogTrace( m_logTrace, wxT( "EDA_3D_VIEWER::ProcessZoom id:%d" ), id );
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::ProcessZoom id:%d", id );
 
     if( m_canvas == NULL )
         return;
@@ -653,7 +658,7 @@ void EDA_3D_VIEWER::ProcessZoom( wxCommandEvent &event )
         break;
 
     default:
-        wxLogMessage( wxT( "EDA_3D_VIEWER::ProcessZoom() error: unknown command %d" ), id );
+        wxFAIL_MSG( "Invalid event in EDA_3D_VIEWER::ProcessZoom()" );
         return;
     }
 
@@ -661,9 +666,18 @@ void EDA_3D_VIEWER::ProcessZoom( wxCommandEvent &event )
 }
 
 
+void EDA_3D_VIEWER::OnDisableRayTracing( wxCommandEvent& aEvent )
+{
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::%s disabling ray tracing.", __WXFUNCTION__ );
+
+    m_disable_ray_tracing = true;
+    m_settings.RenderEngineSet( RENDER_ENGINE_OPENGL_LEGACY );
+}
+
+
 void EDA_3D_VIEWER::OnActivate( wxActivateEvent &event )
 {
-    wxLogTrace( m_logTrace, wxT( "EDA_3D_VIEWER::OnActivate" ) );
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::OnActivate" );
 
     if( m_canvas )
     {
@@ -694,7 +708,7 @@ void EDA_3D_VIEWER::LoadSettings( wxConfigBase *aCfg )
 {
     EDA_BASE_FRAME::LoadSettings( aCfg );
 
-    wxLogTrace( m_logTrace, wxT( "EDA_3D_VIEWER::LoadSettings" ) );
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::LoadSettings" );
 
     aCfg->Read( keyBgColor_Red,   &m_settings.m_BgColorBot.r, 0.4 );
     aCfg->Read( keyBgColor_Green, &m_settings.m_BgColorBot.g, 0.4 );
@@ -722,7 +736,7 @@ void EDA_3D_VIEWER::LoadSettings( wxConfigBase *aCfg )
     // m_CopperColor default value = gold
     aCfg->Read( keyCopperColor_Red,  &m_settings.m_CopperColor.r, 255.0 * 0.7 / 255.0 );
     aCfg->Read( keyCopperColor_Green, &m_settings.m_CopperColor.g, 223.0 * 0.7 / 255.0 );
-    aCfg->Read( keyCopperColor_Blue,  &m_settings.m_CopperColor.b, 0.0 /255.0 );
+    aCfg->Read( keyCopperColor_Blue,  &m_settings.m_CopperColor.b, 0.0 );
 
     // m_BoardBodyColor default value = FR4, in realistic mode
     aCfg->Read( keyBoardBodyColor_Red,  &m_settings.m_BoardBodyColor.r, 51.0 / 255.0 );
@@ -731,9 +745,6 @@ void EDA_3D_VIEWER::LoadSettings( wxConfigBase *aCfg )
 
 
     bool tmp;
-    aCfg->Read( keyMousewheelPanning, &tmp, false );
-    m_settings.SetFlag( FL_MOUSEWHEEL_PANNING, tmp );
-
     aCfg->Read( keyShowRealisticMode, &tmp, true );
     m_settings.SetFlag( FL_USE_REALISTIC_MODE, tmp );
 
@@ -807,6 +818,8 @@ void EDA_3D_VIEWER::LoadSettings( wxConfigBase *aCfg )
     m_settings.GridSet( (GRID3D_TYPE)tmpi );
 
     aCfg->Read( keyRenderEngine, &tmpi, (int)RENDER_ENGINE_OPENGL_LEGACY );
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::LoadSettings render setting %s",
+                ( (RENDER_ENGINE)tmpi == RENDER_ENGINE_RAYTRACING ) ? "Ray Trace" : "OpenGL" );
     m_settings.RenderEngineSet( (RENDER_ENGINE)tmpi );
 
     aCfg->Read( keyRenderMaterial, &tmpi, (int)MATERIAL_MODE_NORMAL );
@@ -818,7 +831,7 @@ void EDA_3D_VIEWER::SaveSettings( wxConfigBase *aCfg )
 {
     EDA_BASE_FRAME::SaveSettings( aCfg );
 
-    wxLogTrace( m_logTrace, wxT( "EDA_3D_VIEWER::SaveSettings" ) );
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::SaveSettings" );
 
     aCfg->Write( keyBgColor_Red,            m_settings.m_BgColorBot.r );
     aCfg->Write( keyBgColor_Green,          m_settings.m_BgColorBot.g );
@@ -850,15 +863,17 @@ void EDA_3D_VIEWER::SaveSettings( wxConfigBase *aCfg )
 
     aCfg->Write( keyShowRealisticMode,      m_settings.GetFlag( FL_USE_REALISTIC_MODE ) );
 
-    aCfg->Write( keyMousewheelPanning,      m_settings.GetFlag( FL_MOUSEWHEEL_PANNING ) );
-
     aCfg->Write( keyRenderEngine,           (int)m_settings.RenderEngineGet() );
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::SaveSettings render setting %s",
+                ( m_settings.RenderEngineGet() == RENDER_ENGINE_RAYTRACING ) ? "Ray Trace" : "OpenGL" );
 
     aCfg->Write( keyRenderMaterial,         (int)m_settings.MaterialModeGet() );
 
     // OpenGL options
-    aCfg->Write( keyRenderOGL_ShowCopperTck,m_settings.GetFlag( FL_RENDER_OPENGL_COPPER_THICKNESS ) );
-    aCfg->Write( keyRenderOGL_ShowModelBBox,m_settings.GetFlag( FL_RENDER_OPENGL_SHOW_MODEL_BBOX ) );
+    aCfg->Write( keyRenderOGL_ShowCopperTck,
+                 m_settings.GetFlag( FL_RENDER_OPENGL_COPPER_THICKNESS ) );
+    aCfg->Write( keyRenderOGL_ShowModelBBox,
+                 m_settings.GetFlag( FL_RENDER_OPENGL_SHOW_MODEL_BBOX ) );
 
     // Raytracing options
     aCfg->Write( keyRenderRAY_Shadows,      m_settings.GetFlag( FL_RENDER_RAYTRACING_SHADOWS ) );
@@ -887,16 +902,32 @@ void EDA_3D_VIEWER::SaveSettings( wxConfigBase *aCfg )
 }
 
 
+void EDA_3D_VIEWER::CommonSettingsChanged()
+{
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::CommonSettingsChanged" );
+
+    // Regen menu bars, etc
+    EDA_BASE_FRAME::CommonSettingsChanged();
+
+    // There is no base class that handles toolbars for this frame
+    ReCreateMainToolbar();
+
+    loadCommonSettings();
+
+    NewDisplay( true );
+}
+
+
 void EDA_3D_VIEWER::OnLeftClick( wxDC *DC, const wxPoint &MousePos )
 {
-    wxLogTrace( m_logTrace, wxT( "EDA_3D_VIEWER::OnLeftClick" ) );
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::OnLeftClick" );
     // Do nothing
 }
 
 
 void EDA_3D_VIEWER::OnRightClick( const wxPoint &MousePos, wxMenu *PopMenu )
 {
-    wxLogTrace( m_logTrace, wxT( "EDA_3D_VIEWER::OnRightClick" ) );
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::OnRightClick" );
     // Do nothing
 }
 
@@ -912,7 +943,7 @@ void EDA_3D_VIEWER::OnKeyEvent( wxKeyEvent& event )
 
 void EDA_3D_VIEWER::RedrawActiveWindow( wxDC *DC, bool EraseBg )
 {
-    wxLogTrace( m_logTrace, wxT( "EDA_3D_VIEWER::RedrawActiveWindow" ) );
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::RedrawActiveWindow" );
     // Do nothing
 }
 
@@ -928,24 +959,29 @@ void EDA_3D_VIEWER::takeScreenshot( wxCommandEvent& event )
     if( event.GetId() != ID_TOOL_SCREENCOPY_TOCLIBBOARD )
     {
         // Remember path between saves during this session only.
-        static wxFileName fn;
-        const wxString file_ext = fmt_is_jpeg ? wxT( "jpg" ) : wxT( "png" );
-        const wxString mask     = wxT( "*." ) + file_ext;
+        const wxString wildcard = fmt_is_jpeg ? JpegFileWildcard() : PngFileWildcard();
+        const wxString ext = fmt_is_jpeg ? JpegFileExtension : PngFileExtension;
 
         // First time path is set to the project path.
-        if( !fn.IsOk() )
-            fn = Parent()->Prj().GetProjectFullName();
+        if( !m_defaultSaveScreenshotFileName.IsOk() )
+            m_defaultSaveScreenshotFileName = Parent()->Prj().GetProjectFullName();
 
-        fn.SetExt( file_ext );
+        m_defaultSaveScreenshotFileName.SetExt( ext );
 
-        fullFileName = EDA_FILE_SELECTOR( _( "3D Image File Name:" ), fn.GetPath(),
-                                          m_defaultSaveScreenshotFileName, file_ext, mask, this,
-                                          wxFD_SAVE | wxFD_OVERWRITE_PROMPT, true );
+        wxFileDialog dlg( this, _( "3D Image File Name" ),
+                          m_defaultSaveScreenshotFileName.GetPath(),
+                          m_defaultSaveScreenshotFileName.GetFullName(), wildcard,
+                          wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
-        if( fullFileName.IsEmpty() )
+        if( dlg.ShowModal() == wxID_CANCEL )
             return;
 
-        fn = fullFileName;
+        m_defaultSaveScreenshotFileName = dlg.GetPath();
+
+        if( m_defaultSaveScreenshotFileName.GetExt().IsEmpty() )
+            m_defaultSaveScreenshotFileName.SetExt( ext );
+
+        fullFileName = m_defaultSaveScreenshotFileName.GetFullPath();
 
         // Be sure the screen area destroyed by the file dialog is redrawn
         // before making a screen copy.
@@ -954,7 +990,7 @@ void EDA_3D_VIEWER::takeScreenshot( wxCommandEvent& event )
     }
 
     // Be sure we have the latest 3D view (remember 3D view is buffered)
-    Refresh();
+    m_canvas->Request_refresh( true );
     wxYield();
 
     // Build image from the 3D buffer
@@ -995,43 +1031,32 @@ void EDA_3D_VIEWER::takeScreenshot( wxCommandEvent& event )
 
 void EDA_3D_VIEWER::RenderEngineChanged()
 {
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::RenderEngineChanged()" );
+
     if( m_canvas )
         m_canvas->RenderEngineChanged();
-
-    m_mainToolBar->EnableTool( ID_RENDER_CURRENT_VIEW,
-                               (m_settings.RenderEngineGet() == RENDER_ENGINE_OPENGL_LEGACY) );
-
-    m_mainToolBar->Refresh();
 }
 
 
 bool EDA_3D_VIEWER::Set3DColorFromUser( SFVEC3D &aColor, const wxString& aTitle,
-                                       wxColourData* aPredefinedColors )
+                                        CUSTOM_COLORS_LIST* aPredefinedColors )
 {
-    wxColour newcolor, oldcolor;
+    KIGFX::COLOR4D newcolor;
+    KIGFX::COLOR4D oldcolor( aColor.r,aColor.g, aColor.b, 1.0 );
 
-    oldcolor.Set( KiROUND( aColor.r * 255 ),
-                  KiROUND( aColor.g * 255 ),
-                  KiROUND( aColor.b * 255 ) );
+    DIALOG_COLOR_PICKER picker( this, oldcolor, false, aPredefinedColors );
 
-    wxColourData emptyColorSet; // Provides a empty predefined set of colors
-                                // if no color set available to avoid use of an
-                                // old color set
-
-    if( aPredefinedColors == NULL )
-        aPredefinedColors = &emptyColorSet;
-
-    newcolor = wxGetColourFromUser( this, oldcolor, aTitle, aPredefinedColors );
-
-    if( !newcolor.IsOk() )     // Cancel command
+    if( picker.ShowModal() != wxID_OK )
         return false;
 
-    if( newcolor != oldcolor )
-    {
-        aColor.r = (double) newcolor.Red()   / 255.0;
-        aColor.g = (double) newcolor.Green() / 255.0;
-        aColor.b = (double) newcolor.Blue()  / 255.0;
-    }
+    newcolor = picker.GetColor();
+
+    if( newcolor == oldcolor )
+        return false;
+
+    aColor.r = newcolor.r;
+    aColor.g = newcolor.g;
+    aColor.b = newcolor.b;
 
     return true;
 }
@@ -1039,20 +1064,12 @@ bool EDA_3D_VIEWER::Set3DColorFromUser( SFVEC3D &aColor, const wxString& aTitle,
 
 bool EDA_3D_VIEWER::Set3DSilkScreenColorFromUser()
 {
-    wxColourData definedColors;
-    unsigned int i = 0;
-
-    definedColors.SetCustomColour( i++, wxColour( 241, 241, 241 ) );    // White
-    definedColors.SetCustomColour( i++, wxColour(   4,  18,  21 ) );    // Dark
-
-    for(; i < wxColourData::NUM_CUSTOM;)
-    {
-        definedColors.SetCustomColour( i++, wxColour(   0,   0,  0 ) );
-    }
+    CUSTOM_COLORS_LIST definedColors;
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 241.0/255.0, 241.0/255.0, 241.0/255.0, "White" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 4.0/255.0, 18.0/255.0, 21.0/255.0, "Dark" ) );
 
     bool change = Set3DColorFromUser( m_settings.m_SilkScreenColor,
-                                      _( "Silk Screen Color" ),
-                                      &definedColors );
+                                      _( "Solder Mask Color" ), &definedColors );
 
     if( change )
         NewDisplay( true );
@@ -1063,28 +1080,25 @@ bool EDA_3D_VIEWER::Set3DSilkScreenColorFromUser()
 
 bool EDA_3D_VIEWER::Set3DSolderMaskColorFromUser()
 {
-    wxColourData definedColors;
-    unsigned int i = 0;
+    CUSTOM_COLORS_LIST definedColors;
 
-    definedColors.SetCustomColour( i++, wxColour( 20,  51,  36 ) ); // Green
-    definedColors.SetCustomColour( i++, wxColour( 91, 168,  12 ) ); // Light Green
-    definedColors.SetCustomColour( i++, wxColour( 13, 104,  11 ) ); // Saturated Green
-    definedColors.SetCustomColour( i++, wxColour(181,  19,  21 ) ); // Red
-    definedColors.SetCustomColour( i++, wxColour(239,  53,  41 ) ); // Red Light Orange
-    definedColors.SetCustomColour( i++, wxColour(210,  40,  14 ) ); // Red 2
-    definedColors.SetCustomColour( i++, wxColour(  2,  59, 162 ) ); // Blue
-    definedColors.SetCustomColour( i++, wxColour( 54,  79, 116 ) ); // Light blue 1
-    definedColors.SetCustomColour( i++, wxColour( 61,  85, 130 ) ); // Light blue 2
-    definedColors.SetCustomColour( i++, wxColour( 21,  70,  80 ) ); // Green blue (dark)
-    definedColors.SetCustomColour( i++, wxColour( 11,  11,  11 ) ); // Black
-    definedColors.SetCustomColour( i++, wxColour( 245, 245,245 ) ); // White
-    definedColors.SetCustomColour( i++, wxColour(119,  31,  91 ) ); // Purple
-    definedColors.SetCustomColour( i++, wxColour( 32,   2,  53 ) ); // Purple Dark
-
-    for(; i < wxColourData::NUM_CUSTOM;)
-    {
-        definedColors.SetCustomColour( i++, wxColour(   0,   0,  0 ) );
-    }
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 20/255.0,  51/255.0,  36/255.0, "Green" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 91/255.0, 168/255.0,  12/255.0, "Light Green" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 13/255.0, 104/255.0,  11/255.0,
+                                                "Saturated Green" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 181/255.0,  19/255.0,  21/255.0, "Red" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 239/255.0,  53/255.0,  41/255.0,
+                                                "Red Light Orange" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 210/255.0,  40/255.0,  14/255.0, "Red 2" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM(  2/255.0,  59/255.0, 162/255.0, "Blue" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 54/255.0,  79/255.0, 116/255.0, "Light blue 1" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 61/255.0,  85/255.0, 130/255.0, "Light blue 2" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 21/255.0,  70/255.0,  80/255.0,
+                                                "Green blue (dark)" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 11/255.0,  11/255.0,  11/255.0, "Black" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 245/255.0, 245/255.0, 245/255.0, "White" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 119/255.0,  31/255.0,  91/255.0, "Purple" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 32/255.0,   2/255.0,  53/255.0, "Purple Dark" ) );
 
     bool change = Set3DColorFromUser( m_settings.m_SolderMaskColor,
                                       _( "Solder Mask Color" ),
@@ -1099,21 +1113,14 @@ bool EDA_3D_VIEWER::Set3DSolderMaskColorFromUser()
 
 bool EDA_3D_VIEWER::Set3DCopperColorFromUser()
 {
-    wxColourData definedColors;
-    unsigned int i = 0;
+    CUSTOM_COLORS_LIST definedColors;
 
-    definedColors.SetCustomColour( i++, wxColour( 184, 115,  50) );   // Copper
-    definedColors.SetCustomColour( i++, wxColour( 191, 155,  58) );   // Gold
-    definedColors.SetCustomColour( i++, wxColour( 213, 213, 213) );   // Silver
-    definedColors.SetCustomColour( i++, wxColour( 160, 160, 160) );   // tin
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 184/255.0, 115/255.0, 50/255.0, "Copper" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 178/255.0, 156/255.0,  0.0, "Gold" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 213/255.0, 213/255.0, 213/255.0, "Silver" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 160/255.0, 160/255.0, 160/255.0, "Tin" ) );
 
-    for(; i < wxColourData::NUM_CUSTOM;)
-    {
-        definedColors.SetCustomColour( i++, wxColour(   0,   0,  0 ) );
-    }
-
-    bool change = Set3DColorFromUser( m_settings.m_CopperColor,
-                                      _( "Copper Color" ),
+    bool change = Set3DColorFromUser( m_settings.m_CopperColor, _( "Copper Color" ),
                                       &definedColors );
 
     if( change )
@@ -1125,27 +1132,20 @@ bool EDA_3D_VIEWER::Set3DCopperColorFromUser()
 
 bool EDA_3D_VIEWER::Set3DBoardBodyColorFromUser()
 {
-    wxColourData definedColors;
-    unsigned int i = 0;
+    CUSTOM_COLORS_LIST definedColors;
 
-    definedColors.SetCustomColour( i++, wxColour(  51,  43, 22 ) ); // FR4 natural, dark
-    definedColors.SetCustomColour( i++, wxColour( 109, 116, 75 ) ); // FR4 natural
-    definedColors.SetCustomColour( i++, wxColour(  78,  14,  5 ) ); // brown/red
-    definedColors.SetCustomColour( i++, wxColour( 146,  99, 47 ) ); // brown 1
-    definedColors.SetCustomColour( i++, wxColour( 160, 123, 54 ) ); // brown 2
-    definedColors.SetCustomColour( i++, wxColour( 146,  99, 47 ) ); // brown 3
-    definedColors.SetCustomColour( i++, wxColour(  63, 126, 71 ) ); // green 1
-    definedColors.SetCustomColour( i++, wxColour( 117, 122, 90 ) ); // green 2
+    definedColors.push_back( CUSTOM_COLOR_ITEM(  51/255.0,  43/255.0, 22/255.0,
+                                                 "FR4 natural, dark" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 109/255.0, 116/255.0, 75/255.0, "FR4 natural" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM(  78/255.0,  14/255.0,  5/255.0, "brown/red" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 146/255.0,  99/255.0, 47/255.0, "brown 1" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 160/255.0, 123/255.0, 54/255.0, "brown 2" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 146/255.0,  99/255.0, 47/255.0, "brown 3" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM(  63/255.0, 126/255.0, 71/255.0, "green 1" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 117/255.0, 122/255.0, 90/255.0, "green 2" ) );
 
-    for(; i < wxColourData::NUM_CUSTOM;)
-    {
-        definedColors.SetCustomColour( i++, wxColour(   0,   0,  0 ) );
-    }
-
-    bool change = Set3DColorFromUser( m_settings.m_BoardBodyColor,
-                                      _( "Board Body Color" ),
+    bool change = Set3DColorFromUser( m_settings.m_BoardBodyColor, _( "Board Body Color" ),
                                       &definedColors );
-
     if( change )
         NewDisplay( true );
 
@@ -1155,24 +1155,141 @@ bool EDA_3D_VIEWER::Set3DBoardBodyColorFromUser()
 
 bool EDA_3D_VIEWER::Set3DSolderPasteColorFromUser()
 {
-    wxColourData definedColors;
-    unsigned int i = 0;
+    CUSTOM_COLORS_LIST definedColors;
 
-    definedColors.SetCustomColour( i++, wxColour( 128, 128, 128 ) );    // grey
-    definedColors.SetCustomColour( i++, wxColour( 213, 213, 213 ) );    // Silver
-    definedColors.SetCustomColour( i++, wxColour( 90,  90,  90  ) );    // grey 2
-
-    for(; i < wxColourData::NUM_CUSTOM;)
-    {
-        definedColors.SetCustomColour( i++, wxColour(   0,   0,  0 ) );
-    }
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 128/255.0, 128/255.0, 128/255.0, "grey" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 213/255.0, 213/255.0, 213/255.0, "Silver" ) );
+    definedColors.push_back( CUSTOM_COLOR_ITEM( 90/255.0,  90/255.0,  90/255.0, "grey 2" ) );
 
     bool change = Set3DColorFromUser( m_settings.m_SolderPasteColor,
-                                      _( "Solder Paste Color" ),
-                                      &definedColors );
+                                      _( "Solder Paste Color" ), &definedColors );
 
     if( change )
         NewDisplay( true );
 
     return change;
+}
+
+
+void EDA_3D_VIEWER::OnUpdateUIEngine( wxUpdateUIEvent& aEvent )
+{
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::OnUpdateUIEngine %s %s",
+                ( !m_disable_ray_tracing ) ? "enable" : "disable",
+                ( m_settings.RenderEngineGet() == RENDER_ENGINE_RAYTRACING ) ?
+                "Ray Trace" : "OpenGL Legacy" );
+
+    aEvent.Enable( !m_disable_ray_tracing );
+    aEvent.Check( m_settings.RenderEngineGet() != RENDER_ENGINE_OPENGL_LEGACY );
+}
+
+
+void EDA_3D_VIEWER::OnUpdateUIMaterial( wxUpdateUIEvent& aEvent )
+{
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::OnUpdateUIMaterial() id %d", aEvent.GetId() );
+
+    // Set the state of toggle menus according to the current display options
+    switch( aEvent.GetId() )
+    {
+    case ID_MENU3D_FL_RENDER_MATERIAL_MODE_NORMAL:
+        aEvent.Check( m_settings.MaterialModeGet() == MATERIAL_MODE_NORMAL );
+        break;
+
+    case ID_MENU3D_FL_RENDER_MATERIAL_MODE_DIFFUSE_ONLY:
+        aEvent.Check( m_settings.MaterialModeGet() == MATERIAL_MODE_DIFFUSE_ONLY );
+        break;
+
+    case ID_MENU3D_FL_RENDER_MATERIAL_MODE_CAD_MODE:
+        aEvent.Check( m_settings.MaterialModeGet() == MATERIAL_MODE_CAD_MODE );
+        break;
+
+    default:
+        wxFAIL_MSG( "Invalid event in EDA_3D_VIEWER::OnUpdateUIMaterial()" );
+    }
+}
+
+
+void EDA_3D_VIEWER::OnUpdateUIOpenGL( wxUpdateUIEvent& aEvent )
+{
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::OnUpdateUIOpenGL() id %d", aEvent.GetId() );
+
+    // OpenGL
+    switch( aEvent.GetId() )
+    {
+    case ID_MENU3D_FL_OPENGL_RENDER_COPPER_THICKNESS:
+        aEvent.Check( m_settings.GetFlag( FL_RENDER_OPENGL_COPPER_THICKNESS ) );
+        break;
+
+    case ID_MENU3D_FL_OPENGL_RENDER_SHOW_MODEL_BBOX:
+        aEvent.Check( m_settings.GetFlag( FL_RENDER_OPENGL_SHOW_MODEL_BBOX ) );
+        break;
+
+    default:
+        wxFAIL_MSG( "Invalid event in EDA_3D_VIEWER::OnUpdateUIOpenGL()" );
+    }
+}
+
+
+void EDA_3D_VIEWER::OnUpdateUIRayTracing( wxUpdateUIEvent& aEvent )
+{
+    wxLogTrace( m_logTrace, "EDA_3D_VIEWER::OnUpdateUIRayTracing() id %d", aEvent.GetId() );
+
+    // Raytracing
+    switch( aEvent.GetId() )
+    {
+    case ID_MENU3D_FL_RAYTRACING_RENDER_SHADOWS:
+        aEvent.Check( m_settings.GetFlag( FL_RENDER_RAYTRACING_SHADOWS ) );
+        break;
+
+    case ID_MENU3D_FL_RAYTRACING_BACKFLOOR:
+        aEvent.Check( m_settings.GetFlag( FL_RENDER_RAYTRACING_BACKFLOOR ) );
+        break;
+
+    case ID_MENU3D_FL_RAYTRACING_REFRACTIONS:
+        aEvent.Check( m_settings.GetFlag( FL_RENDER_RAYTRACING_REFRACTIONS ) );
+        break;
+
+    case ID_MENU3D_FL_RAYTRACING_REFLECTIONS:
+        aEvent.Check( m_settings.GetFlag( FL_RENDER_RAYTRACING_REFLECTIONS ) );
+        break;
+
+    case ID_MENU3D_FL_RAYTRACING_POST_PROCESSING:
+        aEvent.Check( m_settings.GetFlag( FL_RENDER_RAYTRACING_POST_PROCESSING ) );
+        break;
+
+    case ID_MENU3D_FL_RAYTRACING_ANTI_ALIASING:
+        aEvent.Check( m_settings.GetFlag( FL_RENDER_RAYTRACING_ANTI_ALIASING ) );
+        break;
+
+    case ID_MENU3D_FL_RAYTRACING_PROCEDURAL_TEXTURES:
+        aEvent.Check( m_settings.GetFlag( FL_RENDER_RAYTRACING_PROCEDURAL_TEXTURES ) );
+        break;
+
+    default:
+        wxFAIL_MSG( "Invalid event in EDA_3D_VIEWER::OnUpdateUIMaterial()" );
+    }
+}
+
+
+void EDA_3D_VIEWER::OnUpdateUIAxis( wxUpdateUIEvent& aEvent )
+{
+    aEvent.Check( m_settings.GetFlag( FL_AXIS ) );
+}
+
+
+void EDA_3D_VIEWER::loadCommonSettings()
+{
+    wxCHECK_RET( m_canvas, "Cannot load settings to null canvas" );
+
+    wxConfigBase& cmnCfg = *Pgm().CommonSettings();
+
+    {
+        const DPI_SCALING dpi{ &cmnCfg, this };
+        m_canvas->SetScaleFactor( dpi.GetScaleFactor() );
+    }
+
+    {
+        bool option;
+        cmnCfg.Read( ENBL_MOUSEWHEEL_PAN_KEY, &option, false );
+        m_settings.SetFlag( FL_MOUSEWHEEL_PANNING, option );
+    }
 }

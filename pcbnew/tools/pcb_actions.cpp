@@ -93,8 +93,8 @@ OPT<TOOL_EVENT> PCB_ACTIONS::TranslateLegacyId( int aId )
     case ID_MODEDIT_PAD_TOOL:
         return PCB_ACTIONS::placePad.MakeEvent();
 
-    case ID_GEN_IMPORT_DXF_FILE:
-        return PCB_ACTIONS::placeDXF.MakeEvent();
+    case ID_GEN_IMPORT_GRAPHICS_FILE:
+        return PCB_ACTIONS::placeImportedGraphics.MakeEvent();
 
     case ID_MODEDIT_ANCHOR_TOOL:
         return PCB_ACTIONS::setAnchor.MakeEvent();
@@ -206,6 +206,19 @@ OPT<TOOL_EVENT> PCB_ACTIONS::TranslateLegacyId( int aId )
 
     case ID_EDIT_PASTE:
         return PCB_ACTIONS::pasteFromClipboard.MakeEvent();
+
+    case ID_POPUP_PCB_FILL_ALL_ZONES:
+        return PCB_ACTIONS::zoneFillAll.MakeEvent();
+
+    case ID_POPUP_PCB_REMOVE_FILLED_AREAS_IN_ALL_ZONES:
+        return PCB_ACTIONS::zoneUnfillAll.MakeEvent();
+
+    case ID_POPUP_PCB_AUTOPLACE_OFF_BOARD_MODULES:
+        return PCB_ACTIONS::autoplaceOffboardComponents.MakeEvent();
+
+    case ID_POPUP_PCB_AUTOPLACE_SELECTED_MODULES:
+        return PCB_ACTIONS::autoplaceSelectedComponents.MakeEvent();
+
     }
 
     return OPT<TOOL_EVENT>();

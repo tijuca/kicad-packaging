@@ -24,7 +24,6 @@
 
 #include <algorithm>
 
-#include <common.h>
 #include <geometry/shape_line_chain.h>
 #include <geometry/shape_circle.h>
 #include "clipper.hpp"
@@ -366,46 +365,47 @@ bool SHAPE_LINE_CHAIN::PointInside( const VECTOR2I& aP ) const
      */
     for( int i = 0; i < PointCount(); i++ )
     {
-        const VECTOR2D p1 = CPoint( i );
-        const VECTOR2D p2 = CPoint( i + 1 ); // CPoint wraps, so ignore counts
-        const VECTOR2D diff = p2 - p1;
+        const auto p1 = CPoint( i );
+        const auto p2 = CPoint( i + 1 ); // CPoint wraps, so ignore counts
+        const auto diff = p2 - p1;
 
-        if( ( ( p1.y > aP.y ) != ( p2.y > aP.y ) ) &&
-                ( aP.x - p1.x < ( diff.x / diff.y ) * ( aP.y - p1.y ) ) )
-            inside = !inside;
+        if( diff.y != 0 )
+        {
+            const int d = rescale( diff.x, ( aP.y - p1.y ), diff.y );
+
+            if( ( ( p1.y > aP.y ) != ( p2.y > aP.y ) ) && ( aP.x - p1.x < d ) )
+                inside = !inside;
+        }
     }
-
-    return inside;
+    return inside && !PointOnEdge( aP );
 }
 
 
 bool SHAPE_LINE_CHAIN::PointOnEdge( const VECTOR2I& aP ) const
 {
+	return EdgeContainingPoint( aP ) >= 0;
+}
+
+int SHAPE_LINE_CHAIN::EdgeContainingPoint( const VECTOR2I& aP ) const
+{
     if( !PointCount() )
-        return false;
-    else if( PointCount() == 1 )
-        return m_points[0] == aP;
+		return -1;
 
-    for( int i = 0; i < PointCount(); i++ )
+	else if( PointCount() == 1 )
+        return m_points[0] == aP ? 0 : -1;
+
+    for( int i = 0; i < SegmentCount(); i++ )
     {
-        const VECTOR2I& p1 = CPoint( i );
-        const VECTOR2I& p2 = CPoint( i + 1 );
+        const SEG s = CSegment( i );
 
-        if( aP == p1 )
-            return true;
+        if( s.A == aP || s.B == aP )
+            return i;
 
-        if( p1.x == p2.x && p1.x == aP.x && ( p1.y > aP.y ) != ( p2.y > aP.y ) )
-            return true;
-
-        const VECTOR2D diff = p2 - p1;
-        if( aP.x >= p1.x && aP.x <= p2.x )
-        {
-            if( KiROUND( p1.y + ( diff.y / diff.x ) * ( aP.x - p1.x ) ) == aP.y )
-                return true;
-        }
+        if( s.Distance( aP ) <= 1 )
+            return i;
     }
 
-    return false;
+    return -1;
 }
 
 

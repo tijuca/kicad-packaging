@@ -50,7 +50,10 @@
 
 NETINFO_ITEM::NETINFO_ITEM( BOARD* aParent, const wxString& aNetName, int aNetCode ) :
     BOARD_ITEM( aParent, PCB_NETINFO_T ),
-    m_NetCode( aNetCode ), m_Netname( aNetName ), m_ShortNetname( m_Netname.AfterLast( '/' ) )
+    m_NetCode( aNetCode ),
+    m_isCurrent( true ),
+    m_Netname( aNetName ),
+    m_ShortNetname( m_Netname.AfterLast( '/' ) )
 {
     m_parent = aParent;
 
@@ -85,7 +88,7 @@ void NETINFO_ITEM::SetClass( const NETCLASSPTR& aNetClass )
 }
 
 
-void NETINFO_ITEM::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
+void NETINFO_ITEM::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList )
 {
     wxString  txt;
     double    lengthnet = 0.0;      // This  is the length of tracks on pcb
@@ -140,14 +143,14 @@ void NETINFO_ITEM::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
     aList.push_back( MSG_PANEL_ITEM( _( "Vias" ), txt, BLUE ) );
 
     // Displays the full net length (tracks on pcb + internal ICs connections ):
-    txt = ::LengthDoubleToString( lengthnet + lengthPadToDie );
+    txt = MessageTextFromValue( aUnits, lengthnet + lengthPadToDie );
     aList.push_back( MSG_PANEL_ITEM( _( "Net Length" ), txt, RED ) );
 
     // Displays the net length of tracks only:
-    txt = ::LengthDoubleToString( lengthnet );
+    txt = MessageTextFromValue( aUnits, lengthnet );
     aList.push_back( MSG_PANEL_ITEM( _( "On Board" ), txt, RED ) );
 
     // Displays the net length of internal ICs connections (wires inside ICs):
-    txt = ::LengthDoubleToString( lengthPadToDie );
+    txt = MessageTextFromValue( aUnits, lengthPadToDie, true );
     aList.push_back( MSG_PANEL_ITEM( _( "In Package" ), txt, RED ) );
 }

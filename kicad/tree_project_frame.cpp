@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  * Copyright (C) 2012 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -38,6 +38,7 @@
 #include <bitmaps.h>
 #include <gestfich.h>
 #include <menus_helpers.h>
+#include <trace_helpers.h>
 #include <wildcards_and_files_ext.h>
 
 #include "treeproject_item.h"
@@ -87,6 +88,8 @@ static const wxChar* s_allowedExtensionsToList[] =
     wxT( "^.*\\.pos$" ),            // Footprint position files
     wxT( "^.*\\.cmp$" ),            // Cvpcb cmp/footprint link files
     wxT( "^.*\\.drl$" ),            // Excellon drill files
+    wxT( "^.*\\.nc$" ),             // Excellon NC drill files (alternate file ext)
+    wxT( "^.*\\.xnc$" ),            // Excellon NC drill files (alternate file ext)
     wxT( "^.*\\.svg$" ),            // SVG print/plot files
     NULL                            // end of list
 };
@@ -117,6 +120,7 @@ BEGIN_EVENT_TABLE( TREE_PROJECT_FRAME, wxSashLayoutWindow )
     EVT_TREE_ITEM_EXPANDED( ID_PROJECT_TREE, TREE_PROJECT_FRAME::OnExpand )
     EVT_TREE_ITEM_RIGHT_CLICK( ID_PROJECT_TREE, TREE_PROJECT_FRAME::OnRight )
     EVT_MENU( ID_PROJECT_TXTEDIT, TREE_PROJECT_FRAME::OnOpenSelectedFileWithTextEditor )
+    EVT_MENU( ID_PROJECT_SWITCH_TO_OTHER, TREE_PROJECT_FRAME::OnSwitchToSelectedProject )
     EVT_MENU( ID_PROJECT_NEWDIR, TREE_PROJECT_FRAME::OnCreateNewDirectory )
     EVT_MENU( ID_PROJECT_DELETE, TREE_PROJECT_FRAME::OnDeleteFile )
     EVT_MENU( ID_PROJECT_RENAME, TREE_PROJECT_FRAME::OnRenameFile )
@@ -173,6 +177,19 @@ void TREE_PROJECT_FRAME::RemoveFilter( const wxString& filter )
             return;
         }
     }
+}
+
+
+void TREE_PROJECT_FRAME::OnSwitchToSelectedProject( wxCommandEvent& event )
+{
+    TREEPROJECT_ITEM* tree_data = GetSelectedData();
+
+    if( !tree_data )
+        return;
+
+    wxString prj_filename = tree_data->GetFileName();
+
+    m_Parent->LoadProject( prj_filename );
 }
 
 
@@ -291,6 +308,14 @@ wxString TREE_PROJECT_FRAME::GetFileExt( TreeFileType type )
         ext = DrillFileExtension;
         break;
 
+    case TREE_DRILL_NC:
+        ext = "nc";
+        break;
+
+    case TREE_DRILL_XNC:
+        ext = "xnc";
+        break;
+
     case TREE_SVG:
         ext = SVGFileExtension;
         break;
@@ -370,6 +395,8 @@ wxString TREE_PROJECT_FRAME::GetFileWildcard( TreeFileType type )
         break;
 
     case TREE_DRILL:
+    case TREE_DRILL_NC:
+    case TREE_DRILL_XNC:
         ext = DrillFileWildcard();
         break;
 
@@ -462,6 +489,7 @@ bool TREE_PROJECT_FRAME::AddItemToTreeProject( const wxString& aName,
             wxString    fullFileName = aName.BeforeLast( '.' );
             wxString    rootName;
             TREEPROJECT_ITEM* itemData = GetItemIdData( m_root );
+
             if( itemData )
                 rootName = itemData->GetFileName().BeforeLast( '.' );
 
@@ -677,38 +705,49 @@ void TREE_PROJECT_FRAME::OnRight( wxTreeEvent& Event )
 
     switch( tree_id )
     {
-        case TREE_PROJECT:
-            AddMenuItem( &popupMenu, ID_PROJECT_NEWDIR,
-                         _( "New D&irectory..." ),
-                         _( "Create a New Directory" ),
-                         KiBitmap( directory_xpm ) );
-            break;
+    case TREE_PROJECT:
+        // Add a swith to an other project option only if the selected item
+        // is not the root item (current project)
+        if( curr_item != m_TreeProject->GetRootItem() )
+        {
+            AddMenuItem( &popupMenu, ID_PROJECT_SWITCH_TO_OTHER,
+                         _( "&Switch to this Project" ),
+                         _( "Close all editors, and switch to the selected project" ),
+                         KiBitmap( open_project_xpm ) );
+            popupMenu.AppendSeparator();
+        }
 
-        case TREE_DIRECTORY:
-            AddMenuItem( &popupMenu, ID_PROJECT_NEWDIR,
-                         _( "New D&irectory..." ),
-                         _( "Create a New Directory" ),
-                         KiBitmap( directory_xpm ) );
-            AddMenuItem( &popupMenu,  ID_PROJECT_DELETE,
-                         _( "&Delete Directory" ),
-                         _( "Delete the Directory and its content" ),
-                         KiBitmap( delete_xpm ) );
-            break;
+        AddMenuItem( &popupMenu, ID_PROJECT_NEWDIR,
+                     _( "New D&irectory..." ),
+                     _( "Create a New Directory" ),
+                     KiBitmap( directory_xpm ) );
+        break;
 
-        default:
-            AddMenuItem( &popupMenu, ID_PROJECT_TXTEDIT,
-                         _( "&Edit in a Text Editor" ),
-                         _( "Open the file in a Text Editor" ),
-                         KiBitmap( editor_xpm ) );
-            AddMenuItem( &popupMenu, ID_PROJECT_RENAME,
-                         _( "&Rename File..." ),
-                         _( "Rename file" ),
-                         KiBitmap( right_xpm ) );
-            AddMenuItem( &popupMenu,  ID_PROJECT_DELETE,
-                         _( "&Delete File" ),
-                         _( "Delete the Directory and its content" ),
-                         KiBitmap( delete_xpm ) );
-            break;
+    case TREE_DIRECTORY:
+        AddMenuItem( &popupMenu, ID_PROJECT_NEWDIR,
+                     _( "New D&irectory..." ),
+                     _( "Create a New Directory" ),
+                     KiBitmap( directory_xpm ) );
+        AddMenuItem( &popupMenu,  ID_PROJECT_DELETE,
+                     _( "&Delete Directory" ),
+                     _( "Delete the Directory and its content" ),
+                     KiBitmap( delete_xpm ) );
+        break;
+
+    default:
+        AddMenuItem( &popupMenu, ID_PROJECT_TXTEDIT,
+                     _( "&Edit in a Text Editor" ),
+                     _( "Open the file in a Text Editor" ),
+                     KiBitmap( editor_xpm ) );
+        AddMenuItem( &popupMenu, ID_PROJECT_RENAME,
+                     _( "&Rename File..." ),
+                     _( "Rename file" ),
+                     KiBitmap( right_xpm ) );
+        AddMenuItem( &popupMenu,  ID_PROJECT_DELETE,
+                     _( "&Delete File" ),
+                     _( "Delete the Directory and its content" ),
+                     KiBitmap( delete_xpm ) );
+        break;
     }
 
     PopupMenu( &popupMenu );
@@ -777,12 +816,12 @@ void TREE_PROJECT_FRAME::OnRenameFile( wxCommandEvent& )
 
 void TREE_PROJECT_FRAME::OnSelect( wxTreeEvent& Event )
 {
-    TREEPROJECT_ITEM*   tree_data = GetSelectedData();
+    TREEPROJECT_ITEM* selected_item = GetSelectedData();
 
-    if( !tree_data )
+    if( !selected_item )
         return;
 
-    tree_data->Activate( this );
+    selected_item->Activate( this );
 }
 
 
@@ -1059,7 +1098,7 @@ void TREE_PROJECT_FRAME::FileWatcherReset()
             // we can see wxString under a debugger, not a wxFileName
             const wxString& path = itemData->GetFileName();
 
-            wxLogDebug( "%s: add '%s'\n", __func__, TO_UTF8( path ) );
+            wxLogTrace( tracePathsAndFiles, "%s: add '%s'\n", __func__, TO_UTF8( path ) );
 
             if( wxFileName::IsDirReadable( path ) )     // linux whines about watching protected dir
             {
@@ -1079,10 +1118,10 @@ void TREE_PROJECT_FRAME::FileWatcherReset()
 #if defined(DEBUG) && 1
     wxArrayString paths;
     m_watcher->GetWatchedPaths( &paths );
-    wxLogDebug( "%s: watched paths:", __func__ );
+    wxLogTrace( tracePathsAndFiles, "%s: watched paths:", __func__ );
 
     for( unsigned ii = 0; ii < paths.GetCount(); ii++ )
-        wxLogDebug( " %s\n", TO_UTF8( paths[ii] ) );
+        wxLogTrace( tracePathsAndFiles, " %s\n", TO_UTF8( paths[ii] ) );
 #endif
 }
 

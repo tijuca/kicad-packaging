@@ -69,6 +69,11 @@ public:
     static const KICAD_T CmpFieldFootprintOnly[];
 
     /**
+     * A scan list for a specific editable field: Datasheet.
+     */
+    static const KICAD_T CmpFieldDatasheetOnly[];
+
+    /**
      * A scan list for all movable schematic items.
      */
     static const KICAD_T MovableItems[];
@@ -344,7 +349,7 @@ public:
      *         current index or a wxEmptyString if the list is empty or the index is
      *         invalid.
      */
-    wxString GetText();
+    wxString GetText( EDA_UNITS_T aUnits );
 
     /**
      * Function GetItem

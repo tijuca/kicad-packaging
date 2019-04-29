@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Oct 17 2016)
+// C++ code generated with wxFormBuilder (version Dec 30 2017)
 // http://www.wxformbuilder.org/
 //
-// PLEASE DO "NOT" EDIT THIS FILE!
+// PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef __DIALOG_PNS_LENGTH_TUNING_SETTINGS_BASE_H__
@@ -11,7 +11,6 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
-class DIALOG_SHIM;
 class TEXT_CTRL_EVAL;
 
 #include "dialog_shim.h"
@@ -50,17 +49,17 @@ class DIALOG_PNS_LENGTH_TUNING_SETTINGS_BASE : public DIALOG_SHIM
 		wxStaticText* m_staticText3;
 		wxChoice* m_constraintSource;
 		wxStaticText* m_targetLengthLabel;
-		TEXT_CTRL_EVAL* m_targetLengthText;
+		wxTextCtrl* m_targetLengthText;
 		wxStaticText* m_targetLengthUnit;
 		wxStaticBitmap* m_legend;
-		wxStaticText* m_staticText9;
-		TEXT_CTRL_EVAL* m_minAmplText;
+		wxStaticText* m_minAmplLabel;
+		wxTextCtrl* m_minAmplText;
 		wxStaticText* m_minAmplUnit;
-		wxStaticText* m_staticText91;
-		TEXT_CTRL_EVAL* m_maxAmplText;
+		wxStaticText* m_maxAmplLabel;
+		wxTextCtrl* m_maxAmplText;
 		wxStaticText* m_maxAmplUnit;
-		wxStaticText* m_staticText11;
-		TEXT_CTRL_EVAL* m_spacingText;
+		wxStaticText* m_spacingLabel;
+		wxTextCtrl* m_spacingText;
 		wxStaticText* m_spacingUnit;
 		wxStaticText* m_staticText14;
 		wxChoice* m_miterStyle;
@@ -73,7 +72,7 @@ class DIALOG_PNS_LENGTH_TUNING_SETTINGS_BASE : public DIALOG_SHIM
 	
 	public:
 		
-		DIALOG_PNS_LENGTH_TUNING_SETTINGS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Trace Length Tuning"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 324,547 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+		DIALOG_PNS_LENGTH_TUNING_SETTINGS_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Trace Length Tuning"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_PNS_LENGTH_TUNING_SETTINGS_BASE();
 	
 };

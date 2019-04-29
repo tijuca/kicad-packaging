@@ -28,32 +28,30 @@
 #include <fctsys.h>
 #include <pgm_base.h>
 #include <kiface_i.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <confirm.h>
 #include <gestfich.h>
 #include <sch_edit_frame.h>
 #include <invoke_sch_dialog.h>
-#include <common.h>
-
-#include <eeschema_id.h>
-#include <general.h>
 #include <lib_edit_frame.h>
 #include <eeschema_config.h>
 #include <hotkeys.h>
-#include <sch_sheet.h>
-#include <class_libentry.h>
 #include <worksheet_shape_builder.h>
 #include <class_library.h>
 #include <symbol_lib_table.h>
-
-#include <dialog_hotkeys_editor.h>
-
-#include <dialogs/dialog_eeschema_options.h>
-#include <dialogs/dialog_libedit_options.h>
-#include <dialogs/dialog_schematic_find.h>
 #include <dialog_erc.h>
-
 #include <wildcards_and_files_ext.h>
+#include <widgets/paged_dialog.h>
+#include <dialogs/panel_eeschema_template_fieldnames.h>
+#include <dialogs/panel_eeschema_settings.h>
+#include <dialogs/panel_eeschema_display_options.h>
+#include <dialogs/panel_libedit_display_options.h>
+#include <widgets/widget_eeschema_color_config.h>
+#include <widgets/symbol_tree_pane.h>
+#include <dialogs/panel_libedit_settings.h>
+#include <sch_view.h>
+#include <sch_painter.h>
+#include "sch_junction.h"
 
 #define FR_HISTORY_LIST_CNT     10   ///< Maximum number of find and replace strings.
 
@@ -129,26 +127,13 @@ COLOR4D GetInvisibleItemColor()
 
 void LIB_EDIT_FRAME::Process_Config( wxCommandEvent& event )
 {
-    int        id = event.GetId();
+    int id = event.GetId();
 
     switch( id )
     {
-    // Hotkey IDs
-    case ID_PREFERENCES_HOTKEY_SHOW_EDITOR:
-        InstallHotkeyFrame( this, g_Eeschema_Hokeys_Descr, g_Libedit_Hokeys_Descr );
-        break;
-
-    case ID_PREFERENCES_HOTKEY_EXPORT_CONFIG:
-        ExportHotkeyConfigToFile( g_Eeschema_Hokeys_Descr, wxT( "eeschema" ) );
-        break;
-
-    case ID_PREFERENCES_HOTKEY_IMPORT_CONFIG:
-        ImportHotkeyConfigFromFile( g_Eeschema_Hokeys_Descr, wxT( "eeschema" ) );
-        break;
-
     case ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST:
         // Display current hotkey list for LibEdit.
-        DisplayHotkeyList( this, g_Libedit_Hokeys_Descr );
+        DisplayHotkeyList( this, g_Libedit_Hotkeys_Descr );
         break;
 
     default:
@@ -173,9 +158,8 @@ void SCH_EDIT_FRAME::Process_Config( wxCommandEvent& event )
             fn = g_RootSheet->GetScreen()->GetFileName();
             fn.SetExt( ProjectFileExtension );
 
-            wxFileDialog dlg( this, _( "Load Project File" ), fn.GetPath(),
-                              fn.GetFullName(), ProjectFileWildcard(),
-                              wxFD_OPEN | wxFD_FILE_MUST_EXIST );
+            wxFileDialog dlg( this, _( "Load Project File" ), fn.GetPath(), fn.GetFullName(),
+                              ProjectFileWildcard(), wxFD_OPEN | wxFD_FILE_MUST_EXIST );
 
             if( dlg.ShowModal() == wxID_CANCEL )
                 break;
@@ -188,30 +172,17 @@ void SCH_EDIT_FRAME::Process_Config( wxCommandEvent& event )
             {
                 // Read library list and library path list
                 Prj().ConfigLoad( Kiface().KifaceSearch(), GROUP_SCH,
-                                  GetProjectFileParametersList() );
+                                  GetProjectFileParameters() );
                 // Read schematic editor setup
-                Prj().ConfigLoad( Kiface().KifaceSearch(), GROUP_SCH_EDITOR,
-                                  GetProjectFileParametersList() );
+                Prj().ConfigLoad( Kiface().KifaceSearch(), GROUP_SCH_EDIT,
+                                  GetProjectFileParameters() );
             }
         }
         break;
 
-    // Hotkey IDs
-    case ID_PREFERENCES_HOTKEY_EXPORT_CONFIG:
-        ExportHotkeyConfigToFile( g_Eeschema_Hokeys_Descr, wxT( "eeschema" ) );
-        break;
-
-    case ID_PREFERENCES_HOTKEY_IMPORT_CONFIG:
-        ImportHotkeyConfigFromFile( g_Eeschema_Hokeys_Descr, wxT( "eeschema" ) );
-        break;
-
-    case ID_PREFERENCES_HOTKEY_SHOW_EDITOR:
-        InstallHotkeyFrame( this, g_Eeschema_Hokeys_Descr, g_Schematic_Hokeys_Descr );
-        break;
-
     case ID_PREFERENCES_HOTKEY_SHOW_CURRENT_LIST:
         // Display current hotkey list for eeschema.
-        DisplayHotkeyList( this, g_Schematic_Hokeys_Descr );
+        DisplayHotkeyList( this, g_Schematic_Hotkeys_Descr );
         break;
 
     default:
@@ -222,111 +193,27 @@ void SCH_EDIT_FRAME::Process_Config( wxCommandEvent& event )
 
 void SCH_EDIT_FRAME::OnPreferencesOptions( wxCommandEvent& event )
 {
-    wxArrayString units;
-    GRIDS grid_list = GetScreen()->GetGrids();
-    bool saveProjectConfig = false;
-
-    DIALOG_EESCHEMA_OPTIONS dlg( this );
-
-    units.Add( GetUnitsLabel( INCHES ) );
-    units.Add( GetUnitsLabel( MILLIMETRES ) );
-
-    dlg.SetUnits( units, g_UserUnit );
-    dlg.SetGridSizes( grid_list, GetScreen()->GetGridCmdId() );
-    dlg.SetBusWidth( GetDefaultBusThickness() );
-    dlg.SetLineWidth( GetDefaultLineThickness() );
-    dlg.SetTextSize( GetDefaultTextSize() );
-    dlg.SetRepeatHorizontal( GetRepeatStep().x );
-    dlg.SetRepeatVertical( GetRepeatStep().y );
-    dlg.SetRepeatLabel( GetRepeatDeltaLabel() );
-    dlg.SetAutoSaveInterval( GetAutoSaveInterval() / 60 );
-    dlg.SetRefIdSeparator( LIB_PART::GetSubpartIdSeparator(),
-                           LIB_PART::GetSubpartFirstId() );
-
-    dlg.SetShowGrid( IsGridVisible() );
-    dlg.SetShowHiddenPins( m_showAllPins );
-    dlg.SetEnableMousewheelPan( m_canvas->GetEnableMousewheelPan() );
-    dlg.SetEnableZoomNoCenter( m_canvas->GetEnableZoomNoCenter() );
-    dlg.SetEnableAutoPan( m_canvas->GetEnableAutoPan() );
-    dlg.SetEnableHVBusOrientation( GetForceHVLines() );
-    dlg.SetShowPageLimits( m_showPageLimits );
-    dlg.SetFootprintPreview( m_footprintPreview );
-    dlg.SetAutoplaceFields( m_autoplaceFields );
-    dlg.SetAutoplaceJustify( m_autoplaceJustify );
-    dlg.SetAutoplaceAlign( m_autoplaceAlign );
-    dlg.Layout();
-    dlg.Fit();
-    dlg.SetMinSize( dlg.GetSize() );
-    dlg.SetTemplateFields( m_TemplateFieldNames.GetTemplateFieldNames() );
-
-    if( dlg.ShowModal() == wxID_CANCEL )
-        return;
-
-    g_UserUnit = (EDA_UNITS_T)dlg.GetUnitsSelection();
-
-    wxRealPoint  gridsize = grid_list[ (size_t) dlg.GetGridSelection() ].m_Size;
-    m_LastGridSizeId = GetScreen()->SetGrid( gridsize );
-
-    int sep, firstId;
-    dlg.GetRefIdSeparator( sep, firstId);
-
-    if( sep != (int)LIB_PART::GetSubpartIdSeparator() ||
-        firstId != (int)LIB_PART::GetSubpartFirstId() )
+    if( ShowPreferences( g_Eeschema_Hotkeys_Descr, g_Schematic_Hotkeys_Descr, wxT( "eeschema" ) ) )
     {
-        LIB_PART::SetSubpartIdNotation( sep, firstId );
-        saveProjectConfig = true;
+        SaveSettings( config() );  // save values shared by eeschema applications.
+        m_canvas->Refresh( true );
     }
-
-    SetDefaultBusThickness( dlg.GetBusWidth() );
-    SetDefaultLineThickness( dlg.GetLineWidth() );
-
-    if( dlg.GetTextSize() != GetDefaultTextSize() )
-    {
-        SetDefaultTextSize( dlg.GetTextSize() );
-        saveProjectConfig = true;
-    }
-
-    wxPoint step;
-    step.x = dlg.GetRepeatHorizontal();
-    step.y = dlg.GetRepeatVertical();
-    SetRepeatStep( step );
-    SetRepeatDeltaLabel( dlg.GetRepeatLabel() );
-
-    SetAutoSaveInterval( dlg.GetAutoSaveInterval() * 60 );
-    SetGridVisibility( dlg.GetShowGrid() );
-    m_showAllPins = dlg.GetShowHiddenPins();
-    m_canvas->SetEnableMousewheelPan( dlg.GetEnableMousewheelPan() );
-    m_canvas->SetEnableZoomNoCenter( dlg.GetEnableZoomNoCenter() );
-    m_canvas->SetEnableAutoPan( dlg.GetEnableAutoPan() );
-    SetForceHVLines( dlg.GetEnableHVBusOrientation() );
-    m_showPageLimits = dlg.GetShowPageLimits();
-    m_autoplaceFields = dlg.GetAutoplaceFields();
-    m_autoplaceJustify = dlg.GetAutoplaceJustify();
-    m_autoplaceAlign = dlg.GetAutoplaceAlign();
-    m_footprintPreview = dlg.GetFootprintPreview();
-
-    // Delete all template fieldnames and then restore them using the template field data from
-    // the options dialog
-    DeleteAllTemplateFieldNames();
-    TEMPLATE_FIELDNAMES newFieldNames = dlg.GetTemplateFields();
-
-    for( TEMPLATE_FIELDNAMES::iterator dlgfld = newFieldNames.begin();
-         dlgfld != newFieldNames.end(); ++dlgfld )
-    {
-        TEMPLATE_FIELDNAME fld = *dlgfld;
-        AddTemplateFieldName( fld );
-    }
-
-    SaveSettings( config() );  // save values shared by eeschema applications.
-
-    if( saveProjectConfig )
-        SaveProjectSettings( true );
-
-    m_canvas->Refresh( true );
 }
 
 
-PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetProjectFileParametersList()
+void SCH_EDIT_FRAME::InstallPreferences( PAGED_DIALOG* aParent )
+{
+    wxTreebook* book = aParent->GetTreebook();
+
+    book->AddPage( new PANEL_EESCHEMA_SETTINGS( this, book ), _( "Eeschema" ) );
+    book->AddSubPage( new PANEL_EESCHEMA_DISPLAY_OPTIONS( this, book ), _( "Display Options" ) );
+    book->AddSubPage( new PANEL_EESCHEMA_COLOR_CONFIG( this, book ), _( "Colors" ) );
+    book->AddSubPage( new PANEL_EESCHEMA_TEMPLATE_FIELDNAMES( this, book ), _( "Field Name Templates" ) );
+}
+
+
+PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetProjectFileParameters()
+
 {
     if( !m_projectFileParams.empty() )
         return m_projectFileParams;
@@ -371,12 +258,10 @@ PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetProjectFileParametersList()
 bool SCH_EDIT_FRAME::LoadProjectFile()
 {
     // Read library list and library path list
-    bool isRead = Prj().ConfigLoad( Kiface().KifaceSearch(),
-                    GROUP_SCH, GetProjectFileParametersList() );
+    bool ret = Prj().ConfigLoad( Kiface().KifaceSearch(), GROUP_SCH, GetProjectFileParameters() );
 
     // Read schematic editor setup
-    isRead = isRead && Prj().ConfigLoad( Kiface().KifaceSearch(),
-                                         GROUP_SCH_EDITOR, GetProjectFileParametersList() );
+    ret &= Prj().ConfigLoad( Kiface().KifaceSearch(), GROUP_SCH_EDIT, GetProjectFileParameters() );
 
     // Verify some values, because the config file can be edited by hand,
     // and have bad values:
@@ -394,7 +279,7 @@ bool SCH_EDIT_FRAME::LoadProjectFile()
 
     pglayout.SetPageLayout( pg_fullfilename );
 
-    return isRead;
+    return ret;
 }
 
 
@@ -410,8 +295,7 @@ void SCH_EDIT_FRAME::SaveProjectSettings( bool aAskForSave )
 
     if( aAskForSave )
     {
-        wxFileDialog dlg( this, _( "Save Project File" ),
-                          fn.GetPath(), fn.GetFullName(),
+        wxFileDialog dlg( this, _( "Save Project File" ), fn.GetPath(), fn.GetFullName(),
                           ProjectFileWildcard(), wxFD_SAVE );
 
         if( dlg.ShowModal() == wxID_CANCEL )
@@ -420,7 +304,9 @@ void SCH_EDIT_FRAME::SaveProjectSettings( bool aAskForSave )
         fn = dlg.GetPath();
     }
 
-    prj.ConfigSave( Kiface().KifaceSearch(), GROUP_SCH_EDITOR, GetProjectFileParametersList() );
+    wxString path = fn.GetFullPath();
+
+    prj.ConfigSave( Kiface().KifaceSearch(), GROUP_SCH_EDIT, GetProjectFileParameters(), path );
 }
 
 ///@{
@@ -430,25 +316,12 @@ const wxChar RescueNeverShowEntry[] =               wxT( "RescueNeverShow" );
 const wxChar AutoplaceFieldsEntry[] =               wxT( "AutoplaceFields" );
 const wxChar AutoplaceJustifyEntry[] =              wxT( "AutoplaceJustify" );
 const wxChar AutoplaceAlignEntry[] =                wxT( "AutoplaceAlign" );
-const wxChar SchIconScaleEntry[] =                  wxT( "SchIconScale" );
-const wxChar LibIconScaleEntry[] =                  wxT( "LibIconScale" );
 static const wxChar FootprintPreviewEntry[] =       wxT( "FootprintPreview" );
 static const wxChar DefaultBusWidthEntry[] =        wxT( "DefaultBusWidth" );
 static const wxChar DefaultDrawLineWidthEntry[] =   wxT( "DefaultDrawLineWidth" );
+static const wxChar DefaultJctSizeEntry[] =         wxT( "DefaultJunctionSize" );
 static const wxChar ShowHiddenPinsEntry[] =         wxT( "ShowHiddenPins" );
 static const wxChar HorzVertLinesOnlyEntry[] =      wxT( "HorizVertLinesOnly" );
-static const wxChar PreviewFramePositionXEntry[] =  wxT( "PreviewFramePositionX" );
-static const wxChar PreviewFramePositionYEntry[] =  wxT( "PreviewFramePositionY" );
-static const wxChar PreviewFrameWidthEntry[] =      wxT( "PreviewFrameWidth" );
-static const wxChar PreviewFrameHeightEntry[] =     wxT( "PreviewFrameHeight" );
-static const wxChar PrintDialogPositionXEntry[] =   wxT( "PrintDialogPositionX" );
-static const wxChar PrintDialogPositionYEntry[] =   wxT( "PrintDialogPositionY" );
-static const wxChar PrintDialogWidthEntry[] =       wxT( "PrintDialogWidth" );
-static const wxChar PrintDialogHeightEntry[] =      wxT( "PrintDialogHeight" );
-static const wxChar FindDialogPositionXEntry[] =    wxT( "FindDialogPositionX" );
-static const wxChar FindDialogPositionYEntry[] =    wxT( "FindDialogPositionY" );
-static const wxChar FindDialogWidthEntry[] =        wxT( "FindDialogWidth" );
-static const wxChar FindDialogHeightEntry[] =       wxT( "FindDialogHeight" );
 static const wxChar FindReplaceFlagsEntry[] =       wxT( "LastFindReplaceFlags" );
 static const wxChar FindStringEntry[] =             wxT( "LastFindString" );
 static const wxChar ReplaceStringEntry[] =          wxT( "LastReplaceString" );
@@ -465,6 +338,7 @@ static const wxString RepeatStepYEntry =            "RepeatStepY";
 static const wxString RepeatLabelIncrementEntry =   "RepeatLabelIncrement";
 
 // Library editor wxConfig entry names.
+static const wxChar defaultLibWidthEntry[] =        wxT( "LibeditLibWidth" );
 static const wxChar defaultPinNumSizeEntry[] =      wxT( "LibeditPinNumSize" );
 static const wxChar defaultPinNameSizeEntry[] =     wxT( "LibeditPinNameSize" );
 static const wxChar DefaultPinLengthEntry[] =       wxT( "DefaultPinLength" );
@@ -484,7 +358,7 @@ PARAM_CFG_ARRAY& SCH_EDIT_FRAME::GetConfigurationSettings()
     m_configSettings.push_back( new PARAM_CFG_BOOL( true, ShowPageLimitsEntry,
                                                     &m_showPageLimits, true ) );
     m_configSettings.push_back( new PARAM_CFG_INT( true, UnitsEntry,
-                                                   (int*)&g_UserUnit, MILLIMETRES ) );
+                                                   (int*)&m_UserUnits, MILLIMETRES ) );
 
     m_configSettings.push_back( new PARAM_CFG_BOOL( true, PrintMonochromeEntry,
                                                     &m_printMonochrome, true ) );
@@ -514,14 +388,12 @@ void SCH_EDIT_FRAME::LoadSettings( wxConfigBase* aCfg )
 
     long tmp;
 
-    ReadHotkeyConfig( SCH_EDIT_FRAME_NAME, g_Schematic_Hokeys_Descr );
+    ReadHotkeyConfig( SCH_EDIT_FRAME_NAME, g_Schematic_Hotkeys_Descr );
     wxConfigLoadSetups( aCfg, GetConfigurationSettings() );
 
-    SetGridColor( GetLayerColor( LAYER_SCHEMATIC_GRID ) );
-    SetDrawBgColor( GetLayerColor( LAYER_SCHEMATIC_BACKGROUND ) );
-
-    SetDefaultBusThickness( aCfg->Read( DefaultBusWidthEntry, DEFAULTBUSTHICKNESS ) );
-    SetDefaultLineThickness( aCfg->Read( DefaultDrawLineWidthEntry, DEFAULTDRAWLINETHICKNESS ) );
+    SetDefaultBusThickness( (int) aCfg->Read( DefaultBusWidthEntry, DEFAULTBUSTHICKNESS ) );
+    SetDefaultLineThickness( (int) aCfg->Read( DefaultDrawLineWidthEntry, DEFAULTDRAWLINETHICKNESS ) );
+    SCH_JUNCTION::SetSymbolSize( (int) aCfg->Read( DefaultJctSizeEntry, SCH_JUNCTION::GetSymbolSize() ) );
     aCfg->Read( ShowHiddenPinsEntry, &m_showAllPins, false );
     aCfg->Read( HorzVertLinesOnlyEntry, &m_forceHVLines, true );
     aCfg->Read( AutoplaceFieldsEntry, &m_autoplaceFields, true );
@@ -529,38 +401,8 @@ void SCH_EDIT_FRAME::LoadSettings( wxConfigBase* aCfg )
     aCfg->Read( AutoplaceAlignEntry, &m_autoplaceAlign, false );
     aCfg->Read( FootprintPreviewEntry, &m_footprintPreview, false );
 
-    // Load print preview window session settings.
-    aCfg->Read( PreviewFramePositionXEntry, &tmp, -1 );
-    m_previewPosition.x = (int) tmp;
-    aCfg->Read( PreviewFramePositionYEntry, &tmp, -1 );
-    m_previewPosition.y = (int) tmp;
-    aCfg->Read( PreviewFrameWidthEntry, &tmp, -1 );
-    m_previewSize.SetWidth( (int) tmp );
-    aCfg->Read( PreviewFrameHeightEntry, &tmp, -1 );
-    m_previewSize.SetHeight( (int) tmp );
-
-    // Load print dialog session settings.
-    aCfg->Read( PrintDialogPositionXEntry, &tmp, -1 );
-    m_printDialogPosition.x = (int) tmp;
-    aCfg->Read( PrintDialogPositionYEntry, &tmp, -1 );
-    m_printDialogPosition.y = (int) tmp;
-    aCfg->Read( PrintDialogWidthEntry, &tmp, -1 );
-    m_printDialogSize.SetWidth( (int) tmp );
-    aCfg->Read( PrintDialogHeightEntry, &tmp, -1 );
-    m_printDialogSize.SetHeight( (int) tmp );
-
     // Load netlists options:
     aCfg->Read( SimulatorCommandEntry, &m_simulatorCommand );
-
-    // Load find dialog session setting.
-    aCfg->Read( FindDialogPositionXEntry, &tmp, -1 );
-    m_findDialogPosition.x = (int) tmp;
-    aCfg->Read( FindDialogPositionYEntry, &tmp, -1 );
-    m_findDialogPosition.y = (int) tmp;
-    aCfg->Read( FindDialogWidthEntry, &tmp, -1 );
-    m_findDialogSize.SetWidth( (int) tmp );
-    aCfg->Read( FindDialogHeightEntry, &tmp, -1 );
-    m_findDialogSize.SetHeight( (int) tmp );
 
     wxASSERT_MSG( m_findReplaceData,
                   wxT( "Find dialog data settings object not created. Bad programmer!" ) );
@@ -596,15 +438,22 @@ void SCH_EDIT_FRAME::LoadSettings( wxConfigBase* aCfg )
 
         try
         {
-            m_TemplateFieldNames.Parse( &lexer );
+            m_templateFieldNames.Parse( &lexer );
         }
         catch( const IO_ERROR& DBG( e ) )
         {
             // @todo show error msg
-            DBG( printf( "templatefieldnames parsing error: '%s'\n",
-                       TO_UTF8( e.What() ) ); )
+            DBG( printf( "templatefieldnames parsing error: '%s'\n", TO_UTF8( e.What() ) ); )
         }
     }
+
+    auto painter = static_cast<KIGFX::SCH_PAINTER*>( GetCanvas()->GetView()->GetPainter() );
+    KIGFX::SCH_RENDER_SETTINGS* settings = painter->GetSettings();
+    settings->m_ShowPinsElectricalType = false;
+    settings->m_ShowHiddenText = false;
+    settings->m_ShowHiddenPins = m_showAllPins;
+    settings->SetShowPageLimits( m_showPageLimits );
+    settings->m_ShowUmbilicals = true;
 }
 
 
@@ -616,6 +465,7 @@ void SCH_EDIT_FRAME::SaveSettings( wxConfigBase* aCfg )
 
     aCfg->Write( DefaultBusWidthEntry, (long) GetDefaultBusThickness() );
     aCfg->Write( DefaultDrawLineWidthEntry, (long) GetDefaultLineThickness() );
+    aCfg->Write( DefaultJctSizeEntry, (long) SCH_JUNCTION::GetSymbolSize() );
     aCfg->Write( ShowHiddenPinsEntry, m_showAllPins );
     aCfg->Write( HorzVertLinesOnlyEntry, GetForceHVLines() );
     aCfg->Write( AutoplaceFieldsEntry, m_autoplaceFields );
@@ -623,26 +473,10 @@ void SCH_EDIT_FRAME::SaveSettings( wxConfigBase* aCfg )
     aCfg->Write( AutoplaceAlignEntry, m_autoplaceAlign );
     aCfg->Write( FootprintPreviewEntry, m_footprintPreview );
 
-    // Save print preview window session settings.
-    aCfg->Write( PreviewFramePositionXEntry, m_previewPosition.x );
-    aCfg->Write( PreviewFramePositionYEntry, m_previewPosition.y );
-    aCfg->Write( PreviewFrameWidthEntry, m_previewSize.GetWidth() );
-    aCfg->Write( PreviewFrameHeightEntry, m_previewSize.GetHeight() );
-
-    // Save print dialog session settings.
-    aCfg->Write( PrintDialogPositionXEntry, m_printDialogPosition.x );
-    aCfg->Write( PrintDialogPositionYEntry, m_printDialogPosition.y );
-    aCfg->Write( PrintDialogWidthEntry, m_printDialogSize.GetWidth() );
-    aCfg->Write( PrintDialogHeightEntry, m_printDialogSize.GetHeight() );
-
     // Save netlists options:
     aCfg->Write( SimulatorCommandEntry, m_simulatorCommand );
 
     // Save find dialog session setting.
-    aCfg->Write( FindDialogPositionXEntry, m_findDialogPosition.x );
-    aCfg->Write( FindDialogPositionYEntry, m_findDialogPosition.y );
-    aCfg->Write( FindDialogWidthEntry, m_findDialogSize.GetWidth() );
-    aCfg->Write( FindDialogHeightEntry, m_findDialogSize.GetHeight() );
     wxASSERT_MSG( m_findReplaceData,
                   wxT( "Find dialog data settings object not created. Bad programmer!" ) );
     aCfg->Write( FindReplaceFlagsEntry,
@@ -669,7 +503,7 @@ void SCH_EDIT_FRAME::SaveSettings( wxConfigBase* aCfg )
 
     // Save template fieldnames
     STRING_FORMATTER sf;
-    m_TemplateFieldNames.Format( &sf, 0 );
+    m_templateFieldNames.Format( &sf, 0 );
 
     wxString record = FROM_UTF8( sf.GetString().c_str() );
     record.Replace( wxT("\n"), wxT(""), true );   // strip all newlines
@@ -683,22 +517,47 @@ void LIB_EDIT_FRAME::LoadSettings( wxConfigBase* aCfg )
 {
     EDA_DRAW_FRAME::LoadSettings( aCfg );
 
-    ReadHotkeyConfig( LIB_EDIT_FRAME_NAME, g_Libedit_Hokeys_Descr );
+    ReadHotkeyConfig( LIB_EDIT_FRAME_NAME, g_Libedit_Hotkeys_Descr );
 
-    SetGridColor( GetLayerColor( LAYER_SCHEMATIC_GRID ) );
-    SetDrawBgColor( GetLayerColor( LAYER_SCHEMATIC_BACKGROUND ) );
+    SetDefaultLineThickness( (int) aCfg->Read( DefaultDrawLineWidthEntry, DEFAULTDRAWLINETHICKNESS ) );
+    SetDefaultPinLength( (int) aCfg->Read( DefaultPinLengthEntry, DEFAULTPINLENGTH ) );
+    m_textPinNumDefaultSize = (int) aCfg->Read( defaultPinNumSizeEntry, DEFAULTPINNUMSIZE );
+    m_textPinNameDefaultSize = (int) aCfg->Read( defaultPinNameSizeEntry, DEFAULTPINNAMESIZE );
+    SetRepeatDeltaLabel( (int) aCfg->Read( repeatLibLabelIncEntry, DEFAULT_REPEAT_LABEL_INC ) );
+    SetRepeatPinStep( (int) aCfg->Read( pinRepeatStepEntry, DEFAULT_REPEAT_OFFSET_PIN ) );
 
-    SetDefaultLineThickness( aCfg->Read( DefaultDrawLineWidthEntry, DEFAULTDRAWLINETHICKNESS ) );
-    SetDefaultPinLength( aCfg->Read( DefaultPinLengthEntry, DEFAULTPINLENGTH ) );
-    m_textPinNumDefaultSize = aCfg->Read( defaultPinNumSizeEntry, DEFAULTPINNUMSIZE );
-    m_textPinNameDefaultSize = aCfg->Read( defaultPinNameSizeEntry, DEFAULTPINNAMESIZE );
-    SetRepeatDeltaLabel( aCfg->Read( repeatLibLabelIncEntry, DEFAULT_REPEAT_LABEL_INC ) );
-    SetRepeatPinStep( aCfg->Read( pinRepeatStepEntry, DEFAULT_REPEAT_OFFSET_PIN ) );
     wxPoint step;
-    step.x = aCfg->Read( repeatLibStepXEntry, (long)DEFAULT_REPEAT_OFFSET_X );
-    step.y = aCfg->Read( repeatLibStepYEntry, (long)DEFAULT_REPEAT_OFFSET_Y );
+    aCfg->Read( repeatLibStepXEntry, &step.x, DEFAULT_REPEAT_OFFSET_X );
+    aCfg->Read( repeatLibStepYEntry, &step.y, DEFAULT_REPEAT_OFFSET_Y );
     SetRepeatStep( step );
-    m_showPinElectricalTypeName = aCfg->Read( showPinElectricalType, true );
+    m_showPinElectricalTypeName = aCfg->ReadBool( showPinElectricalType, true );
+    aCfg->Read( defaultLibWidthEntry, &m_defaultLibWidth, DEFAULTLIBWIDTH );
+
+    wxString templateFieldNames = aCfg->Read( FieldNamesEntry, wxEmptyString );
+
+    if( !templateFieldNames.IsEmpty() )
+    {
+        TEMPLATE_FIELDNAMES_LEXER  lexer( TO_UTF8( templateFieldNames ) );
+
+        try
+        {
+            m_templateFieldNames.Parse( &lexer );
+        }
+        catch( const IO_ERROR& DBG( e ) )
+        {
+            // @todo show error msg
+            DBG( printf( "templatefieldnames parsing error: '%s'\n", TO_UTF8( e.What() ) ); )
+        }
+    }
+
+    auto painter = static_cast<KIGFX::SCH_PAINTER*>( GetCanvas()->GetView()->GetPainter() );
+    KIGFX::SCH_RENDER_SETTINGS* settings = painter->GetSettings();
+    settings->m_ShowPinsElectricalType = m_showPinElectricalTypeName;
+
+    // Hidden elements must be editable
+    settings->m_ShowHiddenText = true;
+    settings->m_ShowHiddenPins = true;
+    settings->m_ShowUmbilicals = false;
 }
 
 
@@ -706,54 +565,34 @@ void LIB_EDIT_FRAME::SaveSettings( wxConfigBase* aCfg )
 {
     EDA_DRAW_FRAME::SaveSettings( aCfg );
 
-    aCfg->Write( DefaultPinLengthEntry, (long) GetDefaultPinLength() );
-    aCfg->Write( defaultPinNumSizeEntry, (long) GetPinNumDefaultSize() );
-    aCfg->Write( defaultPinNameSizeEntry, (long) GetPinNameDefaultSize() );
-    aCfg->Write( repeatLibLabelIncEntry, (long) GetRepeatDeltaLabel() );
-    aCfg->Write( pinRepeatStepEntry, (long) GetRepeatPinStep() );
-    aCfg->Write( repeatLibStepXEntry, (long) GetRepeatStep().x );
-    aCfg->Write( repeatLibStepYEntry, (long) GetRepeatStep().y );
+    aCfg->Write( DefaultPinLengthEntry, GetDefaultPinLength() );
+    aCfg->Write( defaultPinNumSizeEntry, GetPinNumDefaultSize() );
+    aCfg->Write( defaultPinNameSizeEntry, GetPinNameDefaultSize() );
+    aCfg->Write( repeatLibLabelIncEntry, GetRepeatDeltaLabel() );
+    aCfg->Write( pinRepeatStepEntry, GetRepeatPinStep() );
+    aCfg->Write( repeatLibStepXEntry, GetRepeatStep().x );
+    aCfg->Write( repeatLibStepYEntry, GetRepeatStep().y );
     aCfg->Write( showPinElectricalType, GetShowElectricalType() );
+    aCfg->Write( defaultLibWidthEntry, m_treePane->GetSize().x );
 }
 
 
 void LIB_EDIT_FRAME::OnPreferencesOptions( wxCommandEvent& event )
 {
-    wxArrayString units;
-    GRIDS grid_list = GetScreen()->GetGrids();
+    if( ShowPreferences( g_Eeschema_Hotkeys_Descr, g_Libedit_Hotkeys_Descr, wxT( "eeschema" ) ) )
+    {
+        SaveSettings( config() );  // save values shared by eeschema applications.
+        m_canvas->Refresh( true );
+    }
+}
 
-    DIALOG_LIBEDIT_OPTIONS dlg( this );
 
-    dlg.SetGridSizes( grid_list, GetScreen()->GetGridCmdId() );
-    dlg.SetLineWidth( GetDefaultLineThickness() );
-    dlg.SetPinLength( GetDefaultPinLength() );
-    dlg.SetPinNumSize( m_textPinNumDefaultSize );
-    dlg.SetPinNameSize( m_textPinNameDefaultSize );
+void LIB_EDIT_FRAME::InstallPreferences( PAGED_DIALOG* aParent )
+{
+    wxTreebook* book = aParent->GetTreebook();
 
-    dlg.SetShowGrid( IsGridVisible() );
-    dlg.SetShowElectricalType( GetShowElectricalType() );
-    dlg.Layout();
-    dlg.Fit();
-
-    if( dlg.ShowModal() == wxID_CANCEL )
-        return;
-
-    wxRealPoint  gridsize = grid_list[ (size_t) dlg.GetGridSelection() ].m_Size;
-    m_LastGridSizeId = GetScreen()->SetGrid( gridsize );
-
-    SetDefaultLineThickness( dlg.GetLineWidth() );
-    SetDefaultPinLength( dlg.GetPinLength() );
-    m_textPinNumDefaultSize = dlg.GetPinNumSize();
-    m_textPinNameDefaultSize = dlg.GetPinNameSize();
-    SetGridVisibility( dlg.GetShowGrid() );
-    SetRepeatPinStep( dlg.GetPinRepeatStep() );
-    SetRepeatStep( dlg.GetItemRepeatStep() );
-    SetRepeatDeltaLabel( dlg.GetRepeatLabelInc() );
-    SetShowElectricalType( dlg.GetShowElectricalType() );
-
-    SaveSettings( config() );  // save values shared by eeschema applications.
-
-    m_canvas->Refresh( true );
+    book->AddPage( new PANEL_LIBEDIT_SETTINGS( this, book ), _( "Symbol Editor" ) );
+    book->AddSubPage( new PANEL_LIBEDIT_DISPLAY_OPTIONS( this, aParent ), _( "Display Options" ) );
 }
 
 
@@ -764,7 +603,7 @@ SYMBOL_LIB_TABLE* PROJECT::SchSymbolLibTable()
     SYMBOL_LIB_TABLE* tbl = (SYMBOL_LIB_TABLE*) GetElem( ELEM_SYMBOL_LIB_TABLE );
 
     // its gotta be NULL or a SYMBOL_LIB_TABLE, or a bug.
-    wxASSERT( !tbl || dynamic_cast<SYMBOL_LIB_TABLE*>( tbl ) );
+    wxASSERT( !tbl || tbl->Type() == SYMBOL_LIB_TABLE_T );
 
     if( !tbl )
     {

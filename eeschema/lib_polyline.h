@@ -43,7 +43,7 @@ class LIB_POLYLINE : public LIB_ITEM
                       COLOR4D aColor, GR_DRAWMODE aDrawMode, void* aData,
                       const TRANSFORM& aTransform ) override;
 
-    void calcEdit( const wxPoint& aPosition ) override;
+    void CalcEdit( const wxPoint& aPosition ) override;
 
 public:
     LIB_POLYLINE( LIB_PART * aParent );
@@ -62,6 +62,7 @@ public:
         return _( "PolyLine" );
     }
 
+    void Reserve( size_t aPointCount ) { m_PolyPoints.reserve( aPointCount ); }
     void AddPoint( const wxPoint& aPoint );
 
     const std::vector< wxPoint >& GetPolyPoints() const { return m_PolyPoints; }
@@ -84,7 +85,7 @@ public:
 
     int GetPenSize( ) const override;
 
-    void GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList ) override;
+    void GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList ) override;
 
     void BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aStartPoint = wxPoint( 0, 0 ) ) override;
 
@@ -113,7 +114,7 @@ public:
 
     void SetWidth( int aWidth ) override { m_Width = aWidth; }
 
-    wxString GetSelectMenuText() const override;
+    wxString GetSelectMenuText( EDA_UNITS_T aUnits ) const override;
 
     BITMAP_DEF GetMenuImage() const override;
 

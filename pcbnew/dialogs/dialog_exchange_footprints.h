@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2010-2014 Jean-Pierre Charras, jean-pierre.charras at wanadoo.fr
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,48 +31,36 @@
 
 class PCB_EDIT_FRAME;
 class MODULE;
+class LIB_ID;
 
 class DIALOG_EXCHANGE_FOOTPRINTS : public DIALOG_EXCHANGE_FOOTPRINTS_BASE
 {
 private:
+    BOARD_COMMIT    m_commit;
     PCB_EDIT_FRAME* m_parent;
     MODULE*         m_currentModule;
     bool            m_updateMode;
-    static          int m_matchModeForUpdate;           // remember last match-mode
-    static          int m_matchModeForExchange;         // remember last match-mode
-    static          int m_matchModeForUpdateSelected;   // remember last match-mode
-    static          int m_matchModeForExchangeSelected; // remember last match-mode
+    int*            m_matchMode;
 
 public:
-    DIALOG_EXCHANGE_FOOTPRINTS( PCB_EDIT_FRAME* aParent, MODULE* aModule, bool updateMode );
-    ~DIALOG_EXCHANGE_FOOTPRINTS() { };
+    DIALOG_EXCHANGE_FOOTPRINTS( PCB_EDIT_FRAME* aParent, MODULE* aModule, bool updateMode,
+                                bool selectedMode );
 
 private:
     void updateMatchModeRadioButtons( wxUpdateUIEvent& event ) override;
     void OnMatchAllClicked( wxCommandEvent& event ) override;
+    void OnMatchSelectedClicked( wxCommandEvent& event ) override;
     void OnMatchRefClicked( wxCommandEvent& event ) override;
     void OnMatchValueClicked( wxCommandEvent& event ) override;
     void OnMatchIDClicked( wxCommandEvent& event ) override;
-    void OnApplyClick( wxCommandEvent& event ) override;
-    void OnQuit( wxCommandEvent& event ) override;
+    void OnApplyClicked( wxCommandEvent& event ) override;
     void ViewAndSelectFootprint( wxCommandEvent& event ) override;
-    void RebuildCmpList( wxCommandEvent& event ) override;
-
-    void init( bool updateMode );
-
-    int getMatchMode();
-    void setMatchMode( int aMatchMode );
 
     wxRadioButton* getRadioButtonForMode();
 
     bool isMatch( MODULE* );
-    bool changeCurrentFootprint();
-    bool changeSameFootprints();
-    bool change_1_Module( MODULE*            aModule,
-                          const LIB_ID&      aNewFootprintFPID,
-                          bool               eShowError );
-
-    BOARD_COMMIT m_commit;
+    bool processMatchingModules();
+    bool processModule( MODULE* aModule, const LIB_ID& aNewFPID );
 };
 
 #endif // DIALOG_EXCHANGE_FOOTPRINTS_H_

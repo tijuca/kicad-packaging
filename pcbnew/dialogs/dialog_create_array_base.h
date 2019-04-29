@@ -1,12 +1,11 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Apr 19 2018)
+// C++ code generated with wxFormBuilder (version Nov 10 2018)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
-#ifndef __DIALOG_CREATE_ARRAY_BASE_H__
-#define __DIALOG_CREATE_ARRAY_BASE_H__
+#pragma once
 
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
@@ -45,7 +44,7 @@ class TEXT_CTRL_EVAL;
 class DIALOG_CREATE_ARRAY_BASE : public DIALOG_SHIM
 {
 	private:
-	
+
 	protected:
 		wxNotebook* m_gridTypeNotebook;
 		wxPanel* m_gridPanel;
@@ -54,16 +53,16 @@ class DIALOG_CREATE_ARRAY_BASE : public DIALOG_SHIM
 		wxStaticText* m_labelNy;
 		TEXT_CTRL_EVAL* m_entryNy;
 		wxStaticText* m_labelDx;
-		TEXT_CTRL_EVAL* m_entryDx;
+		wxTextCtrl* m_entryDx;
 		wxStaticText* m_unitLabelDx;
 		wxStaticText* m_labelDy;
-		TEXT_CTRL_EVAL* m_entryDy;
+		wxTextCtrl* m_entryDy;
 		wxStaticText* m_unitLabelDy;
 		wxStaticText* m_labelOffsetX;
-		TEXT_CTRL_EVAL* m_entryOffsetX;
+		wxTextCtrl* m_entryOffsetX;
 		wxStaticText* m_unitLabelOffsetX;
 		wxStaticText* m_labelOffsetY;
-		TEXT_CTRL_EVAL* m_entryOffsetY;
+		wxTextCtrl* m_entryOffsetY;
 		wxStaticText* m_unitLabelOffsetY;
 		wxStaticText* m_labelStagger;
 		TEXT_CTRL_EVAL* m_entryStagger;
@@ -82,15 +81,16 @@ class DIALOG_CREATE_ARRAY_BASE : public DIALOG_SHIM
 		wxTextCtrl* m_entryGridSecNumberingOffset;
 		wxPanel* m_circularPanel;
 		wxStaticText* m_labelCentreX;
-		TEXT_CTRL_EVAL* m_entryCentreX;
+		wxTextCtrl* m_entryCentreX;
 		wxStaticText* m_unitLabelCentreX;
 		wxStaticText* m_labelCentreY;
-		TEXT_CTRL_EVAL* m_entryCentreY;
+		wxTextCtrl* m_entryCentreY;
 		wxStaticText* m_unitLabelCentreY;
 		wxStaticText* m_labelCircRadius;
-		wxStaticText* m_labelCircRadiusValue;
+		wxStaticText* m_valueCircRadius;
+		wxStaticText* m_unitLabelCircRadius;
 		wxStaticText* m_labelCircAngle;
-		TEXT_CTRL_EVAL* m_entryCircAngle;
+		wxTextCtrl* m_entryCircAngle;
 		wxStaticText* m_unitLabelCircAngle;
 		wxStaticText* m_labelCircCount;
 		TEXT_CTRL_EVAL* m_entryCircCount;
@@ -103,17 +103,16 @@ class DIALOG_CREATE_ARRAY_BASE : public DIALOG_SHIM
 		wxStdDialogButtonSizer* m_stdButtons;
 		wxButton* m_stdButtonsOK;
 		wxButton* m_stdButtonsCancel;
-		
+
 		// Virtual event handlers, overide them in your derived class
 		virtual void OnClose( wxCloseEvent& event ) { event.Skip(); }
 		virtual void OnParameterChanged( wxCommandEvent& event ) { event.Skip(); }
-		
-	
+
+
 	public:
-		
-		DIALOG_CREATE_ARRAY_BASE( wxWindow* parent, wxWindowID id = wxID_DIALOG_CREATE_ARRAY, const wxString& title = _("Create Array"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
+
+		DIALOG_CREATE_ARRAY_BASE( wxWindow* parent, wxWindowID id = wxID_DIALOG_CREATE_ARRAY, const wxString& title = _("Create Array"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
 		~DIALOG_CREATE_ARRAY_BASE();
-	
+
 };
 
-#endif //__DIALOG_CREATE_ARRAY_BASE_H__

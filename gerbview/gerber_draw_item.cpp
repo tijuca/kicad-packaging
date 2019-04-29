@@ -683,7 +683,7 @@ void GERBER_DRAW_ITEM::DrawGbrPoly( EDA_RECT*      aClipBox,
 }
 
 
-void GERBER_DRAW_ITEM::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
+void GERBER_DRAW_ITEM::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList )
 {
     wxString msg;
     wxString text;
@@ -958,7 +958,7 @@ unsigned int GERBER_DRAW_ITEM::ViewGetLOD( int aLayer, KIGFX::VIEW* aView ) cons
 
         // the level of details is chosen experimentally, to show
         // only a readable text:
-        const int level = Millimeter2iu( 500 );
+        const int level = Millimeter2iu( 4 );
         return ( level / ( size + 1 ) );
     }
 
@@ -982,14 +982,15 @@ SEARCH_RESULT GERBER_DRAW_ITEM::Visit( INSPECTOR inspector, void* testData, cons
 }
 
 
-wxString GERBER_DRAW_ITEM::GetSelectMenuText() const
+wxString GERBER_DRAW_ITEM::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
-    wxString text, layerName;
+    wxString layerName;
 
     layerName = GERBER_FILE_IMAGE_LIST::GetImagesList().GetDisplayName( GetLayer(), true );
 
-    text.Printf( _( "%s (D%d) on layer %d: %s" ), ShowGBRShape(), m_DCode,
-                 GetLayer() + 1, layerName );
-
-    return text;
+    return wxString::Format( _( "%s (D%d) on layer %d: %s" ),
+                             ShowGBRShape(),
+                             m_DCode,
+                             GetLayer() + 1,
+                             layerName );
 }

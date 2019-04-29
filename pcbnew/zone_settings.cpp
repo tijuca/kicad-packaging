@@ -31,9 +31,13 @@
 
 #include <convert_to_biu.h>
 #include <pcbnew.h>
+#include <pcb_base_frame.h>
+#include <class_board.h>
 #include <zones.h>
 
 #include <class_zone.h>
+#include <wx/dataview.h>
+#include <widgets/color_swatch.h>
 
 ZONE_SETTINGS::ZONE_SETTINGS()
 {
@@ -47,9 +51,9 @@ ZONE_SETTINGS::ZONE_SETTINGS()
     m_CurrentZone_Layer  = F_Cu;                                // Layer used to create the current zone
     m_Zone_HatchingStyle = ZONE_CONTAINER::DIAGONAL_EDGE;       // Option to show the zone area (outlines only, short hatches or full hatches
 
-    m_ArcToSegmentsCount = ARC_APPROX_SEGMENTS_COUNT_LOW_DEF;   // Option to select number of segments to approximate a circle
+    m_ArcToSegmentsCount = ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF; // Option to select number of segments to approximate a circle
                                                                 // ARC_APPROX_SEGMENTS_COUNT_LOW_DEF
-                                                                // or ARC_APPROX_SEGMENTS_COUNT_HIGHT_DEF segments
+                                                                // or ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF segments
 
     // thickness of the gap in thermal reliefs:
     m_ThermalReliefGap = Mils2iu( ZONE_THERMAL_RELIEF_GAP_MIL );
@@ -138,10 +142,69 @@ void ZONE_SETTINGS::ExportSetting( ZONE_CONTAINER& aTarget, bool aFullExport ) c
 
 void ZONE_SETTINGS::SetCornerRadius( int aRadius )
 {
-    if( aRadius > Mils2iu( MAX_ZONE_CORNER_RADIUS_MILS ) )
-        m_cornerRadius = Mils2iu( MAX_ZONE_CORNER_RADIUS_MILS );
-    else if( aRadius < 0 )
+    if( aRadius < 0 )
         m_cornerRadius = 0;
     else
         m_cornerRadius = aRadius;
 }
+
+
+#ifdef __WXOSX_MAC__
+const static wxSize LAYER_BITMAP_SIZE( 28, 28 );  // wxCocoa impl unhappy if this isn't square...
+#else
+const static wxSize LAYER_BITMAP_SIZE( 24, 16 );
+#endif
+
+// A helper for setting up a dialog list for specifying zone layers.  Used by all three
+// zone settings dialogs.
+void ZONE_SETTINGS::SetupLayersList( wxDataViewListCtrl* aList, PCB_BASE_FRAME* aFrame,
+                                     bool aShowCopper )
+{
+    BOARD* board = aFrame->GetBoard();
+    COLOR4D backgroundColor = aFrame->Settings().Colors().GetLayerColor( LAYER_PCB_BACKGROUND );
+    LSET layers = aShowCopper ? LSET::AllCuMask( board->GetCopperLayerCount() )
+                              : LSET::AllNonCuMask();
+
+    wxDataViewColumn* checkColumn = aList->AppendToggleColumn( wxEmptyString );
+    wxDataViewColumn* layerColumn = aList->AppendIconTextColumn( wxEmptyString );
+    wxDataViewColumn* layerIDColumn = aList->AppendTextColumn( wxEmptyString );
+    layerIDColumn->SetHidden( true );
+
+    int textWidth = 0;
+
+    for( LSEQ layer = layers.UIOrder(); layer; ++layer )
+    {
+        PCB_LAYER_ID layerID = *layer;
+        wxString     layerName = board->GetLayerName( layerID );
+
+        // wxCOL_WIDTH_AUTOSIZE doesn't work on all platforms, so we calculate width here
+        textWidth = std::max( textWidth, GetTextSize( layerName, aList ).x );
+
+        COLOR4D layerColor = aFrame->Settings().Colors().GetLayerColor( layerID );
+        auto bitmap = COLOR_SWATCH::MakeBitmap( layerColor, backgroundColor, LAYER_BITMAP_SIZE );
+        wxIcon icon;
+        icon.CopyFromBitmap( bitmap );
+
+        wxVector<wxVariant> row;
+        row.push_back( wxVariant( m_Layers.test( layerID ) ) );
+        row.push_back( wxVariant( wxDataViewIconText( layerName, icon ) ) );
+        row.push_back( wxVariant( wxString::Format( "%i", layerID ) ) );
+        aList->AppendItem( row );
+
+        if( m_CurrentZone_Layer == layerID )
+            aList->SetToggleValue( true, (unsigned) aList->GetItemCount() - 1, 0 );
+    }
+
+    int checkColSize = 22;
+    int layerColSize = textWidth + LAYER_BITMAP_SIZE.x + 15;
+
+    // You'd think the fact that m_layers is a list would encourage wxWidgets not to save room
+    // for the tree expanders... but you'd be wrong.  Force indent to 0.
+    aList->SetIndent( 0 );
+    aList->SetMinClientSize( wxSize( checkColSize + layerColSize, aList->GetMinClientSize().y ) );
+
+    checkColumn->SetWidth( checkColSize );
+    layerColumn->SetWidth( layerColSize );
+}
+
+

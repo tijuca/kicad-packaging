@@ -31,6 +31,7 @@
 #include <kiface_i.h>
 #include <confirm.h>
 #include <wildcards_and_files_ext.h>
+#include <bitmaps.h>
 #include <pgm_base.h>
 #include <dialog_drc.h>
 #include <pcb_edit_frame.h>
@@ -38,6 +39,9 @@
 #include <board_design_settings.h>
 #include <class_draw_panel_gal.h>
 #include <view/view.h>
+#include <collectors.h>
+#include <tool/tool_manager.h>
+#include <tools/pcb_actions.h>
 
 #include <tool/tool_manager.h>
 #include <tools/pcb_actions.h>
@@ -47,14 +51,16 @@
  */
 
 // Keywords for read and write config
-#define TestMissingCourtyardKey     wxT( "TestMissingCourtyard" )
-#define TestFootprintCourtyardKey   wxT( "TestFootprintCourtyard" )
-#define RefillZonesBeforeDrc        wxT( "RefillZonesBeforeDrc" )
+#define RefillZonesBeforeDrcKey        wxT( "RefillZonesBeforeDrc" )
+#define DrcTrackToZoneTestKey        wxT( "DrcTrackToZoneTest" )
 
 
 DIALOG_DRC_CONTROL::DIALOG_DRC_CONTROL( DRC* aTester, PCB_EDIT_FRAME* aEditorFrame,
                                         wxWindow* aParent ) :
-    DIALOG_DRC_CONTROL_BASE( aParent )
+    DIALOG_DRC_CONTROL_BASE( aParent ),
+    m_trackMinWidth( aEditorFrame, m_TrackMinWidthTitle, m_SetTrackMinWidthCtrl, m_TrackMinWidthUnit, true ),
+    m_viaMinSize( aEditorFrame, m_ViaMinTitle, m_SetViaMinSizeCtrl, m_ViaMinUnit, true ),
+    m_uviaMinSize( aEditorFrame, m_MicroViaMinTitle, m_SetMicroViakMinSizeCtrl, m_MicroViaMinUnit, true )
 {
     m_config = Kiface().KifaceSettings();
     m_tester = aTester;
@@ -62,34 +68,53 @@ DIALOG_DRC_CONTROL::DIALOG_DRC_CONTROL( DRC* aTester, PCB_EDIT_FRAME* aEditorFra
     m_currentBoard = m_brdEditor->GetBoard();
     m_BrdSettings = m_brdEditor->GetBoard()->GetDesignSettings();
 
+    wxFont messagesLabelFont = wxSystemSettings::GetFont( wxSYS_DEFAULT_GUI_FONT );
+    messagesLabelFont.SetSymbolicSize( wxFONTSIZE_SMALL );
+    m_messagesLabel->SetFont( messagesLabelFont );
+
+    m_BrowseButton->SetBitmap( KiBitmap( folder_xpm ) );
+
+    // We use a sdbSizer here to get the order right, which is platform-dependent
+    m_sdbSizer1OK->SetLabel( _( "Run DRC" ) );
+    m_sdbSizer1Apply->SetLabel( _( "List Unconnected" ) );
+    m_sdbSizer1Cancel->SetLabel( _( "Close" ) );
+    m_sizerButtons->Layout();
+
+    m_sdbSizer1OK->SetDefault();
+
     InitValues();
+
+    // Connect events
+    m_ClearanceListBox->Connect( ID_CLEARANCE_LIST, wxEVT_LEFT_DCLICK,
+                                 wxMouseEventHandler( DIALOG_DRC_CONTROL::OnLeftDClickClearance ), NULL, this );
+    m_ClearanceListBox->Connect( ID_CLEARANCE_LIST, wxEVT_RIGHT_UP,
+                                 wxMouseEventHandler( DIALOG_DRC_CONTROL::OnRightUpClearance ), NULL, this );
+    m_UnconnectedListBox->Connect( ID_UNCONNECTED_LIST, wxEVT_LEFT_DCLICK,
+                                   wxMouseEventHandler( DIALOG_DRC_CONTROL::OnLeftDClickUnconnected ), NULL, this );
+    m_UnconnectedListBox->Connect( ID_UNCONNECTED_LIST, wxEVT_RIGHT_UP,
+                                   wxMouseEventHandler( DIALOG_DRC_CONTROL::OnRightUpUnconnected ), NULL, this );
 
     // Now all widgets have the size fixed, call FinishDialogSettings
     FinishDialogSettings();
 }
 
+
 DIALOG_DRC_CONTROL::~DIALOG_DRC_CONTROL()
 {
-    m_config->Write( TestMissingCourtyardKey, m_cbCourtyardMissing->GetValue() );
-    m_config->Write( TestFootprintCourtyardKey,  m_cbCourtyardOverlap->GetValue() );
-    m_config->Write( RefillZonesBeforeDrc, m_cbRefillZones->GetValue() );
+    m_config->Write( RefillZonesBeforeDrcKey, m_cbRefillZones->GetValue() );
+    m_config->Write( DrcTrackToZoneTestKey, m_cbReportTracksToZonesErrors->GetValue() );
 
-    // Disonnect events
+    // Disconnect events
     m_ClearanceListBox->Disconnect( ID_CLEARANCE_LIST, wxEVT_LEFT_DCLICK,
-                                    wxMouseEventHandler(
-                                     DIALOG_DRC_CONTROL::OnLeftDClickClearance ), NULL, this );
+                                    wxMouseEventHandler( DIALOG_DRC_CONTROL::OnLeftDClickClearance ), NULL, this );
     m_ClearanceListBox->Disconnect( ID_CLEARANCE_LIST, wxEVT_RIGHT_UP,
-                                    wxMouseEventHandler(
-                                     DIALOG_DRC_CONTROL::OnRightUpClearance ), NULL, this );
+                                    wxMouseEventHandler( DIALOG_DRC_CONTROL::OnRightUpClearance ), NULL, this );
     m_UnconnectedListBox->Disconnect( ID_UNCONNECTED_LIST, wxEVT_LEFT_DCLICK,
-                                    wxMouseEventHandler( DIALOG_DRC_CONTROL::
-                                                        OnLeftDClickUnconnected ), NULL, this );
+                                    wxMouseEventHandler( DIALOG_DRC_CONTROL::OnLeftDClickUnconnected ), NULL, this );
     m_UnconnectedListBox->Disconnect( ID_UNCONNECTED_LIST, wxEVT_RIGHT_UP,
-                                    wxMouseEventHandler(
-                                       DIALOG_DRC_CONTROL::OnRightUpUnconnected ), NULL, this );
-
-    this->Disconnect( wxEVT_MENU, wxCommandEventHandler( DIALOG_DRC_CONTROL::OnPopupMenu ), NULL, this );
+                                    wxMouseEventHandler( DIALOG_DRC_CONTROL::OnRightUpUnconnected ), NULL, this );
 }
+
 
 void DIALOG_DRC_CONTROL::OnActivateDlg( wxActivateEvent& event )
 {
@@ -114,35 +139,16 @@ void DIALOG_DRC_CONTROL::OnActivateDlg( wxActivateEvent& event )
 
 void DIALOG_DRC_CONTROL::DisplayDRCValues()
 {
-    m_TrackMinWidthUnit->SetLabel( GetAbbreviatedUnitsLabel( g_UserUnit ) );
-    m_ViaMinUnit->SetLabel( GetAbbreviatedUnitsLabel( g_UserUnit ) );
-    m_MicroViaMinUnit->SetLabel(GetAbbreviatedUnitsLabel( g_UserUnit ) );
-
-    PutValueInLocalUnits( *m_SetTrackMinWidthCtrl, m_BrdSettings.m_TrackMinWidth );
-    PutValueInLocalUnits( *m_SetViaMinSizeCtrl, m_BrdSettings.m_ViasMinSize );
-    PutValueInLocalUnits( *m_SetMicroViakMinSizeCtrl, m_BrdSettings.m_MicroViasMinSize );
+    m_trackMinWidth.SetValue( m_BrdSettings.m_TrackMinWidth );
+    m_viaMinSize.SetValue( m_BrdSettings.m_ViasMinSize );
+    m_uviaMinSize.SetValue( m_BrdSettings.m_MicroViasMinSize );
 }
 
 
 void DIALOG_DRC_CONTROL::InitValues()
 {
-    // Connect events and objects
-    m_ClearanceListBox->Connect( ID_CLEARANCE_LIST, wxEVT_LEFT_DCLICK,
-                                 wxMouseEventHandler(
-                                     DIALOG_DRC_CONTROL::OnLeftDClickClearance ), NULL, this );
-    m_ClearanceListBox->Connect( ID_CLEARANCE_LIST, wxEVT_RIGHT_UP,
-                                 wxMouseEventHandler(
-                                     DIALOG_DRC_CONTROL::OnRightUpClearance ), NULL, this );
-    m_UnconnectedListBox->Connect( ID_UNCONNECTED_LIST, wxEVT_LEFT_DCLICK,
-                                   wxMouseEventHandler( DIALOG_DRC_CONTROL::
-                                                        OnLeftDClickUnconnected ), NULL, this );
-    m_UnconnectedListBox->Connect( ID_UNCONNECTED_LIST, wxEVT_RIGHT_UP,
-                                   wxMouseEventHandler(
-                                       DIALOG_DRC_CONTROL::OnRightUpUnconnected ), NULL, this );
-
-    this->Connect( wxEVT_MENU, wxCommandEventHandler( DIALOG_DRC_CONTROL::OnPopupMenu ), NULL,
-                   this );
-
+    m_markersTitleTemplate = m_Notebook->GetPageText( 0 );
+    m_unconnectedTitleTemplate = m_Notebook->GetPageText( 1 );
 
     m_DeleteCurrentMarkerButton->Enable( false );
 
@@ -150,17 +156,10 @@ void DIALOG_DRC_CONTROL::InitValues()
 
     // read options
     bool value;
-    m_config->Read( TestMissingCourtyardKey, &value, false );
-    m_cbCourtyardMissing->SetValue( value );
-    m_config->Read( TestFootprintCourtyardKey, &value, false );
-    m_cbCourtyardOverlap->SetValue( value );
-    m_config->Read( RefillZonesBeforeDrc, &value, false );
+    m_config->Read( RefillZonesBeforeDrcKey, &value, false );
     m_cbRefillZones->SetValue( value );
-
-    // Set the initial "enabled" status of the browse button and the text
-    // field for report name
-    wxCommandEvent junk;
-    OnReportCheckBoxClicked( junk );
+    m_config->Read( DrcTrackToZoneTestKey, &value, false );
+    m_cbReportTracksToZonesErrors->SetValue( value );
 
     Layout();      // adding the units above expanded Clearance text, now resize.
 
@@ -171,9 +170,9 @@ void DIALOG_DRC_CONTROL::InitValues()
 */
 void DIALOG_DRC_CONTROL::SetDrcParmeters( )
 {
-    m_BrdSettings.m_TrackMinWidth = ValueFromTextCtrl( *m_SetTrackMinWidthCtrl );
-    m_BrdSettings.m_ViasMinSize = ValueFromTextCtrl( *m_SetViaMinSizeCtrl );
-    m_BrdSettings.m_MicroViasMinSize = ValueFromTextCtrl( *m_SetMicroViakMinSizeCtrl );
+    m_BrdSettings.m_TrackMinWidth = m_trackMinWidth.GetValue();
+    m_BrdSettings.m_ViasMinSize = m_viaMinSize.GetValue();
+    m_BrdSettings.m_MicroViasMinSize = m_uviaMinSize.GetValue();
 
     m_brdEditor->GetBoard()->SetDesignSettings( m_BrdSettings );
 }
@@ -181,10 +180,8 @@ void DIALOG_DRC_CONTROL::SetDrcParmeters( )
 
 void DIALOG_DRC_CONTROL::SetRptSettings( bool aEnable, const wxString& aFileName )
 {
-    m_RptFilenameCtrl->Enable( aEnable );
-    m_BrowseButton->Enable( aEnable );
-    m_CreateRptCtrl->SetValue( aEnable );
     m_RptFilenameCtrl->SetValue( aFileName );
+    m_CreateRptCtrl->SetValue( aEnable );
 }
 
 
@@ -197,7 +194,7 @@ void DIALOG_DRC_CONTROL::GetRptSettings( bool* aEnable, wxString& aFileName )
 
 void DIALOG_DRC_CONTROL::OnStartdrcClick( wxCommandEvent& event )
 {
-    wxString reportName;
+    wxString reportName, msg;
 
     bool make_report = m_CreateRptCtrl->IsChecked();
 
@@ -218,11 +215,10 @@ void DIALOG_DRC_CONTROL::OnStartdrcClick( wxCommandEvent& event )
     SetDrcParmeters();
     m_tester->SetSettings( true,        // Pad to pad DRC test enabled
                            true,        // unconnected pads DRC test enabled
-                           true,        // DRC test for zones enabled
+                           // DRC test for zones enabled/disabled:
+                           m_cbReportTracksToZonesErrors->GetValue(),
                            true,        // DRC test for keepout areas enabled
                            m_cbRefillZones->GetValue(),
-                           m_cbCourtyardOverlap->GetValue(),
-                           m_cbCourtyardMissing->GetValue(),
                            m_cbReportAllTrackErrors->GetValue(),
                            reportName, make_report );
 
@@ -233,27 +229,25 @@ void DIALOG_DRC_CONTROL::OnStartdrcClick( wxCommandEvent& event )
 
     // run all the tests, with no UI at this time.
     m_Messages->Clear();
-    wxSafeYield();                          // Allows time slice to refresh the m_Messages window
-    m_brdEditor->GetBoard()->m_Status_Pcb = 0; // Force full connectivity and ratsnest recalculations
+    wxSafeYield();                             // Allows time slice to refresh the Messages
+    m_brdEditor->GetBoard()->m_Status_Pcb = 0; // Force full connectivity and ratsnest calculations
     m_tester->RunTests(m_Messages);
-    m_Notebook->ChangeSelection( 0 );       // display the 1at tab "...Markers ..."
-
+    m_Notebook->ChangeSelection( 0 );          // display the "Problems/Markers" tab
 
     // Generate the report
     if( !reportName.IsEmpty() )
     {
         if( writeReport( reportName ) )
         {
-            wxString        msg;
             msg.Printf( _( "Report file \"%s\" created" ), GetChars( reportName ) );
-
-            wxString        caption( _( "Disk File Report Completed" ) );
-            wxMessageDialog popupWindow( this, msg, caption );
+            wxMessageDialog popupWindow( this, msg, _( "Disk File Report Completed" ) );
             popupWindow.ShowModal();
         }
         else
-            DisplayError( this, wxString::Format( _( "Unable to create report file \"%s\""),
-                          GetChars( reportName ) ) );
+        {
+            msg.Printf( _( "Unable to create report file \"%s\"" ), GetChars( reportName ) );
+            DisplayError( this, msg );
+        }
     }
 
     wxEndBusyCursor();
@@ -272,7 +266,7 @@ void DIALOG_DRC_CONTROL::OnDeleteAllClick( wxCommandEvent& event )
 
 void DIALOG_DRC_CONTROL::OnListUnconnectedClick( wxCommandEvent& event )
 {
-    wxString reportName;
+    wxString reportName, msg;
 
     bool make_report = m_CreateRptCtrl->IsChecked();
 
@@ -297,8 +291,6 @@ void DIALOG_DRC_CONTROL::OnListUnconnectedClick( wxCommandEvent& event )
                            true,        // DRC test for zones enabled
                            true,        // DRC test for keepout areas enabled
                            m_cbRefillZones->GetValue(),
-                           m_cbCourtyardOverlap->GetValue(),
-                           m_cbCourtyardMissing->GetValue(),
                            m_cbReportAllTrackErrors->GetValue(),
                            reportName, make_report );
 
@@ -309,22 +301,22 @@ void DIALOG_DRC_CONTROL::OnListUnconnectedClick( wxCommandEvent& event )
     m_Messages->Clear();
     m_tester->ListUnconnectedPads();
 
-    m_Notebook->ChangeSelection( 1 );       // display the 2nd tab "Unconnected..."
+    m_Notebook->ChangeSelection( 1 );       // display the "Unconnected" tab
 
     // Generate the report
     if( !reportName.IsEmpty() )
     {
         if( writeReport( reportName ) )
         {
-            wxString        msg;
             msg.Printf( _( "Report file \"%s\" created" ), GetChars( reportName ) );
-            wxString        caption( _( "Disk File Report Completed" ) );
-            wxMessageDialog popupWindow( this, msg, caption );
+            wxMessageDialog popupWindow( this, msg, _( "Disk File Report Completed" ) );
             popupWindow.ShowModal();
         }
         else
-            DisplayError( this, wxString::Format( _( "Unable to create report file \"%s\""),
-                          GetChars( reportName ) ) );
+        {
+            msg.Printf( _( "Unable to create report file \"%s\"" ), GetChars( reportName ) );
+            DisplayError( this, msg );
+        }
     }
 
     UpdateDisplayedCounts();
@@ -337,37 +329,27 @@ void DIALOG_DRC_CONTROL::OnListUnconnectedClick( wxCommandEvent& event )
 }
 
 
-void DIALOG_DRC_CONTROL::OnButtonBrowseRptFileClick( wxCommandEvent& event )
+void DIALOG_DRC_CONTROL::OnButtonBrowseRptFileClick( wxCommandEvent&  )
 {
     wxFileName fn = m_brdEditor->GetBoard()->GetFileName();
     fn.SetExt( ReportFileExtension );
     wxString prj_path =  Prj().GetProjectPath();
 
-    wxFileDialog dlg( this, _( "Save DRC Report File" ), prj_path,
-                      fn.GetFullName(), ReportFileWildcard(),
-                      wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
+    wxFileDialog dlg( this, _( "Save DRC Report File" ), prj_path, fn.GetFullName(),
+                      ReportFileWildcard(), wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
 
     if( dlg.ShowModal() == wxID_CANCEL )
         return;
 
+    m_CreateRptCtrl->SetValue( true );
     m_RptFilenameCtrl->SetValue( dlg.GetPath() );
-}
-
-
-void DIALOG_DRC_CONTROL::OnOkClick( wxCommandEvent& event )
-{
-    SetReturnCode( wxID_OK );
-    SetDrcParmeters();
-
-    // The dialog can be modal or not modal.
-    // Leave the DRC caller destroy (or not) the dialog
-    m_tester->DestroyDRCDialog( wxID_OK );
 }
 
 
 void DIALOG_DRC_CONTROL::OnCancelClick( wxCommandEvent& event )
 {
     SetReturnCode( wxID_CANCEL );
+    SetDrcParmeters();
 
     // The dialog can be modal or not modal.
     // Leave the DRC caller destroy (or not) the dialog
@@ -377,8 +359,14 @@ void DIALOG_DRC_CONTROL::OnCancelClick( wxCommandEvent& event )
 
 void DIALOG_DRC_CONTROL::OnReportCheckBoxClicked( wxCommandEvent& event )
 {
-    m_RptFilenameCtrl->Enable( m_CreateRptCtrl->IsChecked() );
-    m_BrowseButton->Enable( m_CreateRptCtrl->IsChecked() );
+    if( m_CreateRptCtrl->IsChecked() )
+        m_RptFilenameCtrl->SetFocus();
+}
+
+
+void DIALOG_DRC_CONTROL::OnReportFilenameEdited( wxCommandEvent &event )
+{
+    m_CreateRptCtrl->SetValue( event.GetString().Length() );
 }
 
 
@@ -386,36 +374,20 @@ void DIALOG_DRC_CONTROL::OnLeftDClickClearance( wxMouseEvent& event )
 {
     event.Skip();
 
-    // I am assuming that the double click actually changed the selected item.
-    // please verify this.
     int selection = m_ClearanceListBox->GetSelection();
 
     if( selection != wxNOT_FOUND )
     {
-        // Find the selected MARKER in the PCB, position cursor there.
-        // Then close the dialog.
-        const DRC_ITEM* item = m_ClearanceListBox->GetItem( selection );
-
-        if( item )
+        if( focusOnItem( m_ClearanceListBox->GetItem( selection ) ) )
         {
-            auto pos = item->GetPointA();
-
-            if( auto marker = item->GetParent() )
-                pos = marker->GetPos();
-
-            // When selecting a item, center it on GAL and just move the graphic
-            // cursor in legacy mode gives the best result
-            bool center = m_brdEditor->IsGalCanvasActive() ? true : false;
-            m_brdEditor->FocusOnLocation( pos, true, center );
-
             if( !IsModal() )
             {
                 // turn control over to m_brdEditor, hide this DIALOG_DRC_CONTROL window,
                 // no destruction so we can preserve listbox cursor
                 Show( false );
 
-                // We do not want the clarification popup window.
-                // when releasing the left button in the main window
+                // We do not want the clarify selection popup when releasing the
+                // left button in the main window
                 m_brdEditor->SkipNextLeftButtonReleaseEvent();
             }
         }
@@ -423,104 +395,99 @@ void DIALOG_DRC_CONTROL::OnLeftDClickClearance( wxMouseEvent& event )
 }
 
 
-void DIALOG_DRC_CONTROL::OnPopupMenu( wxCommandEvent& event )
+void DIALOG_DRC_CONTROL::OnLeftUpClearance( wxMouseEvent& event )
 {
-    int             source = event.GetId();
+    int selection = m_ClearanceListBox->GetSelection();
 
-    const DRC_ITEM* item = nullptr;
-    wxPoint         pos;
+    if( selection != wxNOT_FOUND )
+        focusOnItem( m_ClearanceListBox->GetItem( selection ) );
+}
 
-    int             selection;
 
-    switch( source )
+bool DIALOG_DRC_CONTROL::focusOnItem( const DRC_ITEM* aItem )
+{
+    if( !aItem )
+        return false;
+
+    auto toolmgr = m_brdEditor->GetToolManager();
+    auto pos = aItem->GetPointA();
+    auto marker = static_cast<MARKER_PCB*>( aItem->GetParent() );
+
+    if( marker )
     {
-    case ID_POPUP_UNCONNECTED_A:
-        selection = m_UnconnectedListBox->GetSelection();
-        item = m_UnconnectedListBox->GetItem( selection );
-        pos  = item->GetPointA();
-        break;
+        pos = marker->GetPos();
 
-    case ID_POPUP_UNCONNECTED_B:
-        selection = m_UnconnectedListBox->GetSelection();
-        item = m_UnconnectedListBox->GetItem( selection );
-        pos  = item->GetPointB();
-        break;
-
-    case ID_POPUP_MARKERS_A:
-        selection = m_ClearanceListBox->GetSelection();
-        item = m_ClearanceListBox->GetItem( selection );
-        pos  = item->GetPointA();
-        break;
-
-    case ID_POPUP_MARKERS_B:
-        selection = m_ClearanceListBox->GetSelection();
-        item = m_ClearanceListBox->GetItem( selection );
-        pos  = item->GetPointB();
-        break;
+        toolmgr->RunAction( PCB_ACTIONS::selectionClear, true );
+        toolmgr->RunAction( PCB_ACTIONS::selectItem, true, marker );
     }
 
-    if( item )
-    {
-        // When selecting a item, center it on GAL and just move the graphic
-        // cursor in legacy mode gives the best result
-        bool center = m_brdEditor->IsGalCanvasActive() ? true : false;
-        m_brdEditor->FocusOnLocation( pos, true, center );
+    toolmgr->GetView()->SetCenter( pos );
+    m_brdEditor->GetCanvas()->Refresh();
 
-        if( !IsModal() )
-            Show( false );
-    }
+    return true;
 }
 
 
 void DIALOG_DRC_CONTROL::OnRightUpUnconnected( wxMouseEvent& event )
 {
     // popup menu to go to either of the items listed in the DRC_ITEM.
+    // Check if user right-clicked on a different item
+    int selection = m_UnconnectedListBox->HitTest( event.GetPosition() );
 
-    int selection = m_UnconnectedListBox->GetSelection();
+    if( selection == wxNOT_FOUND )
+        selection = m_UnconnectedListBox->GetSelection();
+    else
+        m_UnconnectedListBox->SetSelection( selection );
 
     if( selection != wxNOT_FOUND )
-    {
-        wxMenu          menu;
-        wxMenuItem*     mItem;
-        const DRC_ITEM* dItem = m_UnconnectedListBox->GetItem( selection );
-
-        mItem = new wxMenuItem( &menu, ID_POPUP_UNCONNECTED_A, dItem->GetTextA() );
-        menu.Append( mItem );
-
-        if( dItem->HasSecondItem() )
-        {
-            mItem = new wxMenuItem( &menu, ID_POPUP_UNCONNECTED_B, dItem->GetTextB() );
-            menu.Append( mItem );
-        }
-
-        PopupMenu( &menu );
-    }
+        doSelectionMenu( m_UnconnectedListBox->GetItem( selection ) );
 }
 
 
 void DIALOG_DRC_CONTROL::OnRightUpClearance( wxMouseEvent& event )
 {
     // popup menu to go to either of the items listed in the DRC_ITEM.
+    // Check if user right-clicked on a different item
+    int selection = m_ClearanceListBox->HitTest( event.GetPosition() );
 
-    int selection = m_ClearanceListBox->GetSelection();
+    if( selection == wxNOT_FOUND )
+        selection = m_ClearanceListBox->GetSelection();
+    else
+        m_ClearanceListBox->SetSelection( selection );
 
     if( selection != wxNOT_FOUND )
+        doSelectionMenu( m_ClearanceListBox->GetItem( selection ) );
+}
+
+
+void DIALOG_DRC_CONTROL::doSelectionMenu( const DRC_ITEM* aItem )
+{
+    // popup menu to go to either of the items listed in the DRC_ITEM.
+
+    BOARD_ITEM* first = aItem->GetMainItem( m_brdEditor->GetBoard() );
+    BOARD_ITEM* second = nullptr;
+
+    GENERAL_COLLECTOR items;
+
+    items.Append( first );
+
+    if( aItem->HasSecondItem() )
     {
-        wxMenu          menu;
-        wxMenuItem*     mItem;
-        const DRC_ITEM* dItem = m_ClearanceListBox->GetItem( selection );
-
-        mItem = new wxMenuItem( &menu, ID_POPUP_MARKERS_A, dItem->GetTextA() );
-        menu.Append( mItem );
-
-        if( dItem->HasSecondItem() )
-        {
-            mItem = new wxMenuItem( &menu, ID_POPUP_MARKERS_B, dItem->GetTextB() );
-            menu.Append( mItem );
-        }
-
-        PopupMenu( &menu );
+        second = aItem->GetAuxiliaryItem( m_brdEditor->GetBoard() );
+        items.Append( second );
     }
+
+    WINDOW_THAWER thawer( m_brdEditor );
+    m_brdEditor->GetToolManager()->VetoContextMenuMouseWarp();
+    m_brdEditor->GetToolManager()->RunAction( PCB_ACTIONS::selectionMenu, true, &items );
+
+    // If we got an item, focus on it
+    BOARD_ITEM* selection = m_brdEditor->GetCurItem();
+
+    if( selection && ( selection == first || selection == second ) )
+        m_brdEditor->GetToolManager()->GetView()->SetCenter( selection->GetPosition() );
+
+    m_brdEditor->GetCanvas()->Refresh();
 }
 
 
@@ -528,33 +495,33 @@ void DIALOG_DRC_CONTROL::OnLeftDClickUnconnected( wxMouseEvent& event )
 {
     event.Skip();
 
-    // I am assuming that the double click actually changed the selected item.
-    // please verify this.
     int selection = m_UnconnectedListBox->GetSelection();
 
     if( selection != wxNOT_FOUND )
     {
-        // Find the selected DRC_ITEM in the listbox, position cursor there,
-        // at the first of the two pads.
-        // Then hide the dialog.
-        const DRC_ITEM* item = m_UnconnectedListBox->GetItem( selection );
-        if( item )
+        if( focusOnItem( m_UnconnectedListBox->GetItem( selection ) ) )
         {
-            // When selecting a item, center it on GAL and just move the graphic
-            // cursor in legacy mode gives the best result
-            bool center = m_brdEditor->IsGalCanvasActive() ? true : false;
-            m_brdEditor->FocusOnLocation( item->GetPointA(), true, center );
-
             if( !IsModal() )
             {
+                // turn control over to m_brdEditor, hide this DIALOG_DRC_CONTROL window,
+                // no destruction so we can preserve listbox cursor
                 Show( false );
 
-                // We do not want the clarification popup window.
-                // when releasing the left button in the main window
+                // We do not want the clarify selection popup when releasing the
+                // left button in the main window
                 m_brdEditor->SkipNextLeftButtonReleaseEvent();
             }
         }
     }
+}
+
+
+void DIALOG_DRC_CONTROL::OnLeftUpUnconnected( wxMouseEvent& event )
+{
+    int selection = m_UnconnectedListBox->GetSelection();
+
+    if( selection != wxNOT_FOUND )
+        focusOnItem( m_UnconnectedListBox->GetItem( selection ) );
 }
 
 
@@ -581,22 +548,8 @@ void DIALOG_DRC_CONTROL::OnMarkerSelectionEvent( wxCommandEvent& event )
         // until a MARKER is selected, this button is not enabled.
         m_DeleteCurrentMarkerButton->Enable( true );
 
-        // Find the selected DRC_ITEM in the listbox, position cursor there,
-        // at the first of the two pads.
-        const DRC_ITEM* item = m_ClearanceListBox->GetItem( selection );
-        if( item )
-        {
-            auto pos = item->GetPointA();
-
-            if( auto marker = item->GetParent() )
-                pos = marker->GetPos();
-
-            // When selecting a item, center it on GAL and just move the graphic
-            // cursor in legacy mode gives the best result
-            bool center = m_brdEditor->IsGalCanvasActive() ? true : false;
-            m_brdEditor->FocusOnLocation( pos, false, center );
-            RedrawDrawPanel();
-        }
+        // Find the selected DRC_ITEM in the listbox, position cursor there.
+        focusOnItem( m_ClearanceListBox->GetItem( selection ) );
     }
 
     event.Skip();
@@ -612,18 +565,8 @@ void DIALOG_DRC_CONTROL::OnUnconnectedSelectionEvent( wxCommandEvent& event )
         // until a MARKER is selected, this button is not enabled.
         m_DeleteCurrentMarkerButton->Enable( true );
 
-        // Find the selected DRC_ITEM in the listbox, position cursor there,
-        // at the first of the two pads.
-        const DRC_ITEM* item = m_UnconnectedListBox->GetItem( selection );
-
-        if( item )
-        {
-            // When selecting a item, center it on GAL and just move the graphic
-            // cursor in legacy mode gives the best result
-            bool center = m_brdEditor->IsGalCanvasActive() ? true : false;
-            m_brdEditor->FocusOnLocation( item->GetPointA(), false, center );
-            RedrawDrawPanel();
-        }
+        // Find the selected DRC_ITEM in the listbox, position cursor there.
+        focusOnItem( m_UnconnectedListBox->GetItem( selection ) );
     }
 
     event.Skip();
@@ -632,21 +575,9 @@ void DIALOG_DRC_CONTROL::OnUnconnectedSelectionEvent( wxCommandEvent& event )
 
 void DIALOG_DRC_CONTROL::RedrawDrawPanel()
 {
-    int freezeCount = 0;
-
-    while( m_brdEditor->IsFrozen() )
-    {
-        m_brdEditor->Thaw();
-        freezeCount++;
-    }
+    WINDOW_THAWER thawer( m_brdEditor );
 
     m_brdEditor->GetCanvas()->Refresh();
-
-    while( freezeCount > 0 )
-    {
-        m_brdEditor->Freeze();
-        freezeCount--;
-    }
 }
 
 
@@ -693,6 +624,7 @@ bool DIALOG_DRC_CONTROL::writeReport( const wxString& aFullFileName )
         return false;
 
     int count;
+    EDA_UNITS_T units = GetUserUnits();
 
     fprintf( fp, "** Drc report for %s **\n",
              TO_UTF8( m_brdEditor->GetBoard()->GetFileName() ) );
@@ -706,14 +638,14 @@ bool DIALOG_DRC_CONTROL::writeReport( const wxString& aFullFileName )
     fprintf( fp, "\n** Found %d DRC errors **\n", count );
 
     for( int i = 0;  i<count;  ++i )
-        fprintf( fp, "%s", TO_UTF8( m_ClearanceListBox->GetItem( i )->ShowReport()) );
+        fprintf( fp, "%s", TO_UTF8( m_ClearanceListBox->GetItem( i )->ShowReport( units ) ) );
 
     count = m_UnconnectedListBox->GetItemCount();
 
     fprintf( fp, "\n** Found %d unconnected pads **\n", count );
 
     for( int i = 0;  i<count;  ++i )
-        fprintf( fp, "%s", TO_UTF8( m_UnconnectedListBox->GetItem( i )->ShowReport() ) );
+        fprintf( fp, "%s", TO_UTF8( m_UnconnectedListBox->GetItem( i )->ShowReport( units ) ) );
 
     fprintf( fp, "\n** End of Report **\n" );
 
@@ -763,6 +695,7 @@ void DIALOG_DRC_CONTROL::UpdateDisplayedCounts()
     int marker_count = m_ClearanceListBox->GetItemCount();
     int unconnected_count = m_UnconnectedListBox->GetItemCount();
 
-    m_MarkerCount->SetLabelText( wxString::Format( "%d", marker_count ) );
-    m_UnconnectedCount->SetLabelText( wxString::Format( "%d", unconnected_count ) );
+    m_Notebook->SetPageText( 0, wxString::Format( m_markersTitleTemplate, marker_count ) );
+    m_Notebook->SetPageText( 1, wxString::Format( m_unconnectedTitleTemplate, unconnected_count ) );
+
 }

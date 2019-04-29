@@ -41,6 +41,7 @@ enum hotkey_id_commnand {
     HK_GBR_POLYGON_DISPLAY_MODE,
     HK_GBR_NEGATIVE_DISPLAY_ONOFF,
     HK_GBR_DCODE_DISPLAY_ONOFF,
+    HK_SWITCH_HIGHCONTRAST_MODE,
     HK_SWITCH_LAYER_TO_NEXT,
     HK_SWITCH_LAYER_TO_PREVIOUS,
     HK_CANVAS_LEGACY,
@@ -49,6 +50,6 @@ enum hotkey_id_commnand {
 };
 
 // List of hotkey descriptors for GerbView.
-extern struct EDA_HOTKEY_CONFIG GerbviewHokeysDescr[];
+extern struct EDA_HOTKEY_CONFIG GerbviewHotkeysDescr[];
 
 #endif		// GERBVIEW_KOTKEYS_H_

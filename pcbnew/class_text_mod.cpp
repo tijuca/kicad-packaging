@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 1992-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -56,10 +56,10 @@ TEXTE_MODULE::TEXTE_MODULE( MODULE* parent, TEXT_TYPE text_type ) :
     MODULE* module = static_cast<MODULE*>( m_Parent );
 
     m_Type = text_type;
-    m_unlocked = false;
+    m_keepUpright = true;
 
     // Set text thickness to a default value
-    SetThickness( Millimeter2iu( 0.15 ) );
+    SetThickness( Millimeter2iu( DEFAULT_TEXT_WIDTH ) );
     SetLayer( F_SilkS );
 
     // Set position and give a default layer if a valid parent footprint exists
@@ -119,9 +119,36 @@ bool TEXTE_MODULE::TextHitTest( const EDA_RECT& aRect, bool aContains, int aAccu
 }
 
 
+void TEXTE_MODULE::KeepUpright( double aOldOrientation, double aNewOrientation )
+{
+    if( !IsKeepUpright() )
+        return;
+
+    double currentAngle = GetTextAngle() + aOldOrientation;
+    double newAngle = GetTextAngle() + aNewOrientation;
+
+    NORMALIZE_ANGLE_POS( currentAngle );
+    NORMALIZE_ANGLE_POS( newAngle );
+
+    bool   isFlipped = currentAngle >= 1800.0;
+    bool   needsFlipped = newAngle >= 1800.0;
+
+    if( isFlipped != needsFlipped )
+    {
+        if( GetHorizJustify() == GR_TEXT_HJUSTIFY_LEFT )
+            SetHorizJustify( GR_TEXT_HJUSTIFY_RIGHT );
+        else if( GetHorizJustify() == GR_TEXT_HJUSTIFY_RIGHT )
+            SetHorizJustify(GR_TEXT_HJUSTIFY_LEFT );
+
+        SetTextAngle( GetTextAngle() + 1800.0 );
+        SetDrawCoord();
+    }
+}
+
+
 void TEXTE_MODULE::Rotate( const wxPoint& aRotCentre, double aAngle )
 {
-    // Used in footprint edition
+    // Used in footprint editing
     // Note also in module editor, m_Pos0 = m_Pos
 
     wxPoint pt = GetTextPos();
@@ -143,6 +170,17 @@ void TEXTE_MODULE::Flip( const wxPoint& aCentre )
     SetLayer( FlipLayer( GetLayer() ) );
     SetMirrored( IsBackLayer( GetLayer() ) );
     SetLocalCoord();
+
+    // adjust justified text for mirroring
+    if( GetHorizJustify() == GR_TEXT_HJUSTIFY_LEFT || GetHorizJustify() == GR_TEXT_HJUSTIFY_RIGHT )
+    {
+        if( ( GetHorizJustify() == GR_TEXT_HJUSTIFY_RIGHT ) == IsMirrored() )
+            SetHorizJustify( (EDA_TEXT_HJUSTIFY_T)-GetHorizJustify() );
+        else
+            SetHorizJustify( (EDA_TEXT_HJUSTIFY_T)-GetHorizJustify() );
+
+        SetDrawCoord();
+    }
 }
 
 bool TEXTE_MODULE::IsParentFlipped() const
@@ -341,11 +379,7 @@ double TEXTE_MODULE::GetDrawRotation() const
     if( module )
         rotation += module->GetOrientation();
 
-    if( m_unlocked )
-    {
-        NORMALIZE_ANGLE_POS( rotation );
-    }
-    else
+    if( m_keepUpright )
     {
         // Keep angle between -90 .. 90 deg. Otherwise the text is not easy to read
         while( rotation > 900 )
@@ -354,13 +388,17 @@ double TEXTE_MODULE::GetDrawRotation() const
         while( rotation < -900 )
             rotation += 1800;
     }
+    else
+    {
+        NORMALIZE_ANGLE_POS( rotation );
+    }
 
     return rotation;
 }
 
 
 // see class_text_mod.h
-void TEXTE_MODULE::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
+void TEXTE_MODULE::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList )
 {
     MODULE* module = (MODULE*) m_Parent;
 
@@ -403,39 +441,36 @@ void TEXTE_MODULE::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
     msg.Printf( wxT( "%.1f" ), GetTextAngleDegrees() );
     aList.push_back( MSG_PANEL_ITEM( _( "Angle" ), msg, DARKGREEN ) );
 
-    msg = ::CoordinateToString( GetThickness() );
+    msg = MessageTextFromValue( aUnits, GetThickness(), true );
     aList.push_back( MSG_PANEL_ITEM( _( "Thickness" ), msg, DARKGREEN ) );
 
-    msg = ::CoordinateToString( GetTextWidth() );
+    msg = MessageTextFromValue( aUnits, GetTextWidth(), true );
     aList.push_back( MSG_PANEL_ITEM( _( "Width" ), msg, RED ) );
 
-    msg = ::CoordinateToString( GetTextHeight() );
+    msg = MessageTextFromValue( aUnits, GetTextHeight(), true );
     aList.push_back( MSG_PANEL_ITEM( _( "Height" ), msg, RED ) );
 }
 
 
-wxString TEXTE_MODULE::GetSelectMenuText() const
+wxString TEXTE_MODULE::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
-    wxString text;
-    const wxChar *reference = GetChars( static_cast<MODULE*>( GetParent() )->GetReference() );
-
     switch( m_Type )
     {
     case TEXT_is_REFERENCE:
-        text.Printf( _( "Reference %s" ), reference );
-        break;
+        return wxString::Format( _( "Reference %s" ),
+                                 static_cast<MODULE*>( GetParent() )->GetReference() );
 
     case TEXT_is_VALUE:
-        text.Printf( _( "Value %s of %s" ), GetChars( GetShownText() ), reference );
-        break;
+        return wxString::Format( _( "Value %s of %s" ),
+                                 GetShownText(),
+                                 static_cast<MODULE*>( GetParent() )->GetReference() );
 
     default:    // wrap this one in quotes:
-        text.Printf( _( "Text \"%s\" on %s of %s" ), GetChars( ShortenedShownText() ),
-                     GetChars( GetLayerName() ), reference );
-        break;
+        return wxString::Format( _( "Text \"%s\" of %s on %s" ),
+                                 ShortenedShownText(),
+                                 static_cast<MODULE*>( GetParent() )->GetReference(),
+                                 GetLayerName() );
     }
-
-    return text;
 }
 
 

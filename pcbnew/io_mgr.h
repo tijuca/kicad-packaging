@@ -30,6 +30,8 @@
 #include <functional>
 #include <wx/time.h>
 
+#include <config.h>
+
 class BOARD;
 class PLUGIN;
 class MODULE;
@@ -56,8 +58,11 @@ public:
         EAGLE,
         PCAD,
         GEDA_PCB,       ///< Geda PCB file formats.
-        GITHUB,         ///< Read only http://github.com repo holding pretty footprints
 
+        //N.B. This needs to be commented out to ensure compile-type errors
+#if defined(BUILD_GITHUB_PLUGIN)
+        GITHUB,         ///< Read only http://github.com repo holding pretty footprints
+#endif
         // add your type here.
 
         // ALTIUM,
@@ -407,13 +412,13 @@ public:
             const PROPERTIES* aProperties = NULL );
 
     /**
-     * Function LoadEnumeratedFootprint
-     * a version of FootprintLoad() for use after FootprintEnumerate() for more
-     * efficient cache management.
+     * Function GetEnumeratedFootprint
+     * a version of FootprintLoad() for use after FootprintEnumerate() for more efficient
+     * cache management.
      */
-    virtual MODULE* LoadEnumeratedFootprint( const wxString& aLibraryPath,
-                                             const wxString& aFootprintName,
-                                             const PROPERTIES* aProperties = NULL );
+    virtual const MODULE* GetEnumeratedFootprint( const wxString& aLibraryPath,
+                                                  const wxString& aFootprintName,
+                                                  const PROPERTIES* aProperties = NULL );
 
     /**
      * Function FootprintSave

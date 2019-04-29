@@ -22,7 +22,6 @@ set( KICAD_SRCS
     kicad.cpp
     mainframe.cpp
     menubar.cpp
-    preferences.cpp
     prjconfig.cpp
     project_template.cpp
     tree_project_frame.cpp
@@ -72,15 +71,11 @@ if( APPLE )
         )
     target_link_libraries( kicad
         common
-        bitmaps
-        polygon
         ${wxWidgets_LIBRARIES}
         )
 else()
     target_link_libraries( kicad
         common
-        bitmaps
-        polygon
         gal
         ${wxWidgets_LIBRARIES}
         ${GDI_PLUS_LIBRARIES}

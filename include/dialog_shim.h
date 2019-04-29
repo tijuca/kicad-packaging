@@ -28,28 +28,41 @@
 #include <wx/dialog.h>
 #include <hashtables.h>
 #include <kiway_player.h>
+class wxGridEvent;
 
-#ifdef  __WXMAC__
-/**
- * MACOS requires this option to be set to 1 in order to set dialogs focus.
- **/
-#define DLGSHIM_USE_SETFOCUS      1
-#else
-#define DLGSHIM_USE_SETFOCUS      0
-#endif
 
-#ifdef __WXMAC__
-/**
- * MACOS requires this option so that tabbing between text controls will
- * arrive with the text selected.
- **/
-#define DLGSHIM_SELECT_ALL_IN_TEXT_CONTROLS     1
-#else
-#define DLGSHIM_SELECT_ALL_IN_TEXT_CONTROLS     0
-#endif
+
+struct WINDOW_THAWER
+{
+    WINDOW_THAWER( wxWindow* aWindow )
+    {
+        m_window = aWindow;
+        m_freezeCount = 0;
+
+        while( m_window->IsFrozen() )
+        {
+            m_window->Thaw();
+            m_freezeCount++;
+        }
+    }
+
+    ~WINDOW_THAWER()
+    {
+        while( m_freezeCount > 0 )
+        {
+            m_window->Freeze();
+            m_freezeCount--;
+        }
+    }
+
+protected:
+    wxWindow* m_window;
+    int       m_freezeCount;
+};
+
 
 class WDO_ENABLE_DISABLE;
-class EVENT_LOOP;
+class WX_EVENT_LOOP;
 
 // These macros are for DIALOG_SHIM only, NOT for KIWAY_PLAYER.  KIWAY_PLAYER
 // has its own support for quasi modal and its platform specific issues are different
@@ -90,11 +103,20 @@ public:
     DIALOG_SHIM( wxWindow* aParent, wxWindowID id, const wxString& title,
             const   wxPoint& pos = wxDefaultPosition,
             const   wxSize&  size = wxDefaultSize,
-            long    style = wxDEFAULT_DIALOG_STYLE,
+            long    style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER,
             const   wxString& name = wxDialogNameStr
             );
 
     ~DIALOG_SHIM();
+
+    /**
+     * Sets the window (usually a wxTextCtrl) that should be focused when the dialog is
+     * shown.
+     */
+    void SetInitialFocus( wxWindow* aWindow )
+    {
+        m_initialFocusTarget = aWindow;
+    }
 
     int ShowQuasiModal();      // disable only the parent window, otherwise modal.
 
@@ -107,6 +129,8 @@ public:
     bool Enable( bool enable ) override;
 
     void OnPaint( wxPaintEvent &event );
+
+    EDA_UNITS_T GetUserUnits() const override { return m_units; }
 
 protected:
 
@@ -146,14 +170,25 @@ protected:
      */
     int VertPixelsFromDU( int y );
 
-    bool m_fixupsRun;
+    EDA_UNITS_T         m_units;        // userUnits for display and parsing
+    std::string         m_hash_key;     // alternate for class_map when classname re-used
 
-    std::string m_hash_key;     // alternate for class_map when classname re-used.
+    // On MacOS (at least) SetFocus() calls made in the constructor will fail because a
+    // window that isn't yet visible will return false to AcceptsFocus().  So we must delay
+    // the initial-focus SetFocus() call to the first paint event.
+    bool                m_firstPaintEvent;
+    wxWindow*           m_initialFocusTarget;
 
     // variables for quasi-modal behavior support, only used by a few derivatives.
-    EVENT_LOOP*         m_qmodal_loop;      // points to nested event_loop, NULL means not qmodal and dismissed
+    WX_EVENT_LOOP*      m_qmodal_loop;      // points to nested event_loop, NULL means not qmodal and dismissed
     bool                m_qmodal_showing;
     WDO_ENABLE_DISABLE* m_qmodal_parent_disabler;
+
+private:
+    void OnGridEditorShown( wxGridEvent& event );
+    void OnGridEditorHidden( wxGridEvent& event );
+
+    DECLARE_EVENT_TABLE()
 };
 
 #endif  // DIALOG_SHIM_

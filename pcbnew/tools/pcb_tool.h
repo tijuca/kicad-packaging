@@ -33,9 +33,10 @@
 #include <class_board.h>
 #include <view/view_group.h>
 #include <pcb_view.h>
+#include <pcb_draw_panel_gal.h>
 
 #include <functional>
-
+#include <tool/tool_menu.h>
 
 /**
  * Class PCB_TOOL
@@ -46,14 +47,13 @@
 class PCB_TOOL;
 class PCB_EDIT_FRAME;
 class PCB_DISPLAY_OPTIONS;
-class PCB_DRAW_PANEL_GAL;
 class SELECTION;
 
 struct INTERACTIVE_PLACER_BASE
 {
     virtual std::unique_ptr<BOARD_ITEM> CreateItem() = 0;
     virtual void SnapItem( BOARD_ITEM *aItem );
-    virtual void PlaceItem( BOARD_ITEM *aItem, BOARD_COMMIT& aCommit );
+    virtual bool PlaceItem( BOARD_ITEM *aItem, BOARD_COMMIT& aCommit );
 
     PCB_EDIT_FRAME* m_frame;
     BOARD* m_board;
@@ -70,6 +70,7 @@ public:
      * Creates a tool with given id & name. The name must be unique. */
     PCB_TOOL( TOOL_ID aId, const std::string& aName ) :
         TOOL_INTERACTIVE ( aId, aName ),
+        m_menu( *this ),
         m_editModules( false ) {};
 
     /**
@@ -78,10 +79,12 @@ public:
      * Creates a tool with given name. The name must be unique. */
     PCB_TOOL( const std::string& aName ) :
         TOOL_INTERACTIVE ( aName ),
+        m_menu( *this ),
         m_editModules( false ) {};
 
     virtual ~PCB_TOOL() {};
 
+    virtual bool Init() override;
     virtual void Reset( RESET_REASON aReason ) override;
 
     /**
@@ -140,6 +143,9 @@ protected:
     PCB_DRAW_PANEL_GAL* canvas() const;
     const SELECTION& selection() const;
     SELECTION& selection();
+
+    /// Menu model displayed by the tool.
+    TOOL_MENU m_menu;
 
     bool m_editModules;
 };

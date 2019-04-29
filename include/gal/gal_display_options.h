@@ -28,6 +28,8 @@
 
 class wxConfigBase;
 class wxString;
+class wxWindow;
+
 
 namespace KIGFX
 {
@@ -50,6 +52,14 @@ namespace KIGFX
         SUPERSAMPLING_X4,
     };
 
+    enum class CAIRO_ANTIALIASING_MODE
+    {
+        NONE,
+        FAST,
+        GOOD,
+        BEST,
+    };
+
     class GAL_DISPLAY_OPTIONS;
 
     class GAL_DISPLAY_OPTIONS_OBSERVER
@@ -66,12 +76,37 @@ namespace KIGFX
     public:
         GAL_DISPLAY_OPTIONS();
 
-        void ReadConfig ( wxConfigBase* aCfg, const wxString& aBaseName );
-        void WriteConfig( wxConfigBase* aCfg, const wxString& aBaseName );
+        /**
+         * Read GAL config options from applicaton-level config
+         * @param aCfg      the application config base
+         * @param aBaseName the application's GAL options key prefix
+         */
+        void ReadAppConfig( wxConfigBase& aCfg, const wxString& aBaseName );
+
+        /**
+         * Read GAL config options from the common config store
+         * @param aCommonConfig the common config store
+         * @param aWindow       the wx parent window (used for DPI scaling)
+         */
+        void ReadCommonConfig( wxConfigBase& aCommonConfig, wxWindow* aWindow );
+
+        /**
+         * Read application and common configs
+         * @param aCommonConfig the common config store
+         * @param aCfg          the application config base
+         * @param aBaseName     the application's GAL options key prefix
+         * @param aWindow       the wx parent window (used for DPI scaling)
+         */
+        void ReadConfig( wxConfigBase& aCommonConfig, wxConfigBase& aAppCondfig,
+                const wxString& aBaseCfgName, wxWindow* aWindow );
+
+        void WriteConfig( wxConfigBase& aCfg, const wxString& aBaseName );
 
         void NotifyChanged();
 
         OPENGL_ANTIALIASING_MODE gl_antialiasing_mode;
+
+        CAIRO_ANTIALIASING_MODE cairo_antialiasing_mode;
 
         ///> The grid style to draw the grid in
         KIGFX::GRID_STYLE m_gridStyle;
@@ -90,6 +125,9 @@ namespace KIGFX
 
         ///> Force cursor display
         bool m_forceDisplayCursor;
+
+        ///> The pixel scale factor (>1 for hi-DPI scaled displays)
+        double m_scaleFactor;
     };
 
 }

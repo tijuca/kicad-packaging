@@ -7,23 +7,23 @@ add_definitions(-DGERBVIEW)
 
 include_directories( BEFORE ${INC_BEFORE} )
 include_directories(
+    ../include/legacy_wx
     ../pcbnew
     dialogs
+    ../common
     ../3d-viewer
-    ../polygon
     ${INC_AFTER}
     )
 
 
 set( DIALOGS_SRCS
-    dialogs/gerbview_dialog_display_options_frame_base.cpp
-    dialogs/gerbview_dialog_display_options_frame.cpp
+    dialogs/panel_gerbview_display_options.cpp
+    dialogs/panel_gerbview_display_options_base.cpp
+    dialogs/panel_gerbview_settings.cpp
+    dialogs/panel_gerbview_settings_base.cpp
     dialogs/dialog_layers_select_to_pcb_base.cpp
-    dialogs/dialog_print_using_printer.cpp
-    dialogs/dialog_print_using_printer_base.cpp
+    dialogs/dialog_print_gerbview.cpp
     dialogs/dialog_select_one_pcb_layer.cpp
-    dialogs/dialog_show_page_borders.cpp
-    dialogs/dialog_show_page_borders_base.cpp
     )
 
 set( GERBVIEW_SRCS
@@ -37,6 +37,7 @@ set( GERBVIEW_SRCS
     gerber_file_image_list.cpp
     gerber_draw_item.cpp
     gerbview_layer_widget.cpp
+    gerbview_printout.cpp
     gbr_layer_box_selector.cpp
     X2_gerber_attributes.cpp
     clear_gbr_drawlayers.cpp
@@ -57,7 +58,6 @@ set( GERBVIEW_SRCS
     menubar.cpp
     onleftclick.cpp
     onrightclick.cpp
-    printout_control.cpp
     readgerb.cpp
     rs274_read_XY_and_IJ_coordinates.cpp
     rs274d.cpp
@@ -78,7 +78,7 @@ set( GERBVIEW_EXTRA_SRCS
     ../common/base_screen.cpp
     ../common/base_units.cpp
     ../common/eda_text.cpp
-    ../common/layer_box_selector.cpp
+    ../common/widgets/layer_box_selector.cpp
     ../common/lset.cpp
     ../common/settings.cpp
     ../pcbnew/layer_widget.cpp
@@ -118,8 +118,8 @@ target_link_libraries( gerbview
     #singletop  # replaces common, giving us restrictive control and link warnings.
     # There's way too much crap coming in from common yet.
     common
-    bitmaps
     gal
+    legacy_wx
     ${wxWidgets_LIBRARIES}
     )
 
@@ -142,9 +142,14 @@ set_target_properties( gerbview_kiface PROPERTIES
     )
 target_link_libraries( gerbview_kiface
     common
-    polygon
-    bitmaps
     gal
+    legacy_wx
+    common
+    gal
+    legacy_wx
+    common
+    gal
+    legacy_wx
     ${wxWidgets_LIBRARIES}
     ${GDI_PLUS_LIBRARIES}
     )

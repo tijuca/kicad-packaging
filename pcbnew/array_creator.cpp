@@ -27,9 +27,27 @@
  */
 
 #include "array_creator.h"
+
+#include <array_pad_name_provider.h>
 #include <board_commit.h>
+#include <pad_naming.h>
 
 #include <dialogs/dialog_create_array.h>
+
+/**
+ * Transform a #BOARD_ITEM from the given #ARRAY_OPTIONS and an index into the array.
+ *
+ * @param aArrOpts The array options that describe the array
+ * @param aIndex   The index in the array of this item
+ * @param aItem    The item to transform
+ */
+static void TransformItem( const ARRAY_OPTIONS& aArrOpts, int aIndex, BOARD_ITEM& aItem )
+{
+    const ARRAY_OPTIONS::TRANSFORM transform = aArrOpts.GetTransform( aIndex, aItem.GetPosition() );
+
+    aItem.Move( (wxPoint) transform.m_offset );
+    aItem.Rotate( aItem.GetPosition(), transform.m_rotation * 10 );
+}
 
 
 void ARRAY_CREATOR::Invoke()
@@ -49,12 +67,14 @@ void ARRAY_CREATOR::Invoke()
     DIALOG_CREATE_ARRAY dialog( &m_parent, enableArrayNumbering, rotPoint );
     int ret = dialog.ShowModal();
 
-    DIALOG_CREATE_ARRAY::ARRAY_OPTIONS* const array_opts = dialog.GetArrayOptions();
+    ARRAY_OPTIONS* const array_opts = dialog.GetArrayOptions();
 
     if( ret != wxID_OK || array_opts == NULL )
         return;
 
     BOARD_COMMIT commit( &m_parent );
+
+    ARRAY_PAD_NAME_PROVIDER pad_name_provider( module, *array_opts );
 
     for ( int i = 0; i < numItems; ++i )
     {
@@ -67,44 +87,75 @@ void ARRAY_CREATOR::Invoke()
         }
 
         // The first item in list is the original item. We do not modify it
-        for( int ptN = 1; ptN < array_opts->GetArraySize(); ptN++ )
+        for( int ptN = 0; ptN < array_opts->GetArraySize(); ptN++ )
         {
-            BOARD_ITEM* new_item;
+            BOARD_ITEM* this_item;
 
-            if( isModuleEditor )
+            if( ptN == 0 )
             {
-                // increment pad numbers if do any renumbering
-                // (we will number again later according to the numbering scheme if set)
-                new_item = module->Duplicate( item, array_opts->ShouldNumberItems() );
+                // the first point: we don't own this or add it, but
+                // we might still modify it (position or label)
+                this_item = item;
             }
             else
             {
-                // PCB items keep the same numbering
-                new_item = getBoard()->Duplicate( item );
+                // Need to create a new item
+                std::unique_ptr<BOARD_ITEM> new_item;
 
-                // @TODO: we should merge zones. This is a bit tricky, because
-                // the undo command needs saving old area, if it is merged.
+                if( isModuleEditor )
+                {
+                    // Don't bother incrementing pads: the module won't update
+                    // until commit, so we can only do this once
+                    new_item.reset( module->Duplicate( item, false ) );
+                }
+                else
+                {
+                    new_item.reset( getBoard()->Duplicate( item ) );
+
+                    // PCB items keep the same numbering
+
+                    // @TODO: renumber modules if asked. This needs UI to enable.
+                    // something like this, but needs a "block offset" to prevent
+                    // multiple selections overlapping.
+                    // if( new_item->Type() == PCB_MODULE_T )
+                    //     static_cast<MODULE&>( *new_item ).IncrementReference( ptN );
+
+                    // @TODO: we should merge zones. This is a bit tricky, because
+                    // the undo command needs saving old area, if it is merged.
+                }
+
+                this_item = new_item.get();
+
+                if( new_item )
+                {
+                    prePushAction( this_item );
+                    commit.Add( new_item.release() );
+                    postPushAction( this_item );
+                }
             }
 
-            if( new_item )
+            // always transform the item
+            if( this_item )
             {
-                array_opts->TransformItem( ptN, new_item, rotPoint );
-                prePushAction( new_item );
-                commit.Add( new_item );
-                postPushAction( new_item );
+                commit.Modify( this_item );
+                TransformItem( *array_opts, ptN, *this_item );
             }
 
             // attempt to renumber items if the array parameters define
             // a complete numbering scheme to number by (as opposed to
             // implicit numbering by incrementing the items during creation
-            if( new_item && array_opts->NumberingStartIsSpecified() )
+            if( this_item && array_opts->ShouldNumberItems() )
             {
-                // Renumber pads. Only new pad number renumbering has meaning,
-                // in the footprint editor.
-                if( new_item->Type() == PCB_PAD_T )
+                // Renumber non-aperture pads.
+                if( this_item->Type() == PCB_PAD_T )
                 {
-                    const wxString padName = array_opts->GetItemNumber( ptN );
-                    static_cast<D_PAD*>( new_item )->SetName( padName );
+                    auto& pad = static_cast<D_PAD&>( *this_item );
+
+                    if( PAD_NAMING::PadCanHaveName( pad ) )
+                    {
+                        wxString newName = pad_name_provider.GetNextPadName();
+                        pad.SetName( newName );
+                    }
                 }
             }
         }

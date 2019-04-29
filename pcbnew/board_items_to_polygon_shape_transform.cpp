@@ -33,6 +33,7 @@
 #include <vector>
 
 #include <fctsys.h>
+#include <bezier_curves.h>
 #include <base_units.h>     // for IU_PER_MM
 #include <draw_graphic_text.h>
 #include <pcbnew.h>
@@ -79,7 +80,7 @@ static void addTextSegmToPoly( int x0, int y0, int xf, int yf, void* aData )
 void BOARD::ConvertBrdLayerToPolygonalContours( PCB_LAYER_ID aLayer, SHAPE_POLY_SET& aOutlines )
 {
     // Number of segments to convert a circle to a polygon
-    const int       segcountforcircle   = 18;
+    const int       segcountforcircle   = ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF;
     double          correctionFactor    = GetCircletoPolyCorrectionFactor( segcountforcircle );
 
     // convert tracks and vias:
@@ -406,8 +407,8 @@ void ZONE_CONTAINER::TransformSolidAreasShapesToPolygonSet(
  * @param aCornerBuffer = a buffer to store the polygon
  * @param aClearanceValue = the clearance around the text bounding box
  */
-void TEXTE_PCB::TransformBoundingBoxWithClearanceToPolygon(
-                    SHAPE_POLY_SET& aCornerBuffer,
+void EDA_TEXT::TransformBoundingBoxWithClearanceToPolygon(
+                    SHAPE_POLY_SET* aCornerBuffer,
                     int             aClearanceValue ) const
 {
     // Oh dear.  When in UTF-8 mode, wxString puts string iterators in a linked list, and
@@ -430,13 +431,13 @@ void TEXTE_PCB::TransformBoundingBoxWithClearanceToPolygon(
     corners[3].y = corners[2].y;
     corners[3].x = corners[0].x;
 
-    aCornerBuffer.NewOutline();
+    aCornerBuffer->NewOutline();
 
     for( int ii = 0; ii < 4; ii++ )
     {
         // Rotate polygon
         RotatePoint( &corners[ii].x, &corners[ii].y, GetTextPos().x, GetTextPos().y, GetTextAngle() );
-        aCornerBuffer.Append( corners[ii].x, corners[ii].y );
+        aCornerBuffer->Append( corners[ii].x, corners[ii].y );
     }
 }
 
@@ -509,14 +510,19 @@ void TEXTE_PCB::TransformShapeWithClearanceToPolygonSet(
  * @param aCorrectionFactor = the correction to apply to circles radius to keep
  * clearance when the circle is approxiamted by segment bigger or equal
  * to the real clearance value (usually near from 1.0)
+ * @param ignoreLineWidth = used for edge cut items where the line width is only
+ * for visualization
  */
 void DRAWSEGMENT::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
                                                         int             aClearanceValue,
                                                         int             aCircleToSegmentsCount,
-                                                        double          aCorrectionFactor ) const
+                                                        double          aCorrectionFactor,
+                                                        bool            ignoreLineWidth ) const
 {
     // The full width of the lines to create:
-    int linewidth = m_Width + (2 * aClearanceValue);
+    int linewidth = ignoreLineWidth ? 0 : m_Width;
+
+    linewidth += 2 * aClearanceValue;
 
     // Creating a reliable clearance shape for circles and arcs is not so easy, due to
     // the error created by segment approximation.
@@ -572,6 +578,20 @@ void DRAWSEGMENT::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerB
                 poly[ii] += offset;
             }
 
+            // If the polygon is not filled, treat it as a closed set of lines
+            if( !IsPolygonFilled() )
+            {
+                for( size_t ii = 1; ii < poly.size(); ii++ )
+                {
+                    TransformOvalClearanceToPolygon( aCornerBuffer, poly[ii - 1], poly[ii],
+                            linewidth, aCircleToSegmentsCount, aCorrectionFactor );
+                }
+
+                TransformOvalClearanceToPolygon( aCornerBuffer, poly.back(), poly.front(),
+                        linewidth, aCircleToSegmentsCount, aCorrectionFactor );
+                break;
+            }
+
             // Generate polygons for the outline + clearance
             // This code is compatible with a polygon with holes linked to external outline
             // by overlapping segments.
@@ -602,7 +622,19 @@ void DRAWSEGMENT::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerB
         }
         break;
 
-    case S_CURVE:       // Bezier curve (TODO: not yet in use)
+    case S_CURVE:       // Bezier curve
+        {
+            std::vector<wxPoint> ctrlPoints = { m_Start, m_BezierC1, m_BezierC2, m_End };
+            BEZIER_POLY converter( ctrlPoints );
+            std::vector< wxPoint> poly;
+            converter.GetPoly( poly, m_Width );
+
+            for( unsigned ii = 1; ii < poly.size(); ii++ )
+            {
+                TransformRoundedEndsSegmentToPolygon( aCornerBuffer,
+                        poly[ii-1], poly[ii], aCircleToSegmentsCount, linewidth );
+            }
+        }
         break;
 
     default:
@@ -622,12 +654,17 @@ void DRAWSEGMENT::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerB
  * @param aCorrectionFactor = the correction to apply to circles radius to keep
  * clearance when the circle is approximated by segment bigger or equal
  * to the real clearance value (usually near from 1.0)
+ * @param ignoreLineWidth = used for edge cut items where the line width is only
+ * for visualization
  */
 void TRACK::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
                                                    int  aClearanceValue,
                                                    int  aCircleToSegmentsCount,
-                                                   double aCorrectionFactor ) const
+                                                   double aCorrectionFactor,
+                                                   bool ignoreLineWidth ) const
 {
+    wxASSERT_MSG( !ignoreLineWidth, "IgnoreLineWidth has no meaning for tracks." );
+
     switch( Type() )
     {
     case PCB_VIA_T:
@@ -658,12 +695,17 @@ void TRACK::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
  * aCorrectionFactor = the correction to apply to circles radius to keep
  * clearance when the circle is approximated by segment bigger or equal
  * to the real clearance value (usually near from 1.0)
+ * @param ignoreLineWidth = used for edge cut items where the line width is only
+ * for visualization
  */
 void D_PAD::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
                                                    int             aClearanceValue,
                                                    int             aCircleToSegmentsCount,
-                                                   double          aCorrectionFactor ) const
+                                                   double          aCorrectionFactor,
+                                                   bool            ignoreLineWidth ) const
 {
+    wxASSERT_MSG( !ignoreLineWidth, "IgnoreLineWidth has no meaning for pads." );
+
     double  angle = m_Orient;
     int     dx = (m_Size.x / 2) + aClearanceValue;
     int     dy = (m_Size.y / 2) + aClearanceValue;
@@ -904,16 +946,17 @@ void    CreateThermalReliefPadPolygon( SHAPE_POLY_SET& aCornerBuffer,
      * copper_thickness must be decreased by aMinThicknessValue because drawing outlines
      * with a thickness of aMinThicknessValue will increase real thickness by aMinThicknessValue
      */
-    aCopperThickness -= aMinThicknessValue;
-
-    if( aCopperThickness < 0 )
-        aCopperThickness = 0;
-
     int     dx = aPad.GetSize().x / 2;
     int     dy = aPad.GetSize().y / 2;
 
-    copper_thickness.x = std::min( dx, aCopperThickness );
-    copper_thickness.y = std::min( dy, aCopperThickness );
+    copper_thickness.x = std::min( aPad.GetSize().x, aCopperThickness ) - aMinThicknessValue;
+    copper_thickness.y = std::min( aPad.GetSize().y, aCopperThickness ) - aMinThicknessValue;
+
+    if( copper_thickness.x < 0 )
+        copper_thickness.x = 0;
+
+    if( copper_thickness.y < 0 )
+        copper_thickness.y = 0;
 
     switch( aPad.GetShape() )
     {
@@ -1135,12 +1178,12 @@ void    CreateThermalReliefPadPolygon( SHAPE_POLY_SET& aCornerBuffer,
             /* we create 4 copper holes and put them in position 1, 2, 3 and 4
              * here is the area of the rectangular pad + its thermal gap
              * the 4 copper holes remove the copper in order to create the thermal gap
-             * 4 ------ 1
+             * 1 ------ 4
              * |        |
              * |        |
              * |        |
              * |        |
-             * 3 ------ 2
+             * 2 ------ 3
              * hole 3 is the same as hole 1, rotated 180 deg
              * hole 4 is the same as hole 2, rotated 180 deg and is the same as hole 1, mirrored
              */
@@ -1160,30 +1203,63 @@ void    CreateThermalReliefPadPolygon( SHAPE_POLY_SET& aCornerBuffer,
             dx = (aPad.GetSize().x / 2) + aThermalGap;         // Cutout radius x
             dy = (aPad.GetSize().y / 2) + aThermalGap;         // Cutout radius y
 
+            // calculation is optimized for pad shape with dy >= dx (vertical rectangle).
+            // if it is not the case, just rotate this shape 90 degrees:
+            double angle = aPad.GetOrientation();
+            wxPoint corner_origin_pos( -aPad.GetSize().x / 2, -aPad.GetSize().y / 2 );
+
+            if( dy < dx )
+            {
+                std::swap( dx, dy );
+                std::swap( copper_thickness.x, copper_thickness.y );
+                std::swap( corner_origin_pos.x, corner_origin_pos.y );
+                angle += 900.0;
+            }
+            // Now calculate the hole pattern in position 1 ( top left pad corner )
+
             // The first point of polygon buffer is left lower corner, second the crosspoint of
             // thermal spoke sides, the third is upper right corner and the rest are rounding
-            // vertices going anticlockwise. Note the inveted Y-axis in CG.
-            corners_buffer.push_back( wxPoint( -dx, -(aThermalGap / 4 + copper_thickness.y / 2) ) );    // Adds small miters to zone
+            // vertices going anticlockwise. Note the inverted Y-axis in corners_buffer y coordinates.
+            wxPoint arc_end_point( -dx, -(aThermalGap / 4 + copper_thickness.y / 2) );
+            corners_buffer.push_back( arc_end_point );          // Adds small miters to zone
             corners_buffer.push_back( wxPoint( -(dx - aThermalGap / 4), -copper_thickness.y / 2 ) );    // fill and spoke corner
             corners_buffer.push_back( wxPoint( -copper_thickness.x / 2, -copper_thickness.y / 2 ) );
             corners_buffer.push_back( wxPoint( -copper_thickness.x / 2, -(dy - aThermalGap / 4) ) );
-            corners_buffer.push_back( wxPoint( -(aThermalGap / 4 + copper_thickness.x / 2), -dy ) );
+            // The first point to build the rounded corner:
+            wxPoint arc_start_point( -(aThermalGap / 4 + copper_thickness.x / 2) , -dy );
+            corners_buffer.push_back( arc_start_point );
 
-            double angle = aPad.GetOrientation();
             int rounding_radius = KiROUND( aThermalGap * aCorrectionFactor );   // Corner rounding radius
 
-            for( int i = 0; i < aCircleToSegmentsCount / 4 + 1; i++ )
+            // Calculate arc angle parameters.
+            // the start angle id near 900 decidegrees, the final angle is near 1800.0 decidegrees.
+            double arc_increment = 3600.0 / aCircleToSegmentsCount;
+
+            // the arc_angle_start is 900.0 or slighly more, depending on the actual arc starting point
+            double arc_angle_start = atan2( -arc_start_point.y -corner_origin_pos.y, arc_start_point.x - corner_origin_pos.x ) * 1800/M_PI;
+            if( arc_angle_start < 900.0 )
+                arc_angle_start = 900.0;
+
+            bool first_point = true;
+            for( double curr_angle = arc_angle_start; ; curr_angle += arc_increment )
             {
-                wxPoint corner_position = wxPoint( 0, -rounding_radius );
+                wxPoint corner_position = wxPoint( rounding_radius, 0 );
+                RotatePoint( &corner_position, curr_angle );        // Rounding vector rotation
+                corner_position += corner_origin_pos;               // Rounding vector + Pad corner offset
 
-                // Start at half increment offset
-                RotatePoint( &corner_position, 1800.0 / aCircleToSegmentsCount );
-                double angle_pg = i * delta;
+                // The arc angle is <= 90 degrees, therefore the arc is finished if the x coordinate
+                // decrease or the y coordinate is smaller than the y end point
+                if( !first_point &&
+                    ( corner_position.x >= corners_buffer.back().x || corner_position.y > arc_end_point.y ) )
+                    break;
 
-                RotatePoint( &corner_position, angle_pg );          // Rounding vector rotation
-                corner_position -= aPad.GetSize() / 2;              // Rounding vector + Pad corner offset
+                first_point = false;
 
-                corners_buffer.push_back( wxPoint( corner_position.x, corner_position.y ) );
+                // Note: for hole in position 1, arc x coordinate is always < x starting point
+                // and arc y coordinate is always <= y ending point
+                if( corner_position != corners_buffer.back()    // avoid duplicate corners.
+                    && corner_position.x <= arc_start_point.x )   // skip current point at the right of the starting point
+                    corners_buffer.push_back( corner_position );
             }
 
             for( int irect = 0; irect < 2; irect++ )
@@ -1261,7 +1337,7 @@ void    CreateThermalReliefPadPolygon( SHAPE_POLY_SET& aCornerBuffer,
 
         stub.NewOutline();
 
-        for( unsigned ii = 0; ii < DIM( stubBuffer ); ii++ )
+        for( unsigned ii = 0; ii < arrayDim( stubBuffer ); ii++ )
         {
             wxPoint cpos = stubBuffer[ii];
             RotatePoint( &cpos, aPad.GetOrientation() );
@@ -1283,7 +1359,7 @@ void    CreateThermalReliefPadPolygon( SHAPE_POLY_SET& aCornerBuffer,
         stub.RemoveAllContours();
         stub.NewOutline();
 
-        for( unsigned ii = 0; ii < DIM( stubBuffer ); ii++ )
+        for( unsigned ii = 0; ii < arrayDim( stubBuffer ); ii++ )
         {
             wxPoint cpos = stubBuffer[ii];
             RotatePoint( &cpos, aPad.GetOrientation() );
@@ -1308,8 +1384,11 @@ void    CreateThermalReliefPadPolygon( SHAPE_POLY_SET& aCornerBuffer,
 void ZONE_CONTAINER::TransformShapeWithClearanceToPolygon( SHAPE_POLY_SET& aCornerBuffer,
                                                         int             aClearanceValue,
                                                         int             aCircleToSegmentsCount,
-                                                        double          aCorrectionFactor ) const
+                                                        double          aCorrectionFactor,
+                                                        bool            ignoreLineWidth ) const
 {
+    wxASSERT_MSG( !ignoreLineWidth, "IgnoreLineWidth has no meaning for zones." );
+
     aCornerBuffer = m_FilledPolysList;
     aCornerBuffer.Simplify( SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
 }

@@ -114,7 +114,7 @@ void TEXTE_PCB::Draw( EDA_DRAW_PANEL* panel, wxDC* DC,
 }
 
 
-void TEXTE_PCB::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
+void TEXTE_PCB::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList )
 {
     wxString    msg;
 
@@ -135,13 +135,13 @@ void TEXTE_PCB::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
     msg.Printf( wxT( "%.1f" ), GetTextAngle() / 10.0 );
     aList.push_back( MSG_PANEL_ITEM( _( "Angle" ), msg, DARKGREEN ) );
 
-    msg = ::CoordinateToString( GetThickness() );
+    msg = MessageTextFromValue( aUnits, GetThickness() );
     aList.push_back( MSG_PANEL_ITEM( _( "Thickness" ), msg, MAGENTA ) );
 
-    msg = ::CoordinateToString( GetTextWidth() );
+    msg = MessageTextFromValue( aUnits, GetTextWidth() );
     aList.push_back( MSG_PANEL_ITEM( _( "Width" ), msg, RED ) );
 
-    msg = ::CoordinateToString( GetTextHeight() );
+    msg = MessageTextFromValue( aUnits, GetTextHeight() );
     aList.push_back( MSG_PANEL_ITEM( _( "Height" ), msg, RED ) );
 }
 
@@ -175,17 +175,21 @@ void TEXTE_PCB::Flip( const wxPoint& aCentre )
 
     SetLayer( FlipLayer( GetLayer(), copperLayerCount ) );
     SetMirrored( !IsMirrored() );
+
+    // adjust justified text for mirroring
+    if( GetHorizJustify() == GR_TEXT_HJUSTIFY_LEFT || GetHorizJustify() == GR_TEXT_HJUSTIFY_RIGHT )
+    {
+        if( ( GetHorizJustify() == GR_TEXT_HJUSTIFY_RIGHT ) == IsMirrored() )
+            SetTextX( GetTextPos().x - GetTextBox().GetWidth() );
+        else
+            SetTextX( GetTextPos().x + GetTextBox().GetWidth() );
+    }
 }
 
 
-wxString TEXTE_PCB::GetSelectMenuText() const
+wxString TEXTE_PCB::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
-    wxString text;
-
-    text.Printf( _( "Pcb Text \"%s\" on %s"),
-                 GetChars ( ShortenedShownText() ), GetChars( GetLayerName() ) );
-
-    return text;
+    return wxString::Format( _( "Pcb Text \"%s\" on %s"), ShortenedShownText(), GetLayerName() );
 }
 
 

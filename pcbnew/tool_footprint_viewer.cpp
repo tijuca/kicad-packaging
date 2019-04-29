@@ -39,25 +39,33 @@
 
 void FOOTPRINT_VIEWER_FRAME::ReCreateHToolbar()
 {
+    // Note:
+    // To rebuild the aui toolbar, the more easy way is to clear ( calling m_mainToolBar.Clear() )
+    // all wxAuiToolBarItems.
+    // However the wxAuiToolBarItems are not the owners of controls managed by
+    // them ( m_zoomSelectBox and m_gridSelectBox ), and therefore do not delete them
+    // So we do not recreate them after clearing the tools.
+
     wxString msg;
 
     if( m_mainToolBar )
         m_mainToolBar->Clear();
     else
         m_mainToolBar = new wxAuiToolBar( this, wxID_ANY, wxDefaultPosition, wxDefaultSize,
-                                          KICAD_AUI_TB_STYLE | wxAUI_TB_HORZ_LAYOUT
-                                            | wxAUI_TB_OVERFLOW );
+                                          KICAD_AUI_TB_STYLE | wxAUI_TB_HORZ_LAYOUT  );
 
     // Set up toolbar
-    m_mainToolBar->AddTool( ID_MODVIEW_SELECT_LIB, wxEmptyString,
-                            KiScaledBitmap( library_xpm, this ),
-                            _( "Select library to browse" ) );
-
     m_mainToolBar->AddTool( ID_MODVIEW_SELECT_PART, wxEmptyString,
-                            KiScaledBitmap( module_xpm, this ),
+                            KiScaledBitmap( load_module_lib_xpm, this ),
                             _( "Select footprint to browse" ) );
 
     KiScaledSeparator( m_mainToolBar, this );
+
+    m_mainToolBar->AddTool( ID_MODVIEW_OPTIONS, wxEmptyString,
+                            KiScaledBitmap( config_xpm, this ),
+                            _( "Display options" ) );
+
+    m_mainToolBar->AddSeparator();
 
     m_mainToolBar->AddTool( ID_MODVIEW_PREVIOUS, wxEmptyString,
                             KiScaledBitmap( lib_previous_xpm, this ),
@@ -69,39 +77,54 @@ void FOOTPRINT_VIEWER_FRAME::ReCreateHToolbar()
 
     KiScaledSeparator( m_mainToolBar, this );
 
+    msg = AddHotkeyName( _( "Redraw view" ), g_Module_Viewer_Hotkeys_Descr, HK_ZOOM_REDRAW );
+    m_mainToolBar->AddTool( ID_VIEWER_ZOOM_REDRAW, wxEmptyString,
+                            KiScaledBitmap( zoom_redraw_xpm, this ), msg );
+
+    msg = AddHotkeyName( _( "Zoom in" ), g_Module_Viewer_Hotkeys_Descr, HK_ZOOM_IN, IS_COMMENT );
+    m_mainToolBar->AddTool( ID_VIEWER_ZOOM_IN, wxEmptyString,
+                            KiScaledBitmap( zoom_in_xpm, this ), msg );
+
+    msg = AddHotkeyName( _( "Zoom out" ), g_Module_Viewer_Hotkeys_Descr, HK_ZOOM_OUT, IS_COMMENT );
+    m_mainToolBar->AddTool( ID_VIEWER_ZOOM_OUT, wxEmptyString,
+                            KiScaledBitmap( zoom_out_xpm, this ), msg );
+
+    msg = AddHotkeyName( _( "Zoom to fit" ), g_Module_Viewer_Hotkeys_Descr, HK_ZOOM_AUTO );
+    m_mainToolBar->AddTool( ID_VIEWER_ZOOM_PAGE, wxEmptyString,
+                            KiScaledBitmap( zoom_fit_in_page_xpm, this ), msg );
+
+    KiScaledSeparator( m_mainToolBar, this );
+
     m_mainToolBar->AddTool( ID_MODVIEW_SHOW_3D_VIEW, wxEmptyString,
                             KiScaledBitmap( three_d_xpm, this ),
                             _( "Show footprint in 3D viewer" ) );
 
-    KiScaledSeparator( m_mainToolBar, this );
-
-    msg = AddHotkeyName( _( "Zoom in" ), g_Module_Viewer_Hotkeys_Descr,
-                            HK_ZOOM_IN, IS_COMMENT );
-    m_mainToolBar->AddTool( ID_VIEWER_ZOOM_IN, wxEmptyString,
-                            KiScaledBitmap( zoom_in_xpm, this ), msg );
-
-    msg = AddHotkeyName( _( "Zoom out" ), g_Module_Viewer_Hotkeys_Descr,
-                            HK_ZOOM_OUT, IS_COMMENT );
-    m_mainToolBar->AddTool( ID_VIEWER_ZOOM_OUT, wxEmptyString,
-                            KiScaledBitmap( zoom_out_xpm, this ), msg );
-
-    msg = AddHotkeyName( _( "Redraw view" ), g_Module_Viewer_Hotkeys_Descr,
-                            HK_ZOOM_REDRAW );
-    m_mainToolBar->AddTool( ID_VIEWER_ZOOM_REDRAW, wxEmptyString,
-                            KiScaledBitmap( zoom_redraw_xpm, this ), msg );
-
-    msg = AddHotkeyName( _( "Zoom to fit footprint" ), g_Module_Viewer_Hotkeys_Descr,
-                            HK_ZOOM_AUTO );
-    m_mainToolBar->AddTool( ID_VIEWER_ZOOM_PAGE, wxEmptyString,
-                            KiScaledBitmap( zoom_fit_in_page_xpm, this ), msg );
-
     if( IsModal() )
     {
-        KiScaledSeparator( m_mainToolBar, this );
-        m_mainToolBar->AddTool( ID_MODVIEW_FOOTPRINT_EXPORT_TO_BOARD, wxEmptyString,
+        m_mainToolBar->AddTool( ID_MODVIEW_EXPORT_TO_BOARD, wxEmptyString,
                                 KiScaledBitmap( export_footprint_names_xpm, this ),
                                 _( "Insert footprint in board" ) );
     }
+
+    KiScaledSeparator( m_mainToolBar, this );
+
+    // Grid selection choice box.
+    if( m_gridSelectBox == nullptr )
+        m_gridSelectBox = new wxChoice( m_mainToolBar, ID_ON_GRID_SELECT,
+                                    wxDefaultPosition, wxDefaultSize, 0, NULL );
+
+    UpdateGridSelectBox();
+    m_mainToolBar->AddControl( m_gridSelectBox );
+
+    KiScaledSeparator( m_mainToolBar, this );
+
+    // Zoom selection choice box.
+    if( m_zoomSelectBox == nullptr )
+        m_zoomSelectBox = new wxChoice( m_mainToolBar, ID_ON_ZOOM_SELECT,
+                                    wxDefaultPosition, wxDefaultSize, 0, NULL );
+
+    updateZoomSelectBox();
+    m_mainToolBar->AddControl( m_zoomSelectBox );
 
     // after adding the buttons to the toolbar, must call Realize() to
     // reflect the changes
@@ -116,7 +139,7 @@ void FOOTPRINT_VIEWER_FRAME::ReCreateVToolbar()
 
 
 // Virtual function
-void FOOTPRINT_VIEWER_FRAME::ReCreateMenuBar( void )
+void FOOTPRINT_VIEWER_FRAME::ReCreateMenuBar()
 {
     // wxWidgets handles the Mac Application menu behind the scenes, but that means
     // we always have to start from scratch with a new wxMenuBar.
@@ -128,11 +151,6 @@ void FOOTPRINT_VIEWER_FRAME::ReCreateMenuBar( void )
 
     // Menu File:
     wxMenu* fileMenu = new wxMenu;
-
-    // Active library selection
-    AddMenuItem( fileMenu, ID_MODVIEW_SELECT_LIB, _("Set Active Library..."),
-                 _( "Select library to be displayed" ), KiBitmap( open_library_xpm ) );
-    fileMenu->AppendSeparator();
 
     // Close viewer
     AddMenuItem( fileMenu, wxID_EXIT,
@@ -151,8 +169,7 @@ void FOOTPRINT_VIEWER_FRAME::ReCreateMenuBar( void )
                           HK_ZOOM_OUT, IS_ACCELERATOR );
     AddMenuItem( viewMenu, ID_VIEWER_ZOOM_OUT, text, HELP_ZOOM_OUT, KiBitmap( zoom_out_xpm ) );
 
-    text = AddHotkeyName( _( "&Fit on Screen" ), g_Module_Viewer_Hotkeys_Descr,
-                          HK_ZOOM_AUTO  );
+    text = AddHotkeyName( _( "&Fit on Screen" ), g_Module_Viewer_Hotkeys_Descr, HK_ZOOM_AUTO  );
     AddMenuItem( viewMenu, ID_VIEWER_ZOOM_PAGE, text, _( "Zoom to fit footprint" ),
                  KiBitmap( zoom_fit_in_page_xpm ) );
 

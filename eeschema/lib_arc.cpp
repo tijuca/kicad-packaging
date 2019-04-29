@@ -29,7 +29,7 @@
 #include <fctsys.h>
 #include <gr_basic.h>
 #include <macros.h>
-#include <class_drawpanel.h>
+#include <sch_draw_panel.h>
 #include <plotter.h>
 #include <trigo.h>
 #include <base_units.h>
@@ -302,14 +302,26 @@ void LIB_ARC::Plot( PLOTTER* aPlotter, const wxPoint& aOffset, bool aFill,
     }
 
     bool already_filled = m_Fill == FILLED_WITH_BG_BODYCOLOR;
-    aPlotter->SetColor( GetLayerColor( LAYER_DEVICE ) );
-    aPlotter->Arc( pos, -t2, -t1, m_Radius, already_filled ? NO_FILL : m_Fill, GetPenSize() );
+    auto pen_size = GetPenSize();
+
+    if( !already_filled || pen_size > 0 )
+    {
+        pen_size = std::max( 0, pen_size );
+        aPlotter->SetColor( GetLayerColor( LAYER_DEVICE ) );
+        aPlotter->Arc( pos, -t2, -t1, m_Radius, already_filled ? NO_FILL : m_Fill, GetPenSize() );
+    }
 }
 
 
 int LIB_ARC::GetPenSize() const
 {
-    return ( m_Width == 0 ) ? GetDefaultLineThickness() : m_Width;
+    if( m_Width > 0 )
+        return m_Width;
+
+    if( m_Width == 0 )
+       return GetDefaultLineThickness();
+
+    return -1;   // a value to use a minimal pen size
 }
 
 
@@ -478,14 +490,14 @@ start(%d, %d), end(%d, %d), radius %d" ),
 }
 
 
-void LIB_ARC::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
+void LIB_ARC::GetMsgPanelInfo( EDA_UNITS_T aUnits, std::vector< MSG_PANEL_ITEM >& aList )
 {
     wxString msg;
     EDA_RECT bBox = GetBoundingBox();
 
-    LIB_ITEM::GetMsgPanelInfo( aList );
+    LIB_ITEM::GetMsgPanelInfo( aUnits, aList );
 
-    msg = StringFromValue( g_UserUnit, m_Width, true );
+    msg = MessageTextFromValue( aUnits, m_Width, true );
 
     aList.push_back( MSG_PANEL_ITEM( _( "Line Width" ), msg, BLUE ) );
 
@@ -496,12 +508,12 @@ void LIB_ARC::GetMsgPanelInfo( std::vector< MSG_PANEL_ITEM >& aList )
 }
 
 
-wxString LIB_ARC::GetSelectMenuText() const
+wxString LIB_ARC::GetSelectMenuText( EDA_UNITS_T aUnits ) const
 {
     return wxString::Format( _( "Arc center (%s, %s), radius %s" ),
-                             GetChars( CoordinateToString( m_Pos.x ) ),
-                             GetChars( CoordinateToString( m_Pos.y ) ),
-                             GetChars( CoordinateToString( m_Radius ) ) );
+                             MessageTextFromValue( aUnits, m_Pos.x ),
+                             MessageTextFromValue( aUnits, m_Pos.y ),
+                             MessageTextFromValue( aUnits, m_Radius ) );
 }
 
 
@@ -525,7 +537,6 @@ void LIB_ARC::BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition )
     {
         m_initialPos = m_Pos;
         m_initialCursorPos = aPosition;
-        SetEraseLastDrawItem();
     }
     else
     {
@@ -556,7 +567,6 @@ void LIB_ARC::BeginEdit( STATUS_FLAGS aEditMode, const wxPoint aPosition )
         }
 
         m_editState = 0;
-        SetEraseLastDrawItem();
     }
 
     m_Flags = aEditMode;
@@ -574,7 +584,6 @@ bool LIB_ARC::ContinueEdit( const wxPoint aPosition )
         {
             m_ArcEnd = aPosition;
             m_editState = 2;
-            SetEraseLastDrawItem( false );
             return true;              // Need third position to calculate center point.
         }
     }
@@ -588,14 +597,13 @@ void LIB_ARC::EndEdit( const wxPoint& aPosition, bool aAbort )
     wxCHECK_RET( ( m_Flags & ( IS_NEW | IS_MOVED | IS_RESIZED ) ) != 0,
                    wxT( "Bad call to EndEdit().  LIB_ARC is not being edited." ) );
 
-    SetEraseLastDrawItem( false );
     m_lastEditState = 0;
     m_editState = 0;
     m_Flags = 0;
 }
 
 
-void LIB_ARC::calcEdit( const wxPoint& aPosition )
+void LIB_ARC::CalcEdit( const wxPoint& aPosition )
 {
     if( m_Flags == IS_RESIZED )
     {
@@ -707,7 +715,6 @@ void LIB_ARC::calcEdit( const wxPoint& aPosition )
         m_Pos.y = cY;
         CalcRadiusAngles();
 
-        SetEraseLastDrawItem();
     }
     else if( m_Flags == IS_MOVED )
     {

@@ -71,7 +71,7 @@ struct TOOL_MANAGER::TOOL_STATE
 
     ~TOOL_STATE()
     {
-        assert( stateStack.empty() );
+        wxASSERT( stateStack.empty() );
     }
 
     /// The tool itself
@@ -109,7 +109,7 @@ struct TOOL_MANAGER::TOOL_STATE
     /// VIEW_CONTROLS settings to preserve settings when the tools are switched
     KIGFX::VC_SETTINGS vcSettings;
 
-    void operator=( const TOOL_STATE& aState )
+    TOOL_STATE& operator=( const TOOL_STATE& aState )
     {
         theTool = aState.theTool;
         idle = aState.idle;
@@ -123,6 +123,7 @@ struct TOOL_MANAGER::TOOL_STATE
         transitions = aState.transitions;
         vcSettings = aState.vcSettings;
         // do not copy stateStack
+        return *this;
     }
 
     bool operator==( const TOOL_MANAGER::TOOL_STATE& aRhs ) const
@@ -509,7 +510,7 @@ OPT<TOOL_EVENT> TOOL_MANAGER::ScheduleWait( TOOL_BASE* aTool, const TOOL_EVENT_L
 {
     TOOL_STATE* st = m_toolState[aTool];
 
-    assert( !st->pendingWait ); // everything collapses on two KiYield() in a row
+    wxASSERT( !st->pendingWait ); // everything collapses on two KiYield() in a row
 
     // indicate to the manager that we are going to sleep and we shall be
     // woken up when an event matching aConditions arrive
@@ -702,8 +703,8 @@ void TOOL_MANAGER::dispatchContextMenu( const TOOL_EVENT& aEvent )
         if( frame )
             frame->PopupMenu( menu.get() );
 
-        // Warp the cursor as long as the menu wasn't clicked out of
-        if( menu->GetSelected() >= 0 )
+        // Warp the cursor if a menu item was selected
+        if( menu->GetSelected() >= 0 && m_warpMouseAfterContextMenu )
             m_viewControls->WarpCursor( m_menuCursor, true, false );
         // Otherwise notify the tool of a cancelled menu
         else
@@ -712,6 +713,9 @@ void TOOL_MANAGER::dispatchContextMenu( const TOOL_EVENT& aEvent )
             evt.SetParameter( m );
             dispatchInternal( evt );
         }
+
+        // Restore setting in case it was vetoed
+        m_warpMouseAfterContextMenu = true;
 
         // Notify the tools that menu has been closed
         TOOL_EVENT evt( TC_COMMAND, TA_CONTEXT_MENU_CLOSED );

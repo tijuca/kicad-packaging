@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2004-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -38,6 +38,81 @@
  * the illegal file name characters for Linux and OSX.
  */
 static const char illegalFileNameChars[] = "\\/:\"<>|";
+
+
+wxString EscapeString( const wxString& aSource )
+{
+#if 1
+    return aSource;
+#else
+    wxString converted;
+
+    for( wxUniChar c: aSource )
+    {
+        if( c == '\"' )
+            converted += "&quot;";
+        else if( c == '\'' )
+            converted += "&apos;";
+        else if( c == '&' )
+            converted += "&amp;";
+        else if( c == '<' )
+            converted += "&lt;";
+        else if( c == '>' )
+            converted += "&gt;";
+        else if( c == '\\' )
+            converted += "&Backslash;";
+        else if( c == '/' )
+            converted += "&frasl;";
+        else if( c == '|' )
+            converted += "&verbar;";
+        else if( c == ':' )
+            converted += "&colon;";
+        else if( c == ' ' )
+            converted += "&nbsp;";
+        else if( c == '%' )
+            converted += "&percnt;";
+        else if( c == '$' )
+            converted += "&dollar;";
+        else if( c == '\t' )
+            converted += "&tab;";
+        else if( c == '\n' || c == '\r' )
+            converted += "&Newline;";
+        else
+            converted += c;
+    }
+
+    return converted;
+#endif
+}
+
+
+wxString UnescapeString( const wxString& aSource )
+{
+#if 1
+    return aSource;
+#else
+    wxString converted = aSource;
+
+    converted.Replace( "&quot;", "\"" );
+    converted.Replace( "&apos;", "'" );
+    converted.Replace( "&lt;", "<" );
+    converted.Replace( "&gt;", ">" );
+    converted.Replace( "&Backslash;", "\\" );
+    converted.Replace( "&frasl;", "/" );
+    converted.Replace( "&verbar;", "|" );
+    converted.Replace( "&colon;", ":" );
+    converted.Replace( "&nbsp;", " " );
+    converted.Replace( "&percnt;", "%" );
+    converted.Replace( "&dollar;", "$" );
+    converted.Replace( "&tab;", "\t" );
+    converted.Replace( "&Newline;", "\n" );
+
+    // must be done last
+    converted.Replace( "&amp;", "&" );
+
+    return converted;
+#endif
+}
 
 
 int ReadDelimitedText( wxString* aDest, const char* aSource )
@@ -235,67 +310,79 @@ wxString DateAndTime()
 }
 
 
-int StrNumCmp( const wxString& aString1, const wxString& aString2, int aLength, bool aIgnoreCase )
+int StrNumCmp( const wxString& aString1, const wxString& aString2, bool aIgnoreCase )
 {
-    int i;
     int nb1 = 0, nb2 = 0;
 
-    wxString::const_iterator str1 = aString1.begin(), str2 = aString2.begin();
+    auto str1 = aString1.begin();
+    auto str2 = aString2.begin();
 
-    if( ( str1 == aString1.end() ) || ( str2 == aString2.end() ) )
-        return 0;
-
-    for( i = 0; i < aLength; i++ )
+    while( str1 != aString1.end() && str2 != aString2.end() )
     {
-        if( isdigit( *str1 ) && isdigit( *str2 ) ) /* digit found */
+        wxUniChar c1 = *str1;
+        wxUniChar c2 = *str2;
+
+        if( wxIsdigit( c1 ) && wxIsdigit( c2 ) ) // Both characters are digits, do numeric compare.
         {
             nb1 = 0;
             nb2 = 0;
 
-            while( isdigit( *str1 ) )
+            do
             {
-                nb1 = nb1 * 10 + (int) *str1 - '0';
+                c1 = *str1;
+                nb1 = nb1 * 10 + (int) c1 - '0';
                 ++str1;
-            }
+            } while( str1 != aString1.end() && wxIsdigit( *str1 ) );
 
-            while( isdigit( *str2 ) )
+            do
             {
-                nb2 = nb2 * 10 + (int) *str2 - '0';
+                c2 = *str2;
+                nb2 = nb2 * 10 + (int) c2 - '0';
                 ++str2;
-            }
+            } while( str2 != aString2.end() && wxIsdigit( *str2 ) );
 
             if( nb1 < nb2 )
                 return -1;
 
             if( nb1 > nb2 )
                 return 1;
+
+            c1 = ( str1 != aString1.end() ) ? *str1 : wxUniChar( 0 );
+            c2 = ( str2 != aString2.end() ) ? *str2 : wxUniChar( 0 );
         }
 
+        // Any numerical comparisons to here are identical.
         if( aIgnoreCase )
         {
-            if( toupper( *str1 ) < toupper( *str2 ) )
+            if( wxToupper( c1 ) < wxToupper( c2 ) )
                 return -1;
 
-            if( toupper( *str1 ) > toupper( *str2 ) )
+            if( wxToupper( c1 ) > wxToupper( c2 ) )
                 return 1;
-
-            if( ( *str1 == 0 ) && ( *str2 == 0 ) )
-                return 0;
         }
         else
         {
-            if( *str1 < *str2 )
+            if( c1 < c2 )
                 return -1;
 
-            if( *str1 > *str2 )
+            if( c1 > c2 )
                 return 1;
-
-            if( ( str1 == aString1.end() ) && ( str2 == aString2.end() ) )
-                return 0;
         }
 
-        ++str1;
-        ++str2;
+        if( str1 != aString1.end() )
+            ++str1;
+
+        if( str2 != aString2.end() )
+            ++str2;
+    }
+
+    if( str1 == aString1.end() && str2 != aString2.end() )
+    {
+        return -1;   // Identical to here but aString1 is longer.
+    }
+    else if( str1 != aString1.end() && str2 == aString2.end() )
+    {
+        return 1;    // Identical to here but aString2 is longer.
     }
 
     return 0;
@@ -410,17 +497,12 @@ bool ApplyModifier( double& value, const wxString& aString )
 }
 
 
-// Should handle:
-// a) Purely numerical e.g. '22'
-// b) Numerical with included units e.g. '15uF'
-// c) Numerical with included prefix but no units e.g. '20n'
-// d) Numerical with prefix inside number e.g. '4K7'
-// e) Other, e.g. 'MAX232'
-//
-// TODO: case (d) unimplemented !!!
-//
-int ValueStringCompare( const wxString& strFWord, const wxString& strSWord )
+int ValueStringCompare( wxString strFWord, wxString strSWord )
 {
+    // Compare unescaped text
+    strFWord = UnescapeString( strFWord );
+    strSWord = UnescapeString( strSWord );
+
     // The different sections of the two strings
     wxString strFWordBeg, strFWordMid, strFWordEnd;
     wxString strSWordBeg, strSWordMid, strSWordEnd;
@@ -463,43 +545,6 @@ int ValueStringCompare( const wxString& strFWord, const wxString& strSWord )
 }
 
 
-int RefDesStringCompare( const wxString& strFWord, const wxString& strSWord )
-{
-    // The different sections of the two strings
-    wxString strFWordBeg, strFWordMid, strFWordEnd;
-    wxString strSWordBeg, strSWordMid, strSWordEnd;
-
-    // Split the two strings into separate parts
-    SplitString( strFWord, &strFWordBeg, &strFWordMid, &strFWordEnd );
-    SplitString( strSWord, &strSWordBeg, &strSWordMid, &strSWordEnd );
-
-    // Compare the Beginning section of the strings
-    int isEqual = strFWordBeg.CmpNoCase( strSWordBeg );
-
-    if( isEqual > 0 )
-        return 1;
-    else if( isEqual < 0 )
-        return -1;
-    else
-    {
-        // If the first sections are equal compare their digits
-        long lFirstDigit  = 0;
-        long lSecondDigit = 0;
-
-        strFWordMid.ToLong( &lFirstDigit );
-        strSWordMid.ToLong( &lSecondDigit );
-
-        if( lFirstDigit > lSecondDigit )
-            return 1;
-        else if( lFirstDigit < lSecondDigit )
-            return -1;
-        // If the first two sections are equal compare the endings
-        else
-            return strFWordEnd.CmpNoCase( strSWordEnd );
-    }
-}
-
-
 int SplitString( wxString  strToSplit,
                  wxString* strBeginning,
                  wxString* strDigits,
@@ -521,7 +566,7 @@ int SplitString( wxString  strToSplit,
 
     for( ii = (strToSplit.length() - 1); ii >= 0; ii-- )
     {
-        if( isdigit( strToSplit[ii] ) )
+        if( wxIsdigit( strToSplit[ii] ) )
             break;
     }
 
@@ -540,7 +585,7 @@ int SplitString( wxString  strToSplit,
 
         for( ; ii >= 0; ii-- )
         {
-            if( !isdigit( strToSplit[ii] ) && separators.Find( strToSplit[ii] ) < 0 )
+            if( !wxIsdigit( strToSplit[ii] ) && separators.Find( strToSplit[ii] ) < 0 )
                 break;
         }
 
@@ -558,6 +603,30 @@ int SplitString( wxString  strToSplit,
     }
 
     return 0;
+}
+
+
+int GetTrailingInt( const wxString& aStr )
+{
+    int number = 0;
+    int base = 1;
+
+    // Trim and extract the trailing numeric part
+    int index = aStr.Len() - 1;
+
+    while( index >= 0 )
+    {
+        const char chr = aStr.GetChar( index );
+
+        if( chr < '0' || chr > '9' )
+            break;
+
+        number += ( chr - '0' ) * base;
+        base *= 10;
+        index--;
+    }
+
+    return number;
 }
 
 

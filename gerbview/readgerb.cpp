@@ -51,17 +51,20 @@ bool GERBVIEW_FRAME::Read_GERBER_File( const wxString& GERBER_FullFileName )
     }
 
     gerber = new GERBER_FILE_IMAGE( layer );
-    images->AddGbrImage( gerber, layer );
 
-    /* Read the gerber file */
+    // Read the gerber file. The image will be added only if it can be read
+    // to avoid broken data.
     bool success = gerber->LoadGerberFile( GERBER_FullFileName );
 
     if( !success )
     {
-        msg.Printf( _( "File \"%s\" not found" ), GetChars( GERBER_FullFileName ) );
+        delete gerber;
+        msg.Printf( _( "File \"%s\" not found" ), GERBER_FullFileName );
         DisplayError( this, msg, 10 );
         return false;
     }
+
+    images->AddGbrImage( gerber, layer );
 
     // Display errors list
     if( gerber->GetMessages().size() > 0 )
@@ -199,14 +202,14 @@ bool GERBER_FILE_IMAGE::LoadGerberFile( const wxString& aFullFileName )
                 }
                 else        //Error
                 {
-                    AddMessageToList( wxT("Expected RS274X Command")  );
+                    AddMessageToList( "Expected RS274X Command"  );
                     m_CommandState = CMD_IDLE;
                     text++;
                 }
                 break;
 
             default:
-                msg.Printf( wxT("Unexpected symbol <%c>"), *text );
+                msg.Printf( "Unexpected char 0x%2.2X &lt;%c&lt;", *text, *text );
                 AddMessageToList( msg );
                 text++;
                 break;

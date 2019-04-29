@@ -64,6 +64,9 @@ public:
     /// Unselects a list of items (specified as the event parameter)
     static TOOL_ACTION unselectItems;
 
+    /// Runs a selection menu to select from a list of items
+    static TOOL_ACTION selectionMenu;
+
     /// Selects a connection between junctions.
     static TOOL_ACTION selectConnection;
 
@@ -129,7 +132,12 @@ public:
     static TOOL_ACTION remove;
     static TOOL_ACTION removeAlt;
 
+    /// Break a single track into two segments at the cursor
     static TOOL_ACTION breakTrack;
+
+    /// Breaks track when router is not activated
+    static TOOL_ACTION inlineBreakTrack;
+
     static TOOL_ACTION drag45Degree;
     static TOOL_ACTION dragFreeAngle;
 
@@ -174,8 +182,8 @@ public:
     /// Activation of the drawing tool (placing a MODULE)
     static TOOL_ACTION placeModule;
 
-    /// Activation of the drawing tool (placing a drawing from DXF file)
-    static TOOL_ACTION placeDXF;
+    /// Activation of the drawing tool (placing a drawing imported from DXF or SVG file)
+    static TOOL_ACTION placeImportedGraphics;
 
     /// Activation of the drawing tool (placing the footprint anchor)
     static TOOL_ACTION setAnchor;
@@ -350,26 +358,6 @@ public:
 
     static TOOL_ACTION microwaveCreateLine;
 
-    /// Cursor control with keyboard
-    static TOOL_ACTION cursorUp;
-    static TOOL_ACTION cursorDown;
-    static TOOL_ACTION cursorLeft;
-    static TOOL_ACTION cursorRight;
-
-    static TOOL_ACTION cursorUpFast;
-    static TOOL_ACTION cursorDownFast;
-    static TOOL_ACTION cursorLeftFast;
-    static TOOL_ACTION cursorRightFast;
-
-    static TOOL_ACTION cursorClick;
-    static TOOL_ACTION cursorDblClick;
-
-    // Panning with keyboard
-    static TOOL_ACTION panUp;
-    static TOOL_ACTION panDown;
-    static TOOL_ACTION panLeft;
-    static TOOL_ACTION panRight;
-
     // Locking
     static TOOL_ACTION toggleLock;
     static TOOL_ACTION lock;
@@ -382,6 +370,7 @@ public:
     static TOOL_ACTION measureTool;
     static TOOL_ACTION switchCursor;
     static TOOL_ACTION switchUnits;
+    static TOOL_ACTION updateUnits;
     static TOOL_ACTION deleteItemCursor;
     static TOOL_ACTION clearHighlight;
     static TOOL_ACTION highlightNet;
@@ -391,8 +380,12 @@ public:
     static TOOL_ACTION crossProbeSchToPcb;
     static TOOL_ACTION appendBoard;
     static TOOL_ACTION showHelp;
-    static TOOL_ACTION showLocalRatsnest;
     static TOOL_ACTION toBeDone;
+
+    // Ratsnest
+    static TOOL_ACTION showLocalRatsnest;
+    static TOOL_ACTION hideLocalRatsnest;
+    static TOOL_ACTION updateLocalRatsnest;
 
     /// Find an item
     static TOOL_ACTION find;
@@ -401,10 +394,9 @@ public:
     static TOOL_ACTION findMove;
 
     static TOOL_ACTION editFootprintInFpEditor;
-    static TOOL_ACTION copyPadToSettings;
-    static TOOL_ACTION copySettingsToPads;
-    static TOOL_ACTION globalEditPads;
 
+    static TOOL_ACTION autoplaceOffboardComponents;
+    static TOOL_ACTION autoplaceSelectedComponents;
 
     ///> @copydoc COMMON_ACTIONS::TranslateLegacyId()
     virtual OPT<TOOL_EVENT> TranslateLegacyId( int aId ) override;

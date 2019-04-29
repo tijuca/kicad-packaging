@@ -47,6 +47,9 @@ DIALOG_PNS_SETTINGS::DIALOG_PNS_SETTINGS( wxWindow* aParent, PNS::ROUTING_SETTIN
     m_violateDrc->SetValue( m_settings.CanViolateDRC() );
     m_freeAngleMode->SetValue( m_settings.GetFreeAngleMode() );
     m_dragToolMode->SetSelection ( m_settings.InlineDragEnabled() ? 1 : 0 );
+    // Enable/disable some options
+    wxCommandEvent event;
+    onModeChange( event );
 
     // Don't show options that are not implemented
     m_suggestEnding->Hide();
@@ -80,10 +83,16 @@ void DIALOG_PNS_SETTINGS::OnOkClick( wxCommandEvent& aEvent )
 void DIALOG_PNS_SETTINGS::onModeChange( wxCommandEvent& aEvent )
 {
     if( m_mode->GetSelection() == PNS::RM_MarkObstacles )
+    {
         m_freeAngleMode->Enable();
+        m_violateDrc->Enable();
+    }
     else
     {
         m_freeAngleMode->SetValue( false );
         m_freeAngleMode->Enable( false );
+
+        m_violateDrc->SetValue( false );
+        m_violateDrc->Enable( false );
     }
 }
