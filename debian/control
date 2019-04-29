@@ -182,7 +182,7 @@ Description: Kicad help files (German)
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
   * CvPcb - Component association of Footprints
-  * Eeschema -schematic capture editor
+  * Eeschema - schematic capture editor
   * GerbView - Gerber file viewer (RS 274 X format)
   * GSIK - Getting Started in KiCad
   * GUI Translation - HowTo Help to do GUI translation
@@ -202,7 +202,7 @@ Description: Kicad help files (English)
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
   * CvPcb - Component association of Footprints
-  * Eeschema -schematic capture editor
+  * Eeschema - schematic capture editor
   * GerbView - Gerber file viewer (RS 274 X format)
   * GSIK - Getting Started in KiCad
   * GUI Translation - HowTo Help to do GUI translation
@@ -224,7 +224,7 @@ Description: Kicad help files (Spanish)
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
   * CvPcb - Component association of Footprints
-  * Eeschema -schematic capture editor
+  * Eeschema - schematic capture editor
   * GerbView - Gerber file viewer (RS 274 X format)
   * GSIK - Getting Started in KiCad
   * KiCad - The main project editor
@@ -242,7 +242,7 @@ Description: Kicad help files (French)
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
   * CvPcb - Component association of Footprints
-  * Eeschema -schematic capture editor
+  * Eeschema - schematic capture editor
   * GSIK - Getting Started in KiCad
   * KiCad - The main project editor
   * Pcbnew - The printed circuit board software tool
@@ -258,7 +258,7 @@ Description: Kicad help files (Indonesian)
  This package provides various documentation files for KiCad in German, like
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
-  * Eeschema -schematic capture editor
+  * Eeschema - schematic capture editor
   * GSIK - Getting Started in KiCad
   * KiCad - The main project editor
 
@@ -273,7 +273,7 @@ Description: Kicad help files (Italian)
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
   * CvPcb - Component association of Footprints
-  * Eeschema -schematic capture editor
+  * Eeschema - schematic capture editor
   * GerbView - Gerber file viewer (RS 274 X format)
   * GSIK - Getting Started in KiCad
   * IDF Exporter - Export tool for IDFv3 boards and libraries
@@ -293,7 +293,7 @@ Description: Kicad help files (Japanese)
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
   * CvPcb - Component association of Footprints
-  * Eeschema -schematic capture editor
+  * Eeschema - schematic capture editor
   * GerbView - Gerber file viewer (RS 274 X format)
   * GSIK - Getting Started in KiCad
   * GUI Translation - HowTo Help to do GUI translation
@@ -314,7 +314,7 @@ Description: Kicad help files (Polish)
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
   * CvPcb - Component association of Footprints
-  * Eeschema -schematic capture editor
+  * Eeschema - schematic capture editor
   * GerbView - Gerber file viewer (RS 274 X format)
   * GSIK - Getting Started in KiCad
   * IDF Exporter - Export tool for IDFv3 boards and libraries
@@ -332,7 +332,7 @@ Description: Kicad help files (Russian)
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
   * CvPcb - Component association of Footprints
-  * Eeschema -schematic capture editor
+  * Eeschema - schematic capture editor
   * GerbView - Gerber file viewer (RS 274 X format)
   * GSIK - Getting Started in KiCad
   * GUI Translation - HowTo Help to do GUI translation
@@ -354,7 +354,7 @@ Description: Kicad help files (Chinese)
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
   * CvPcb - Component association of Footprints
-  * Eeschema -schematic capture editor
+  * Eeschema - schematic capture editor
   * GerbView - Gerber file viewer (RS 274 X format)
   * GSIK - Getting Started in KiCad
   * GUI Translation - HowTo Help to do GUI translation
