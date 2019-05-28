@@ -255,7 +255,7 @@ Multi-Arch: foreign
 Depends:
  ${misc:Depends},
 Description: Kicad help files (Indonesian)
- This package provides various documentation files for KiCad in German, like
+ This package provides various documentation files for KiCad in Indonesian, like
  the EPUB and the PDF files and also the OnLine HTML documentation for:
  .
   * Eeschema - schematic capture editor
