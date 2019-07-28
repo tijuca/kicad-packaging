@@ -396,12 +396,12 @@ bool SHAPE_POLY_SET::GetNeighbourIndexes( int aGlobalIndex, int* aPrevious, int*
 }
 
 
-bool SHAPE_POLY_SET::IsPolygonSelfIntersecting( int aPolygonIndex )
+bool SHAPE_POLY_SET::IsPolygonSelfIntersecting( int aPolygonIndex ) const
 {
-    SEGMENT_ITERATOR iterator = IterateSegmentsWithHoles( aPolygonIndex );
-    SEGMENT_ITERATOR innerIterator;
+    CONST_SEGMENT_ITERATOR iterator = CIterateSegmentsWithHoles( aPolygonIndex );
+    CONST_SEGMENT_ITERATOR innerIterator;
 
-    for( iterator = IterateSegmentsWithHoles( aPolygonIndex ); iterator; iterator++ )
+    for( iterator = CIterateSegmentsWithHoles( aPolygonIndex ); iterator; iterator++ )
     {
         SEG firstSegment = *iterator;
 
@@ -423,7 +423,7 @@ bool SHAPE_POLY_SET::IsPolygonSelfIntersecting( int aPolygonIndex )
 }
 
 
-bool SHAPE_POLY_SET::IsSelfIntersecting()
+bool SHAPE_POLY_SET::IsSelfIntersecting() const
 {
     for( unsigned int polygon = 0; polygon < m_polys.size(); polygon++ )
     {
@@ -544,7 +544,15 @@ void SHAPE_POLY_SET::BooleanIntersection( const SHAPE_POLY_SET& a,
 }
 
 
-void SHAPE_POLY_SET::Inflate( int aFactor, int aCircleSegmentsCount )
+void SHAPE_POLY_SET::InflateWithLinkedHoles( int aFactor, int aCircleSegmentsCount, POLYGON_MODE aFastMode )
+{
+    Simplify( aFastMode );
+    Inflate( aFactor, aCircleSegmentsCount );
+    Fracture( aFastMode );
+}
+
+
+void SHAPE_POLY_SET::Inflate( int aFactor, int aCircleSegmentsCount, bool aPreseveCorners )
 {
     // A static table to avoid repetitive calculations of the coefficient
     // 1.0 - cos( M_PI/aCircleSegmentsCount)
@@ -554,10 +562,14 @@ void SHAPE_POLY_SET::Inflate( int aFactor, int aCircleSegmentsCount )
 
     ClipperOffset c;
 
+    // N.B. using jtSquare here does not create square corners.  They end up mitered by
+    // aFactor.  Setting jtMiter and forcing the limit to be aFactor creates sharp corners.
+    JoinType type = aPreseveCorners ? jtMiter : jtRound;
+
     for( const POLYGON& poly : m_polys )
     {
         for( size_t i = 0; i < poly.size(); i++ )
-            c.AddPath( poly[i].convertToClipper( i == 0 ), jtRound, etClosedPolygon );
+            c.AddPath( poly[i].convertToClipper( i == 0 ), type, etClosedPolygon );
     }
 
     PolyTree solution;
@@ -583,6 +595,7 @@ void SHAPE_POLY_SET::Inflate( int aFactor, int aCircleSegmentsCount )
         coeff = arc_tolerance_factor[aCircleSegmentsCount];
 
     c.ArcTolerance = std::abs( aFactor ) * coeff;
+    c.MiterLimit = std::abs( aFactor );
 
     c.Execute( solution, aFactor );
 

@@ -85,8 +85,8 @@ void FOOTPRINT_EDIT_FRAME::ReCreateMenuBar()
                  _( "Save changes" ),
                  KiBitmap( save_xpm ) );
 
-    AddMenuItem( fileMenu, ID_MODEDIT_SAVE_AS,
-                 _( "Save &As..." ),
+    text = AddHotkeyName( _( "Save &As..." ), m_hotkeysDescrList, HK_SAVEAS );
+    AddMenuItem( fileMenu, ID_MODEDIT_SAVE_AS, text,
                  _( "Save a copy to a new name and/or location" ),
                  KiBitmap( save_as_xpm ) );
 
@@ -103,8 +103,8 @@ void FOOTPRINT_EDIT_FRAME::ReCreateMenuBar()
                  KiBitmap( import_module_xpm ) );
 
     AddMenuItem( fileMenu, ID_GEN_IMPORT_GRAPHICS_FILE,
-                 _( "Import Outlines from &DXF or SVG File..." ),
-                 _( "Import 2D Drawing DXF or SVG file to Footprint Editor on Drawings layer" ),
+                 _( "Import Outlines from &DXF File..." ),
+                 _( "Import 2D Drawing to Footprint Editor on Drawings layer" ),
                  KiBitmap( import_xpm ) );
 
     AddMenuItem( fileMenu, ID_MODEDIT_EXPORT_PART,
@@ -460,7 +460,7 @@ void FOOTPRINT_EDIT_FRAME::ReCreateMenuBar()
     wxMenu* helpMenu = new wxMenu;
 
     // Contents
-    AddMenuItem( helpMenu, wxID_HELP,
+    AddMenuItem( helpMenu, ID_PCBNEW_SHOW_HELP,
                  _( "Pcbnew &Manual" ),
                  _( "Open the Pcbnew Manual" ),
                  KiBitmap( online_help_xpm ) );

@@ -560,6 +560,11 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
             GetBoard()->m_Modules->ClearFlags();
 
         GetScreen()->SetModify();
+        // Clear undo and redo lists because we don't have handling to in
+        // FP editor to undo across imports (the module _is_ the board with the stack)
+        // todo: Abstract undo/redo stack to a higher element or keep consistent board item in fpeditor
+        GetScreen()->ClearUndoRedoList();
+
         Zoom_Automatique( false );
         m_canvas->Refresh();
         Update3DView();
@@ -567,10 +572,14 @@ void FOOTPRINT_EDIT_FRAME::Process_Special_Functions( wxCommandEvent& event )
         break;
 
     case ID_MODEDIT_EXPORT_PART:
-        if( getTargetFPID() == GetLoadedFPID() )
-            Export_Module( GetBoard()->m_Modules );
+    {
+        LIB_ID fpid = m_treePane->GetLibTree()->GetSelectedLibId();
+
+        if( fpid.IsValid() )
+            Export_Module( LoadFootprint( fpid ) );
         else
-            Export_Module( LoadFootprint( getTargetFPID() ) );
+            Export_Module( GetBoard()->m_Modules );
+    }
         break;
 
     case ID_MODEDIT_CREATE_NEW_LIB:
@@ -835,15 +844,15 @@ void FOOTPRINT_EDIT_FRAME::moveExact()
     wxPoint         translation;
     double          rotation;
     ROTATION_ANCHOR rotationAnchor = ROTATE_AROUND_ITEM_ANCHOR;
+    BOARD_ITEM*     item = GetScreen()->GetCurItem();
 
-    DIALOG_MOVE_EXACT dialog( this, translation, rotation, rotationAnchor );
+    DIALOG_MOVE_EXACT dialog( this, translation, rotation, rotationAnchor,
+            item->GetBoundingBox() );
     int ret = dialog.ShowModal();
 
     if( ret == wxID_OK )
     {
         SaveCopyInUndoList( GetBoard()->m_Modules, UR_CHANGED );
-
-        BOARD_ITEM* item = GetScreen()->GetCurItem();
 
         item->Move( translation );
 
@@ -894,7 +903,7 @@ void FOOTPRINT_EDIT_FRAME::Transform( MODULE* module, int transform )
         double          rotation;
         ROTATION_ANCHOR rotationAnchor = ROTATE_AROUND_ITEM_ANCHOR;
 
-        DIALOG_MOVE_EXACT dialog( this, translation, rotation, rotationAnchor );
+        DIALOG_MOVE_EXACT dialog( this, translation, rotation, rotationAnchor, module->GetBoundingBox() );
 
         if( dialog.ShowModal() == wxID_OK )
         {

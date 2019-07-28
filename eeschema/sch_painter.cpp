@@ -167,11 +167,11 @@ bool SCH_PAINTER::Draw( const VIEW_ITEM *aItem, int aLayer )
 
     m_schSettings.ImportLegacyColors( nullptr );
 
-	switch( item->Type() )
-	{
-	HANDLE_ITEM(LIB_ALIAS_T, LIB_ALIAS);
-	HANDLE_ITEM(LIB_PART_T, LIB_PART);
-	HANDLE_ITEM(LIB_RECTANGLE_T, LIB_RECTANGLE);
+    switch( item->Type() )
+    {
+    HANDLE_ITEM(LIB_ALIAS_T, LIB_ALIAS);
+    HANDLE_ITEM(LIB_PART_T, LIB_PART);
+    HANDLE_ITEM(LIB_RECTANGLE_T, LIB_RECTANGLE);
     HANDLE_ITEM(LIB_POLYLINE_T, LIB_POLYLINE);
     HANDLE_ITEM(LIB_CIRCLE_T, LIB_CIRCLE);
     HANDLE_ITEM(LIB_PIN_T, LIB_PIN);
@@ -909,9 +909,8 @@ void SCH_PAINTER::draw( SCH_JUNCTION *aJct, int aLayer )
     else
         color = getOverlayColor( aJct, color, false );
 
-    m_gal->SetIsStroke(true);
+    m_gal->SetIsStroke(false);
     m_gal->SetIsFill(true);
-    m_gal->SetStrokeColor( color );
     m_gal->SetFillColor( color );
     m_gal->DrawCircle( aJct->GetPosition(), SCH_JUNCTION::GetEffectiveSymbolSize() / 2.0 );
 }
@@ -1305,7 +1304,7 @@ void SCH_PAINTER::draw( SCH_SHEET *aSheet, int aLayer )
         double   nameAngle = 0.0;
 
         if( aSheet->IsVerticalOrientation() )
-            nameAngle = -M_PI/2;
+            nameAngle = M_PI/2;
 
         m_gal->SetStrokeColor( m_schSettings.GetLayerColor( LAYER_SHEETNAME ) );
 
@@ -1344,8 +1343,8 @@ void SCH_PAINTER::draw( SCH_SHEET *aSheet, int aLayer )
 
                 switch( sheetPin.GetEdge() )
                 {
-                case SCH_SHEET_PIN::SHEET_TOP_SIDE:    offset_pos.y -= width / 2; break;
-                case SCH_SHEET_PIN::SHEET_BOTTOM_SIDE: offset_pos.y += width / 2; break;
+                case SCH_SHEET_PIN::SHEET_TOP_SIDE:    offset_pos.y += width / 2; break;
+                case SCH_SHEET_PIN::SHEET_BOTTOM_SIDE: offset_pos.y -= width / 2; break;
                 case SCH_SHEET_PIN::SHEET_RIGHT_SIDE:  offset_pos.x -= width / 2; break;
                 case SCH_SHEET_PIN::SHEET_LEFT_SIDE:   offset_pos.x += width / 2; break;
                 default: break;

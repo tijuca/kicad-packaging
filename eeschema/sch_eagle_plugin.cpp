@@ -533,7 +533,9 @@ void SCH_EAGLE_PLUGIN::loadSchematic( wxXmlNode* aSchematicNode )
     while( partNode )
     {
         std::unique_ptr<EPART> epart( new EPART( partNode ) );
-        m_partlist[epart->name] = std::move( epart );
+
+        // N.B. Eagle parts are case-insensitive in matching but we keep the display case
+        m_partlist[epart->name.Upper()] = std::move( epart );
         partNode = partNode->GetNext();
     }
 
@@ -672,6 +674,7 @@ void SCH_EAGLE_PLUGIN::loadSheet( wxXmlNode* aSheetNode, int aSheetIndex )
     if( descriptionNode )
     {
         des = descriptionNode->GetContent();
+        des.Replace( "\n", "_", true );
         m_currentSheet->SetName( des );
         filename = des.ToStdString();
     }
@@ -1061,7 +1064,18 @@ void SCH_EAGLE_PLUGIN::loadInstance( wxXmlNode* aInstanceNode )
     // Calculate the unit number from the gate entry of the instance
     // Assign the the LIB_ID from deviceset and device names
 
-    EPART* epart = m_partlist[einstance.part].get();
+    auto part_it = m_partlist.find( einstance.part.Upper() );
+
+    if( part_it == m_partlist.end() )
+    {
+        wxLogError( _( "Error parsing Eagle file.  "
+                       "Could not find \"%s\" instance but it is referenced in the schematic." ),
+                einstance.part );
+
+        return;
+    }
+
+    EPART* epart = part_it->second.get();
 
     wxString libraryname = epart->library;
     wxString gatename = epart->deviceset + epart->device + einstance.gate;
@@ -1124,6 +1138,12 @@ void SCH_EAGLE_PLUGIN::loadInstance( wxXmlNode* aInstanceNode )
     // If there is no footprint assigned, then prepend the reference value
     // with a hash character to mute netlist updater complaints
     wxString reference = package.IsEmpty() ? '#' + einstance.part : einstance.part;
+
+    // EAGLE allows references to be single digits.  This breaks KiCad netlisting, which requires
+    // parts to have non-digit + digit annotation.  If the reference begins with a number,
+    // we prepend 'UNK' (unknown) for the symbol designator
+    if( reference.find_first_not_of( "0123456789" ) == wxString::npos )
+        reference.Prepend( "UNK" );
 
     SCH_SHEET_PATH sheetpath;
     m_rootSheet->LocatePathOfScreen( screen, &sheetpath );
@@ -1431,14 +1451,21 @@ bool SCH_EAGLE_PLUGIN::loadSymbol( wxXmlNode* aSymbolNode, std::unique_ptr<LIB_P
                             pin->SetNumberTextSize( 0 );
                         }
 
+                        // Eagle does not connect multiple NC pins together when they are stacked.
+                        // KiCad will do this for pins that are coincident.  We opt here for correct
+                        // schematic netlist and leave out the multiple NC pins when stacked.
                         for( unsigned i = 0; i < pads.GetCount(); i++)
                         {
+                            if( pin->GetType() == PIN_NC && i > 0)
+                                break;
+
                             LIB_PIN* apin = new LIB_PIN( *pin );
 
                             wxString padname( pads[i] );
                             apin->SetNumber( padname );
                             aPart->AddDrawItem( apin );
                         }
+
                         break;
                     }
                 }
@@ -1559,6 +1586,9 @@ LIB_ITEM* SCH_EAGLE_PLUGIN::loadSymbolWire( std::unique_ptr<LIB_PART>& aPart,
     begin.y = ewire.y1.ToSchUnits();
     end.x   = ewire.x2.ToSchUnits();
     end.y   = ewire.y2.ToSchUnits();
+
+    if( begin == end )
+        return nullptr;
 
     // if the wire is an arc
     if( ewire.curve )

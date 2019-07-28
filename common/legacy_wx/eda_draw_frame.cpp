@@ -172,7 +172,7 @@ EDA_DRAW_FRAME::EDA_DRAW_FRAME( KIWAY* aKiway, wxWindow* aParent,
 
     m_auimgr.SetFlags(wxAUI_MGR_DEFAULT);
 
-    CreateStatusBar( 6 );
+    CreateStatusBar( 7 );
 
     // set the size of the status bar subwindows:
 
@@ -194,6 +194,9 @@ EDA_DRAW_FRAME::EDA_DRAW_FRAME( KIWAY* aKiway, wxWindow* aParent,
 
         // delta distances
         GetTextSize( wxT( "dx 0234.567890  dx 0234.567890  d 0234.567890" ), stsbar ).x + 10,
+
+        // grid size
+        GetTextSize( wxT( "grid X 0234.567890  Y 0234.567890" ), stsbar ).x + 10,
 
         // units display, Inches is bigger than mm
         GetTextSize( _( "Inches" ), stsbar ).x + 10,
@@ -524,20 +527,24 @@ void EDA_DRAW_FRAME::OnSelectGrid( wxCommandEvent& event )
         int index = m_gridSelectBox->GetSelection();
         wxASSERT( index != wxNOT_FOUND );
 
-        if( index == int( m_gridSelectBox->GetCount() - 2 ) )
+        // GerbView does not support custom grid
+        if( m_Ident != FRAME_GERBER )
         {
-            // this is the separator
-            wxUpdateUIEvent dummy;
-            OnUpdateSelectGrid( dummy );
-            return;
-        }
-        else if( index == int( m_gridSelectBox->GetCount() - 1 ) )
-        {
-            wxUpdateUIEvent dummy;
-            OnUpdateSelectGrid( dummy );
-            wxCommandEvent dummy2;
-            OnGridSettings( dummy2 );
-            return;
+            if( index == int( m_gridSelectBox->GetCount() - 2 ) )
+            {
+                // this is the separator
+                wxUpdateUIEvent dummy;
+                OnUpdateSelectGrid( dummy );
+                return;
+            }
+            else if( index == int( m_gridSelectBox->GetCount() - 1 ) )
+            {
+                wxUpdateUIEvent dummy;
+                OnUpdateSelectGrid( dummy );
+                wxCommandEvent dummy2;
+                OnGridSettings( dummy2 );
+                return;
+            }
         }
 
         clientData = (int*) m_gridSelectBox->wxItemContainer::GetClientData( index );
@@ -618,6 +625,37 @@ void EDA_DRAW_FRAME::DisplayToolMsg( const wxString& msg )
 }
 
 
+/*
+ * Display the grid status.
+ */
+void EDA_DRAW_FRAME::DisplayGridMsg()
+{
+    wxString line;
+    wxString gridformatter;
+
+    switch( m_UserUnits )
+    {
+    case INCHES:
+        gridformatter = "grid %.3f";
+        break;
+
+    case MILLIMETRES:
+        gridformatter = "grid %.4f";
+        break;
+
+    default:
+        gridformatter = "grid %f";
+        break;
+    }
+
+    wxRealPoint curr_grid_size = GetScreen()->GetGridSize();
+    double grid = To_User_Unit( m_UserUnits, curr_grid_size.x );
+    line.Printf( gridformatter, grid );
+
+    SetStatusText( line, 4 );
+}
+
+
 void EDA_DRAW_FRAME::DisplayUnitsMsg()
 {
     wxString msg;
@@ -637,7 +675,7 @@ void EDA_DRAW_FRAME::DisplayUnitsMsg()
         break;
     }
 
-    SetStatusText( msg, 4 );
+    SetStatusText( msg, 5 );
 }
 
 
@@ -742,7 +780,13 @@ void EDA_DRAW_FRAME::SetPresetGrid( int aIndex )
 
     if( m_gridSelectBox )
     {
-        if( glistIdx < 0 || glistIdx >= (int) m_gridSelectBox->GetCount() - 2 )
+        int highestGrid = ( int )m_gridSelectBox->GetCount();
+
+        // GerbView does not support the user grid setting
+        if( m_Ident != FRAME_GERBER )
+            highestGrid -= 2;
+
+        if( glistIdx < 0 || glistIdx >= highestGrid )
         {
             wxASSERT_MSG( false, "Invalid grid index" );
             return;
@@ -1342,14 +1386,14 @@ bool EDA_DRAW_FRAME::saveCanvasTypeSetting( EDA_DRAW_PANEL_GAL::GAL_TYPE aCanvas
     // a parent frame)
     FRAME_T allowed_frames[] =
     {
-        FRAME_SCH, FRAME_PCB, FRAME_PCB_MODULE_EDITOR
+        FRAME_SCH, FRAME_PCB, FRAME_PCB_MODULE_EDITOR, FRAME_GERBER
     };
 
     bool allow_save = false;
 
-    for( int ii = 0; ii < 3; ii++ )
+    for( FRAME_T frame : allowed_frames )
     {
-        if( m_Ident == allowed_frames[ii] )
+        if( m_Ident == frame )
         {
             allow_save = true;
             break;
@@ -2141,7 +2185,7 @@ void DrawPageLayout( wxDC* aDC, EDA_RECT* aClipBox,
 
 void EDA_DRAW_FRAME::DrawWorkSheet( wxDC* aDC, BASE_SCREEN* aScreen, int aLineWidth,
                                     double aScalar, const wxString &aFilename,
-                                    const wxString &aSheetLayer )
+                                    const wxString &aSheetLayer, COLOR4D aColor )
 {
     if( !m_showBorderAndTitleBlock )
         return;
@@ -2159,7 +2203,7 @@ void EDA_DRAW_FRAME::DrawWorkSheet( wxDC* aDC, BASE_SCREEN* aScreen, int aLineWi
     }
 
     TITLE_BLOCK t_block = GetTitleBlock();
-    COLOR4D color = COLOR4D( RED );
+    COLOR4D color = ( aColor != COLOR4D::UNSPECIFIED ) ? aColor : COLOR4D( RED );
 
     wxPoint origin = aDC->GetDeviceOrigin();
 

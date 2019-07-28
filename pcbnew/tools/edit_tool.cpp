@@ -290,6 +290,21 @@ bool EDIT_TOOL::Init()
     menu.AddItem( PCB_ACTIONS::updateFootprints, singleModuleCondition );
     menu.AddItem( PCB_ACTIONS::exchangeFootprints, singleModuleCondition );
 
+    // Populate the context menu displayed during the edit tool (primarily the measure tool)
+    auto activeToolCondition = [ this ] ( const SELECTION& aSel ) {
+        return ( frame()->GetToolId() != ID_NO_TOOL_SELECTED );
+    };
+
+    auto frame = getEditFrame<PCB_BASE_FRAME>();
+    auto& ctxMenu = m_menu.GetMenu();
+
+    // "Cancel" goes at the top of the context menu when a tool is active
+    ctxMenu.AddItem( ACTIONS::cancelInteractive, activeToolCondition, 1000 );
+    ctxMenu.AddSeparator( activeToolCondition, 1000 );
+
+    if( frame )
+        m_menu.AddStandardSubMenus( *frame );
+
     return true;
 }
 
@@ -390,6 +405,9 @@ int EDIT_TOOL::Main( const TOOL_EVENT& aEvent )
     OPT_TOOL_EVENT evt = aEvent;
     VECTOR2I prevPos;
 
+    // Prime the pump
+    m_toolMgr->RunAction( ACTIONS::refreshPreview );
+
     // Main loop: keep receiving events
     do
     {
@@ -399,7 +417,9 @@ int EDIT_TOOL::Main( const TOOL_EVENT& aEvent )
 
         if( evt->IsAction( &PCB_ACTIONS::editActivate ) ||
             evt->IsAction( &PCB_ACTIONS::move ) ||
-            evt->IsMotion() || evt->IsDrag( BUT_LEFT ) )
+            evt->IsMotion() ||
+            evt->IsDrag( BUT_LEFT ) ||
+            evt->IsAction( &ACTIONS::refreshPreview ) )
         {
             if( m_dragging && evt->Category() == TC_MOUSE )
             {
@@ -437,6 +457,8 @@ int EDIT_TOOL::Main( const TOOL_EVENT& aEvent )
 
                 if( lockFlags == SELECTION_LOCKED )
                     break;
+
+                m_dragging = true;
 
                 // When editing modules, all items have the same parent
                 if( EditingModules() )
@@ -496,7 +518,6 @@ int EDIT_TOOL::Main( const TOOL_EVENT& aEvent )
 
                 prevPos = m_cursor;
                 controls->SetAutoPan( true );
-                m_dragging = true;
             }
 
             m_toolMgr->RunAction( PCB_ACTIONS::selectionModified, false );
@@ -1007,7 +1028,10 @@ int EDIT_TOOL::MoveExact( const TOOL_EVENT& aEvent )
     ROTATION_ANCHOR rotationAnchor = selection.Size() > 1 ? ROTATE_AROUND_SEL_CENTER
                                                           : ROTATE_AROUND_ITEM_ANCHOR;
 
-    DIALOG_MOVE_EXACT dialog( editFrame, translation, rotation, rotationAnchor );
+    // TODO: Implement a visible bounding border at the edge
+    auto sel_box = selection.GetBoundingBox();
+
+    DIALOG_MOVE_EXACT dialog( editFrame, translation, rotation, rotationAnchor, sel_box );
     int ret = dialog.ShowModal();
 
     if( ret == wxID_OK )
@@ -1313,6 +1337,8 @@ int EDIT_TOOL::MeasureTool( const TOOL_EVENT& aEvent )
 
     while( auto evt = Wait() )
     {
+        // This can be reset by some actions (e.g. Save Board), so ensure it stays set.
+        frame()->GetGalCanvas()->SetCurrentCursor( wxCURSOR_PENCIL );
         grid.SetSnap( !evt->Modifier( MD_SHIFT ) );
         grid.SetUseGrid( !evt->Modifier( MD_ALT ) );
         controls.SetSnapping( !evt->Modifier( MD_ALT ) );

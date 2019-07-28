@@ -60,6 +60,11 @@ private:
      */
     bool        m_DXFplotPolygonMode;
 
+    /**
+     * DXF format: Units to use when plotting the DXF
+     */
+    DXF_PLOTTER::DXF_UNITS m_DXFplotUnits;
+
     /// Plot format type (chooses the driver to be used)
     PlotFormat  m_format;
 
@@ -195,6 +200,16 @@ public:
 
     void        SetDXFPlotPolygonMode( bool aFlag ) { m_DXFplotPolygonMode = aFlag; }
     bool        GetDXFPlotPolygonMode() const { return m_DXFplotPolygonMode; }
+
+    void SetDXFPlotUnits( DXF_PLOTTER::DXF_UNITS aUnit )
+    {
+        m_DXFplotUnits = aUnit;
+    }
+
+    DXF_PLOTTER::DXF_UNITS GetDXFPlotUnits() const
+    {
+        return m_DXFplotUnits;
+    }
 
     void        SetDrillMarksType( DrillMarksType aVal ) { m_drillMarks = aVal; }
     DrillMarksType GetDrillMarksType() const { return m_drillMarks; }

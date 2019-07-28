@@ -340,6 +340,9 @@ PANEL_FP_LIB_TABLE::PANEL_FP_LIB_TABLE( DIALOG_EDIT_LIBRARY_TABLES* aParent,
         g->SetColSize( COL_OPTIONS, 80 );
     }
 
+    m_path_subs_grid->SetColLabelValue( 0, _( "Name" ) );
+    m_path_subs_grid->SetColLabelValue( 1, _( "Value" ) );
+
     // select the last selected page
     m_auinotebook->SetSelection( m_pageNdx );
     m_cur_grid = ( m_pageNdx == 0 ) ? m_global_grid : m_project_grid;
@@ -644,8 +647,8 @@ void PANEL_FP_LIB_TABLE::browseLibrariesHandler( wxCommandEvent& event )
         {
             if( !applyToAll )
             {
-                int ret = YesOrCancelDialog( this, warning, wxString::Format( msg, nickname ),
-                                             _( "Skip" ), _( "Add Anyway" ), &applyToAll );
+                int ret = OKOrCancelDialog( this, warning, wxString::Format( msg, nickname ),
+                                            _( "Skip" ), _( "Add Anyway" ), &applyToAll );
                 addDuplicates = (ret == wxID_CANCEL );
             }
 
@@ -664,7 +667,9 @@ void PANEL_FP_LIB_TABLE::browseLibrariesHandler( wxCommandEvent& event )
             // try to use path normalized to an environmental variable or project path
             wxString path = NormalizePath( filePath, &envVars, m_projectBasePath );
 
-            if( path.IsEmpty() )
+            // Do not use the project path in the global library table.  This will almost
+            // assuredly be wrong for a different project.
+            if( path.IsEmpty() || (m_pageNdx == 0 && path.Contains( "${KIPRJMOD}" )) )
                 path = fn.GetFullPath();
 
             m_cur_grid->SetCellValue( last_row, COL_URI, path );

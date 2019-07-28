@@ -73,6 +73,24 @@ void SetDefaultBusThickness( int aThickness)
 }
 
 
+static int s_defaultWireThickness  = DEFAULTDRAWLINETHICKNESS;
+
+
+int GetDefaultWireThickness()
+{
+    return s_defaultWireThickness;
+}
+
+
+void SetDefaultWireThickness( int aThickness )
+{
+    if( aThickness >=1 )
+        s_defaultWireThickness = aThickness;
+    else
+        s_defaultWireThickness = 1;
+}
+
+
 /// Default size for text (not only labels)
 static int s_defaultTextSize = DEFAULT_SIZE_TEXT;
 
@@ -92,7 +110,7 @@ void SetDefaultTextSize( int aTextSize )
  * Default line (in Eeschema units) thickness used to draw/plot items having a
  * default thickness line value (i.e. = 0 ).
  */
-static int s_drawDefaultLineThickness  = DEFAULTDRAWLINETHICKNESS;
+static int s_drawDefaultLineThickness = -1;
 
 
 int GetDefaultLineThickness()
@@ -318,6 +336,7 @@ const wxChar AutoplaceJustifyEntry[] =              wxT( "AutoplaceJustify" );
 const wxChar AutoplaceAlignEntry[] =                wxT( "AutoplaceAlign" );
 static const wxChar FootprintPreviewEntry[] =       wxT( "FootprintPreview" );
 static const wxChar DefaultBusWidthEntry[] =        wxT( "DefaultBusWidth" );
+static const wxChar DefaultWireWidthEntry[] =       wxT( "DefaultWireWidth" );
 static const wxChar DefaultDrawLineWidthEntry[] =   wxT( "DefaultDrawLineWidth" );
 static const wxChar DefaultJctSizeEntry[] =         wxT( "DefaultJunctionSize" );
 static const wxChar ShowHiddenPinsEntry[] =         wxT( "ShowHiddenPins" );
@@ -391,8 +410,21 @@ void SCH_EDIT_FRAME::LoadSettings( wxConfigBase* aCfg )
     ReadHotkeyConfig( SCH_EDIT_FRAME_NAME, g_Schematic_Hotkeys_Descr );
     wxConfigLoadSetups( aCfg, GetConfigurationSettings() );
 
+    // LibEdit owns this one, but we must read it in if LibEdit hasn't set it yet
+    if( GetDefaultLineThickness() < 0 )
+    {
+        SetDefaultLineThickness( (int) aCfg->Read( DefaultDrawLineWidthEntry,
+                                                   DEFAULTDRAWLINETHICKNESS ) );
+    }
+
     SetDefaultBusThickness( (int) aCfg->Read( DefaultBusWidthEntry, DEFAULTBUSTHICKNESS ) );
-    SetDefaultLineThickness( (int) aCfg->Read( DefaultDrawLineWidthEntry, DEFAULTDRAWLINETHICKNESS ) );
+
+    // Property introduced in 6.0; use DefaultLineWidth for earlier projects
+    if( !aCfg->Read( DefaultWireWidthEntry, &tmp ) )
+        aCfg->Read( DefaultDrawLineWidthEntry, &tmp, DEFAULTDRAWLINETHICKNESS );
+
+    SetDefaultWireThickness( (int) tmp );
+
     SCH_JUNCTION::SetSymbolSize( (int) aCfg->Read( DefaultJctSizeEntry, SCH_JUNCTION::GetSymbolSize() ) );
     aCfg->Read( ShowHiddenPinsEntry, &m_showAllPins, false );
     aCfg->Read( HorzVertLinesOnlyEntry, &m_forceHVLines, true );
@@ -464,7 +496,7 @@ void SCH_EDIT_FRAME::SaveSettings( wxConfigBase* aCfg )
     wxConfigSaveSetups( aCfg, GetConfigurationSettings() );
 
     aCfg->Write( DefaultBusWidthEntry, (long) GetDefaultBusThickness() );
-    aCfg->Write( DefaultDrawLineWidthEntry, (long) GetDefaultLineThickness() );
+    aCfg->Write( DefaultWireWidthEntry, (long) GetDefaultWireThickness() );
     aCfg->Write( DefaultJctSizeEntry, (long) SCH_JUNCTION::GetSymbolSize() );
     aCfg->Write( ShowHiddenPinsEntry, m_showAllPins );
     aCfg->Write( HorzVertLinesOnlyEntry, GetForceHVLines() );
@@ -565,6 +597,7 @@ void LIB_EDIT_FRAME::SaveSettings( wxConfigBase* aCfg )
 {
     EDA_DRAW_FRAME::SaveSettings( aCfg );
 
+    aCfg->Write( DefaultDrawLineWidthEntry, GetDefaultLineThickness() );
     aCfg->Write( DefaultPinLengthEntry, GetDefaultPinLength() );
     aCfg->Write( defaultPinNumSizeEntry, GetPinNumDefaultSize() );
     aCfg->Write( defaultPinNameSizeEntry, GetPinNameDefaultSize() );

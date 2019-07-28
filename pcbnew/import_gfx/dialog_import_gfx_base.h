@@ -1,11 +1,12 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Mar 20 2019)
+// C++ code generated with wxFormBuilder (version Dec 30 2017)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
-#pragma once
+#ifndef __DIALOG_IMPORT_GFX_BASE_H__
+#define __DIALOG_IMPORT_GFX_BASE_H__
 
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
@@ -20,15 +21,12 @@ class PCB_LAYER_BOX_SELECTOR;
 #include <wx/colour.h>
 #include <wx/settings.h>
 #include <wx/textctrl.h>
-#include <wx/bitmap.h>
-#include <wx/image.h>
-#include <wx/icon.h>
 #include <wx/button.h>
 #include <wx/sizer.h>
-#include <wx/statline.h>
 #include <wx/radiobut.h>
 #include <wx/valtext.h>
 #include <wx/choice.h>
+#include <wx/statbox.h>
 #include <wx/bmpcbox.h>
 #include <wx/dialog.h>
 
@@ -41,13 +39,11 @@ class PCB_LAYER_BOX_SELECTOR;
 class DIALOG_IMPORT_GFX_BASE : public DIALOG_SHIM
 {
 	private:
-
+	
 	protected:
 		wxStaticText* m_staticTextFile;
 		wxTextCtrl* m_textCtrlFileName;
 		wxButton* m_buttonBrowse;
-		wxStaticLine* m_staticline2;
-		wxStaticText* m_staticTextPlacement;
 		wxRadioButton* m_rbInteractivePlacement;
 		wxRadioButton* m_rbAbsolutePlacement;
 		wxStaticText* m_staticTextXpos;
@@ -56,8 +52,6 @@ class DIALOG_IMPORT_GFX_BASE : public DIALOG_SHIM
 		wxTextCtrl* m_DxfPcbYCoord;
 		wxStaticText* m_staticTextUnits;
 		wxChoice* m_DxfPcbPositionUnits;
-		wxStaticLine* m_staticline3;
-		wxStaticText* m_staticTextPrms;
 		wxStaticText* m_staticTextLineWidth;
 		wxTextCtrl* m_textCtrlLineWidth;
 		wxChoice* m_choiceUnitLineWidth;
@@ -65,11 +59,10 @@ class DIALOG_IMPORT_GFX_BASE : public DIALOG_SHIM
 		PCB_LAYER_BOX_SELECTOR* m_SelLayerBox;
 		wxStaticText* m_staticTextscale;
 		wxTextCtrl* m_textCtrlImportScale;
-		wxStaticLine* m_staticline;
 		wxStdDialogButtonSizer* m_sdbSizer;
 		wxButton* m_sdbSizerOK;
 		wxButton* m_sdbSizerCancel;
-
+		
 		// Virtual event handlers, overide them in your derived class
 		virtual void onBrowseFiles( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onInteractivePlacement( wxCommandEvent& event ) { event.Skip(); }
@@ -77,12 +70,13 @@ class DIALOG_IMPORT_GFX_BASE : public DIALOG_SHIM
 		virtual void onAbsolutePlacement( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onUnitPositionSelection( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onUnitWidthSelection( wxCommandEvent& event ) { event.Skip(); }
-
-
+		
+	
 	public:
-
-		DIALOG_IMPORT_GFX_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Import Vector Graphics File"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
+		
+		DIALOG_IMPORT_GFX_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Import Vector Graphics File"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER ); 
 		~DIALOG_IMPORT_GFX_BASE();
-
+	
 };
 
+#endif //__DIALOG_IMPORT_GFX_BASE_H__

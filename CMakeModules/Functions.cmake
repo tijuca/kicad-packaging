@@ -25,9 +25,13 @@
 # Function make_lexer
 # is a standard way to invoke TokenList2DsnLexer.cmake.
 # Extra arguments are treated as source files which depend on the generated
-# outHeaderFile
+# files.  Some detail here on the indirection:
+#  - Parallel builds all depend on the same files, and CMake will generate the same file multiple times in the same location.
+# This can be problematic if the files are generated at the same time and overwrite each other.
+#  - To fix this, we create a custom target (outputTarget) that the parallel builds depend on.
+# AND build dependencies.  This creates the needed rebuild for appropriate source object changes.
+function( make_lexer outputTarget inputFile outHeaderFile outCppFile enum )
 
-function( make_lexer inputFile outHeaderFile outCppFile enum )
     add_custom_command(
         OUTPUT  ${outHeaderFile}
                 ${outCppFile}
@@ -37,12 +41,15 @@ function( make_lexer inputFile outHeaderFile outCppFile enum )
             -DoutHeaderFile=${outHeaderFile}
             -DoutCppFile=${outCppFile}
             -P ${CMAKE_MODULE_PATH}/TokenList2DsnLexer.cmake
-        DEPENDS ${inputFile}
-                ${CMAKE_MODULE_PATH}/TokenList2DsnLexer.cmake
         COMMENT "TokenList2DsnLexer.cmake creating:
            ${outHeaderFile} and
            ${outCppFile} from
            ${inputFile}"
+        )
+
+    add_custom_target( ${outputTarget}
+        DEPENDS ${outHeaderFile} ${outCppFile}
+                ${CMAKE_MODULE_PATH}/TokenList2DsnLexer.cmake
         )
 
     # extra_args, if any, are treated as source files (typically headers) which

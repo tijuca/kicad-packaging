@@ -149,27 +149,40 @@ on macOS.  This is enabled on macOS by default and disabled on all other platfor
 ## Scripting Support ## {#scripting_opt}
 
 The KICAD_SCRIPTING option is used to enable building the Python scripting support into Pcbnew.
-This options is enabled by default.
+This options is enabled by default, and will disable all other KICAD_SCRIPTING_* options when
+it is disabled.
+
+## Python 3 Scripting Support ## {#python3}
+
+The KICAD_SCRIPTING_PYTHON3 option is used to enable using Python 3 for the scripting support
+instead of Python 2.  This option is disabled by default and only is relevant if
+[KICAD_SCRIPTING](#scripting_opt) is enabled.
 
 ## Scripting Module Support ## {#scripting_mod_opt}
 
 The KICAD_SCRIPTING_MODULES option is used to enable building and installing the Python modules
-supplied by KiCad.  This option is enabled by default.
-
-## Python 3 Scripting Support ## {#python3}
-
-The KICAD_SCRIPTING_PYTHON3 option is used to enable building of the Python 3 interface instead
-of Python 2.  This option is disabled by default.
+supplied by KiCad.  This option is enabled by default, but will be disabled if
+[KICAD_SCRIPTING](#scripting_opt) is disabled.
 
 ## wxPython Scripting Support ## {#wxpython_opt}
 
 The KICAD_SCRIPTING_WXPYTHON option is used to enable building the wxPython interface into
-Pcbnew including the wxPython console.  This option is enabled by default.
+Pcbnew including the wxPython console.  This option is enabled by default, but will be disabled if
+[KICAD_SCRIPTING](#scripting_opt) is disabled.
 
 ## wxPython Phoenix Scripting Support ## {#wxpython_phoenix}
 
 The KICAD_SCRIPTING_WXPYTHON_PHOENIX option is used to enable building the wxPython interface with
-the new Phoenix binding instead of the legacy one.  This option is disabled by default.
+the new Phoenix binding instead of the legacy one.  This option is disabled by default, and
+enabling it requires [KICAD_SCRIPTING](#scripting_opt) to be enabled.
+
+## Python Scripting Action Menu Support ## {#python_action_menu_opt}
+
+The KICAD_SCRIPTING_ACTION_MENU option allows Python scripts to be added directly to the Pcbnew
+menu.  This option is enabled by default, but will be disabled if
+[KICAD_SCRIPTING](#scripting_opt) is disabled.  Please note that this option is highly
+experimental and can cause Pcbnew to crash if Python scripts create an invalid object state
+within Pcbnew.
 
 ## GitHub Plugin ## {#github_opt}
 
@@ -335,6 +348,12 @@ configure pacman to prevent upgrading the 64-bit Boost package by adding:
     IgnorePkg = mingw-w64-x86_64-boost
 
 to your /etc/pacman.conf file.
+
+### Building with Boost 1.70 ### {#ki_msys2_boost_1_70}
+
+There is an issue building KiCad with Boost version 1.70 due to CMake not defining the proper
+link libraries during configuration.  Boost 1.70 can be used but `-DBoost_NO_BOOST_CMAKE=ON`
+needs to be added during CMake configuration to insure the link libraries are properly generated.
 
 ### Building OCE from source
 

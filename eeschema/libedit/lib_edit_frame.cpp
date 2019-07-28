@@ -215,6 +215,7 @@ LIB_EDIT_FRAME::LIB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     m_tempCopyComponent = NULL;
     m_treePane = nullptr;
     m_libMgr = nullptr;
+    m_AboutTitle = "LibEdit";
 
     // Delayed initialization
     if( m_textSize == -1 )
@@ -228,6 +229,10 @@ LIB_EDIT_FRAME::LIB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     SetIcon( icon );
 
     LoadSettings( config() );
+
+    // Ensure axis are always drawn, whatever LoadSettings has found in config
+    KIGFX::GAL_DISPLAY_OPTIONS& gal_opts = GetGalDisplayOptions();
+    gal_opts.m_axesEnabled = true;
 
     m_dummyScreen = new SCH_SCREEN( aKiway );
     SetScreen( m_dummyScreen );
@@ -402,6 +407,18 @@ void LIB_EDIT_FRAME::OnToggleSearchTree( wxCommandEvent& event )
     auto& treePane = m_auimgr.GetPane( m_treePane );
     treePane.Show( !IsSearchTreeShown() );
     m_auimgr.Update();
+}
+
+
+void LIB_EDIT_FRAME::FreezeSearchTree()
+{
+    m_libMgr->GetAdapter()->Freeze();
+}
+
+
+void LIB_EDIT_FRAME::ThawSearchTree()
+{
+    m_libMgr->GetAdapter()->Thaw();
 }
 
 
@@ -1722,6 +1739,7 @@ bool LIB_EDIT_FRAME::isCurrentPart( const LIB_ID& aLibId ) const
 
 void LIB_EDIT_FRAME::emptyScreen()
 {
+    m_treePane->GetLibTree()->Unselect();
     SetCurLib( wxEmptyString );
     SetCurPart( nullptr );
     m_lastDrawItem = nullptr;
@@ -1862,4 +1880,12 @@ void LIB_EDIT_FRAME::OnSwitchCanvas( wxCommandEvent& aEvent )
 
     // Set options specific to symbol editor (axies are always enabled):
     GetGalCanvas()->GetGAL()->SetAxesEnabled( true );
+}
+
+
+bool LIB_EDIT_FRAME::HasLibModifications() const
+{
+    wxCHECK( m_libMgr, false );
+
+    return m_libMgr->HasModifications();
 }

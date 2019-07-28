@@ -1256,6 +1256,7 @@ public:
         textAsLines = true;
         m_currentColor = COLOR4D::BLACK;
         m_currentLineType = 0;
+        SetUnits( DXF_PLOTTER::DXF_UNIT_INCHES );
     }
 
     virtual PlotFormat GetPlotterType() const override
@@ -1338,10 +1339,60 @@ public:
                        bool                        aMultilineAllowed = false,
                        void* aData = NULL ) override;
 
+
+    // Must be in the same order as the drop-down list in the plot dialog inside pcbnew
+    enum DXF_UNITS
+    {
+        DXF_UNIT_INCHES = 0,
+        DXF_UNIT_MILLIMETERS = 1
+    };
+
+    /**
+     * Set the units to use for plotting the DXF file.
+     *
+     * @param aUnit - The units to use
+     */
+    void SetUnits( DXF_UNITS aUnit );
+
+    /**
+     * The units currently enabled for plotting
+     *
+     * @return The currently configured units
+     */
+    DXF_UNITS GetUnits() const
+    {
+        return m_plotUnits;
+    }
+
+    /**
+     * Get the scale factor to apply to convert the device units to be in the
+     * currently set units.
+     *
+     * @return Scaling factor to apply for unit conversion
+     */
+    double GetUnitScaling() const
+    {
+        return m_unitScalingFactor;
+    }
+
+    /**
+     * Get the correct value for the $MEASUREMENT field given the current units
+     *
+     * @return the $MEASUREMENT directive field value
+     */
+    unsigned int GetMeasurementDirective() const
+    {
+        return m_measurementDirective;
+    }
+
 protected:
     bool textAsLines;
     COLOR4D m_currentColor;
     int m_currentLineType;
+
+    DXF_UNITS    m_plotUnits;
+    double       m_unitScalingFactor;
+    unsigned int m_measurementDirective;
 };
 
 class TITLE_BLOCK;
@@ -1349,7 +1400,8 @@ void PlotWorkSheet( PLOTTER* plotter, const TITLE_BLOCK& aTitleBlock,
                     const PAGE_INFO& aPageInfo,
                     int aSheetNumber, int aNumberOfSheets,
                     const wxString &aSheetDesc,
-                    const wxString &aFilename );
+                    const wxString &aFilename,
+                    const COLOR4D aColor = COLOR4D::UNSPECIFIED );
 
 /** Returns the default plot extension for a format
   */

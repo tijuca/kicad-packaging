@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: kicad\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-04-15 07:57+0200\n"
-"PO-Revision-Date: 2019-04-15 07:58+0200\n"
+"POT-Creation-Date: 2019-07-08 20:16+0200\n"
+"PO-Revision-Date: 2019-07-08 20:17+0200\n"
 "Last-Translator: \n"
 "Language-Team: jp-charras\n"
 "Language: fr_FR\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "X-Poedit-Basepath: E:/kicad-launchpad/stable/kicad_5_1\n"
 "X-Poedit-KeywordsList: _;_HKI\n"
-"X-Generator: Poedit 2.2.1\n"
+"X-Generator: Poedit 2.2.3\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "X-Poedit-SourceCharset: UTF-8\n"
 "X-Poedit-SearchPath-0: pcbnew\n"
@@ -45,7 +45,6 @@ msgid "Configure Paths"
 msgstr "Configurer les Chemins"
 
 #: 3d-viewer/3d_cache/dialogs/dlg_select_3dmodel.cpp:142
-#: common/dialog_about/dialog_about_base.cpp:75
 #: common/dialogs/dialog_display_info_HTML_base.cpp:24
 #: eeschema/dialogs/dialog_netlist_base.cpp:117
 #: gerbview/dialogs/dialog_select_one_pcb_layer.cpp:181
@@ -53,9 +52,10 @@ msgstr "Configurer les Chemins"
 msgid "OK"
 msgstr "OK"
 
-#: 3d-viewer/3d_cache/dialogs/dlg_select_3dmodel.cpp:143 common/confirm.cpp:184
-#: common/confirm.cpp:202 common/selcolor.cpp:181 common/tool/actions.cpp:10
+#: 3d-viewer/3d_cache/dialogs/dlg_select_3dmodel.cpp:143 common/confirm.cpp:195
+#: common/selcolor.cpp:181 common/tool/actions.cpp:10
 #: eeschema/dialogs/dialog_netlist_base.cpp:122
+#: eeschema/dialogs/panel_sym_lib_table.cpp:739
 #: eeschema/libedit/libedit_onrightclick.cpp:71 eeschema/onrightclick.cpp:161
 #: eeschema/onrightclick.cpp:194
 #: gerbview/dialogs/dialog_select_one_pcb_layer.cpp:185
@@ -81,7 +81,7 @@ msgstr "Echelle"
 #: pcbnew/dialogs/dialog_pad_properties_base.cpp:851
 #: pcbnew/dialogs/dialog_pad_properties_base.cpp:964
 #: pcbnew/dialogs/dialog_set_grid_base.cpp:31
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:67
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:58
 msgid "X:"
 msgstr "X:"
 
@@ -93,7 +93,7 @@ msgstr "X:"
 #: pcbnew/dialogs/dialog_pad_properties_base.cpp:862
 #: pcbnew/dialogs/dialog_pad_properties_base.cpp:975
 #: pcbnew/dialogs/dialog_set_grid_base.cpp:42
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:84
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:75
 msgid "Y:"
 msgstr "Y:"
 
@@ -256,29 +256,29 @@ msgid "Loading %s"
 msgstr "Chargement  %s"
 
 #: 3d-viewer/3d_rendering/3d_render_ogl_legacy/c3d_render_ogl_legacy.cpp:478
-#: 3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_raytracing.cpp:176
+#: 3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_raytracing.cpp:177
 #: common/widgets/footprint_preview_widget.cpp:100
 msgid "Loading..."
 msgstr "Chargement..."
 
-#: 3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_raytracing.cpp:356
+#: 3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_raytracing.cpp:357
 #, c-format
 msgid "Rendering time %.3f s"
 msgstr "Temps de rendu %.3f s"
 
-#: 3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_raytracing.cpp:411
+#: 3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_raytracing.cpp:412
 #, c-format
 msgid "Rendering: %.0f %%"
 msgstr "Rendu: %.0f %%"
 
-#: 3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_raytracing.cpp:922
+#: 3d-viewer/3d_rendering/3d_render_raytracing/c3d_render_raytracing.cpp:923
 msgid "Rendering: Post processing shader"
 msgstr "Rendu: shader de post traitement"
 
 #: 3d-viewer/3d_viewer/3d_menubar.cpp:50 cvpcb/menubar.cpp:105
 #: eeschema/libedit/menubar_libedit.cpp:391 eeschema/menubar.cpp:114
 #: eeschema/tool_viewlib.cpp:197 gerbview/menubar.cpp:379 kicad/menubar.cpp:438
-#: pagelayout_editor/menubar.cpp:212 pcbnew/menubar_footprint_editor.cpp:491
+#: pagelayout_editor/menubar.cpp:213 pcbnew/menubar_footprint_editor.cpp:491
 #: pcbnew/menubar_pcb_editor.cpp:130 pcbnew/tool_footprint_viewer.cpp:209
 msgid "&File"
 msgstr "&Fichiers"
@@ -299,7 +299,7 @@ msgstr "&Quitter"
 
 #: 3d-viewer/3d_viewer/3d_menubar.cpp:65
 #: eeschema/libedit/menubar_libedit.cpp:392 eeschema/menubar.cpp:115
-#: pagelayout_editor/menubar.cpp:213 pcbnew/menubar_footprint_editor.cpp:492
+#: pagelayout_editor/menubar.cpp:214 pcbnew/menubar_footprint_editor.cpp:492
 #: pcbnew/menubar_pcb_editor.cpp:131
 msgid "&Edit"
 msgstr "&Editer"
@@ -311,7 +311,7 @@ msgstr "Copie Image 3D"
 #: 3d-viewer/3d_viewer/3d_menubar.cpp:71
 #: eeschema/libedit/menubar_libedit.cpp:393 eeschema/menubar.cpp:116
 #: eeschema/tool_viewlib.cpp:199 gerbview/menubar.cpp:380 kicad/menubar.cpp:439
-#: pagelayout_editor/menubar.cpp:214 pcbnew/menubar_footprint_editor.cpp:493
+#: pagelayout_editor/menubar.cpp:215 pcbnew/menubar_footprint_editor.cpp:493
 #: pcbnew/menubar_pcb_editor.cpp:132 pcbnew/tool_footprint_viewer.cpp:211
 msgid "&View"
 msgstr "&Affichage"
@@ -408,7 +408,7 @@ msgstr "&Préférences"
 
 #: 3d-viewer/3d_viewer/3d_menubar.cpp:140
 #: cvpcb/dialogs/dialog_display_options_base.h:56
-#: eeschema/eeschema_config.cpp:209 eeschema/eeschema_config.cpp:595
+#: eeschema/eeschema_config.cpp:227 eeschema/eeschema_config.cpp:628
 #: gerbview/gerbview_config.cpp:69
 #: pcbnew/dialogs/dialog_fp_browser_display_options_base.h:56
 #: pcbnew/footprint_edit_frame.cpp:985 pcbnew/pcbnew_config.cpp:100
@@ -608,7 +608,7 @@ msgstr "Rétablir les Paramètres par Défaut"
 #: 3d-viewer/3d_viewer/3d_menubar.cpp:297 cvpcb/menubar.cpp:107
 #: eeschema/libedit/menubar_libedit.cpp:397 eeschema/menubar.cpp:121
 #: eeschema/tool_viewlib.cpp:200 gerbview/menubar.cpp:383 kicad/menubar.cpp:443
-#: pagelayout_editor/menubar.cpp:217 pcbnew/menubar_footprint_editor.cpp:498
+#: pagelayout_editor/menubar.cpp:218 pcbnew/menubar_footprint_editor.cpp:498
 #: pcbnew/menubar_pcb_editor.cpp:138 pcbnew/tool_footprint_viewer.cpp:212
 msgid "&Help"
 msgstr "Ai&de"
@@ -626,14 +626,14 @@ msgstr "Ouvrir Documentation Pcbnew"
 #: 3d-viewer/3d_viewer/3d_menubar.cpp:305 cvpcb/menubar.cpp:97
 #: eeschema/libedit/menubar_libedit.cpp:368 eeschema/menubar.cpp:599
 #: eeschema/tool_viewlib.cpp:180 kicad/menubar.cpp:413
-#: pagelayout_editor/menubar.cpp:191 pcbnew/menubar_footprint_editor.cpp:469
+#: pagelayout_editor/menubar.cpp:192 pcbnew/menubar_footprint_editor.cpp:469
 #: pcbnew/menubar_pcb_editor.cpp:428 pcbnew/tool_footprint_viewer.cpp:197
 msgid "&Getting Started in KiCad"
 msgstr "&Démarrer avec KiCad"
 
 #: 3d-viewer/3d_viewer/3d_menubar.cpp:306 cvpcb/menubar.cpp:98
 #: eeschema/menubar.cpp:600 kicad/menubar.cpp:414
-#: pagelayout_editor/menubar.cpp:192 pcbnew/menubar_pcb_editor.cpp:429
+#: pagelayout_editor/menubar.cpp:193 pcbnew/menubar_pcb_editor.cpp:429
 msgid "Open \"Getting Started in KiCad\" guide for beginners"
 msgstr "Ouvrir le guide pour les débutants \"Démarrer avec KiCad\""
 
@@ -646,7 +646,7 @@ msgstr "&Liste Hotkeys..."
 
 #: 3d-viewer/3d_viewer/3d_menubar.cpp:312
 #: eeschema/libedit/menubar_libedit.cpp:376 gerbview/menubar.cpp:362
-#: kicad/menubar.cpp:420 pagelayout_editor/menubar.cpp:197
+#: kicad/menubar.cpp:420 pagelayout_editor/menubar.cpp:198
 msgid "Displays the current hotkeys list and corresponding commands"
 msgstr ""
 "Affiche la liste des raccourcis clavier actifs et les commandes "
@@ -655,7 +655,7 @@ msgstr ""
 #: 3d-viewer/3d_viewer/3d_menubar.cpp:318
 #: eeschema/libedit/menubar_libedit.cpp:381 eeschema/menubar.cpp:609
 #: eeschema/tool_viewlib.cpp:186 gerbview/menubar.cpp:369 kicad/menubar.cpp:428
-#: pagelayout_editor/menubar.cpp:201 pcbnew/menubar_footprint_editor.cpp:482
+#: pagelayout_editor/menubar.cpp:202 pcbnew/menubar_footprint_editor.cpp:482
 #: pcbnew/menubar_pcb_editor.cpp:441
 msgid "Get &Involved"
 msgstr "Rester &Impliqué"
@@ -663,7 +663,7 @@ msgstr "Rester &Impliqué"
 #: 3d-viewer/3d_viewer/3d_menubar.cpp:319
 #: eeschema/libedit/menubar_libedit.cpp:382 eeschema/menubar.cpp:610
 #: eeschema/tool_viewlib.cpp:187 gerbview/menubar.cpp:370 kicad/menubar.cpp:429
-#: pagelayout_editor/menubar.cpp:202 pcbnew/menubar_footprint_editor.cpp:483
+#: pagelayout_editor/menubar.cpp:203 pcbnew/menubar_footprint_editor.cpp:483
 #: pcbnew/menubar_pcb_editor.cpp:442
 msgid "Contribute to KiCad (opens a web browser)"
 msgstr "Contribuer à KiCad (ouvre le navigateur Web)"
@@ -671,7 +671,7 @@ msgstr "Contribuer à KiCad (ouvre le navigateur Web)"
 #: 3d-viewer/3d_viewer/3d_menubar.cpp:325 cvpcb/menubar.cpp:102
 #: eeschema/libedit/menubar_libedit.cpp:388 eeschema/menubar.cpp:614
 #: gerbview/menubar.cpp:376 kicad/menubar.cpp:435
-#: pagelayout_editor/menubar.cpp:209 pcbnew/menubar_footprint_editor.cpp:488
+#: pagelayout_editor/menubar.cpp:210 pcbnew/menubar_footprint_editor.cpp:488
 #: pcbnew/menubar_pcb_editor.cpp:447
 msgid "&About KiCad"
 msgstr "&Au Sujet de KiCad"
@@ -805,40 +805,40 @@ msgstr "Montrer Couches ECO"
 msgid "3D Display Options"
 msgstr "Options d'Affichage 3D"
 
-#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:380
+#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:382
 msgid "Background Color, Bottom"
 msgstr "Couleur de Fond, Bas"
 
-#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:391
+#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:393
 msgid "Background Color, Top"
 msgstr "Couleur de Fond, Haut"
 
-#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:971
+#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:973
 msgid "3D Image File Name"
 msgstr "Nom du fichier Image 3D"
 
-#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:1013
+#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:1015
 msgid "Failed to copy image to clipboard"
 msgstr "Impossible de copier l'image dans le presse papier"
 
-#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:1024
+#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:1026
 msgid "Can't save file"
 msgstr "Impossible de sauver le  fichier"
 
-#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:1072
-#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:1104
+#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:1074
+#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:1106
 msgid "Solder Mask Color"
 msgstr "Couleur Masque de Soudure"
 
-#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:1123
+#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:1125
 msgid "Copper Color"
 msgstr "Couleur du Cuivre"
 
-#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:1147
+#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:1149
 msgid "Board Body Color"
 msgstr "Couleur du Corps du PCB"
 
-#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:1165
+#: 3d-viewer/3d_viewer/eda_3d_viewer.cpp:1167
 msgid "Solder Paste Color"
 msgstr "Couleur de Paste à Souder"
 
@@ -925,12 +925,12 @@ msgid "Viewer 3D"
 msgstr "Visualisateur 3D"
 
 #: bitmap2component/bitmap2cmp_gui.cpp:300 eeschema/edit_bitmap.cpp:41
-#: pagelayout_editor/pl_editor_frame.cpp:555
+#: pagelayout_editor/pl_editor_frame.cpp:590
 msgid "Choose Image"
 msgstr "Sélection Image"
 
 #: bitmap2component/bitmap2cmp_gui.cpp:301 eeschema/edit_bitmap.cpp:42
-#: pagelayout_editor/pl_editor_frame.cpp:556
+#: pagelayout_editor/pl_editor_frame.cpp:591
 msgid "Image Files "
 msgstr "Fichiers Image "
 
@@ -997,9 +997,9 @@ msgstr "0000"
 msgid "pixels"
 msgstr "pixels"
 
-#: bitmap2component/bitmap2cmp_gui_base.cpp:78 common/base_units.cpp:443
-#: common/legacy_gal/eda_draw_frame.cpp:624
-#: common/legacy_wx/eda_draw_frame.cpp:632
+#: bitmap2component/bitmap2cmp_gui_base.cpp:78 common/base_units.cpp:448
+#: common/legacy_gal/eda_draw_frame.cpp:658
+#: common/legacy_wx/eda_draw_frame.cpp:670
 #: eeschema/dialogs/dialog_lib_edit_draw_item_base.cpp:32
 #: eeschema/dialogs/dialog_plot_schematic_base.cpp:93
 #: eeschema/dialogs/dialog_plot_schematic_base.cpp:129
@@ -1025,7 +1025,7 @@ msgstr "pixels"
 #: pagelayout_editor/dialogs/properties_frame_base.cpp:605
 #: pagelayout_editor/dialogs/properties_frame_base.cpp:626
 #: pagelayout_editor/dialogs/properties_frame_base.cpp:633
-#: pagelayout_editor/pl_editor_frame.cpp:386 pcb_calculator/UnitSelector.cpp:38
+#: pagelayout_editor/pl_editor_frame.cpp:419 pcb_calculator/UnitSelector.cpp:38
 #: pcb_calculator/UnitSelector.cpp:70
 #: pcbnew/dialogs/dialog_create_array_base.cpp:52
 #: pcbnew/dialogs/dialog_create_array_base.cpp:63
@@ -1060,8 +1060,8 @@ msgstr "pixels"
 #: pcbnew/dialogs/panel_setup_mask_and_paste_base.cpp:53
 #: pcbnew/dialogs/panel_setup_mask_and_paste_base.cpp:66
 #: pcbnew/dialogs/panel_setup_mask_and_paste_base.cpp:88
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:105
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:156
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:96
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:138
 msgid "mm"
 msgstr "mm"
 
@@ -1091,7 +1091,7 @@ msgid "Load Bitmap"
 msgstr "Charger Image Bitmap"
 
 #: bitmap2component/bitmap2cmp_gui_base.cpp:124
-#: eeschema/libedit/lib_edit_frame.cpp:1159
+#: eeschema/libedit/lib_edit_frame.cpp:1176
 #: pcbnew/dialogs/dialog_export_step.cpp:123
 #: pcbnew/dialogs/dialog_export_svg.cpp:102
 msgid "Export"
@@ -1201,7 +1201,7 @@ msgstr "Grille: %.4f mm (%.2f mils)"
 msgid "Grid: %.2f mils (%.4f mm)"
 msgstr "Grille: %.2f mils (%.4f mm)"
 
-#: common/base_units.cpp:438 eeschema/dialogs/dialog_set_grid_base.cpp:34
+#: common/base_units.cpp:443 eeschema/dialogs/dialog_set_grid_base.cpp:34
 #: eeschema/dialogs/panel_eeschema_display_options_base.cpp:41
 #: eeschema/dialogs/panel_eeschema_display_options_base.cpp:52
 #: eeschema/dialogs/panel_eeschema_display_options_base.cpp:63
@@ -1215,15 +1215,25 @@ msgstr "Grille: %.2f mils (%.4f mm)"
 #: eeschema/dialogs/panel_libedit_settings_base.cpp:106
 #: eeschema/dialogs/panel_libedit_settings_base.cpp:117
 #: eeschema/dialogs/panel_libedit_settings_base.cpp:131
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:156
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:138
 msgid "mils"
 msgstr "mils"
 
-#: common/base_units.cpp:440
+#: common/base_units.cpp:445
 msgid "in"
 msgstr "inch"
 
-#: common/base_units.cpp:449 pcbnew/dialogs/dialog_create_array_base.cpp:233
+#: common/base_units.cpp:451
+#: pcbnew/dialogs/dialog_edit_footprint_for_BoardEditor_base.cpp:372
+#: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor_base.cpp:274
+#: pcbnew/dialogs/dialog_pad_properties_base.cpp:214
+#: pcbnew/dialogs/dialog_pad_properties_base.cpp:453
+#: pcbnew/dialogs/dialog_pns_length_tuning_settings_base.cpp:151
+#: pcbnew/dialogs/panel_setup_mask_and_paste_base.cpp:101
+msgid "%"
+msgstr "%"
+
+#: common/base_units.cpp:457 pcbnew/dialogs/dialog_create_array_base.cpp:233
 #: pcbnew/dialogs/dialog_graphic_item_properties_base.cpp:136
 #: pcbnew/dialogs/dialog_move_exact_base.cpp:59
 #: pcbnew/dialogs/dialog_pad_properties_base.cpp:142
@@ -1374,57 +1384,67 @@ msgstr "Répertoire de sortie \"%s\" créé.\n"
 msgid "Cannot create output directory \"%s\".\n"
 msgstr "Impossible de créer le répertoire de sortie \"%s\".\n"
 
-#: common/confirm.cpp:63
+#: common/confirm.cpp:62
 msgid "Do not show again"
 msgstr "Ne pas montrer de nouveau"
 
-#: common/confirm.cpp:129
+#: common/confirm.cpp:128
 #: pcb_calculator/dialogs/pcb_calculator_frame_base.cpp:234
 msgid "Message"
 msgstr "Message"
 
-#: common/confirm.cpp:130
+#: common/confirm.cpp:129
 msgid "Question"
 msgstr "Question"
 
-#: common/confirm.cpp:131 common/confirm.cpp:249
+#: common/confirm.cpp:130 common/confirm.cpp:243
+#: eeschema/dialogs/panel_sym_lib_table.cpp:735
 #: eeschema/libedit/symbedit.cpp:106
 #: eeschema/widgets/widget_eeschema_color_config.cpp:255
 #: pcbnew/dialogs/dialog_export_vrml.cpp:178 pcbnew/pcb_parser.cpp:594
 msgid "Warning"
 msgstr "Avertissement"
 
-#: common/confirm.cpp:132 common/confirm.cpp:261 kicad/prjconfig.cpp:310
+#: common/confirm.cpp:131 common/confirm.cpp:255 kicad/prjconfig.cpp:310
 #: pcbnew/router/length_tuner_tool.cpp:157
 msgid "Error"
 msgstr "Erreur"
 
-#: common/confirm.cpp:183 common/dialogs/dialog_exit_base.cpp:34
+#: common/confirm.cpp:159 common/confirm.cpp:180 common/confirm.cpp:219
 msgid "If you don't save, all your changes will be permanently lost."
 msgstr ""
 "Si vous ne sauvez pas, tous vos changements seront définitivement perdus."
 
-#: common/confirm.cpp:184 eeschema/hotkeys.cpp:227
+#: common/confirm.cpp:160 common/confirm.cpp:181 eeschema/hotkeys.cpp:227
 #: eeschema/libedit/libedit.cpp:430 eeschema/widgets/tuner_slider_base.cpp:66
-#: pagelayout_editor/hotkeys.cpp:98 pcbnew/footprint_libraries_utils.cpp:900
+#: pagelayout_editor/hotkeys.cpp:97 pcbnew/footprint_libraries_utils.cpp:900
 #: pcbnew/hotkeys.cpp:312
 msgid "Save"
 msgstr "Sauvegarder"
 
-#: common/confirm.cpp:201
+#: common/confirm.cpp:161 common/confirm.cpp:182
+#: eeschema/dialogs/panel_sym_lib_table.cpp:738
+msgid "Discard Changes"
+msgstr "Abandonner Changements"
+
+#: common/confirm.cpp:164 common/confirm.cpp:224
+msgid "Apply to all"
+msgstr "Appliquer à tous"
+
+#: common/confirm.cpp:193
 msgid "Your current changes will be permanently lost."
 msgstr "Vos changements seront définitivement perdus."
 
-#: common/confirm.cpp:202 eeschema/widgets/symbol_tree_pane.cpp:60
+#: common/confirm.cpp:194 eeschema/widgets/symbol_tree_pane.cpp:60
 #: eeschema/widgets/symbol_tree_pane.cpp:84 pcbnew/footprint_tree_pane.cpp:85
 msgid "Revert"
 msgstr "Annuler"
 
-#: common/confirm.cpp:279
+#: common/confirm.cpp:273
 msgid "Info"
 msgstr "Infos"
 
-#: common/confirm.cpp:295 eeschema/dialogs/dialog_annotate.cpp:216
+#: common/confirm.cpp:289 eeschema/dialogs/dialog_annotate.cpp:216
 #: eeschema/dialogs/dialog_annotate.cpp:262 eeschema/libedit/lib_export.cpp:153
 #: eeschema/libedit/pinedit.cpp:218 kicad/import_project.cpp:101
 #: kicad/prjconfig.cpp:397 pcbnew/dialogs/dialog_export_idf.cpp:171
@@ -1433,19 +1453,19 @@ msgstr "Infos"
 #: pcbnew/footprint_libraries_utils.cpp:484
 #: pcbnew/footprint_libraries_utils.cpp:972 pcbnew/router/router_tool.cpp:1020
 #: pcbnew/router/router_tool.cpp:1170 pcbnew/router/router_tool.cpp:1248
-#: pcbnew/zone_filler.cpp:238
+#: pcbnew/zone_filler.cpp:246
 msgid "Confirmation"
 msgstr "Confirmation"
 
 #: common/dialog_about/AboutDialog_main.cpp:114
 #: common/dialogs/dialog_configure_paths_base.cpp:98
-#: common/lib_tree_model_adapter.cpp:200 eeschema/libedit/libedit.cpp:417
-#: eeschema/libedit/libedit.cpp:835 eeschema/sch_component.cpp:1472
-#: eeschema/viewlib_frame.cpp:289 include/lib_table_grid.h:196
+#: common/lib_tree_model_adapter.cpp:216 eeschema/libedit/libedit.cpp:417
+#: eeschema/libedit/libedit.cpp:844 eeschema/sch_component.cpp:1507
+#: eeschema/viewlib_frame.cpp:293 include/lib_table_grid.h:196
 #: pcbnew/dialogs/dialog_footprint_wizard_list_base.cpp:44
 #: pcbnew/dialogs/panel_pcbnew_action_plugins_base.cpp:40
 #: pcbnew/footprint_libraries_utils.cpp:887
-#: pcbnew/footprint_libraries_utils.cpp:1110
+#: pcbnew/footprint_libraries_utils.cpp:1111
 msgid "Description"
 msgstr "Description"
 
@@ -1522,48 +1542,53 @@ msgstr "Symboles par"
 msgid "Footprints by"
 msgstr "Empreintes par"
 
-#: common/dialog_about/dialog_about.cpp:124
+#: common/dialog_about/dialog_about.cpp:100
+#, c-format
+msgid "About %s"
+msgstr "Au Sujet de %s"
+
+#: common/dialog_about/dialog_about.cpp:128
 msgid "Information"
 msgstr "Information"
 
-#: common/dialog_about/dialog_about.cpp:127
+#: common/dialog_about/dialog_about.cpp:131
 msgid "Developers"
 msgstr "Développeurs"
 
-#: common/dialog_about/dialog_about.cpp:128
+#: common/dialog_about/dialog_about.cpp:133
 msgid "Doc Writers"
 msgstr "Rédaction de Doc"
 
-#: common/dialog_about/dialog_about.cpp:130
+#: common/dialog_about/dialog_about.cpp:136
 msgid "Artists"
 msgstr "Artistes"
 
-#: common/dialog_about/dialog_about.cpp:131
+#: common/dialog_about/dialog_about.cpp:138
 msgid "Translators"
 msgstr "Traducteurs"
 
-#: common/dialog_about/dialog_about.cpp:133
+#: common/dialog_about/dialog_about.cpp:140
 msgid "Packagers"
 msgstr "Packagers"
 
-#: common/dialog_about/dialog_about.cpp:136
+#: common/dialog_about/dialog_about.cpp:143
 msgid "License"
 msgstr "Licence"
 
-#: common/dialog_about/dialog_about.cpp:606
+#: common/dialog_about/dialog_about.cpp:614
 msgid "Version Info"
 msgstr "Infos de Version"
 
-#: common/dialog_about/dialog_about.cpp:618
+#: common/dialog_about/dialog_about.cpp:626
 msgid "Could not open clipboard to write version information."
 msgstr ""
 "Impossible d'ouvrir le presse-papier pour écrire les informations de version."
 
-#: common/dialog_about/dialog_about.cpp:619
+#: common/dialog_about/dialog_about.cpp:627
 msgid "Clipboard Error"
 msgstr "Erreur de presse-papier"
 
-#: common/dialog_about/dialog_about.cpp:628
+#: common/dialog_about/dialog_about.cpp:636
 msgid "Copied..."
 msgstr "Copié..."
 
@@ -1584,18 +1609,22 @@ msgid "Lib Version Info"
 msgstr "Infos de version de librairie"
 
 #: common/dialog_about/dialog_about_base.cpp:67
-msgid "Show Version Info"
-msgstr "Afficher Infos de Version"
+msgid "&Show Version Info"
+msgstr "&Afficher Infos de Version"
 
 #: common/dialog_about/dialog_about_base.cpp:70
-msgid "Copy Version Info"
-msgstr "Copier Infos de Version"
+msgid "&Copy Version Info"
+msgstr "&Copier Infos de Version"
 
 #: common/dialog_about/dialog_about_base.cpp:71
 msgid "Copy KiCad version info to the clipboard"
 msgstr "Copier les infos de version de KiCad dans le presse-papier"
 
-#: common/dialog_about/dialog_about_base.h:56
+#: common/dialog_about/dialog_about_base.cpp:75
+msgid "&OK"
+msgstr "&OK"
+
+#: common/dialog_about/dialog_about_base.h:55
 msgid "About"
 msgstr "Au Sujet de"
 
@@ -1696,16 +1725,21 @@ msgstr ""
 "la (les) définition(s) de la (les) variable(s) d'environnement de votre "
 "système."
 
-#: common/dialogs/dialog_configure_paths.cpp:470
+#: common/dialogs/dialog_configure_paths.cpp:345
+#, c-format
+msgid "The name %s is reserved, and cannot be used here"
+msgstr "Le nom %s est réservé et ne peut pas être utilisé ici"
+
+#: common/dialogs/dialog_configure_paths.cpp:477
 msgid "File Browser..."
 msgstr "Explorateur de Fichiers..."
 
-#: common/dialogs/dialog_configure_paths.cpp:473
-#: common/widgets/grid_text_button_helpers.cpp:343
+#: common/dialogs/dialog_configure_paths.cpp:480
+#: common/widgets/grid_text_button_helpers.cpp:353
 msgid "Select Path"
 msgstr "Sélection Chemin"
 
-#: common/dialogs/dialog_configure_paths.cpp:553
+#: common/dialogs/dialog_configure_paths.cpp:560
 msgid ""
 "Enter the name and value for each environment variable.  Grey entries are "
 "names that have been defined externally at the system or user level.  "
@@ -1720,7 +1754,7 @@ msgstr ""
 "présent tableau.  Cela signifie que les valeurs dans ce tableau sont "
 "ignorées."
 
-#: common/dialogs/dialog_configure_paths.cpp:559
+#: common/dialogs/dialog_configure_paths.cpp:566
 msgid ""
 "To ensure environment variable names are valid on all platforms, the name "
 "field will only accept upper case letters, digits, and the underscore "
@@ -1730,7 +1764,7 @@ msgstr ""
 "toutes les plates-formes, le champ nom n'acceptera que les lettres "
 "majuscules, chiffres et le caractère souligné."
 
-#: common/dialogs/dialog_configure_paths.cpp:574
+#: common/dialogs/dialog_configure_paths.cpp:581
 msgid "Environment Variable Help"
 msgstr "Aide sur Variables d'Environnement"
 
@@ -1746,12 +1780,14 @@ msgstr "Variables d'Environnement"
 #: eeschema/dialogs/dialog_lib_edit_pin_table.cpp:76
 #: eeschema/dialogs/dialog_lib_edit_pin_table_base.cpp:45
 #: eeschema/dialogs/panel_eeschema_template_fieldnames_base.cpp:38
-#: eeschema/fields_grid_table.cpp:134 eeschema/lib_pin.cpp:1711
-#: eeschema/libedit/libedit.cpp:815 eeschema/sch_component.cpp:1449
-#: eeschema/sch_component.cpp:1485 eeschema/viewlib_frame.cpp:288
+#: eeschema/dialogs/panel_sym_lib_table.cpp:226
+#: eeschema/fields_grid_table.cpp:145 eeschema/lib_pin.cpp:1711
+#: eeschema/libedit/libedit.cpp:824 eeschema/sch_component.cpp:1483
+#: eeschema/sch_component.cpp:1520 eeschema/viewlib_frame.cpp:292
 #: eeschema/widgets/tuner_slider_base.cpp:20
 #: pcbnew/dialogs/dialog_footprint_wizard_list_base.cpp:43
 #: pcbnew/dialogs/dialog_select_net_from_list.cpp:69
+#: pcbnew/dialogs/panel_fp_lib_table.cpp:343
 #: pcbnew/dialogs/panel_pcbnew_action_plugins_base.cpp:38
 #: pcbnew/dialogs/panel_setup_netclasses_base.cpp:48
 msgid "Name"
@@ -1770,18 +1806,6 @@ msgstr "Chemins de Recherche 3D"
 #: common/dialogs/dialog_configure_paths_base.cpp:96
 msgid "Alias"
 msgstr "Alias"
-
-#: common/dialogs/dialog_exit_base.cpp:28
-msgid "Save changes?"
-msgstr "Sauver les changements?"
-
-#: common/dialogs/dialog_exit_base.cpp:49
-msgid "Apply to all"
-msgstr "Appliquer à tous"
-
-#: common/dialogs/dialog_exit_base.cpp:55
-msgid "Discard Changes"
-msgstr "Abandonner Changements"
 
 #: common/dialogs/dialog_global_lib_table_config.cpp:39
 #, c-format
@@ -1911,7 +1935,7 @@ msgid "Mirror Y"
 msgstr "Miroir Y"
 
 #: common/dialogs/dialog_image_editor_base.cpp:39 pcbnew/onrightclick.cpp:940
-#: pcbnew/tools/edit_tool.cpp:703
+#: pcbnew/tools/edit_tool.cpp:724
 msgid "Rotate"
 msgstr "Rotation"
 
@@ -2209,7 +2233,7 @@ msgstr "Ajustage opt Page"
 #: common/dialogs/dialog_print_generic_base.h:78
 #: eeschema/dialogs/dialog_print_using_printer.cpp:154
 #: eeschema/dialogs/dialog_print_using_printer_base.h:53
-#: eeschema/hotkeys.cpp:230 pagelayout_editor/hotkeys.cpp:101
+#: eeschema/hotkeys.cpp:230 pagelayout_editor/hotkeys.cpp:100
 #: pcbnew/hotkeys.cpp:315
 msgid "Print"
 msgstr "Imprimer"
@@ -2220,8 +2244,8 @@ msgid "Print Preview"
 msgstr "Prévisualisation"
 
 #: common/dialogs/dialog_print_generic.cpp:40
-#: common/legacy_gal/eda_draw_frame.cpp:1611
-#: common/legacy_wx/eda_draw_frame.cpp:1924
+#: common/legacy_gal/eda_draw_frame.cpp:1645
+#: common/legacy_wx/eda_draw_frame.cpp:1968
 #: eeschema/dialogs/dialog_annotate.cpp:116 eeschema/dialogs/dialog_bom.cpp:240
 #: eeschema/dialogs/dialog_erc.cpp:93
 #: eeschema/dialogs/dialog_netlist_base.cpp:49
@@ -2229,7 +2253,7 @@ msgstr "Prévisualisation"
 #: eeschema/dialogs/dialog_print_using_printer.cpp:156
 #: eeschema/dialogs/dialog_schematic_find_base.cpp:134
 #: eeschema/dialogs/dialog_symbol_remap_base.cpp:33
-#: pcbnew/dialogs/dialog_drc.cpp:80
+#: pcbnew/dialogs/dialog_drc.cpp:82
 #: pcbnew/dialogs/dialog_exchange_footprints.cpp:140
 #: pcbnew/dialogs/dialog_export_step.cpp:122
 #: pcbnew/dialogs/dialog_export_svg.cpp:103
@@ -2241,12 +2265,12 @@ msgid "Close"
 msgstr "Fermer"
 
 #: common/dialogs/dialog_print_generic.cpp:123
-#: pcbnew/dialogs/dialog_plot.cpp:792
+#: pcbnew/dialogs/dialog_plot.cpp:794
 msgid "Warning: Scale option set to a very large value"
 msgstr "Attention: option d'échelle ajustée à une valeur très grande"
 
 #: common/dialogs/dialog_print_generic.cpp:127
-#: pcbnew/dialogs/dialog_plot.cpp:789
+#: pcbnew/dialogs/dialog_plot.cpp:791
 msgid "Warning: Scale option set to a very small value"
 msgstr "Attention: option d'échelle ajustée à une valeur très petite"
 
@@ -2327,7 +2351,7 @@ msgstr "Options Page..."
 msgid "MyLabel"
 msgstr "MyLabel"
 
-#: common/dialogs/panel_common_settings.cpp:52
+#: common/dialogs/panel_common_settings.cpp:53
 msgid ""
 "Set the scale for the canvas.\n"
 "\n"
@@ -2348,7 +2372,7 @@ msgstr ""
 "Si cela ne correspond pas à la mise à l'échelle DPI du système, l'affichage "
 "ne correspondra pas à la taille de la fenêtre et à la position du curseur."
 
-#: common/dialogs/panel_common_settings.cpp:62
+#: common/dialogs/panel_common_settings.cpp:63
 msgid ""
 "Use an automatic value for the canvas scale.\n"
 "\n"
@@ -2360,11 +2384,11 @@ msgstr ""
 "Sur certaines plateformes, la valeur automatique est incorrecte et doit être "
 "réglée manuellement."
 
-#: common/dialogs/panel_common_settings.cpp:236
+#: common/dialogs/panel_common_settings.cpp:237
 msgid "Executable files ("
 msgstr "Fichiers exécutables ("
 
-#: common/dialogs/panel_common_settings.cpp:241
+#: common/dialogs/panel_common_settings.cpp:242
 msgid "Select Preferred PDF Browser"
 msgstr "Sélection Visualisateur PDF Préféré"
 
@@ -2504,46 +2528,58 @@ msgstr ""
 "Lorsque vous tracez une piste ou que vous déplacez un objet, pan lorsque "
 "vous approchez le bord de l'écran."
 
-#: common/dialogs/panel_hotkeys_editor.cpp:81
+#: common/dialogs/panel_hotkeys_editor.cpp:85
+msgid "Hotkey errors detected"
+msgstr "Erreurs Hotkeys détectées"
+
+#: common/dialogs/panel_hotkeys_editor.cpp:110
 msgid "Type filter text"
 msgstr "Entrer le texte du filtre"
 
-#: common/dialogs/panel_hotkeys_editor.cpp:106
+#: common/dialogs/panel_hotkeys_editor.cpp:135
 msgid "Reset Hotkeys"
 msgstr "Réinitaliser les Raccourcis"
 
-#: common/dialogs/panel_hotkeys_editor.cpp:107
+#: common/dialogs/panel_hotkeys_editor.cpp:136
 msgid "Undo all changes made so far in this dialog"
 msgstr ""
 "Annuler toutes les modifications effectuées jusqu'à présent dans cette boîte "
 "de dialogue"
 
-#: common/dialogs/panel_hotkeys_editor.cpp:114
+#: common/dialogs/panel_hotkeys_editor.cpp:143
 msgid "Set to Defaults"
 msgstr "Initialiser aux Défauts"
 
-#: common/dialogs/panel_hotkeys_editor.cpp:115
+#: common/dialogs/panel_hotkeys_editor.cpp:144
 msgid "Set all hotkeys to the built-in KiCad defaults"
 msgstr "Ajuster tous les raccourcis clavier aux valeurs KiCad par défaut"
 
-#: common/dialogs/panel_hotkeys_editor.cpp:125
+#: common/dialogs/panel_hotkeys_editor.cpp:154
 msgid "Import..."
 msgstr "Importer..."
 
-#: common/dialogs/panel_hotkeys_editor.cpp:126
+#: common/dialogs/panel_hotkeys_editor.cpp:155
 msgid ""
 "Import hotkey definitions from an external file, replacing the current values"
 msgstr ""
 "Importer les définitions de raccourcis à partir d'un fichier externe, en "
 "remplaçant les valeurs actuelles"
 
-#: common/dialogs/panel_hotkeys_editor.cpp:133
+#: common/dialogs/panel_hotkeys_editor.cpp:162
 msgid "Export..."
 msgstr "Exporter..."
 
-#: common/dialogs/panel_hotkeys_editor.cpp:134
+#: common/dialogs/panel_hotkeys_editor.cpp:163
 msgid "Export these hotkey definitions to an external file"
 msgstr "Exporter les raccourcis clavier actuel dans un fichier"
+
+#: common/dialogs/panel_hotkeys_editor.cpp:182
+msgid ""
+"The imported file contains invalid hotkeys. Please correct the errors before "
+"continuing."
+msgstr ""
+"Le fichier importé contient des hotkeys invalides. Veuillez corriger les "
+"erreurs avant de continuer."
 
 #: common/dialogs/wx_html_report_panel.cpp:244
 #: common/dialogs/wx_html_report_panel.cpp:271
@@ -2582,7 +2618,7 @@ msgid "Show:"
 msgstr "Monter:"
 
 #: common/dialogs/wx_html_report_panel_base.cpp:35
-#: eeschema/lib_draw_item.cpp:65 eeschema/lib_draw_item.cpp:72
+#: eeschema/lib_draw_item.cpp:65
 msgid "All"
 msgstr "Tout"
 
@@ -2649,6 +2685,16 @@ msgstr ""
 "Le caractère de délimitation de ligne doit être un seul caractère  ', \", or "
 "$"
 
+#: common/eagle_parser.cpp:113
+#, c-format
+msgid "Invalid size %lld: too large"
+msgstr "Taille %lld non valide: trop grande"
+
+#: common/eagle_parser.cpp:292
+#, c-format
+msgid "Invalid Arc with radius %f and angle %f"
+msgstr "Arc non valide avec le rayon %f et l’angle %f"
+
 #: common/eda_base_frame.cpp:421
 #, c-format
 msgid "File \"%s\" was not found."
@@ -2687,12 +2733,12 @@ msgstr "Rester impliqué avec KiCad"
 
 #: common/eda_base_frame.cpp:516 eeschema/hotkeys.cpp:119
 #: gerbview/hotkeys.cpp:68 kicad/menubar.cpp:154
-#: pagelayout_editor/hotkeys.cpp:102 pcbnew/hotkeys.cpp:330
+#: pagelayout_editor/hotkeys.cpp:101 pcbnew/hotkeys.cpp:330
 msgid "Preferences"
 msgstr "Préférences"
 
 #: common/eda_base_frame.cpp:519 eeschema/hotkeys.cpp:366
-#: pagelayout_editor/hotkeys.cpp:127
+#: pagelayout_editor/hotkeys.cpp:126
 #: pcbnew/dialogs/dialog_track_via_properties_base.cpp:20
 #: pcbnew/hotkeys.cpp:535
 msgid "Common"
@@ -2769,7 +2815,7 @@ msgid " Y:"
 msgstr " Y:"
 
 #: common/eda_text.cpp:392 eeschema/dialogs/dialog_edit_label_base.cpp:87
-#: eeschema/libedit/libedit.cpp:825 eeschema/sch_text.cpp:608
+#: eeschema/libedit/libedit.cpp:834 eeschema/sch_text.cpp:608
 #: gerbview/gerber_file_image.cpp:358 gerbview/gerber_file_image.cpp:362
 #: gerbview/gerber_file_image.cpp:365 pcbnew/class_module.cpp:599
 #: pcbnew/microwave.cpp:466
@@ -2782,7 +2828,7 @@ msgstr "Normal"
 #: eeschema/dialogs/dialog_edit_component_in_schematic_base.cpp:53
 #: eeschema/dialogs/dialog_edit_label_base.cpp:87
 #: eeschema/dialogs/dialog_lib_edit_text_base.cpp:80
-#: eeschema/fields_grid_table.cpp:139 eeschema/sch_text.cpp:608
+#: eeschema/fields_grid_table.cpp:150 eeschema/sch_text.cpp:608
 #: pagelayout_editor/dialogs/properties_frame_base.cpp:105
 #: pcbnew/dialogs/dialog_edit_footprint_for_BoardEditor_base.cpp:58
 #: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor_base.cpp:58
@@ -2801,7 +2847,7 @@ msgstr "Italique"
 #: eeschema/dialogs/dialog_edit_component_in_schematic_base.cpp:54
 #: eeschema/dialogs/dialog_edit_label_base.cpp:87
 #: eeschema/dialogs/dialog_lib_edit_text_base.cpp:110
-#: eeschema/fields_grid_table.cpp:140 eeschema/sch_text.cpp:608
+#: eeschema/fields_grid_table.cpp:151 eeschema/sch_text.cpp:608
 #: pagelayout_editor/dialogs/properties_frame_base.cpp:92
 msgid "Bold"
 msgstr "Gras"
@@ -2945,7 +2991,7 @@ msgstr "Impossible d'ouvrir le fichier de config"
 msgid "Problems writing configuration file"
 msgstr "Problèmes d'écriture du fichier de configuration"
 
-#: common/footprint_info.cpp:91 cvpcb/cvpcb_mainframe.cpp:775
+#: common/footprint_info.cpp:91 cvpcb/cvpcb_mainframe.cpp:915
 msgid "Load Error"
 msgstr "Erreur de Chargement"
 
@@ -3031,6 +3077,24 @@ msgstr "Sélectionner Tout\tCTRL+A"
 msgid "Select all cells"
 msgstr "Sélection toutes Cellules"
 
+#: common/hotkey_store.cpp:29
+msgid "Hotkeys not checked"
+msgstr "Hotkeys non vérifiées"
+
+#: common/hotkey_store.cpp:175
+msgid "A hotkey cannot contain the shift key and a symbol key."
+msgstr ""
+"Une hotkey ne peut pas contenir la touche Maj et une touche de symbole."
+
+#: common/hotkey_store.cpp:235
+#, c-format
+msgid "Duplicate of hotkey for \"%s\""
+msgstr "Duplication de hotkey pour \"%s\""
+
+#: common/hotkey_store.cpp:246
+msgid "Hotkey is valid"
+msgstr "Raccourci valide"
+
 #: common/hotkeys_basic.cpp:720
 msgid "Read Hotkey Configuration File:"
 msgstr "Lire un fichier de raccourci clavier:"
@@ -3110,12 +3174,12 @@ msgstr "Duplic. Bloc"
 
 #: common/legacy_gal/block.cpp:99 common/legacy_wx/block.cpp:98
 #: common/tool/zoom_tool.cpp:58 cvpcb/display_footprints_frame.cpp:299
-#: eeschema/libedit/lib_edit_frame.cpp:1106 eeschema/libedit/tool_lib.cpp:148
+#: eeschema/libedit/lib_edit_frame.cpp:1123 eeschema/libedit/tool_lib.cpp:148
 #: eeschema/schedit.cpp:495 eeschema/tool_sch.cpp:128
-#: gerbview/events_called_functions.cpp:231 gerbview/toolbars_gerber.cpp:89
+#: gerbview/events_called_functions.cpp:230 gerbview/toolbars_gerber.cpp:89
 #: pagelayout_editor/events_functions.cpp:138
 #: pagelayout_editor/toolbars_pl_editor.cpp:98 pcbnew/edit.cpp:1426
-#: pcbnew/footprint_editor_utils.cpp:943 pcbnew/tool_footprint_editor.cpp:97
+#: pcbnew/footprint_editor_utils.cpp:952 pcbnew/tool_footprint_editor.cpp:97
 #: pcbnew/tool_pcb_editor.cpp:293
 msgid "Zoom to selection"
 msgstr "Zoom sur la sélection"
@@ -3124,34 +3188,35 @@ msgstr "Zoom sur la sélection"
 msgid "Block Flip"
 msgstr "Retournement Bloc"
 
-#: common/legacy_gal/eda_draw_frame.cpp:196
-#: common/legacy_gal/eda_draw_frame.cpp:623
-#: common/legacy_wx/eda_draw_frame.cpp:199
-#: common/legacy_wx/eda_draw_frame.cpp:628
+#: common/legacy_gal/eda_draw_frame.cpp:199
+#: common/legacy_gal/eda_draw_frame.cpp:657
+#: common/legacy_wx/eda_draw_frame.cpp:202
+#: common/legacy_wx/eda_draw_frame.cpp:666
 #: gerbview/dialogs/panel_gerbview_settings_base.cpp:28
-#: pagelayout_editor/pl_editor_frame.cpp:120
+#: pagelayout_editor/pl_editor_frame.cpp:121
 #: pcbnew/dialogs/dialog_gen_footprint_position_file_base.cpp:58
 #: pcbnew/dialogs/dialog_gendrill_base.cpp:108
+#: pcbnew/dialogs/dialog_plot_base.cpp:325
 #: pcbnew/dialogs/dialog_text_properties_base.cpp:65
 #: pcbnew/dialogs/panel_modedit_settings_base.cpp:31
 #: pcbnew/dialogs/panel_pcbnew_settings_base.cpp:31
 msgid "Inches"
 msgstr "Pouces"
 
-#: common/legacy_gal/eda_draw_frame.cpp:433
-#: common/legacy_wx/eda_draw_frame.cpp:436
+#: common/legacy_gal/eda_draw_frame.cpp:436
+#: common/legacy_wx/eda_draw_frame.cpp:439
 #: cvpcb/display_footprints_frame.cpp:231 pcbnew/tool_footprint_editor.cpp:214
 #: pcbnew/tool_pcb_editor.cpp:365
 msgid "Hide grid"
 msgstr "Ne pas afficher la grille"
 
-#: common/legacy_gal/eda_draw_frame.cpp:433
-#: common/legacy_wx/eda_draw_frame.cpp:436
+#: common/legacy_gal/eda_draw_frame.cpp:436
+#: common/legacy_wx/eda_draw_frame.cpp:439
 msgid "Show grid"
 msgstr "Afficher grille"
 
-#: common/legacy_gal/eda_draw_frame.cpp:625
-#: common/legacy_wx/eda_draw_frame.cpp:636
+#: common/legacy_gal/eda_draw_frame.cpp:659
+#: common/legacy_wx/eda_draw_frame.cpp:674
 #: gerbview/dialogs/panel_gerbview_settings_base.cpp:30
 #: pcbnew/dialogs/dialog_gen_footprint_position_file_base.cpp:60
 #: pcbnew/dialogs/panel_modedit_settings_base.cpp:33
@@ -3160,14 +3225,14 @@ msgstr "Afficher grille"
 msgid "Units"
 msgstr "Unités"
 
-#: common/legacy_gal/eda_draw_frame.cpp:1557
-#: common/legacy_wx/eda_draw_frame.cpp:1870 common/tool/actions.cpp:32
+#: common/legacy_gal/eda_draw_frame.cpp:1591
+#: common/legacy_wx/eda_draw_frame.cpp:1914 common/tool/actions.cpp:32
 #: common/widgets/mathplot.cpp:1754
 #: eeschema/dialogs/dialog_lib_edit_text_base.cpp:120
 #: eeschema/dialogs/dialog_lib_edit_text_base.cpp:150
-#: eeschema/fields_grid_table.cpp:90 eeschema/fields_grid_table.cpp:98
-#: eeschema/fields_grid_table.cpp:303 eeschema/fields_grid_table.cpp:316
-#: eeschema/fields_grid_table.cpp:401 eeschema/fields_grid_table.cpp:412
+#: eeschema/fields_grid_table.cpp:101 eeschema/fields_grid_table.cpp:109
+#: eeschema/fields_grid_table.cpp:319 eeschema/fields_grid_table.cpp:332
+#: eeschema/fields_grid_table.cpp:417 eeschema/fields_grid_table.cpp:428
 #: gerbview/gerber_file_image.cpp:362 gerbview/gerber_file_image.cpp:365
 #: pagelayout_editor/dialogs/properties_frame_base.cpp:86
 #: pagelayout_editor/dialogs/properties_frame_base.cpp:99
@@ -3176,63 +3241,63 @@ msgstr "Unités"
 msgid "Center"
 msgstr "Centrer"
 
-#: common/legacy_gal/eda_draw_frame.cpp:1559
-#: common/legacy_wx/eda_draw_frame.cpp:1872 common/tool/actions.cpp:16
+#: common/legacy_gal/eda_draw_frame.cpp:1593
+#: common/legacy_wx/eda_draw_frame.cpp:1916 common/tool/actions.cpp:16
 #: common/widgets/mathplot.cpp:1756 eeschema/hotkeys.cpp:106
 #: eeschema/hotkeys.cpp:108 eeschema/sim/sim_plot_frame_base.cpp:77
 #: gerbview/hotkeys.cpp:65 pagelayout_editor/hotkeys.cpp:80
-#: pagelayout_editor/menubar.cpp:122 pcbnew/hotkeys.cpp:231
+#: pagelayout_editor/menubar.cpp:123 pcbnew/hotkeys.cpp:231
 #: pcbnew/hotkeys.cpp:233
 msgid "Zoom In"
 msgstr "Zoom In"
 
-#: common/legacy_gal/eda_draw_frame.cpp:1561
-#: common/legacy_wx/eda_draw_frame.cpp:1874 common/tool/actions.cpp:20
+#: common/legacy_gal/eda_draw_frame.cpp:1595
+#: common/legacy_wx/eda_draw_frame.cpp:1918 common/tool/actions.cpp:20
 #: common/widgets/mathplot.cpp:1757 eeschema/hotkeys.cpp:113
 #: eeschema/hotkeys.cpp:115 eeschema/sim/sim_plot_frame_base.cpp:81
 #: gerbview/hotkeys.cpp:64 pagelayout_editor/hotkeys.cpp:79
-#: pagelayout_editor/menubar.cpp:125 pcbnew/hotkeys.cpp:238
+#: pagelayout_editor/menubar.cpp:126 pcbnew/hotkeys.cpp:238
 #: pcbnew/hotkeys.cpp:240
 msgid "Zoom Out"
 msgstr "Zoom Out"
 
-#: common/legacy_gal/eda_draw_frame.cpp:1563
-#: common/legacy_wx/eda_draw_frame.cpp:1876 pagelayout_editor/menubar.cpp:146
+#: common/legacy_gal/eda_draw_frame.cpp:1597
+#: common/legacy_wx/eda_draw_frame.cpp:1920 pagelayout_editor/menubar.cpp:147
 msgid "Redraw View"
 msgstr "Rafraîchir l'Ecran"
 
-#: common/legacy_gal/eda_draw_frame.cpp:1565
-#: common/legacy_wx/eda_draw_frame.cpp:1878 pagelayout_editor/menubar.cpp:128
+#: common/legacy_gal/eda_draw_frame.cpp:1599
+#: common/legacy_wx/eda_draw_frame.cpp:1922 pagelayout_editor/menubar.cpp:129
 msgid "Zoom to Fit"
 msgstr "Zoom Optimal"
 
-#: common/legacy_gal/eda_draw_frame.cpp:1571
-#: common/legacy_wx/eda_draw_frame.cpp:1884 common/tool/zoom_menu.cpp:39
+#: common/legacy_gal/eda_draw_frame.cpp:1605
+#: common/legacy_wx/eda_draw_frame.cpp:1928 common/tool/zoom_menu.cpp:39
 msgid "Zoom"
 msgstr "Zoom"
 
-#: common/legacy_gal/eda_draw_frame.cpp:1584
-#: common/legacy_wx/eda_draw_frame.cpp:1897
+#: common/legacy_gal/eda_draw_frame.cpp:1618
+#: common/legacy_wx/eda_draw_frame.cpp:1941
 msgid "Zoom: "
 msgstr "Zoom:  "
 
-#: common/legacy_gal/eda_draw_frame.cpp:1595
-#: common/legacy_wx/eda_draw_frame.cpp:1908 common/tool/grid_menu.cpp:40
+#: common/legacy_gal/eda_draw_frame.cpp:1629
+#: common/legacy_wx/eda_draw_frame.cpp:1952 common/tool/grid_menu.cpp:40
 #: eeschema/widgets/widget_eeschema_color_config.cpp:97
 #: gerbview/gerbview_layer_widget.cpp:114 pcbnew/pcb_layer_widget.cpp:91
 msgid "Grid"
 msgstr "Grille"
 
-#: common/legacy_gal/eda_draw_frame.cpp:1856
-#: common/legacy_wx/eda_draw_frame.cpp:1489
-#: eeschema/dialogs/panel_sym_lib_table.cpp:348
-#: pcbnew/dialogs/panel_fp_lib_table.cpp:615
+#: common/legacy_gal/eda_draw_frame.cpp:1890
+#: common/legacy_wx/eda_draw_frame.cpp:1533
+#: eeschema/dialogs/panel_sym_lib_table.cpp:354
+#: pcbnew/dialogs/panel_fp_lib_table.cpp:618
 #: pcbnew/footprint_libraries_utils.cpp:77
 msgid "Select Library"
 msgstr "Sélection Librairie"
 
-#: common/legacy_gal/eda_draw_frame.cpp:1856
-#: common/legacy_wx/eda_draw_frame.cpp:1489
+#: common/legacy_gal/eda_draw_frame.cpp:1890
+#: common/legacy_wx/eda_draw_frame.cpp:1533
 msgid "New Library"
 msgstr "Nouvelle Librairie"
 
@@ -3245,7 +3310,7 @@ msgid "Illegal character found in revision"
 msgstr "Caractère illégal trouvé en révision"
 
 #: common/lib_tree_model.cpp:137 eeschema/lib_draw_item.cpp:69
-#: eeschema/libedit/libedit.cpp:820 eeschema/onrightclick.cpp:507
+#: eeschema/libedit/libedit.cpp:829 eeschema/onrightclick.cpp:507
 #: pcbnew/dialogs/dialog_graphic_item_properties_base.cpp:36
 #: pcbnew/dialogs/dialog_graphic_item_properties_base.cpp:47
 #: pcbnew/dialogs/dialog_graphic_item_properties_base.cpp:58
@@ -3269,7 +3334,7 @@ msgstr "Caractère illégal trouvé en révision"
 msgid "Unit"
 msgstr "Unité"
 
-#: common/lib_tree_model_adapter.cpp:199
+#: common/lib_tree_model_adapter.cpp:215
 msgid "Item"
 msgstr "Élément"
 
@@ -3394,11 +3459,11 @@ msgstr "Sélection Éditeur Préféré"
 msgid "%s is already running. Continue?"
 msgstr "%s est en cours d'exécution. Continuer?"
 
-#: common/pgm_base.cpp:833
+#: common/pgm_base.cpp:841
 msgid "Set Language"
 msgstr "Selection Langue"
 
-#: common/pgm_base.cpp:834
+#: common/pgm_base.cpp:842
 msgid "Select application language (only for testing)"
 msgstr "Choisir la langue (seulement pour tests!)"
 
@@ -3440,7 +3505,7 @@ msgstr "Longueur de ligne dépassée"
 msgid "OUTPUTSTREAM_OUTPUTFORMATTER write error"
 msgstr "OUTPUTSTREAM_OUTPUTFORMATTER write error"
 
-#: common/selcolor.cpp:86 eeschema/eeschema_config.cpp:210
+#: common/selcolor.cpp:86 eeschema/eeschema_config.cpp:228
 msgid "Colors"
 msgstr "Couleurs"
 
@@ -3449,16 +3514,16 @@ msgid "Cancel current tool"
 msgstr "Désélection outil courant"
 
 #: common/tool/actions.cpp:36 eeschema/hotkeys.cpp:89
-#: gerbview/gerbview_frame.cpp:1250 gerbview/hotkeys.cpp:61
+#: gerbview/gerbview_frame.cpp:1293 gerbview/hotkeys.cpp:61
 #: pagelayout_editor/hotkeys.cpp:75 pcbnew/hotkeys.cpp:215
-#: pcbnew/hotkeys.cpp:217 pcbnew/pcb_base_frame.cpp:1054
+#: pcbnew/hotkeys.cpp:217 pcbnew/pcb_base_frame.cpp:1092
 msgid "Zoom Auto"
 msgstr "Zoom Auto"
 
 #: common/tool/actions.cpp:40 eeschema/hotkeys.cpp:203
 #: eeschema/libedit/menubar_libedit.cpp:203 eeschema/menubar.cpp:179
 #: gerbview/hotkeys.cpp:66 gerbview/menubar.cpp:215
-#: pagelayout_editor/hotkeys.cpp:81 pagelayout_editor/menubar.cpp:131
+#: pagelayout_editor/hotkeys.cpp:81 pagelayout_editor/menubar.cpp:132
 #: pcbnew/hotkeys.cpp:243 pcbnew/menubar_footprint_editor.cpp:229
 #: pcbnew/menubar_pcb_editor.cpp:587
 msgid "Zoom to Selection"
@@ -3477,6 +3542,28 @@ msgstr "Affichage du curseur, même lorsqu'il n’y a pas d'outil interactif"
 msgid "Zoom: %.2f"
 msgstr "Zoom: %.2f"
 
+#: common/validators.cpp:256
+#, c-format
+msgid "Incorrect value: %s"
+msgstr "Valeur incorrecte: \"%s\""
+
+#: common/validators.cpp:300
+msgid "Entry contains trailing white space."
+msgstr "Le texte contient des espaces à la fin."
+
+#: common/validators.cpp:304
+msgid "Entry contains leading white space."
+msgstr "Le texte contient des espaces au début."
+
+#: common/validators.cpp:308
+#, c-format
+msgid "\"%s\" is not a valid library identifier format."
+msgstr "\"%s\" n'est pas un identificateur de librairie valide."
+
+#: common/validators.cpp:315
+msgid "Library Identifier Validation Error"
+msgstr "Erreur de Validation de l’Identificateur de Librairie"
+
 #: common/view/view.cpp:567
 msgid "Mirroring for Y axis is not supported yet"
 msgstr "Mise en miroir pour l’axe des Y n'est pas encore supporté"
@@ -3485,7 +3572,7 @@ msgstr "Mise en miroir pour l’axe des Y n'est pas encore supporté"
 msgid "Footprint not found"
 msgstr "Empreinte non trouvée"
 
-#: common/widgets/footprint_select_widget.cpp:78 cvpcb/cvpcb_mainframe.cpp:711
+#: common/widgets/footprint_select_widget.cpp:78 cvpcb/cvpcb_mainframe.cpp:850
 #: pcbnew/footprint_edit_frame.cpp:863 pcbnew/load_select_footprint.cpp:214
 msgid "Loading Footprint Libraries"
 msgstr "Chargement Librairies d'Empreintes"
@@ -3499,73 +3586,73 @@ msgstr "Pas d'empreinte par défaut"
 msgid "Other..."
 msgstr "Autre..."
 
-#: common/widgets/gal_options_panel.cpp:65
+#: common/widgets/gal_options_panel.cpp:70
 msgid " (not supported in Legacy Toolset)"
 msgstr " (non supporté en mode graphique de base)"
 
-#: common/widgets/gal_options_panel.cpp:73
+#: common/widgets/gal_options_panel.cpp:78
 msgid "Grid Options"
 msgstr "Options de Grille"
 
-#: common/widgets/gal_options_panel.cpp:76
+#: common/widgets/gal_options_panel.cpp:81
 msgid "Dots"
 msgstr "Points"
 
-#: common/widgets/gal_options_panel.cpp:77
+#: common/widgets/gal_options_panel.cpp:82
 msgid "Lines"
 msgstr "Lignes"
 
-#: common/widgets/gal_options_panel.cpp:78
+#: common/widgets/gal_options_panel.cpp:83
 msgid "Small crosses"
 msgstr "Petites croix"
 
-#: common/widgets/gal_options_panel.cpp:82
+#: common/widgets/gal_options_panel.cpp:87
 msgid "Grid Style"
 msgstr "Style de Grille"
 
-#: common/widgets/gal_options_panel.cpp:94
+#: common/widgets/gal_options_panel.cpp:99
 msgid "Grid thickness:"
 msgstr "Epaisseur de la Grille:"
 
-#: common/widgets/gal_options_panel.cpp:106
-#: common/widgets/gal_options_panel.cpp:123
+#: common/widgets/gal_options_panel.cpp:110
+#: common/widgets/gal_options_panel.cpp:126
 msgid "px"
 msgstr "px"
 
-#: common/widgets/gal_options_panel.cpp:111
+#: common/widgets/gal_options_panel.cpp:115
 msgid "Min grid spacing:"
 msgstr "Espacement de Grille Min:"
 
-#: common/widgets/gal_options_panel.cpp:151
+#: common/widgets/gal_options_panel.cpp:139
 msgid "Cursor Options"
 msgstr "Options du Curseur"
 
-#: common/widgets/gal_options_panel.cpp:165
+#: common/widgets/gal_options_panel.cpp:153
 msgid "Small crosshair"
 msgstr "Petite croix"
 
-#: common/widgets/gal_options_panel.cpp:166
+#: common/widgets/gal_options_panel.cpp:154
 msgid "Full window crosshair"
 msgstr "Curseur graphique plein écran"
 
-#: common/widgets/gal_options_panel.cpp:171
-msgid "Cursor shape:"
-msgstr "Forme curseur:"
+#: common/widgets/gal_options_panel.cpp:159
+msgid "Cursor Shape:"
+msgstr "Forme Curseur:"
 
-#: common/widgets/gal_options_panel.cpp:176
+#: common/widgets/gal_options_panel.cpp:164
 msgid "Cursor shape for drawing, placement and movement tools"
 msgstr ""
 "Forme du curseur pour le dessin, les outils de placement et de déplacement"
 
-#: common/widgets/gal_options_panel.cpp:182
+#: common/widgets/gal_options_panel.cpp:170
 msgid "Always show crosshairs"
 msgstr "Toujours afficher les curseurs"
 
-#: common/widgets/gal_options_panel.cpp:187
+#: common/widgets/gal_options_panel.cpp:175
 msgid "Always show crosshairs (not in Legacy)"
 msgstr "Toujours afficher les curseurs (pas en mode affichage de base)"
 
-#: common/widgets/grid_text_button_helpers.cpp:332
+#: common/widgets/grid_text_button_helpers.cpp:342
 msgid "Select a File"
 msgstr "Sélectionner un fichier"
 
@@ -3595,8 +3682,8 @@ msgid "<no net>"
 msgstr "<pas de net>"
 
 #: common/widgets/net_selector.cpp:72
-#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:781
-#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:820
+#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:791
+#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:830
 msgid "Filter:"
 msgstr "Filtre:"
 
@@ -3610,23 +3697,23 @@ msgstr "%s doit être au moins %s."
 msgid "%s must be less than %s."
 msgstr "%s doit être inférieur à %s."
 
-#: common/widgets/widget_hotkey_list.cpp:102
+#: common/widgets/widget_hotkey_list.cpp:129
 msgid "Press a new hotkey, or press Esc to cancel..."
 msgstr "Taper une nouvelle clé, ou appuyez sur Esc pour annuler..."
 
-#: common/widgets/widget_hotkey_list.cpp:109
+#: common/widgets/widget_hotkey_list.cpp:136
 msgid "Command:"
 msgstr "Commande:"
 
-#: common/widgets/widget_hotkey_list.cpp:117
+#: common/widgets/widget_hotkey_list.cpp:144
 msgid "Current key:"
 msgstr "Raccourci actuel:"
 
-#: common/widgets/widget_hotkey_list.cpp:211
+#: common/widgets/widget_hotkey_list.cpp:251
 msgid "Set Hotkey"
 msgstr "Selection Raccourci"
 
-#: common/widgets/widget_hotkey_list.cpp:429
+#: common/widgets/widget_hotkey_list.cpp:486
 #: eeschema/libedit/libedit_onrightclick.cpp:202
 #: eeschema/libedit/libedit_onrightclick.cpp:266
 #: eeschema/libedit/libedit_onrightclick.cpp:295 eeschema/onrightclick.cpp:288
@@ -3640,24 +3727,24 @@ msgstr "Selection Raccourci"
 msgid "Edit..."
 msgstr "Editer..."
 
-#: common/widgets/widget_hotkey_list.cpp:430
+#: common/widgets/widget_hotkey_list.cpp:487
 #: eeschema/dialogs/dialog_edit_components_libid_base.cpp:64
 msgid "Undo Changes"
 msgstr "Défaire Changements"
 
-#: common/widgets/widget_hotkey_list.cpp:431
+#: common/widgets/widget_hotkey_list.cpp:488
 msgid "Restore Default"
 msgstr "Réinitialiser à Défaut"
 
-#: common/widgets/widget_hotkey_list.cpp:435
+#: common/widgets/widget_hotkey_list.cpp:492
 msgid "Undo All Changes"
-msgstr "Unnuler tous les Changements"
+msgstr "Annuler tous les Changements"
 
-#: common/widgets/widget_hotkey_list.cpp:436
+#: common/widgets/widget_hotkey_list.cpp:493
 msgid "Restore All to Default"
 msgstr "Tout Réinitialiser aux Valeurs par Défaut"
 
-#: common/widgets/widget_hotkey_list.cpp:483
+#: common/widgets/widget_hotkey_list.cpp:540
 #, c-format
 msgid ""
 "\"%s\" is already assigned to \"%s\" in section \"%s\". Are you sure you "
@@ -3666,19 +3753,19 @@ msgstr ""
 "\"%s\" est déjà assigné à \"%s\" en section \"%s\".  Êtes-vous sûr de "
 "vouloir changer cette assignation?"
 
-#: common/widgets/widget_hotkey_list.cpp:488
+#: common/widgets/widget_hotkey_list.cpp:545
 msgid "Confirm change"
 msgstr "Confirmer le changement"
 
-#: common/widgets/widget_hotkey_list.cpp:515
+#: common/widgets/widget_hotkey_list.cpp:590
 msgid "Command"
 msgstr "Commande"
 
-#: common/widgets/widget_hotkey_list.cpp:518
+#: common/widgets/widget_hotkey_list.cpp:593
 msgid "(double-click to edit)"
 msgstr "(double-clic pour éditer)"
 
-#: common/widgets/widget_hotkey_list.cpp:521
+#: common/widgets/widget_hotkey_list.cpp:596
 msgid "Hotkey"
 msgstr "Raccourci"
 
@@ -3933,92 +4020,125 @@ msgstr ""
 "Une erreur s'est produite lors du chargement de la table globale des "
 "librairies d'empreintes"
 
-#: cvpcb/cvpcb_mainframe.cpp:111
+#: cvpcb/cvpcb_mainframe.cpp:120
 msgid "Assign Footprints"
 msgstr "Assigner Empreintes"
 
-#: cvpcb/cvpcb_mainframe.cpp:154 pcbnew/dialogs/panel_fp_lib_table.cpp:815
+#: cvpcb/cvpcb_mainframe.cpp:163 pcbnew/dialogs/panel_fp_lib_table.cpp:820
 msgid "Footprint Libraries"
 msgstr "Librairies d'Empreintes"
 
-#: cvpcb/cvpcb_mainframe.cpp:158
+#: cvpcb/cvpcb_mainframe.cpp:167
 msgid "Symbol : Footprint Assignments"
 msgstr "Symbole: Attribution Empreintes"
 
-#: cvpcb/cvpcb_mainframe.cpp:161
+#: cvpcb/cvpcb_mainframe.cpp:170
 msgid "Filtered Footprints"
 msgstr "Empreintes Filtrées"
 
-#: cvpcb/cvpcb_mainframe.cpp:193
+#: cvpcb/cvpcb_mainframe.cpp:206
 #: eeschema/dialogs/dialog_fields_editor_global_base.cpp:105
 msgid "Apply, Save Schematic && Continue"
 msgstr "Appliquer, Sauver Schematique && Continuer"
 
-#: cvpcb/cvpcb_mainframe.cpp:263
-msgid ""
-"Symbol to Footprint links have been modified.\n"
-"Save before exit?"
-msgstr ""
-"Liens symboles / empreintes modifiés,\n"
-"Sauver avant de quitter?"
+#: cvpcb/cvpcb_mainframe.cpp:292
+msgid "Symbol to Footprint links have been modified. Save before exit?"
+msgstr "Liens symboles / empreintes modifiés. Sauver avant de quitter?"
 
-#: cvpcb/cvpcb_mainframe.cpp:405
-msgid "Delete selections"
-msgstr "Effacement des associations existantes"
+#: cvpcb/cvpcb_mainframe.cpp:513
+msgid "Delete all footprint assocations?"
+msgstr "Supprimer toutes les associations d'empreintes?"
 
-#: cvpcb/cvpcb_mainframe.cpp:459 cvpcb/cvpcb_mainframe.cpp:469
+#: cvpcb/cvpcb_mainframe.cpp:567 cvpcb/cvpcb_mainframe.cpp:588
 msgid "View Footprint"
 msgstr "Visualiser Empreinte"
 
-#: cvpcb/cvpcb_mainframe.cpp:459
+#: cvpcb/cvpcb_mainframe.cpp:568
 msgid "Show the assigned footprint in the footprint viewer"
 msgstr "Éditer l'empreinte sélectionnée dans le visualisateur d'empreintes"
 
-#: cvpcb/cvpcb_mainframe.cpp:469
+#: cvpcb/cvpcb_mainframe.cpp:570
+msgid "Cut Footprint Association"
+msgstr "Supprimer Association d'Empreinte"
+
+#: cvpcb/cvpcb_mainframe.cpp:571
+msgid "Cut the assigned footprint"
+msgstr "Supprimer l'empreinte assignée"
+
+#: cvpcb/cvpcb_mainframe.cpp:572
+msgid "Copy Footprint Association"
+msgstr "Copier Association d'Empreintes"
+
+#: cvpcb/cvpcb_mainframe.cpp:573
+msgid "Copy the assigned footprint"
+msgstr "Copier l'empreinte assignée"
+
+#: cvpcb/cvpcb_mainframe.cpp:574
+msgid "Paste Footprint Association"
+msgstr "Coller Attribution Empreinte"
+
+#: cvpcb/cvpcb_mainframe.cpp:575
+msgid "Paste a footprint assignment"
+msgstr "Coller une attribution d'empreinte"
+
+#: cvpcb/cvpcb_mainframe.cpp:577
+msgid "Delete Footprint Association"
+msgstr "Supprimer Aassociations d'Empreinte"
+
+#: cvpcb/cvpcb_mainframe.cpp:578
+msgid "Delete the assigned footprint"
+msgstr "Supprimer l'empreinte assignée"
+
+#: cvpcb/cvpcb_mainframe.cpp:589
 msgid "Show the current footprint in the footprint viewer"
 msgstr "Éditer l'empreinte sélectionnée dans le visualisateur d'empreintes"
 
-#: cvpcb/cvpcb_mainframe.cpp:639
+#: cvpcb/cvpcb_mainframe.cpp:760
 msgid "key words"
 msgstr "mots clé"
 
-#: cvpcb/cvpcb_mainframe.cpp:652
+#: cvpcb/cvpcb_mainframe.cpp:773
 msgid "pin count"
 msgstr "nombre de pins"
 
-#: cvpcb/cvpcb_mainframe.cpp:662
+#: cvpcb/cvpcb_mainframe.cpp:783
 msgid "library"
 msgstr "librairie"
 
-#: cvpcb/cvpcb_mainframe.cpp:670
+#: cvpcb/cvpcb_mainframe.cpp:791
 msgid "search text"
 msgstr "recherche texte"
 
-#: cvpcb/cvpcb_mainframe.cpp:674
+#: cvpcb/cvpcb_mainframe.cpp:795
 msgid "No filtering"
 msgstr "Pas de filtrage"
 
-#: cvpcb/cvpcb_mainframe.cpp:676
+#: cvpcb/cvpcb_mainframe.cpp:797
 #, c-format
 msgid "Filtered by %s"
 msgstr "Filtré par %s"
 
-#: cvpcb/cvpcb_mainframe.cpp:690
+#: cvpcb/cvpcb_mainframe.cpp:811
 #, c-format
 msgid "Description: %s;  Key words: %s"
 msgstr "Description: %s; Mots Clé: %s"
 
-#: cvpcb/cvpcb_mainframe.cpp:706
+#: cvpcb/cvpcb_mainframe.cpp:829
+#, c-format
+msgid "Library location: %s"
+msgstr "Emplacement librairie: %s"
+
+#: cvpcb/cvpcb_mainframe.cpp:845
 msgid ""
 "No PCB footprint libraries are listed in the current footprint library table."
 msgstr ""
 "Aucune librairie de modules PCB listée dans la table de librairie courante."
 
-#: cvpcb/cvpcb_mainframe.cpp:707
+#: cvpcb/cvpcb_mainframe.cpp:846
 msgid "Configuration Error"
 msgstr "Erreur de Configuration"
 
-#: cvpcb/cvpcb_mainframe.cpp:774
+#: cvpcb/cvpcb_mainframe.cpp:913
 #, c-format
 msgid ""
 "Error loading schematic.\n"
@@ -4051,7 +4171,7 @@ msgstr "Fichiers Association Symboles/Empreintes (*.equ)"
 
 #: cvpcb/dialogs/dialog_config_equfiles_base.cpp:36
 #: eeschema/dialogs/dialog_spice_model_base.cpp:610
-#: eeschema/libedit/lib_edit_frame.cpp:1670
+#: eeschema/libedit/lib_edit_frame.cpp:1687
 msgid "Add"
 msgstr "Ajouter"
 
@@ -4076,16 +4196,18 @@ msgstr "Variables d'env. pour chemins relatifs:"
 #: eeschema/dialogs/dialog_edit_component_in_lib_base.cpp:57
 #: eeschema/dialogs/dialog_edit_component_in_lib_base.cpp:326
 #: eeschema/dialogs/dialog_edit_component_in_schematic_base.cpp:49
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:856
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:872
 #: eeschema/dialogs/dialog_rescue_each.cpp:136
-#: eeschema/fields_grid_table.cpp:135 eeschema/lib_field.cpp:463
-#: eeschema/lib_field.cpp:629 eeschema/sch_component.cpp:1444
-#: eeschema/sch_component.cpp:1483 eeschema/template_fieldnames.cpp:48
+#: eeschema/dialogs/panel_sym_lib_table.cpp:227
+#: eeschema/fields_grid_table.cpp:146 eeschema/lib_field.cpp:463
+#: eeschema/lib_field.cpp:629 eeschema/sch_component.cpp:1478
+#: eeschema/sch_component.cpp:1518 eeschema/template_fieldnames.cpp:48
 #: eeschema/widgets/widget_eeschema_color_config.cpp:76
 #: pcbnew/class_text_mod.cpp:412
 #: pcbnew/dialogs/dialog_edit_footprint_for_BoardEditor_base.cpp:70
 #: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor_base.cpp:70
 #: pcbnew/dialogs/dialog_fp_plugin_options_base.cpp:44
+#: pcbnew/dialogs/panel_fp_lib_table.cpp:344
 #: pcbnew/footprint_wizard_frame.cpp:392 pcbnew/text_mod_grid_table.cpp:106
 msgid "Value"
 msgstr "Valeur"
@@ -4426,10 +4548,10 @@ msgid "Interactively measure distance between points"
 msgstr "Mesurer interactivement la distance entre deux points."
 
 #: cvpcb/tools/cvpcb_selection_tool.cpp:171
-#: gerbview/tools/selection_tool.cpp:807
+#: gerbview/tools/selection_tool.cpp:813
 #: pcbnew/menubar_footprint_editor.cpp:397 pcbnew/menubar_pcb_editor.cpp:247
 #: pcbnew/tool_footprint_editor.cpp:197 pcbnew/tool_pcb_editor.cpp:522
-#: pcbnew/tools/edit_tool.cpp:1297
+#: pcbnew/tools/edit_tool.cpp:1321
 msgid "Measure distance"
 msgstr "Mesurer une distance"
 
@@ -4491,11 +4613,11 @@ msgstr "Change Visibilité"
 msgid "Failed to open component-footprint link file \"%s\""
 msgstr "Impossible d'ouvrir le fichier lien composant/empreinte \"%s\""
 
-#: eeschema/block.cpp:454
+#: eeschema/block.cpp:452
 msgid "No item to paste."
 msgstr "Pas d'élément à coller."
 
-#: eeschema/block.cpp:489 eeschema/files-io.cpp:478 eeschema/sheet.cpp:276
+#: eeschema/block.cpp:487 eeschema/files-io.cpp:478 eeschema/sheet.cpp:281
 #, c-format
 msgid ""
 "The sheet changes cannot be made because the destination sheet already has "
@@ -4538,7 +4660,7 @@ msgstr ""
 msgid "Unable to load project's \"%s\" file"
 msgstr "Impossible de charger le fichier projet \"%s\""
 
-#: eeschema/class_library.cpp:577 eeschema/libedit/lib_edit_frame.cpp:1609
+#: eeschema/class_library.cpp:577 eeschema/libedit/lib_edit_frame.cpp:1626
 #: eeschema/symbol_tree_model_adapter.cpp:61
 msgid "Loading Symbol Libraries"
 msgstr "Chargement des Librairies de Symboles"
@@ -4603,7 +4725,7 @@ msgstr "Valeurs différentes pour %s%d%s (%s) et %s%d%s (%s)"
 msgid "Duplicate time stamp (%s) for %s%d and %s%d"
 msgstr "Signature temporelle dupliquée (%s) pour %s%d et %s%d"
 
-#: eeschema/controle.cpp:204 eeschema/libedit/lib_edit_frame.cpp:1361
+#: eeschema/controle.cpp:204 eeschema/libedit/lib_edit_frame.cpp:1378
 #: pcbnew/controle.cpp:229 pcbnew/footprint_editor_utils.cpp:135
 #: pcbnew/tools/selection_tool.cpp:578
 msgid "Clarify Selection"
@@ -4754,7 +4876,7 @@ msgstr "Ajouter Plugin"
 msgid "Nickname \"%s\" already in use."
 msgstr "Un nom logique \"%s\" existe déjà."
 
-#: eeschema/dialogs/dialog_bom.cpp:552 eeschema/dialogs/dialog_netlist.cpp:820
+#: eeschema/dialogs/dialog_bom.cpp:552 eeschema/dialogs/dialog_netlist.cpp:822
 msgid "Plugin files:"
 msgstr "Fichiers Plugins:"
 
@@ -4815,7 +4937,7 @@ msgid "Select with Browser"
 msgstr "Sélection par Viewer"
 
 #: eeschema/dialogs/dialog_choose_component.cpp:308
-#: eeschema/widgets/symbol_preview_widget.cpp:153
+#: eeschema/widgets/symbol_preview_widget.cpp:156
 #, c-format
 msgid ""
 "Error loading symbol %s from library %s.\n"
@@ -4851,65 +4973,65 @@ msgstr ""
 msgid "No symbol selected"
 msgstr "Pas de symbole sélectionné"
 
-#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:251
-#: eeschema/dialogs/dialog_edit_component_in_schematic.cpp:324
+#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:261
+#: eeschema/dialogs/dialog_edit_component_in_schematic.cpp:329
 msgid "References must start with a letter."
 msgstr "Les références doivent commencer par une lettre."
 
-#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:271
-#: eeschema/dialogs/dialog_edit_component_in_schematic.cpp:376
+#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:281
+#: eeschema/dialogs/dialog_edit_component_in_schematic.cpp:381
 msgid "Fields must have a name."
 msgstr "Les champs doivent avoir un nom."
 
-#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:283
+#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:293
 msgid "Delete extra units from symbol?"
 msgstr "Supprimer les unités supplémentaires du symbole?"
 
-#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:289
+#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:299
 msgid "Add new pins for alternate body style (DeMorgan) to symbol?"
 msgstr ""
 "Ajouter les nouvelles pins pour la forme alternative (DeMorgan) au symbole?"
 
-#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:294
+#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:304
 msgid "Delete alternate body style (DeMorgan) draw items from symbol?"
 msgstr ""
 "Supprimer les éléments de la représentation alternative (DeMorgan) du "
 "symbole?"
 
-#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:441
-#: eeschema/dialogs/dialog_edit_component_in_schematic.cpp:563
+#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:451
+#: eeschema/dialogs/dialog_edit_component_in_schematic.cpp:570
 #, c-format
 msgid "The first %d fields are mandatory."
 msgstr "Les %d premiers champs soçnt obligatoires."
 
-#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:663
+#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:673
 msgid "Alias can not have same name as symbol."
 msgstr "Un alias ne peut pas avoir le même nom que le symbole."
 
-#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:676
+#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:686
 #, c-format
 msgid "Alias \"%s\" already exists."
 msgstr "L'alias \"%s\" existe déjà."
 
-#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:691
+#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:701
 #, c-format
 msgid "Symbol name \"%s\" already exists in library \"%s\"."
 msgstr "Le nom du symbole \"%s\" existe déjà en librairie \"%s\"."
 
-#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:708
+#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:718
 msgid "untitled"
 msgstr "untitled"
 
-#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:712
+#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:722
 #, c-format
 msgid "untitled%i"
 msgstr "untitled%i"
 
-#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:781
+#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:791
 msgid "Add Footprint Filter"
 msgstr "Ajouter Filtre Modules"
 
-#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:820
+#: eeschema/dialogs/dialog_edit_component_in_lib.cpp:830
 msgid "Edit Footprint Filter"
 msgstr "Éditer Filtre d'Empreintes"
 
@@ -4922,8 +5044,8 @@ msgstr "Champs"
 #: eeschema/dialogs/dialog_edit_component_in_lib_base.cpp:58
 #: eeschema/dialogs/dialog_edit_component_in_lib_base.cpp:327
 #: eeschema/dialogs/dialog_edit_component_in_schematic_base.cpp:50
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:671
-#: eeschema/fields_grid_table.cpp:136
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:683
+#: eeschema/fields_grid_table.cpp:147
 #: pcbnew/dialogs/dialog_edit_footprint_for_BoardEditor_base.cpp:54
 #: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor_base.cpp:54
 #: pcbnew/text_mod_grid_table.cpp:86
@@ -4933,21 +5055,21 @@ msgstr "Visible"
 #: eeschema/dialogs/dialog_edit_component_in_lib_base.cpp:59
 #: eeschema/dialogs/dialog_edit_component_in_lib_base.cpp:328
 #: eeschema/dialogs/dialog_edit_component_in_schematic_base.cpp:51
-#: eeschema/fields_grid_table.cpp:137
+#: eeschema/fields_grid_table.cpp:148
 msgid "H Align"
 msgstr "Alignement H"
 
 #: eeschema/dialogs/dialog_edit_component_in_lib_base.cpp:60
 #: eeschema/dialogs/dialog_edit_component_in_lib_base.cpp:329
 #: eeschema/dialogs/dialog_edit_component_in_schematic_base.cpp:52
-#: eeschema/fields_grid_table.cpp:138
+#: eeschema/fields_grid_table.cpp:149
 msgid "V Align"
 msgstr "Alignement V"
 
 #: eeschema/dialogs/dialog_edit_component_in_lib_base.cpp:63
 #: eeschema/dialogs/dialog_edit_component_in_lib_base.cpp:332
 #: eeschema/dialogs/dialog_edit_component_in_schematic_base.cpp:55
-#: eeschema/fields_grid_table.cpp:141
+#: eeschema/fields_grid_table.cpp:152
 msgid "Text Size"
 msgstr "Taille du Texte"
 
@@ -4958,7 +5080,7 @@ msgstr "Taille du Texte"
 #: eeschema/dialogs/dialog_edit_label_base.cpp:83
 #: eeschema/dialogs/dialog_lib_edit_pin_table.cpp:79
 #: eeschema/dialogs/dialog_lib_edit_pin_table_base.cpp:48
-#: eeschema/fields_grid_table.cpp:142 eeschema/lib_pin.cpp:1733
+#: eeschema/fields_grid_table.cpp:153 eeschema/lib_pin.cpp:1733
 #: eeschema/onrightclick.cpp:409 eeschema/onrightclick.cpp:819
 #: eeschema/sch_text.cpp:606
 #: pcbnew/dialogs/dialog_edit_footprint_for_BoardEditor_base.cpp:60
@@ -4973,7 +5095,7 @@ msgstr "Orientation"
 #: eeschema/dialogs/dialog_edit_component_in_schematic_base.cpp:57
 #: eeschema/dialogs/dialog_lib_edit_pin_table.cpp:83
 #: eeschema/dialogs/dialog_lib_edit_pin_table_base.cpp:52
-#: eeschema/fields_grid_table.cpp:143
+#: eeschema/fields_grid_table.cpp:154
 msgid "X Position"
 msgstr "Position X"
 
@@ -4982,7 +5104,7 @@ msgstr "Position X"
 #: eeschema/dialogs/dialog_edit_component_in_schematic_base.cpp:58
 #: eeschema/dialogs/dialog_lib_edit_pin_table.cpp:84
 #: eeschema/dialogs/dialog_lib_edit_pin_table_base.cpp:53
-#: eeschema/fields_grid_table.cpp:144
+#: eeschema/fields_grid_table.cpp:155
 msgid "Y Position"
 msgstr "Position Y"
 
@@ -5014,7 +5136,7 @@ msgstr "Mots clé:"
 
 #: eeschema/dialogs/dialog_edit_component_in_lib_base.cpp:163
 #: eeschema/dialogs/dialog_edit_component_in_schematic_base.cpp:122
-#: eeschema/libedit/libedit.cpp:832
+#: eeschema/libedit/libedit.cpp:841
 msgid "Symbol"
 msgstr "Symbole"
 
@@ -5215,11 +5337,11 @@ msgstr "Editer le Modèle Spice..."
 msgid "Library Symbol Properties"
 msgstr "Propriétés du Symbole de Librairie"
 
-#: eeschema/dialogs/dialog_edit_component_in_schematic.cpp:336
+#: eeschema/dialogs/dialog_edit_component_in_schematic.cpp:341
 msgid "Library reference is not valid."
 msgstr "L'identificateur de librairie n'est pas valide."
 
-#: eeschema/dialogs/dialog_edit_component_in_schematic.cpp:356
+#: eeschema/dialogs/dialog_edit_component_in_schematic.cpp:361
 #, c-format
 msgid "Symbol \"%s\" not found in library \"%s\"."
 msgstr "Composant \"%s\" non trouvée en librairie \"%s\"."
@@ -5453,8 +5575,8 @@ msgstr "Taille Texte:"
 
 #: eeschema/dialogs/dialog_edit_label_base.cpp:81
 #: eeschema/dialogs/dialog_lib_edit_text_base.cpp:120
-#: eeschema/fields_grid_table.cpp:99 eeschema/fields_grid_table.cpp:305
-#: eeschema/fields_grid_table.cpp:403 eeschema/lib_pin.cpp:116
+#: eeschema/fields_grid_table.cpp:110 eeschema/fields_grid_table.cpp:321
+#: eeschema/fields_grid_table.cpp:419 eeschema/lib_pin.cpp:116
 #: pagelayout_editor/dialogs/properties_frame_base.cpp:86
 #: pcbnew/dialogs/dialog_text_properties_base.cpp:129
 msgid "Right"
@@ -5466,8 +5588,8 @@ msgstr "Haut"
 
 #: eeschema/dialogs/dialog_edit_label_base.cpp:81
 #: eeschema/dialogs/dialog_lib_edit_text_base.cpp:120
-#: eeschema/fields_grid_table.cpp:97 eeschema/fields_grid_table.cpp:301
-#: eeschema/fields_grid_table.cpp:399 eeschema/lib_pin.cpp:117
+#: eeschema/fields_grid_table.cpp:108 eeschema/fields_grid_table.cpp:317
+#: eeschema/fields_grid_table.cpp:415 eeschema/lib_pin.cpp:117
 #: pagelayout_editor/dialogs/properties_frame_base.cpp:86
 #: pcbnew/dialogs/dialog_text_properties_base.cpp:129
 msgid "Left"
@@ -5681,49 +5803,49 @@ msgid "Electrical Rules Checker"
 msgstr "Contrôle des Règles Electriques"
 
 #: eeschema/dialogs/dialog_fields_editor_global.cpp:70
-#: eeschema/fields_grid_table.cpp:496
+#: eeschema/fields_grid_table.cpp:511
 msgid "Select Footprint..."
 msgstr "Sélection Empreinte..."
 
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:70
-#: eeschema/fields_grid_table.cpp:496
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:71
+#: eeschema/fields_grid_table.cpp:512
 msgid "Browse for footprint"
 msgstr "Examen des empreintes"
 
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:75
-#: eeschema/fields_grid_table.cpp:501 eeschema/hotkeys.cpp:210
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:76
+#: eeschema/fields_grid_table.cpp:517 eeschema/hotkeys.cpp:210
 #: eeschema/libedit/menubar_libedit.cpp:299 eeschema/onrightclick.cpp:363
 #: eeschema/onrightclick.cpp:475
 msgid "Show Datasheet"
 msgstr "Voir Documentation"
 
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:75
-#: eeschema/fields_grid_table.cpp:501
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:77
+#: eeschema/fields_grid_table.cpp:518
 msgid "Show datasheet in browser"
 msgstr "Afficher dans un Visualisateur"
 
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:109
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:933
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:112
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:951
 msgid "The Reference column cannot be hidden."
 msgstr "La colonne Reference ne peut pas être masquée."
 
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:222
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:226
 msgid "Qty"
 msgstr "Qté"
 
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:670
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:682
 #: eeschema/lib_field.cpp:626 eeschema/lib_field.h:107
 #: eeschema/template_fieldnames.cpp:51
 msgid "Field"
 msgstr "Champ"
 
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:672
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:685
 msgid "Group By"
 msgstr "Grouper Par"
 
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:855
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:871
 #: eeschema/dialogs/dialog_rescue_each.cpp:132 eeschema/lib_field.cpp:456
-#: eeschema/sch_component.cpp:1440 eeschema/sch_component.cpp:1480
+#: eeschema/sch_component.cpp:1474 eeschema/sch_component.cpp:1515
 #: eeschema/template_fieldnames.cpp:47
 #: eeschema/widgets/widget_eeschema_color_config.cpp:75
 #: pcbnew/dialogs/dialog_edit_footprint_for_BoardEditor_base.cpp:69
@@ -5732,33 +5854,33 @@ msgstr "Grouper Par"
 msgid "Reference"
 msgstr "Référence"
 
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:857
-#: eeschema/lib_field.cpp:470 eeschema/sch_component.cpp:1469
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:873
+#: eeschema/lib_field.cpp:470 eeschema/sch_component.cpp:1504
 #: eeschema/template_fieldnames.cpp:49 pcbnew/class_edge_mod.cpp:285
 #: pcbnew/class_module.cpp:616 pcbnew/class_pad.cpp:768
-#: pcbnew/class_text_mod.cpp:416 pcbnew/load_select_footprint.cpp:353
+#: pcbnew/class_text_mod.cpp:416 pcbnew/load_select_footprint.cpp:359
 msgid "Footprint"
 msgstr "Empreinte"
 
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:858
-#: eeschema/lib_field.cpp:477 eeschema/libedit/libedit.cpp:837
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:874
+#: eeschema/lib_field.cpp:477 eeschema/libedit/libedit.cpp:846
 #: eeschema/template_fieldnames.cpp:50
 msgid "Datasheet"
 msgstr "Documentation"
 
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:877
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:893
 msgid "New field name:"
 msgstr "Nom nom de champ:"
 
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:877
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:893
 msgid "Add Field"
 msgstr "Ajouter Champ"
 
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:886
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:902
 msgid "Field must have a name."
 msgstr "Le champ doit avoir un nom."
 
-#: eeschema/dialogs/dialog_fields_editor_global.cpp:894
+#: eeschema/dialogs/dialog_fields_editor_global.cpp:910
 #, c-format
 msgid "Field name \"%s\" already in use."
 msgstr "Nom de champ \"%s\" déjà existant."
@@ -6029,15 +6151,15 @@ msgid "Position X:"
 msgstr "Position X:"
 
 #: eeschema/dialogs/dialog_lib_edit_text_base.cpp:90
-#: eeschema/fields_grid_table.cpp:105 eeschema/fields_grid_table.cpp:336
-#: eeschema/fields_grid_table.cpp:434 eeschema/sch_line.cpp:620
+#: eeschema/fields_grid_table.cpp:116 eeschema/fields_grid_table.cpp:352
+#: eeschema/fields_grid_table.cpp:450 eeschema/sch_line.cpp:619
 #: eeschema/sch_text.cpp:599 pcbnew/dialogs/dialog_pad_properties_base.cpp:196
 msgid "Horizontal"
 msgstr "Horizontal"
 
 #: eeschema/dialogs/dialog_lib_edit_text_base.cpp:90
-#: eeschema/fields_grid_table.cpp:106 eeschema/fields_grid_table.cpp:338
-#: eeschema/fields_grid_table.cpp:436 eeschema/sch_line.cpp:618
+#: eeschema/fields_grid_table.cpp:117 eeschema/fields_grid_table.cpp:354
+#: eeschema/fields_grid_table.cpp:452 eeschema/sch_line.cpp:617
 #: pcbnew/dialogs/dialog_pad_properties_base.cpp:196
 msgid "Vertical"
 msgstr "Vertical"
@@ -6065,15 +6187,15 @@ msgid "V Align:"
 msgstr "Alignement V:"
 
 #: eeschema/dialogs/dialog_lib_edit_text_base.cpp:150
-#: eeschema/fields_grid_table.cpp:89 eeschema/fields_grid_table.cpp:314
-#: eeschema/fields_grid_table.cpp:410
+#: eeschema/fields_grid_table.cpp:100 eeschema/fields_grid_table.cpp:330
+#: eeschema/fields_grid_table.cpp:426
 #: pagelayout_editor/dialogs/properties_frame_base.cpp:99
 msgid "Top"
 msgstr "Dessus"
 
 #: eeschema/dialogs/dialog_lib_edit_text_base.cpp:150
-#: eeschema/fields_grid_table.cpp:91 eeschema/fields_grid_table.cpp:318
-#: eeschema/fields_grid_table.cpp:414
+#: eeschema/fields_grid_table.cpp:102 eeschema/fields_grid_table.cpp:334
+#: eeschema/fields_grid_table.cpp:430
 #: pagelayout_editor/dialogs/properties_frame_base.cpp:99
 msgid "Bottom"
 msgstr "Dessous"
@@ -6151,53 +6273,53 @@ msgstr "Nom de pin à l'intérieur"
 msgid "Default format"
 msgstr "Format par défaut"
 
-#: eeschema/dialogs/dialog_netlist.cpp:390
+#: eeschema/dialogs/dialog_netlist.cpp:391
 msgid "Reformat passive symbol values"
 msgstr "Reformater les valeurs des composants passifs"
 
-#: eeschema/dialogs/dialog_netlist.cpp:392
+#: eeschema/dialogs/dialog_netlist.cpp:393
 msgid "Reformat passive symbol values e.g. 1M -> 1Meg"
 msgstr "Reformater les valeurs des composants passifs, par exemple 1M-> 1Meg"
 
-#: eeschema/dialogs/dialog_netlist.cpp:397
+#: eeschema/dialogs/dialog_netlist.cpp:398
 msgid "Simulator command:"
 msgstr "Simulateur commande:"
 
-#: eeschema/dialogs/dialog_netlist.cpp:410
+#: eeschema/dialogs/dialog_netlist.cpp:411
 msgid "&Run Simulator"
 msgstr "&Lancer Simulateur"
 
-#: eeschema/dialogs/dialog_netlist.cpp:450
+#: eeschema/dialogs/dialog_netlist.cpp:451
 #: eeschema/dialogs/dialog_netlist_base.cpp:95
 msgid "Netlist command:"
 msgstr "Commande netliste:"
 
-#: eeschema/dialogs/dialog_netlist.cpp:463
+#: eeschema/dialogs/dialog_netlist.cpp:464
 msgid "Title:"
 msgstr "Titre:"
 
-#: eeschema/dialogs/dialog_netlist.cpp:532
+#: eeschema/dialogs/dialog_netlist.cpp:534
 msgid "Save Netlist File"
 msgstr "Sauver Fichier Netliste"
 
-#: eeschema/dialogs/dialog_netlist.cpp:571
+#: eeschema/dialogs/dialog_netlist.cpp:573
 #, c-format
 msgid "%s Export"
 msgstr "Export %s"
 
-#: eeschema/dialogs/dialog_netlist.cpp:770
+#: eeschema/dialogs/dialog_netlist.cpp:772
 msgid "This plugin already exists. Abort"
 msgstr "Ce plugin existe déjà. Abandon"
 
-#: eeschema/dialogs/dialog_netlist.cpp:797
+#: eeschema/dialogs/dialog_netlist.cpp:799
 msgid "Error. You must provide a command String"
 msgstr "Erreur. Vous devez entrer une ligne de commande"
 
-#: eeschema/dialogs/dialog_netlist.cpp:803
+#: eeschema/dialogs/dialog_netlist.cpp:805
 msgid "Error. You must provide a Title"
 msgstr "Erreur. Vous devez entrer un titre"
 
-#: eeschema/dialogs/dialog_netlist.cpp:854
+#: eeschema/dialogs/dialog_netlist.cpp:856
 msgid "Do not forget to choose a title for this netlist control page"
 msgstr ""
 "Ne pas oublier de choisir un titre pour cette page de contrôle de netliste"
@@ -6332,7 +6454,7 @@ msgid "E"
 msgstr "E"
 
 #: eeschema/dialogs/dialog_plot_schematic.cpp:320
-#: pcbnew/dialogs/dialog_export_svg.cpp:256 pcbnew/dialogs/dialog_plot.cpp:733
+#: pcbnew/dialogs/dialog_export_svg.cpp:256 pcbnew/dialogs/dialog_plot.cpp:735
 #: pcbnew/exporters/gen_footprints_placefile.cpp:270
 #, c-format
 msgid "Could not write plot files to folder \"%s\"."
@@ -6693,17 +6815,21 @@ msgstr "Dim &Grille:"
 msgid "Grid Settings"
 msgstr "Caractéristiques Grille"
 
-#: eeschema/dialogs/dialog_sim_settings.cpp:99
+#: eeschema/dialogs/dialog_sim_settings.cpp:108
 msgid "You need to enable at least one source"
 msgstr "Vous devez activer au moins une source"
 
-#: eeschema/dialogs/dialog_sim_settings.cpp:109
+#: eeschema/dialogs/dialog_sim_settings.cpp:118
 msgid "You need to select DC source (sweep 1)"
 msgstr "Vous devez sélectionner la source continue (balayage 1)"
 
-#: eeschema/dialogs/dialog_sim_settings.cpp:148
+#: eeschema/dialogs/dialog_sim_settings.cpp:157
 msgid "You need to select DC source (sweep 2)"
 msgstr "Vous devez sélectionner la source continue (balayage 2)"
+
+#: eeschema/dialogs/dialog_sim_settings.cpp:163
+msgid "Source 1 and Source 2 must be different"
+msgstr "Source 1 et  Source 2 doivent être differentes"
 
 #: eeschema/dialogs/dialog_sim_settings_base.cpp:29
 #: eeschema/dialogs/dialog_sim_settings_base.cpp:273
@@ -7476,8 +7602,8 @@ msgid "&Bus thickness:"
 msgstr "Épaisseur &Bus:"
 
 #: eeschema/dialogs/panel_eeschema_display_options_base.cpp:45
-msgid "&Line thickness:"
-msgstr "Epaisseur de &Ligne:"
+msgid "&Wire thickness:"
+msgstr "Epaisseur de &Fil:"
 
 #: eeschema/dialogs/panel_eeschema_display_options_base.cpp:56
 msgid "Junction size:"
@@ -7524,8 +7650,8 @@ msgid "&Measurement units:"
 msgstr "&Unités de mesure:"
 
 #: eeschema/dialogs/panel_eeschema_settings_base.cpp:36
-#: pagelayout_editor/pl_editor_frame.cpp:382
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:156
+#: pagelayout_editor/pl_editor_frame.cpp:415
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:138
 msgid "inches"
 msgstr "pouces"
 
@@ -7613,55 +7739,69 @@ msgstr "&Pas de répétition des pins:"
 msgid "50"
 msgstr "50"
 
-#: eeschema/dialogs/panel_sym_lib_table.cpp:278
-#: pcbnew/dialogs/panel_fp_lib_table.cpp:402
+#: eeschema/dialogs/panel_sym_lib_table.cpp:284
+#: pcbnew/dialogs/panel_fp_lib_table.cpp:405
 #, c-format
 msgid "Illegal character '%c' in Nickname: \"%s\""
 msgstr "Caractère illégal \"%c\" dans le nom logique: \"%s\""
 
-#: eeschema/dialogs/panel_sym_lib_table.cpp:289
-#: pcbnew/dialogs/panel_fp_lib_table.cpp:413
+#: eeschema/dialogs/panel_sym_lib_table.cpp:295
+#: pcbnew/dialogs/panel_fp_lib_table.cpp:416
 msgid "No Colon in Nicknames"
 msgstr "Pas de \"deux points\" dans les Noms Logiques"
 
-#: eeschema/dialogs/panel_sym_lib_table.cpp:316
+#: eeschema/dialogs/panel_sym_lib_table.cpp:322
 #, c-format
 msgid "Duplicate Nickname: \"%s\"."
 msgstr "Nom logique: \"%s\" dupliqué."
 
-#: eeschema/dialogs/panel_sym_lib_table.cpp:326
-#: pcbnew/dialogs/panel_fp_lib_table.cpp:450
+#: eeschema/dialogs/panel_sym_lib_table.cpp:332
+#: pcbnew/dialogs/panel_fp_lib_table.cpp:453
 msgid "Please Delete or Modify One"
 msgstr "SVP supprimer ou modifier l'un d'eux"
 
-#: eeschema/dialogs/panel_sym_lib_table.cpp:362
-#: pcbnew/dialogs/panel_fp_lib_table.cpp:632
+#: eeschema/dialogs/panel_sym_lib_table.cpp:368
+#: pcbnew/dialogs/panel_fp_lib_table.cpp:635
 msgid "Warning: Duplicate Nickname"
 msgstr "Attention: Nom Logique dupliqué"
 
-#: eeschema/dialogs/panel_sym_lib_table.cpp:363
-#: pcbnew/dialogs/panel_fp_lib_table.cpp:633
+#: eeschema/dialogs/panel_sym_lib_table.cpp:369
+#: pcbnew/dialogs/panel_fp_lib_table.cpp:636
 #, c-format
 msgid "A library nicknamed \"%s\" already exists."
 msgstr "Une librairie de nom logique \"%s\" existe déjà."
 
-#: eeschema/dialogs/panel_sym_lib_table.cpp:379
-#: eeschema/libedit/lib_edit_frame.cpp:1669
-#: pcbnew/dialogs/panel_fp_lib_table.cpp:648
+#: eeschema/dialogs/panel_sym_lib_table.cpp:385
+#: eeschema/libedit/lib_edit_frame.cpp:1686
+#: pcbnew/dialogs/panel_fp_lib_table.cpp:651
 msgid "Skip"
 msgstr "Passer"
 
-#: eeschema/dialogs/panel_sym_lib_table.cpp:379
-#: pcbnew/dialogs/panel_fp_lib_table.cpp:648
+#: eeschema/dialogs/panel_sym_lib_table.cpp:385
+#: pcbnew/dialogs/panel_fp_lib_table.cpp:651
 msgid "Add Anyway"
 msgstr "Ajouter de Toute Façon"
 
-#: eeschema/dialogs/panel_sym_lib_table.cpp:707
+#: eeschema/dialogs/panel_sym_lib_table.cpp:732
+msgid ""
+"Modifications have been made to one or more symbol libraries.  Changes must "
+"be saved or discarded before the symbol library table can be modified."
+msgstr ""
+"Des modifications ont été apportées à une ou plusieurs librairies de "
+"symboles.\n"
+"Les modifications doivent être sauvegardées ou rejetées avant que la table "
+"de librairies de symboles puisse être modifiée."
+
+#: eeschema/dialogs/panel_sym_lib_table.cpp:737
+msgid "Save Changes"
+msgstr "Sauver Changements"
+
+#: eeschema/dialogs/panel_sym_lib_table.cpp:761
 msgid "Symbol Libraries"
 msgstr "Librairies de Symboles"
 
-#: eeschema/dialogs/panel_sym_lib_table.cpp:724
-#: pcbnew/dialogs/panel_fp_lib_table.cpp:833
+#: eeschema/dialogs/panel_sym_lib_table.cpp:783
+#: pcbnew/dialogs/panel_fp_lib_table.cpp:838
 #, c-format
 msgid ""
 "Error saving global library table:\n"
@@ -7672,15 +7812,15 @@ msgstr ""
 "\n"
 "%s"
 
-#: eeschema/dialogs/panel_sym_lib_table.cpp:725
-#: eeschema/dialogs/panel_sym_lib_table.cpp:739 eeschema/sch_base_frame.cpp:336
-#: eeschema/sch_base_frame.cpp:352 pcbnew/dialogs/panel_fp_lib_table.cpp:834
-#: pcbnew/dialogs/panel_fp_lib_table.cpp:847 pcbnew/files.cpp:889
+#: eeschema/dialogs/panel_sym_lib_table.cpp:784
+#: eeschema/dialogs/panel_sym_lib_table.cpp:798 eeschema/sch_base_frame.cpp:339
+#: eeschema/sch_base_frame.cpp:355 pcbnew/dialogs/panel_fp_lib_table.cpp:839
+#: pcbnew/dialogs/panel_fp_lib_table.cpp:852 pcbnew/files.cpp:891
 msgid "File Save Error"
 msgstr "Erreur Écriture  Fichier"
 
-#: eeschema/dialogs/panel_sym_lib_table.cpp:738
-#: pcbnew/dialogs/panel_fp_lib_table.cpp:846
+#: eeschema/dialogs/panel_sym_lib_table.cpp:797
+#: pcbnew/dialogs/panel_fp_lib_table.cpp:851
 #, c-format
 msgid ""
 "Error saving project-specific library table:\n"
@@ -7807,8 +7947,8 @@ msgstr ""
 "Net différent assigné à une pin partagée d'une autre unité du même composant"
 
 #: eeschema/edit_bitmap.cpp:52 eeschema/edit_bitmap.cpp:62
-#: pagelayout_editor/pl_editor_frame.cpp:566
-#: pagelayout_editor/pl_editor_frame.cpp:574
+#: pagelayout_editor/pl_editor_frame.cpp:601
+#: pagelayout_editor/pl_editor_frame.cpp:609
 #, c-format
 msgid "Couldn't load image from \"%s\""
 msgstr "Impossible de charger l’image depuis \"%s\""
@@ -7828,29 +7968,29 @@ msgstr ""
 "SVP éditer cette table des librairies de symboles globale dans le menu "
 "Préférences."
 
-#: eeschema/eeschema_config.cpp:161
+#: eeschema/eeschema_config.cpp:179
 msgid "Load Project File"
 msgstr "Charger Fichier Projet"
 
-#: eeschema/eeschema_config.cpp:208 eeschema/sch_edit_frame.cpp:1479
-#: eeschema/sch_edit_frame.cpp:1486
+#: eeschema/eeschema_config.cpp:226 eeschema/sch_edit_frame.cpp:1490
+#: eeschema/sch_edit_frame.cpp:1497
 msgid "Eeschema"
 msgstr "Eeschema"
 
-#: eeschema/eeschema_config.cpp:211
+#: eeschema/eeschema_config.cpp:229
 msgid "Field Name Templates"
 msgstr "Modèles de Nom de Champs"
 
-#: eeschema/eeschema_config.cpp:298 pcbnew/pcbnew_config.cpp:134
+#: eeschema/eeschema_config.cpp:316 pcbnew/pcbnew_config.cpp:134
 msgid "Save Project File"
 msgstr "Sauver Fichier Projet"
 
-#: eeschema/eeschema_config.cpp:594 eeschema/libedit/libedit.cpp:61
+#: eeschema/eeschema_config.cpp:627 eeschema/libedit/libedit.cpp:61
 #: kicad/commandframe.cpp:76
 msgid "Symbol Editor"
 msgstr "Éditeur de Symbole"
 
-#: eeschema/eeschema_config.cpp:632 eeschema/files-io.cpp:526
+#: eeschema/eeschema_config.cpp:665 eeschema/files-io.cpp:526
 #, c-format
 msgid "An error occurred loading the symbol library table \"%s\"."
 msgstr ""
@@ -8177,7 +8317,7 @@ msgstr "Composant %s non trouvé"
 msgid "No item found matching %s."
 msgstr "Aucun élément trouvé qui corresponde à %s."
 
-#: eeschema/generate_alias_info.cpp:37 eeschema/sch_component.cpp:1453
+#: eeschema/generate_alias_info.cpp:37 eeschema/sch_component.cpp:1487
 msgid "Alias of"
 msgstr "Alias de"
 
@@ -8189,21 +8329,21 @@ msgstr "Mots clé:"
 msgid "Unknown"
 msgstr "Inconnu"
 
-#: eeschema/getpart.cpp:152 pcbnew/load_select_footprint.cpp:232
+#: eeschema/getpart.cpp:153 pcbnew/load_select_footprint.cpp:238
 msgid "Recently Used"
 msgstr "Récemment Utilisés"
 
-#: eeschema/getpart.cpp:166
+#: eeschema/getpart.cpp:167
 #, c-format
 msgid "Choose Power Symbol (%d items loaded)"
 msgstr "Sélection Symbole d'Alimentation (%d items chargés)"
 
-#: eeschema/getpart.cpp:168 eeschema/viewlibs.cpp:72
+#: eeschema/getpart.cpp:169 eeschema/viewlibs.cpp:72
 #, c-format
 msgid "Choose Symbol (%d items loaded)"
 msgstr "Sélection Composant (%d items chargés)"
 
-#: eeschema/getpart.cpp:365
+#: eeschema/getpart.cpp:366
 #, c-format
 msgid "No alternate body style found for symbol \"%s\" in library \"%s\"."
 msgstr ""
@@ -8226,10 +8366,10 @@ msgstr "Zoom pour ajuster la page à l'écran"
 msgid "Redraw schematic view"
 msgstr "Rafraîchir l'écran la vue du schéma"
 
-#: eeschema/help_common_strings.h:48 eeschema/libedit/lib_edit_frame.cpp:1171
+#: eeschema/help_common_strings.h:48 eeschema/libedit/lib_edit_frame.cpp:1188
 #: eeschema/schedit.cpp:587 pcbnew/edit.cpp:1496
-#: pcbnew/footprint_editor_utils.cpp:986 pcbnew/tool_footprint_editor.cpp:188
-#: pcbnew/tools/pcbnew_control.cpp:684
+#: pcbnew/footprint_editor_utils.cpp:995 pcbnew/tool_footprint_editor.cpp:188
+#: pcbnew/tools/pcbnew_control.cpp:692
 msgid "Delete item"
 msgstr "Suppression d'éléments"
 
@@ -8239,7 +8379,7 @@ msgid "Select item"
 msgstr "Sélection élément"
 
 #: eeschema/help_common_strings.h:52 pcbnew/edit.cpp:1500
-#: pcbnew/tool_pcb_editor.cpp:457 pcbnew/tools/pcb_editor_control.cpp:1099
+#: pcbnew/tool_pcb_editor.cpp:457 pcbnew/tools/pcb_editor_control.cpp:1103
 msgid "Highlight net"
 msgstr "Surbrillance net"
 
@@ -8583,29 +8723,29 @@ msgstr "Mise à jour du PCB à partir du  Schéma"
 msgid "Highlight Connection"
 msgstr "Surbrillance Connexion"
 
-#: eeschema/hotkeys.cpp:225 pagelayout_editor/hotkeys.cpp:96
+#: eeschema/hotkeys.cpp:225 pagelayout_editor/hotkeys.cpp:95
 #: pcbnew/dialogs/wizard_3DShape_Libs_downloader.cpp:212 pcbnew/hotkeys.cpp:310
 msgid "New"
 msgstr "Nouveau"
 
 #: eeschema/hotkeys.cpp:226 pagelayout_editor/files.cpp:146
-#: pagelayout_editor/hotkeys.cpp:97 pcbnew/hotkeys.cpp:311
+#: pagelayout_editor/hotkeys.cpp:96 pcbnew/hotkeys.cpp:311
 msgid "Open"
 msgstr "Ouvrir"
 
 #: eeschema/hotkeys.cpp:228 pagelayout_editor/files.cpp:183
-#: pagelayout_editor/hotkeys.cpp:99 pcbnew/hotkeys.cpp:313
+#: pagelayout_editor/hotkeys.cpp:98 pcbnew/hotkeys.cpp:313
 msgid "Save As"
 msgstr "Sauver Sous"
 
-#: eeschema/hotkeys.cpp:232 pagelayout_editor/hotkeys.cpp:94
+#: eeschema/hotkeys.cpp:232 pagelayout_editor/hotkeys.cpp:93
 #: pagelayout_editor/menubar.cpp:108
 #: pagelayout_editor/toolbars_pl_editor.cpp:75 pcbnew/hotkeys.cpp:317
 msgid "Undo"
 msgstr "Défaire"
 
 #: eeschema/hotkeys.cpp:235 eeschema/hotkeys.cpp:237
-#: pagelayout_editor/hotkeys.cpp:95 pagelayout_editor/menubar.cpp:111
+#: pagelayout_editor/hotkeys.cpp:94 pagelayout_editor/menubar.cpp:111
 #: pagelayout_editor/toolbars_pl_editor.cpp:78 pcbnew/hotkeys.cpp:320
 #: pcbnew/hotkeys.cpp:322
 msgid "Redo"
@@ -8613,7 +8753,7 @@ msgstr "Rétablir"
 
 #: eeschema/hotkeys.cpp:242 eeschema/widgets/symbol_tree_pane.cpp:88
 #: pcbnew/footprint_tree_pane.cpp:89 pcbnew/hotkeys.cpp:327
-#: pcbnew/tools/edit_tool.cpp:165 pcbnew/tools/edit_tool.cpp:964
+#: pcbnew/tools/edit_tool.cpp:165 pcbnew/tools/edit_tool.cpp:985
 msgid "Cut"
 msgstr "Couper"
 
@@ -8625,7 +8765,7 @@ msgid "Copy"
 msgstr "Copier"
 
 #: eeschema/hotkeys.cpp:244 eeschema/tool_sch.cpp:89 pcbnew/hotkeys.cpp:329
-#: pcbnew/tools/pcbnew_control.cpp:208
+#: pcbnew/tools/pcbnew_control.cpp:212
 msgid "Paste"
 msgstr "Copie des éléments sauvegardés"
 
@@ -8653,7 +8793,7 @@ msgid "Add Pin"
 msgstr "Addition de Pin"
 
 #: eeschema/lib_arc.cpp:502 eeschema/lib_bezier.cpp:357
-#: eeschema/lib_circle.cpp:253 eeschema/lib_polyline.cpp:336
+#: eeschema/lib_circle.cpp:253 eeschema/lib_polyline.cpp:348
 #: eeschema/lib_rectangle.cpp:232 eeschema/lib_text.cpp:308
 #: pcb_calculator/transline_ident.cpp:186
 #: pcb_calculator/transline_ident.cpp:216
@@ -8664,7 +8804,7 @@ msgid "Line Width"
 msgstr "Épaisseur Ligne"
 
 #: eeschema/lib_arc.cpp:507 eeschema/lib_bezier.cpp:362
-#: eeschema/lib_circle.cpp:261 eeschema/lib_polyline.cpp:341
+#: eeschema/lib_circle.cpp:261 eeschema/lib_polyline.cpp:353
 msgid "Bounding Box"
 msgstr "Rectangle d'Encadrement"
 
@@ -8703,7 +8843,7 @@ msgid "Circle"
 msgstr "Cercle"
 
 #: eeschema/lib_draw_item.cpp:62 eeschema/lib_pin.cpp:1715
-#: eeschema/libedit/libedit.cpp:834 eeschema/sch_text.cpp:635
+#: eeschema/libedit/libedit.cpp:843 eeschema/sch_text.cpp:635
 #: gerbview/gerber_draw_item.cpp:692 pcbnew/class_drawsegment.cpp:442
 #: pcbnew/class_marker_pcb.cpp:96 pcbnew/class_text_mod.cpp:422
 #: pcbnew/class_track.cpp:1172 pcbnew/class_track.cpp:1199
@@ -8711,15 +8851,15 @@ msgstr "Cercle"
 msgid "Type"
 msgstr "Type"
 
-#: eeschema/lib_draw_item.cpp:74
+#: eeschema/lib_draw_item.cpp:72
 msgid "no"
 msgstr "non"
 
-#: eeschema/lib_draw_item.cpp:76
+#: eeschema/lib_draw_item.cpp:74
 msgid "yes"
 msgstr "oui"
 
-#: eeschema/lib_draw_item.cpp:80
+#: eeschema/lib_draw_item.cpp:78
 msgid "Converted"
 msgstr "Converti"
 
@@ -8786,7 +8926,7 @@ msgstr "Pin %s, %s, %s"
 msgid "Pin"
 msgstr "Pin"
 
-#: eeschema/lib_polyline.cpp:347
+#: eeschema/lib_polyline.cpp:359
 #, c-format
 msgid "Polyline at (%s, %s) with %d points"
 msgstr "Polyligne à (%s, %s) avec %d points"
@@ -8840,103 +8980,103 @@ msgstr "Erreur en création de bibliothèque de symboles %s."
 msgid "Failed to save symbol library file \"%s\""
 msgstr "Impossible de sauver la librairie de symboles \"%s\""
 
-#: eeschema/libedit/lib_edit_frame.cpp:268
+#: eeschema/libedit/lib_edit_frame.cpp:273
 #: pcbnew/dialogs/wizard_3DShape_Libs_downloader_base.cpp:194
 #: pcbnew/footprint_edit_frame.cpp:314 pcbnew/footprint_edit_frame.cpp:721
 msgid "Libraries"
 msgstr "Librairies"
 
-#: eeschema/libedit/lib_edit_frame.cpp:375 eeschema/onrightclick.cpp:493
+#: eeschema/libedit/lib_edit_frame.cpp:380 eeschema/onrightclick.cpp:493
 #, c-format
 msgid "Unit %s"
 msgstr "Unité %s"
 
-#: eeschema/libedit/lib_edit_frame.cpp:1114
+#: eeschema/libedit/lib_edit_frame.cpp:1131
 msgid "Add pin"
 msgstr "Addition de pin"
 
-#: eeschema/libedit/lib_edit_frame.cpp:1118
+#: eeschema/libedit/lib_edit_frame.cpp:1135
 msgid "Set pin options"
 msgstr "Choix options de pin"
 
-#: eeschema/libedit/lib_edit_frame.cpp:1129 eeschema/schedit.cpp:542
-#: pcbnew/edit.cpp:1484 pcbnew/footprint_editor_utils.cpp:961
-#: pcbnew/tools/drawing_tool.cpp:347
+#: eeschema/libedit/lib_edit_frame.cpp:1146 eeschema/schedit.cpp:542
+#: pcbnew/edit.cpp:1484 pcbnew/footprint_editor_utils.cpp:970
+#: pcbnew/tools/drawing_tool.cpp:356
 msgid "Add text"
 msgstr "Ajout de Texte"
 
-#: eeschema/libedit/lib_edit_frame.cpp:1133
+#: eeschema/libedit/lib_edit_frame.cpp:1150
 msgid "Add rectangle"
 msgstr "Ajout de rectangle"
 
-#: eeschema/libedit/lib_edit_frame.cpp:1137
-#: pcbnew/footprint_editor_utils.cpp:957
+#: eeschema/libedit/lib_edit_frame.cpp:1154
+#: pcbnew/footprint_editor_utils.cpp:966
 msgid "Add circle"
 msgstr "Ajout de cercle"
 
-#: eeschema/libedit/lib_edit_frame.cpp:1141
-#: pcbnew/footprint_editor_utils.cpp:953
+#: eeschema/libedit/lib_edit_frame.cpp:1158
+#: pcbnew/footprint_editor_utils.cpp:962
 msgid "Add arc"
 msgstr "Ajout d'arc"
 
-#: eeschema/libedit/lib_edit_frame.cpp:1145
-#: pcbnew/footprint_editor_utils.cpp:949
+#: eeschema/libedit/lib_edit_frame.cpp:1162
+#: pcbnew/footprint_editor_utils.cpp:958
 msgid "Add line"
 msgstr "Addition de lignes"
 
-#: eeschema/libedit/lib_edit_frame.cpp:1149
+#: eeschema/libedit/lib_edit_frame.cpp:1166
 msgid "Set anchor position"
 msgstr "Ajuster Position Ancre"
 
-#: eeschema/libedit/lib_edit_frame.cpp:1153
+#: eeschema/libedit/lib_edit_frame.cpp:1170
 msgid "Import"
 msgstr "Importer"
 
-#: eeschema/libedit/lib_edit_frame.cpp:1530
+#: eeschema/libedit/lib_edit_frame.cpp:1547
 #, c-format
 msgid "Library \"%s\" already exists"
 msgstr "La librairie \"%s\" existe déjà"
 
-#: eeschema/libedit/lib_edit_frame.cpp:1544
+#: eeschema/libedit/lib_edit_frame.cpp:1561
 msgid "Could not create the library file. Check write permission."
 msgstr ""
 "Impossible de créer le fichier librairie. Vérifier l’autorisation d’écriture."
 
-#: eeschema/libedit/lib_edit_frame.cpp:1552 eeschema/libedit/lib_export.cpp:199
+#: eeschema/libedit/lib_edit_frame.cpp:1569 eeschema/libedit/lib_export.cpp:199
 msgid "Could not open the library file."
 msgstr "Le fichier librairie n'a pas pu être ouvert."
 
-#: eeschema/libedit/lib_edit_frame.cpp:1614
+#: eeschema/libedit/lib_edit_frame.cpp:1631
 #: eeschema/symbol_tree_model_adapter.cpp:71
 #, c-format
 msgid "Loading library \"%s\""
 msgstr "Chargement librairie  \"%s\""
 
-#: eeschema/libedit/lib_edit_frame.cpp:1661
+#: eeschema/libedit/lib_edit_frame.cpp:1678
 #: eeschema/libedit/libedit_onrightclick.cpp:310
 #: pcbnew/footprint_libraries_utils.cpp:534
 msgid "Global"
 msgstr "Global"
 
-#: eeschema/libedit/lib_edit_frame.cpp:1662
+#: eeschema/libedit/lib_edit_frame.cpp:1679
 #: pcbnew/footprint_libraries_utils.cpp:535
 msgid "Project"
 msgstr "Projet"
 
-#: eeschema/libedit/lib_edit_frame.cpp:1664
+#: eeschema/libedit/lib_edit_frame.cpp:1681
 #: pcbnew/footprint_libraries_utils.cpp:538
 msgid "Choose the Library Table to add the library to:"
 msgstr "Choisissez la Table des Librairies où ajouter la librairie:"
 
-#: eeschema/libedit/lib_edit_frame.cpp:1665
+#: eeschema/libedit/lib_edit_frame.cpp:1682
 msgid "Add To Library Table"
 msgstr "Ajouter à Table des Librairies"
 
-#: eeschema/libedit/lib_edit_frame.cpp:1697
+#: eeschema/libedit/lib_edit_frame.cpp:1714
 msgid "Failed to save backup document to file "
 msgstr "Impossible de sauver l'ancien fichier de documentation sous "
 
-#: eeschema/libedit/lib_edit_frame.cpp:1822
+#: eeschema/libedit/lib_edit_frame.cpp:1840
 #, c-format
 msgid ""
 "The current configuration does not include the symbol library\n"
@@ -8947,11 +9087,11 @@ msgstr ""
 "\" %s\".\n"
 "Utilisez Gérer les Librairies de symboles pour modifier la configuration."
 
-#: eeschema/libedit/lib_edit_frame.cpp:1825
+#: eeschema/libedit/lib_edit_frame.cpp:1843
 msgid "Library not found in symbol library table."
 msgstr "Librairie non trouvée dans la table des librairies de symboles."
 
-#: eeschema/libedit/lib_edit_frame.cpp:1833 eeschema/viewlib_frame.cpp:346
+#: eeschema/libedit/lib_edit_frame.cpp:1851 eeschema/viewlib_frame.cpp:350
 #, c-format
 msgid ""
 "The library with the nickname \"%s\" is not enabled\n"
@@ -8963,7 +9103,7 @@ msgstr ""
 "\n"
 " Utilisez gérer les bibliothèques de symboles pour modifier la configuration."
 
-#: eeschema/libedit/lib_edit_frame.cpp:1836 eeschema/viewlib_frame.cpp:349
+#: eeschema/libedit/lib_edit_frame.cpp:1854 eeschema/viewlib_frame.cpp:353
 msgid "Symbol library not enabled."
 msgstr "Librairie de symboles non activée."
 
@@ -9034,38 +9174,38 @@ msgstr "Erreur en création de bibliothèque de symboles \"%s\""
 msgid "Symbol \"%s\" saved in library \"%s\""
 msgstr "Composant \"%s\" en librairie \"%s\""
 
-#: eeschema/libedit/lib_manager.cpp:105
+#: eeschema/libedit/lib_manager.cpp:120
 #, c-format
 msgid "Cannot find library \"%s\" in the Symbol Library Table"
 msgstr ""
 "Impossible de trouver la librairie \"%s\" dans la Table de Librairies de "
 "Symboles"
 
-#: eeschema/libedit/lib_manager.cpp:144
+#: eeschema/libedit/lib_manager.cpp:159
 #, c-format
 msgid "Cannot flush library changes (\"%s\")"
 msgstr "Ne peut pas sauver les modifications de librairie (\"%s\")"
 
-#: eeschema/libedit/lib_manager.cpp:300 eeschema/libedit/lib_manager.cpp:687
+#: eeschema/libedit/lib_manager.cpp:315 eeschema/libedit/lib_manager.cpp:733
 #, c-format
 msgid "Cannot enumerate library \"%s\""
 msgstr "Impossible de lister la librairie  \"%s\""
 
-#: eeschema/libedit/lib_manager.cpp:338
+#: eeschema/libedit/lib_manager.cpp:353
 #, c-format
 msgid "Cannot load aliases from library \"%s\""
 msgstr "Impossible de charger les alias à partie du fichier librairie \"%s\""
 
-#: eeschema/libedit/lib_manager.cpp:365
+#: eeschema/libedit/lib_manager.cpp:380
 msgid "Symbol not found."
 msgstr "Symbole non trouvé."
 
-#: eeschema/libedit/lib_manager.cpp:372
+#: eeschema/libedit/lib_manager.cpp:387
 #, c-format
 msgid "Error loading symbol \"%s\" from library \"%s\"."
 msgstr "Erreur lors du chargement du symbole \"%s\" de la librairie \"%s\"."
 
-#: eeschema/libedit/lib_manager.cpp:544
+#: eeschema/libedit/lib_manager.cpp:585
 #, c-format
 msgid "Cannot load symbol \"%s\" from library \"%s\""
 msgstr ""
@@ -9075,7 +9215,7 @@ msgstr ""
 msgid "The current symbol has been modified.  Save changes?"
 msgstr "Le symbole courant a été modifié. Sauver les changements?"
 
-#: eeschema/libedit/libedit.cpp:132 eeschema/sch_edit_frame.cpp:1233
+#: eeschema/libedit/libedit.cpp:132 eeschema/sch_edit_frame.cpp:1244
 #: eeschema/selpart.cpp:63
 #, c-format
 msgid "Error occurred loading symbol \"%s\" from library \"%s\"."
@@ -9094,7 +9234,7 @@ msgstr "Le composant \"%s\" existe déjà  en librairie \"%s\""
 
 #: eeschema/libedit/libedit.cpp:416 include/lib_table_grid.h:190
 #: pcbnew/footprint_libraries_utils.cpp:886
-#: pcbnew/footprint_libraries_utils.cpp:1109
+#: pcbnew/footprint_libraries_utils.cpp:1110
 msgid "Nickname"
 msgstr "Pseudo nom"
 
@@ -9114,64 +9254,64 @@ msgstr "La librairie n'est pas spécifiée. L'empreinte ne peut pas être sauvé
 msgid "No symbol name specified.  Symbol could not be saved."
 msgstr "Aucun nom de symbole spécifié. Le symbole ne peut être sauvé."
 
-#: eeschema/libedit/libedit.cpp:598 pcbnew/footprint_libraries_utils.cpp:1000
+#: eeschema/libedit/libedit.cpp:598 pcbnew/footprint_libraries_utils.cpp:1001
 #, c-format
 msgid "Revert \"%s\" to last version saved?"
 msgstr "Revenir \"%s\" à la dernière version enregistrée?"
 
-#: eeschema/libedit/libedit.cpp:656
+#: eeschema/libedit/libedit.cpp:665
 #, c-format
 msgid "Symbol name \"%s\" not found in library \"%s\""
 msgstr "Symbole \"%s\" non trouvée en librairie \"%s\""
 
-#: eeschema/libedit/libedit.cpp:685
+#: eeschema/libedit/libedit.cpp:694
 msgid "No library specified."
 msgstr "Pas de librairie spécifiée."
 
-#: eeschema/libedit/libedit.cpp:702
+#: eeschema/libedit/libedit.cpp:711
 #, c-format
 msgid "Save Library \"%s\" As..."
 msgstr "Sauver la Librairie \"%s\" Sous ..."
 
-#: eeschema/libedit/libedit.cpp:740
+#: eeschema/libedit/libedit.cpp:749
 #, c-format
 msgid "Failed to save changes to symbol library file \"%s\""
 msgstr ""
 "Impossible de sauver les modifications dans la librairie de symboles \"%s\""
 
-#: eeschema/libedit/libedit.cpp:742
+#: eeschema/libedit/libedit.cpp:751
 msgid "Error saving library"
 msgstr "Erreur en création de librairie"
 
-#: eeschema/libedit/libedit.cpp:749
+#: eeschema/libedit/libedit.cpp:758
 #, c-format
 msgid "Symbol library file \"%s\" saved"
 msgstr "Fichier librairie de composants \"%s\" sauvé"
 
-#: eeschema/libedit/libedit.cpp:751
+#: eeschema/libedit/libedit.cpp:760
 #, c-format
 msgid "Symbol library documentation file \"%s\" saved"
 msgstr "Fichier de documentation de composant \"%s\" sauvé"
 
-#: eeschema/libedit/libedit.cpp:777
+#: eeschema/libedit/libedit.cpp:786
 #, c-format
 msgid "Save changes to \"%s\" before closing?"
 msgstr "Sauver les changements en \"%s\" avant de fermer?"
 
-#: eeschema/libedit/libedit.cpp:823 eeschema/onrightclick.cpp:482
+#: eeschema/libedit/libedit.cpp:832 eeschema/onrightclick.cpp:482
 msgid "Convert"
 msgstr "Convertir"
 
-#: eeschema/libedit/libedit.cpp:827
+#: eeschema/libedit/libedit.cpp:836
 msgid "Body"
 msgstr "Graphique"
 
-#: eeschema/libedit/libedit.cpp:830
+#: eeschema/libedit/libedit.cpp:839
 msgid "Power Symbol"
 msgstr "Symbole d'Alimentation"
 
-#: eeschema/libedit/libedit.cpp:836 eeschema/sch_component.cpp:1474
-#: eeschema/viewlib_frame.cpp:290
+#: eeschema/libedit/libedit.cpp:845 eeschema/sch_component.cpp:1509
+#: eeschema/viewlib_frame.cpp:294
 msgid "Key words"
 msgstr "Mots clé"
 
@@ -9237,7 +9377,7 @@ msgstr "Éditer Options Arc"
 #: pcbnew/onrightclick.cpp:766 pcbnew/onrightclick.cpp:849
 #: pcbnew/onrightclick.cpp:906 pcbnew/onrightclick.cpp:952
 #: pcbnew/pcb_parser.cpp:597 pcbnew/tools/edit_tool.cpp:127
-#: pcbnew/tools/edit_tool.cpp:966
+#: pcbnew/tools/edit_tool.cpp:987
 msgid "Delete"
 msgstr "Supprimer"
 
@@ -9433,7 +9573,7 @@ msgid "Save changes"
 msgstr "Sauver changements"
 
 #: eeschema/libedit/menubar_libedit.cpp:82 pagelayout_editor/menubar.cpp:86
-#: pcbnew/footprint_tree_pane.cpp:81 pcbnew/menubar_footprint_editor.cpp:89
+#: pcbnew/footprint_tree_pane.cpp:81 pcbnew/menubar_footprint_editor.cpp:88
 msgid "Save &As..."
 msgstr "S&auver Sous..."
 
@@ -9556,7 +9696,7 @@ msgid "Zoom to fit symbol"
 msgstr "Zoom pour ajuster le symbole à l'écran"
 
 #: eeschema/libedit/menubar_libedit.cpp:214 eeschema/menubar.cpp:191
-#: gerbview/menubar.cpp:225 pagelayout_editor/menubar.cpp:141
+#: gerbview/menubar.cpp:225 pagelayout_editor/menubar.cpp:142
 #: pagelayout_editor/pl_editor_config.cpp:64
 #: pcbnew/menubar_footprint_editor.cpp:240 pcbnew/menubar_pcb_editor.cpp:598
 msgid "Show &Grid"
@@ -9665,14 +9805,14 @@ msgstr ""
 
 #: eeschema/libedit/menubar_libedit.cpp:332 eeschema/menubar.cpp:631
 #: gerbview/menubar.cpp:302 kicad/menubar.cpp:355
-#: pagelayout_editor/menubar.cpp:175 pcbnew/menubar_footprint_editor.cpp:429
+#: pagelayout_editor/menubar.cpp:176 pcbnew/menubar_footprint_editor.cpp:429
 #: pcbnew/menubar_pcb_editor.cpp:156
 msgid "&Preferences..."
 msgstr "&Préférences..."
 
 #: eeschema/libedit/menubar_libedit.cpp:334 eeschema/menubar.cpp:633
 #: gerbview/menubar.cpp:304 kicad/menubar.cpp:357
-#: pagelayout_editor/menubar.cpp:177 pcbnew/menubar_footprint_editor.cpp:431
+#: pagelayout_editor/menubar.cpp:178 pcbnew/menubar_footprint_editor.cpp:431
 #: pcbnew/menubar_pcb_editor.cpp:158
 msgid "Show preferences for all open tools"
 msgstr "Afficher les préférences pour tous les outils ouverts"
@@ -9719,7 +9859,7 @@ msgstr ""
 "avec Kicad)"
 
 #: eeschema/libedit/menubar_libedit.cpp:394 eeschema/menubar.cpp:117
-#: pagelayout_editor/menubar.cpp:215 pcbnew/menubar_footprint_editor.cpp:494
+#: pagelayout_editor/menubar.cpp:216 pcbnew/menubar_footprint_editor.cpp:494
 #: pcbnew/menubar_pcb_editor.cpp:133
 msgid "&Place"
 msgstr "&Placer"
@@ -9730,7 +9870,7 @@ msgid "&Inspect"
 msgstr "&Inspecter"
 
 #: eeschema/libedit/menubar_libedit.cpp:396 eeschema/menubar.cpp:120
-#: pagelayout_editor/menubar.cpp:216 pcbnew/menubar_footprint_editor.cpp:497
+#: pagelayout_editor/menubar.cpp:217 pcbnew/menubar_footprint_editor.cpp:497
 #: pcbnew/menubar_pcb_editor.cpp:137
 msgid "P&references"
 msgstr "P&références"
@@ -10387,7 +10527,7 @@ msgstr "Déplacer %s"
 #: eeschema/onrightclick.cpp:390 eeschema/onrightclick.cpp:533
 #: eeschema/onrightclick.cpp:570 eeschema/onrightclick.cpp:605
 #: eeschema/onrightclick.cpp:795 pcbnew/onrightclick.cpp:738
-#: pcbnew/tools/edit_tool.cpp:585
+#: pcbnew/tools/edit_tool.cpp:606
 msgid "Drag"
 msgstr "Drag"
 
@@ -10434,7 +10574,7 @@ msgstr "Éditer Empreinte..."
 msgid "Edit with Library Editor"
 msgstr "Éditer avec l'Éditeur de Librairie"
 
-#: eeschema/onrightclick.cpp:519 pagelayout_editor/pl_editor_frame.cpp:138
+#: eeschema/onrightclick.cpp:519 pagelayout_editor/pl_editor_frame.cpp:139
 msgid "Properties"
 msgstr "Propriétés"
 
@@ -10641,14 +10781,14 @@ msgid "Not connected"
 msgstr "Non connecté"
 
 #: eeschema/plot_schematic_DXF.cpp:79 eeschema/plot_schematic_HPGL.cpp:151
-#: eeschema/plot_schematic_PDF.cpp:125 eeschema/plot_schematic_PS.cpp:106
+#: eeschema/plot_schematic_PDF.cpp:126 eeschema/plot_schematic_PS.cpp:106
 #: eeschema/plot_schematic_SVG.cpp:82
 #, c-format
 msgid "Plot: \"%s\" OK.\n"
 msgstr "Tracé: \"%s\" OK.\n"
 
 #: eeschema/plot_schematic_DXF.cpp:84 eeschema/plot_schematic_HPGL.cpp:156
-#: eeschema/plot_schematic_PDF.cpp:90 eeschema/plot_schematic_PS.cpp:112
+#: eeschema/plot_schematic_PDF.cpp:91 eeschema/plot_schematic_PS.cpp:112
 #, c-format
 msgid "Unable to create file \"%s\".\n"
 msgstr "Impossible de créer le  fichier \"%s\".\n"
@@ -10712,7 +10852,7 @@ msgid "Could not load symbol \"%s\" from library \"%s\"."
 msgstr ""
 "Impossible de charger le symbole \"%s\" à partie du fichier librairie \"%s\"."
 
-#: eeschema/sch_base_frame.cpp:335
+#: eeschema/sch_base_frame.cpp:338
 #, c-format
 msgid ""
 "Error saving global symbol library table:\n"
@@ -10723,7 +10863,7 @@ msgstr ""
 "\n"
 "%s"
 
-#: eeschema/sch_base_frame.cpp:351
+#: eeschema/sch_base_frame.cpp:354
 #, c-format
 msgid ""
 "Error saving project-specific symbol library table:\n"
@@ -10735,7 +10875,7 @@ msgstr ""
 "\n"
 "%s"
 
-#: eeschema/sch_base_frame.cpp:549
+#: eeschema/sch_base_frame.cpp:552
 msgid "Nothing to paste"
 msgstr "Pas d'élément à coller"
 
@@ -10765,45 +10905,54 @@ msgstr "Correspondance %i de%i: %s de %s dans la feuille %s"
 msgid "Match %i of %i: %s in sheet %s"
 msgstr "Correspondance %i de% i: %s dans la feuille %s"
 
-#: eeschema/sch_component.cpp:1444
+#: eeschema/sch_component.cpp:1478
 msgid "Power symbol"
 msgstr "Symbole d'alimentation"
 
-#: eeschema/sch_component.cpp:1456 eeschema/sch_component.cpp:1458
-#: eeschema/sch_component.cpp:1461 eeschema/sch_component.cpp:1491
-#: eeschema/sch_component.cpp:1497 eeschema/selpart.cpp:88
+#: eeschema/sch_component.cpp:1490 eeschema/sch_component.cpp:1493
+#: eeschema/sch_component.cpp:1496 eeschema/sch_component.cpp:1526
+#: eeschema/sch_component.cpp:1532 eeschema/selpart.cpp:88
 msgid "Library"
 msgstr "Librairie"
 
-#: eeschema/sch_component.cpp:1461
+#: eeschema/sch_component.cpp:1496
 msgid "Undefined!!!"
 msgstr "Non Défini!!!"
 
-#: eeschema/sch_component.cpp:1467
+#: eeschema/sch_component.cpp:1502
 msgid "<Unknown>"
 msgstr "<Inconnu>"
 
-#: eeschema/sch_component.cpp:1492
+#: eeschema/sch_component.cpp:1527
 msgid "No library defined!!!"
 msgstr "Pas de librairie spécifiée!!!"
 
-#: eeschema/sch_component.cpp:1496
+#: eeschema/sch_component.cpp:1531
 #, c-format
 msgid "Symbol not found in %s!!!"
 msgstr "Symbole non trouvé en \"%s\"!!!"
 
-#: eeschema/sch_component.cpp:1720
+#: eeschema/sch_component.cpp:1755
 #, c-format
 msgid "Symbol %s, %s"
 msgstr "Symbole %s, %s"
 
 #: eeschema/sch_eagle_plugin.cpp:385 pcbnew/eagle_plugin.cpp:243
-#: pcbnew/eagle_plugin.cpp:2333
+#: pcbnew/eagle_plugin.cpp:2410
 #, c-format
 msgid "Unable to read file \"%s\""
 msgstr "Impossible de lire le fichier \"%s\""
 
-#: eeschema/sch_eagle_plugin.cpp:1089
+#: eeschema/sch_eagle_plugin.cpp:1071
+#, c-format
+msgid ""
+"Error parsing Eagle file.  Could not find \"%s\" instance but it is "
+"referenced in the schematic."
+msgstr ""
+"Erreur d’analyse du fichier Eagle.  Impossible de trouver l’instance \" %s\" "
+"mais elle est référencée dans le schéma."
+
+#: eeschema/sch_eagle_plugin.cpp:1103
 #, c-format
 msgid "Could not find %s in the imported library"
 msgstr "Ne peut trouver %s dans la bibliothèque importée"
@@ -10816,7 +10965,7 @@ msgstr "Non Trouvé"
 msgid "The following libraries were not found:"
 msgstr "Les librairies suivantes n'ont pas pu être trouvées:"
 
-#: eeschema/sch_edit_frame.cpp:666 pcbnew/pcb_edit_frame.cpp:588
+#: eeschema/sch_edit_frame.cpp:667 pcbnew/pcb_edit_frame.cpp:588
 #, c-format
 msgid ""
 "Save changes to\n"
@@ -10827,23 +10976,23 @@ msgstr ""
 "\"%s\"\n"
 "avant de fermer?"
 
-#: eeschema/sch_edit_frame.cpp:783
+#: eeschema/sch_edit_frame.cpp:794
 msgid "Draw wires and buses in any direction"
 msgstr "Tracer les fils et bus avec direction quelconque"
 
-#: eeschema/sch_edit_frame.cpp:784
+#: eeschema/sch_edit_frame.cpp:795
 msgid "Draw horizontal and vertical wires and buses only"
 msgstr "Autoriser fils et bus verticaux et horizontaux seulement"
 
-#: eeschema/sch_edit_frame.cpp:793
+#: eeschema/sch_edit_frame.cpp:804
 msgid "Do not show hidden pins"
 msgstr "Ne pas afficher les pins invisibles"
 
-#: eeschema/sch_edit_frame.cpp:794 eeschema/tool_sch.cpp:306
+#: eeschema/sch_edit_frame.cpp:805 eeschema/tool_sch.cpp:306
 msgid "Show hidden pins"
 msgstr "Force affichage des pins invisibles"
 
-#: eeschema/sch_edit_frame.cpp:868
+#: eeschema/sch_edit_frame.cpp:879
 msgid ""
 "Cannot update the PCB, because the Schematic Editor is opened in stand-alone "
 "mode. In order to create/update PCBs from schematics, you need to launch "
@@ -10853,37 +11002,37 @@ msgstr ""
 "mode autonome. Afin de créer/mettre à jour le PCB à partir du schéma, vous "
 "devrez lancer Kicad manager et créez un projet."
 
-#: eeschema/sch_edit_frame.cpp:997
+#: eeschema/sch_edit_frame.cpp:1008
 msgid "Schematic"
 msgstr "Schématique"
 
-#: eeschema/sch_edit_frame.cpp:1030
+#: eeschema/sch_edit_frame.cpp:1041
 msgid "New Schematic"
 msgstr "Nouvelle Schématique"
 
-#: eeschema/sch_edit_frame.cpp:1043
+#: eeschema/sch_edit_frame.cpp:1054
 #, c-format
 msgid "Schematic file \"%s\" already exists."
 msgstr "Le fichier schématique \"%s\" existe déjà."
 
-#: eeschema/sch_edit_frame.cpp:1061
+#: eeschema/sch_edit_frame.cpp:1072
 msgid "Open Schematic"
 msgstr "Ouvrir Schématique"
 
-#: eeschema/sch_edit_frame.cpp:1160
+#: eeschema/sch_edit_frame.cpp:1171
 msgid "Could not open CvPcb"
 msgstr "Ne peut pas ouvrir CvPcb"
 
-#: eeschema/sch_edit_frame.cpp:1197
+#: eeschema/sch_edit_frame.cpp:1208
 msgid "Error: not a symbol or no symbol."
 msgstr "Erreur: ce n'est pas un symbole, ou pas de symbole."
 
-#: eeschema/sch_edit_frame.cpp:1493 kicad/prjconfig.cpp:87
+#: eeschema/sch_edit_frame.cpp:1504 kicad/prjconfig.cpp:87
 #: pcbnew/pcb_edit_frame.cpp:1025
 msgid " [Read Only]"
 msgstr " [Lecture Seule]"
 
-#: eeschema/sch_edit_frame.cpp:1496
+#: eeschema/sch_edit_frame.cpp:1507
 msgid " [no file]"
 msgstr " [pas de fichier]"
 
@@ -10993,22 +11142,22 @@ msgstr ""
 msgid "library \"%s\" cannot be deleted"
 msgstr "la librairie \"%s\" ne peut pas être supprimée"
 
-#: eeschema/sch_line.cpp:625
+#: eeschema/sch_line.cpp:624
 #, c-format
 msgid "%s Graphic Line from (%s, %s) to (%s, %s)"
 msgstr "Ligne Graphique %s de (%s,%s) à (%s,%s)"
 
-#: eeschema/sch_line.cpp:629
+#: eeschema/sch_line.cpp:628
 #, c-format
 msgid "%s Wire from (%s, %s) to (%s, %s)"
 msgstr "Fil %s de (%s,%s) à (%s,%s)"
 
-#: eeschema/sch_line.cpp:633
+#: eeschema/sch_line.cpp:632
 #, c-format
 msgid "%s Bus from (%s, %s) to (%s, %s)"
 msgstr "Bus %s de  (%s,%s) à (%s,%s)"
 
-#: eeschema/sch_line.cpp:637
+#: eeschema/sch_line.cpp:636
 #, c-format
 msgid "%s Line on Unknown Layer from (%s, %s) to (%s, %s)"
 msgstr "Ligne %s sur Couche Inconnue de (%s,%s) à (%s,%s)"
@@ -11369,7 +11518,7 @@ msgstr ""
 "La schématique n’a pas pu être complètement chargée.\n"
 "Des erreurs se sont produites lors du chargement des feuilles hiérarchiques."
 
-#: eeschema/sheet.cpp:289
+#: eeschema/sheet.cpp:294
 #, c-format
 msgid ""
 "The schematic \"%s\" has not been remapped to the symbol\n"
@@ -11427,7 +11576,7 @@ msgstr "Caractéristiques"
 msgid "Welcome!"
 msgstr "Bienvenue !"
 
-#: eeschema/sim/sim_plot_frame.cpp:293 eeschema/sim/sim_plot_frame.cpp:1030
+#: eeschema/sim/sim_plot_frame.cpp:293 eeschema/sim/sim_plot_frame.cpp:1073
 msgid "There were errors during netlist export, aborted."
 msgstr "Il y a eu des erreurs lors de l'exportation de netlist, abandon."
 
@@ -11440,54 +11589,54 @@ msgstr "Vous devez sélectionner les paramètres de simulation en premier."
 msgid "Plot%u"
 msgstr "Tracé%u"
 
-#: eeschema/sim/sim_plot_frame.cpp:570 eeschema/sim/sim_plot_frame.cpp:1167
+#: eeschema/sim/sim_plot_frame.cpp:613 eeschema/sim/sim_plot_frame.cpp:1210
 msgid "Signal"
 msgstr "Signal"
 
-#: eeschema/sim/sim_plot_frame.cpp:816
+#: eeschema/sim/sim_plot_frame.cpp:859
 msgid "Open simulation workbook"
 msgstr "Ouvrir le classeur de travail de simulation"
 
-#: eeschema/sim/sim_plot_frame.cpp:825
+#: eeschema/sim/sim_plot_frame.cpp:868
 msgid "There was an error while opening the workbook file"
 msgstr ""
 "Une erreur s'est produite lors de l'ouverure du fichier classeur de travail."
 
-#: eeschema/sim/sim_plot_frame.cpp:834
+#: eeschema/sim/sim_plot_frame.cpp:877
 msgid "Save Simulation Workbook"
 msgstr "Sauver Classeur de Travail de Simulation"
 
-#: eeschema/sim/sim_plot_frame.cpp:843
+#: eeschema/sim/sim_plot_frame.cpp:886
 msgid "There was an error while saving the workbook file"
 msgstr ""
 "Une erreur s'est produite lors de l'enregistrement du fichier classeur de "
 "travail."
 
-#: eeschema/sim/sim_plot_frame.cpp:852
+#: eeschema/sim/sim_plot_frame.cpp:895
 msgid "Save Plot as Image"
 msgstr "Sauver Tracé comme Fichier Image"
 
-#: eeschema/sim/sim_plot_frame.cpp:869
+#: eeschema/sim/sim_plot_frame.cpp:912
 msgid "Save Plot Data"
 msgstr "Sauver Données de Tracé"
 
-#: eeschema/sim/sim_plot_frame.cpp:1064
+#: eeschema/sim/sim_plot_frame.cpp:1107
 msgid "You need to run simulation first."
 msgstr "Vous devez exécuter la simulation en premier."
 
-#: eeschema/sim/sim_plot_frame.cpp:1296
+#: eeschema/sim/sim_plot_frame.cpp:1339
 msgid "Hide Signal"
 msgstr "Masquer le Signal"
 
-#: eeschema/sim/sim_plot_frame.cpp:1297
+#: eeschema/sim/sim_plot_frame.cpp:1340
 msgid "Erase the signal from plot screen"
 msgstr "Supprimer le signal de l’écran de tracé"
 
-#: eeschema/sim/sim_plot_frame.cpp:1303
+#: eeschema/sim/sim_plot_frame.cpp:1346
 msgid "Hide Cursor"
 msgstr "Masquer le Curseur"
 
-#: eeschema/sim/sim_plot_frame.cpp:1305
+#: eeschema/sim/sim_plot_frame.cpp:1348
 msgid "Show Cursor"
 msgstr "Afficher le Curseur"
 
@@ -11596,12 +11745,12 @@ msgid "Phase"
 msgstr "Phase"
 
 #: eeschema/sim/sim_plot_panel.cpp:387
-msgid "Voltage (sweeped)"
+msgid "Voltage (swept)"
 msgstr "Tension (balayée)"
 
 #: eeschema/sim/sim_plot_panel.cpp:388
 msgid "Voltage (measured)"
-msgstr "Voltage (measuré)"
+msgstr "Voltage (mesuré)"
 
 #: eeschema/sim/sim_plot_panel.cpp:394
 msgid "noise [(V or A)^2/Hz]"
@@ -11668,7 +11817,7 @@ msgstr "Ouvrir schématique"
 
 #: eeschema/tool_sch.cpp:71
 msgid "Save (all sheets)"
-msgstr "Quitter (toutes les feuilles)"
+msgstr "Sauver (toutes les feuilles)"
 
 #: eeschema/tool_sch.cpp:76
 msgid "Edit Page settings"
@@ -11762,7 +11911,7 @@ msgstr "&Au Sujet de Eeschema"
 msgid "About Eeschema schematic designer"
 msgstr "Au sujet de Eeschema, outil de conception schématique"
 
-#: eeschema/viewlib_frame.cpp:339
+#: eeschema/viewlib_frame.cpp:343
 #, c-format
 msgid ""
 "The current configuration does not include a library with the\n"
@@ -11773,11 +11922,11 @@ msgstr ""
 "\"%s\".  Utilisez Gérer les Librairies d'Empreintes\n"
 "pour modifier la configuration."
 
-#: eeschema/viewlib_frame.cpp:342
+#: eeschema/viewlib_frame.cpp:346
 msgid "Symbol library not found."
 msgstr "Librairie de symboles non trouvée."
 
-#: eeschema/viewlib_frame.cpp:433
+#: eeschema/viewlib_frame.cpp:437
 #, c-format
 msgid "Unit %c"
 msgstr "Unité %c"
@@ -11787,7 +11936,7 @@ msgstr "Unité %c"
 msgid "Symbol Library Browser -- %s"
 msgstr "Éditeur de Librairies de Symbole -- %s"
 
-#: eeschema/viewlibs.cpp:190 pcbnew/footprint_viewer_frame.cpp:740
+#: eeschema/viewlibs.cpp:190 pcbnew/footprint_viewer_frame.cpp:742
 msgid "no library selected"
 msgstr "pas de librairie sélectionnée"
 
@@ -12099,6 +12248,7 @@ msgstr "Coordonnées"
 #: pcbnew/dialogs/dialog_export_idf_base.cpp:102
 #: pcbnew/dialogs/dialog_gen_footprint_position_file_base.cpp:58
 #: pcbnew/dialogs/dialog_gendrill_base.cpp:108
+#: pcbnew/dialogs/dialog_plot_base.cpp:325
 #: pcbnew/dialogs/dialog_text_properties_base.cpp:65
 #: pcbnew/dialogs/panel_modedit_settings_base.cpp:31
 #: pcbnew/dialogs/panel_pcbnew_settings_base.cpp:31
@@ -12142,26 +12292,26 @@ msgstr "Dim Page"
 msgid "Show page limits"
 msgstr "Afficher limites de page"
 
-#: gerbview/events_called_functions.cpp:237
-#: gerbview/events_called_functions.cpp:484 pcbnew/edit.cpp:1513
+#: gerbview/events_called_functions.cpp:236
+#: gerbview/events_called_functions.cpp:486 pcbnew/edit.cpp:1513
 msgid "Unsupported tool in this canvas"
 msgstr "Outil non pris en charge dans ce moteur graphique"
 
-#: gerbview/events_called_functions.cpp:379
+#: gerbview/events_called_functions.cpp:381
 #, c-format
 msgid "Source file \"%s\" is not available"
 msgstr "Le fichier source \"%s\" est pas disponible"
 
-#: gerbview/events_called_functions.cpp:387
+#: gerbview/events_called_functions.cpp:389
 msgid "No editor defined. Please select one"
 msgstr "Pas d'éditeur défini.  Veuillez en sélectionner un"
 
-#: gerbview/events_called_functions.cpp:392
+#: gerbview/events_called_functions.cpp:394
 #, c-format
 msgid "No file loaded on the active layer %d"
 msgstr "Pas de fichier chargé sur la couche active %d"
 
-#: gerbview/events_called_functions.cpp:436 pcbnew/pcb_edit_frame.cpp:956
+#: gerbview/events_called_functions.cpp:438 pcbnew/pcb_edit_frame.cpp:956
 msgid "Visibles"
 msgstr "Visibles"
 
@@ -12365,7 +12515,7 @@ msgstr "Polarité"
 #: gerbview/gerber_draw_item.cpp:724 pcbnew/class_pcb_text.cpp:131
 #: pcbnew/class_pcb_text.cpp:133 pcbnew/class_text_mod.cpp:439
 #: pcbnew/footprint_editor_onclick.cpp:290 pcbnew/tools/edit_tool.cpp:123
-#: pcbnew/tools/edit_tool.cpp:826
+#: pcbnew/tools/edit_tool.cpp:847
 msgid "Mirror"
 msgstr "Miroir"
 
@@ -12425,12 +12575,12 @@ msgstr "Couche graphique%d"
 msgid "Gerbview"
 msgstr "GerbView"
 
-#: gerbview/gerbview_frame.cpp:154 pcbnew/footprint_edit_frame.cpp:319
+#: gerbview/gerbview_frame.cpp:156 pcbnew/footprint_edit_frame.cpp:319
 #: pcbnew/footprint_edit_frame.cpp:725 pcbnew/pcb_edit_frame.cpp:374
 msgid "Layers Manager"
 msgstr "Gestionnaire de Couches"
 
-#: gerbview/gerbview_frame.cpp:175 pcbnew/pcb_edit_frame.cpp:400
+#: gerbview/gerbview_frame.cpp:177 pcbnew/pcb_edit_frame.cpp:400
 msgid ""
 "KiCad can use your graphics card to give you a smoother and faster "
 "experience. This option is turned off by default since it is not compatible "
@@ -12450,57 +12600,57 @@ msgstr ""
 "Si vous souhaitez choisir plus tard, sélectionnez le mode graphique Moderne "
 "(Accéléré) dans le menu Affichage."
 
-#: gerbview/gerbview_frame.cpp:182 pcbnew/pcb_edit_frame.cpp:407
+#: gerbview/gerbview_frame.cpp:184 pcbnew/pcb_edit_frame.cpp:407
 msgid "Enable Graphics Acceleration"
 msgstr "Activation Acceleration Graphique"
 
-#: gerbview/gerbview_frame.cpp:184 pcbnew/pcb_edit_frame.cpp:410
+#: gerbview/gerbview_frame.cpp:186 pcbnew/pcb_edit_frame.cpp:410
 msgid "&Enable Acceleration"
 msgstr "&Activer Acceleration"
 
-#: gerbview/gerbview_frame.cpp:184 pcbnew/pcb_edit_frame.cpp:410
+#: gerbview/gerbview_frame.cpp:186 pcbnew/pcb_edit_frame.cpp:410
 msgid "&No Thanks"
 msgstr "&Non, Merci"
 
-#: gerbview/gerbview_frame.cpp:615
+#: gerbview/gerbview_frame.cpp:619
 msgid "D Codes"
 msgstr "D Codes"
 
-#: gerbview/gerbview_frame.cpp:724
+#: gerbview/gerbview_frame.cpp:728
 #, c-format
 msgid "Drawing layer %d not in use"
 msgstr "Couche de dessin %d non utilisée"
 
-#: gerbview/gerbview_frame.cpp:736
+#: gerbview/gerbview_frame.cpp:740
 msgid "GerbView"
 msgstr "GerbView"
 
-#: gerbview/gerbview_frame.cpp:738
+#: gerbview/gerbview_frame.cpp:742
 msgid " (with X2 attributes)"
 msgstr " (avec attributs X2)"
 
-#: gerbview/gerbview_frame.cpp:746
+#: gerbview/gerbview_frame.cpp:750
 #, c-format
 msgid "Image name: \"%s\"  Layer name: \"%s\""
 msgstr "Nom Image: \"%s\"  Nom Layer:  \"%s\""
 
-#: gerbview/gerbview_frame.cpp:762
+#: gerbview/gerbview_frame.cpp:766
 msgid "X2 attr"
 msgstr "Attr X2"
 
-#: gerbview/gerbview_frame.cpp:1255 pcbnew/pcb_base_frame.cpp:1059
+#: gerbview/gerbview_frame.cpp:1298 pcbnew/pcb_base_frame.cpp:1097
 msgid "Zoom "
 msgstr "Zoom "
 
 #: gerbview/gerbview_layer_widget.cpp:90 pcbnew/class_track.cpp:1264
 #: pcbnew/dialogs/dialog_board_setup.cpp:47
 #: pcbnew/dialogs/dialog_export_svg_base.cpp:46 pcbnew/layer_widget.cpp:497
-#: pcbnew/pcb_layer_widget.cpp:381
+#: pcbnew/pcb_layer_widget.cpp:383
 msgid "Layers"
 msgstr "Couches"
 
 #: gerbview/gerbview_layer_widget.cpp:91 pcbnew/layer_widget.cpp:517
-#: pcbnew/pcb_layer_widget.cpp:382
+#: pcbnew/pcb_layer_widget.cpp:384
 msgid "Items"
 msgstr "Éléments"
 
@@ -12532,7 +12682,7 @@ msgstr "Montrer le cartouche"
 msgid "PCB Background"
 msgstr "Arrière plan pour le PCB"
 
-#: gerbview/gerbview_layer_widget.cpp:135 pcbnew/pcb_layer_widget.cpp:194
+#: gerbview/gerbview_layer_widget.cpp:135 pcbnew/pcb_layer_widget.cpp:196
 msgid "Show All Layers"
 msgstr "Montrer Toutes les Couches"
 
@@ -12544,7 +12694,7 @@ msgstr "Cacher Toutes les Couches Sauf cette Active"
 msgid "Always Hide All Layers But Active"
 msgstr "Toujours Cacher Toutes les Couches Sauf cette Active"
 
-#: gerbview/gerbview_layer_widget.cpp:146 pcbnew/pcb_layer_widget.cpp:192
+#: gerbview/gerbview_layer_widget.cpp:146 pcbnew/pcb_layer_widget.cpp:194
 msgid "Hide All Layers"
 msgstr "Cacher Toutes les Couches"
 
@@ -13087,6 +13237,10 @@ msgstr "Surbrillance"
 msgid "Clarify selection"
 msgstr "Clarification sélection"
 
+#: include/hotkey_store.h:48
+msgid "Hotkey never verified"
+msgstr "Hotkey jamais vérifiée"
+
 #: include/kiway_player.h:283
 msgid "This file is already open."
 msgstr "Ce fichier est déjà ouvert."
@@ -13267,45 +13421,45 @@ msgstr ""
 "\n"
 "Voulez vous créer un nouveau répertoire vide pour le projet?"
 
-#: kicad/import_project.cpp:138 kicad/mainframe.cpp:304
+#: kicad/import_project.cpp:138 kicad/mainframe.cpp:305
 #: pcbnew/pcb_edit_frame.cpp:1207
 msgid "Eeschema failed to load:\n"
 msgstr "Eeschema a échoué pour charger:\n"
 
 #: kicad/import_project.cpp:139 kicad/import_project.cpp:173
-#: kicad/mainframe.cpp:305 kicad/mainframe.cpp:350 kicad/mainframe.cpp:375
-#: kicad/mainframe.cpp:419 pcbnew/pcb_edit_frame.cpp:1178
+#: kicad/mainframe.cpp:306 kicad/mainframe.cpp:351 kicad/mainframe.cpp:376
+#: kicad/mainframe.cpp:420 pcbnew/pcb_edit_frame.cpp:1178
 #: pcbnew/pcb_edit_frame.cpp:1208
 msgid "KiCad Error"
 msgstr "KiCad erreur"
 
-#: kicad/import_project.cpp:173 kicad/mainframe.cpp:375
+#: kicad/import_project.cpp:173 kicad/mainframe.cpp:376
 msgid "Pcbnew failed to load:\n"
 msgstr "Le chargement du fichier Pcbnew a échoué :\n"
 
-#: kicad/mainframe.cpp:246
+#: kicad/mainframe.cpp:247
 #, c-format
 msgid "%s closed [pid=%d]\n"
 msgstr "%s fermé [pid=%d]\n"
 
-#: kicad/mainframe.cpp:277
+#: kicad/mainframe.cpp:278
 #, c-format
 msgid "%s %s opened [pid=%ld]\n"
 msgstr "%s %s ouvert [pid = %ld]\n"
 
-#: kicad/mainframe.cpp:349
+#: kicad/mainframe.cpp:350
 msgid "Component library editor failed to load:\n"
 msgstr "L'éditeur de librairie de composant n'a pu être chargée. Erreur:\n"
 
-#: kicad/mainframe.cpp:418
+#: kicad/mainframe.cpp:419
 msgid "Footprint library editor failed to load:\n"
 msgstr "L'éditeur de la bibliothèque d'empreinte a échoué en chargeant:\n"
 
-#: kicad/mainframe.cpp:478
+#: kicad/mainframe.cpp:479
 msgid "Load File to Edit"
 msgstr "Fichier à Éditer"
 
-#: kicad/mainframe.cpp:555
+#: kicad/mainframe.cpp:556
 #, c-format
 msgid ""
 "Project name:\n"
@@ -13537,7 +13691,7 @@ msgstr "&Manuel de KiCad"
 msgid "Open KiCad user manual"
 msgstr "Ouvrir la documentation de KiCad"
 
-#: kicad/menubar.cpp:419 pagelayout_editor/menubar.cpp:195
+#: kicad/menubar.cpp:419 pagelayout_editor/menubar.cpp:196
 msgid "&List Hotkeys"
 msgstr "&Liste Hotkeys"
 
@@ -13991,7 +14145,7 @@ msgid "Page Layout Description File"
 msgstr "Fichier de Description de Page"
 
 #: pagelayout_editor/files.cpp:66 pagelayout_editor/files.cpp:101
-#: pagelayout_editor/pl_editor_frame.cpp:188
+#: pagelayout_editor/pl_editor_frame.cpp:190
 msgid "The current page layout has been modified. Save changes?"
 msgstr ""
 "La description de page courante a été modifiée. Sauver les changements?"
@@ -14032,7 +14186,7 @@ msgid "Unable to create \"%s\""
 msgstr "Incapable de créer \"%s\""
 
 #: pagelayout_editor/hotkeys.cpp:84 pagelayout_editor/onrightclick.cpp:116
-#: pcbnew/dialogs/dialog_move_exact_base.h:70 pcbnew/hotkeys.cpp:142
+#: pcbnew/dialogs/dialog_move_exact_base.h:71 pcbnew/hotkeys.cpp:142
 msgid "Move Item"
 msgstr "Déplacer Élément"
 
@@ -14049,7 +14203,7 @@ msgstr "Déplacer Point de Départ"
 msgid "Move End Point"
 msgstr "Déplacer Point de Fin"
 
-#: pagelayout_editor/hotkeys.cpp:132 pagelayout_editor/pl_editor_frame.cpp:264
+#: pagelayout_editor/hotkeys.cpp:131 pagelayout_editor/pl_editor_frame.cpp:266
 msgid "Page Layout Editor"
 msgstr "Éditeur de Description de Page"
 
@@ -14081,47 +14235,47 @@ msgstr "Pré&visualisation..."
 msgid "Close Page Layout Editor"
 msgstr "Fermer l'Éditeur de Description de Page"
 
-#: pagelayout_editor/menubar.cpp:137 pagelayout_editor/pl_editor_config.cpp:57
+#: pagelayout_editor/menubar.cpp:138 pagelayout_editor/pl_editor_config.cpp:57
 msgid "&Background Black"
 msgstr "Fond &Noir"
 
-#: pagelayout_editor/menubar.cpp:137 pagelayout_editor/pl_editor_config.cpp:57
+#: pagelayout_editor/menubar.cpp:138 pagelayout_editor/pl_editor_config.cpp:57
 msgid "&Background White"
 msgstr "Fond &Blanc"
 
-#: pagelayout_editor/menubar.cpp:141 pagelayout_editor/pl_editor_config.cpp:64
+#: pagelayout_editor/menubar.cpp:142 pagelayout_editor/pl_editor_config.cpp:64
 msgid "Hide &Grid"
 msgstr "Cacher la &Grille"
 
-#: pagelayout_editor/menubar.cpp:153
+#: pagelayout_editor/menubar.cpp:154
 msgid "&Line..."
 msgstr "&Ligne..."
 
-#: pagelayout_editor/menubar.cpp:156
+#: pagelayout_editor/menubar.cpp:157
 msgid "&Rectangle..."
 msgstr "&Rectangle..."
 
-#: pagelayout_editor/menubar.cpp:159
+#: pagelayout_editor/menubar.cpp:160
 msgid "&Text..."
 msgstr "&Texte..."
 
-#: pagelayout_editor/menubar.cpp:162
+#: pagelayout_editor/menubar.cpp:163
 msgid "&Bitmap..."
 msgstr "&Bitmap..."
 
-#: pagelayout_editor/menubar.cpp:167
+#: pagelayout_editor/menubar.cpp:168
 msgid "&Append Existing Page Layout Design File..."
 msgstr "&Ajouter un Fichier de Description de Page Existant..."
 
-#: pagelayout_editor/menubar.cpp:168
+#: pagelayout_editor/menubar.cpp:169
 msgid "Append an existing page layout design file to current file"
 msgstr "Ajouter un fichier de description de page existant au fichier actuel"
 
-#: pagelayout_editor/menubar.cpp:187
+#: pagelayout_editor/menubar.cpp:188
 msgid "Page Layout Editor &Manual"
 msgstr "&Manuel de l'Éditeur de Description de Page"
 
-#: pagelayout_editor/menubar.cpp:188
+#: pagelayout_editor/menubar.cpp:189
 msgid "Open the Page Layout Editor Manual"
 msgstr "Ouvrir le manuel d'utilisation de l'Editeur de page"
 
@@ -14155,46 +14309,46 @@ msgid "pl_editor is already running. Continue?"
 msgstr "pl_Editor est en cours d'exécution. Continuer ?"
 
 #: pagelayout_editor/pl_editor.cpp:182
-#: pagelayout_editor/pl_editor_frame.cpp:169
+#: pagelayout_editor/pl_editor_frame.cpp:170
 #, c-format
 msgid "Error when loading file \"%s\""
 msgstr "Erreur en chargement du fichier \"%s\""
 
-#: pagelayout_editor/pl_editor_frame.cpp:117
+#: pagelayout_editor/pl_editor_frame.cpp:118
 msgid "coord origin: Right Bottom page corner"
 msgstr "origine coordonnées: coin Bas Droite de la page"
 
-#: pagelayout_editor/pl_editor_frame.cpp:135
+#: pagelayout_editor/pl_editor_frame.cpp:136
 msgid "Design"
 msgstr "Conception"
 
-#: pagelayout_editor/pl_editor_frame.cpp:265
+#: pagelayout_editor/pl_editor_frame.cpp:267
 msgid "no file selected"
 msgstr "pas de fichier sélectionné"
 
-#: pagelayout_editor/pl_editor_frame.cpp:375
+#: pagelayout_editor/pl_editor_frame.cpp:408
 #, c-format
 msgid "Page size: width %.4g height %.4g"
 msgstr "Dim feuille: largeur %.4g hauteur %.4g"
 
-#: pagelayout_editor/pl_editor_frame.cpp:420
+#: pagelayout_editor/pl_editor_frame.cpp:455
 #, c-format
 msgid "coord origin: %s"
 msgstr "origine coord: %s"
 
-#: pagelayout_editor/pl_editor_frame.cpp:649
+#: pagelayout_editor/pl_editor_frame.cpp:684
 msgid "(start or end point)"
 msgstr "(point de début ou de fin)"
 
-#: pagelayout_editor/pl_editor_frame.cpp:653
+#: pagelayout_editor/pl_editor_frame.cpp:688
 msgid "(start point)"
 msgstr "(point de début)"
 
-#: pagelayout_editor/pl_editor_frame.cpp:656
+#: pagelayout_editor/pl_editor_frame.cpp:691
 msgid "(end point)"
 msgstr "(point terminal)"
 
-#: pagelayout_editor/pl_editor_frame.cpp:666
+#: pagelayout_editor/pl_editor_frame.cpp:701
 msgid "Selection Clarification"
 msgstr "Clarification de la Sélection"
 
@@ -14295,7 +14449,7 @@ msgstr "mil"
 #: pcbnew/dialogs/dialog_export_idf_base.cpp:48
 #: pcbnew/dialogs/dialog_export_step_base.cpp:80
 #: pcbnew/dialogs/dialog_export_vrml_base.cpp:63
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:105
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:96
 msgid "inch"
 msgstr "pouce"
 
@@ -15578,121 +15732,121 @@ msgstr ""
 msgid "Block Operation"
 msgstr "Opération sur Bloc"
 
-#: pcbnew/board_netlist_updater.cpp:126
+#: pcbnew/board_netlist_updater.cpp:127
 #, c-format
 msgid "Cannot add %s (no footprint assigned)."
 msgstr "Ne peut ajouter le composant \"%s\" (empreinte non assignée)."
 
-#: pcbnew/board_netlist_updater.cpp:138
+#: pcbnew/board_netlist_updater.cpp:139
 #, c-format
 msgid "Cannot add %s (footprint \"%s\" not found)."
 msgstr "Ne peut ajouter %s (empreinte \"%s\" non trouvée)."
 
-#: pcbnew/board_netlist_updater.cpp:146
+#: pcbnew/board_netlist_updater.cpp:147
 #, c-format
 msgid "Add %s (footprint \"%s\")."
 msgstr "Ajout %s (empreinte:%s)."
 
-#: pcbnew/board_netlist_updater.cpp:174
+#: pcbnew/board_netlist_updater.cpp:179
 #, c-format
 msgid "Cannot update %s (no footprint assigned)."
 msgstr "Ne peut mettre à jour %s (empreinte non assignée)."
 
-#: pcbnew/board_netlist_updater.cpp:186
+#: pcbnew/board_netlist_updater.cpp:191
 #, c-format
 msgid "Cannot update %s (footprint \"%s\" not found)."
 msgstr "Ne peut mettre à jour %s (empreinte \"%s\" non trouvée)."
 
-#: pcbnew/board_netlist_updater.cpp:194
+#: pcbnew/board_netlist_updater.cpp:199
 #, c-format
 msgid "Change %s footprint from \"%s\" to \"%s\"."
 msgstr "Change empreinte \"%s\" de \"%s\" en \"%s\"."
 
-#: pcbnew/board_netlist_updater.cpp:222
+#: pcbnew/board_netlist_updater.cpp:231
 #, c-format
 msgid "Change %s reference to %s."
 msgstr "Change la référence de %s en %s."
 
-#: pcbnew/board_netlist_updater.cpp:237
+#: pcbnew/board_netlist_updater.cpp:246
 #, c-format
 msgid "Change %s value from %s to %s."
 msgstr "Modifie valeur %s de %s en %s."
 
-#: pcbnew/board_netlist_updater.cpp:253
+#: pcbnew/board_netlist_updater.cpp:262
 #, c-format
 msgid "Change symbol path \"%s:%s\" to \"%s\"."
 msgstr "Change le chemin du symbole \"%s:%s\" en \"%s\"."
 
-#: pcbnew/board_netlist_updater.cpp:293
+#: pcbnew/board_netlist_updater.cpp:302
 #, c-format
 msgid "Disconnect %s pin %s."
 msgstr "Déconnexion \"%s\" pin \"%s\"."
 
-#: pcbnew/board_netlist_updater.cpp:336
+#: pcbnew/board_netlist_updater.cpp:345
 #, c-format
 msgid "Add net %s."
 msgstr "Ajout net %s."
 
-#: pcbnew/board_netlist_updater.cpp:342
+#: pcbnew/board_netlist_updater.cpp:351
 #, c-format
 msgid "Reconnect %s pin %s from %s to %s."
 msgstr "Reconnexion \"%s\" pin \"%s\"  de \"%s\" en \"%s\"."
 
-#: pcbnew/board_netlist_updater.cpp:350
+#: pcbnew/board_netlist_updater.cpp:359
 #, c-format
 msgid "Connect %s pin %s to %s."
 msgstr "Connecter %s pin %s à %s."
 
-#: pcbnew/board_netlist_updater.cpp:432
+#: pcbnew/board_netlist_updater.cpp:441
 #, c-format
 msgid "Reconnect copper zone from %s to %s."
 msgstr "Reconnexion zone de cuivre du net \"%s\" en net \"%s\"."
 
-#: pcbnew/board_netlist_updater.cpp:453
+#: pcbnew/board_netlist_updater.cpp:462
 #, c-format
 msgid "Copper zone (%s) has no pads connected."
 msgstr "Zone cuivre (\"%s\") n'a pas de pad connecté."
 
-#: pcbnew/board_netlist_updater.cpp:483
+#: pcbnew/board_netlist_updater.cpp:492
 #, c-format
 msgid "Cannot remove unused footprint %s (locked)."
 msgstr "Impossible de supprimer l'empreinte %s inutilisée (verrouillée)."
 
-#: pcbnew/board_netlist_updater.cpp:488
+#: pcbnew/board_netlist_updater.cpp:497
 #, c-format
 msgid "Remove unused footprint %s."
 msgstr "Suppression empreinte inutilisée \"%s."
 
-#: pcbnew/board_netlist_updater.cpp:546 pcbnew/class_board.cpp:2824
+#: pcbnew/board_netlist_updater.cpp:555 pcbnew/class_board.cpp:2848
 #, c-format
 msgid "Remove single pad net %s."
 msgstr "Suppression net à pad unique \"%s\"."
 
-#: pcbnew/board_netlist_updater.cpp:608
+#: pcbnew/board_netlist_updater.cpp:617
 #, c-format
 msgid "%s pad %s not found in %s."
 msgstr "%s pad %s non trouvé en %s."
 
-#: pcbnew/board_netlist_updater.cpp:646
+#: pcbnew/board_netlist_updater.cpp:656
 #, c-format
 msgid "Processing component \"%s:%s:%s\"."
 msgstr "Traitement du composant \"%s:%s:%s\"."
 
-#: pcbnew/board_netlist_updater.cpp:699 pcbnew/class_board.cpp:2738
+#: pcbnew/board_netlist_updater.cpp:709 pcbnew/class_board.cpp:2762
 #, c-format
 msgid "Multiple footprints found for \"%s\"."
 msgstr "Multiples empreintes trouvées pour \"%s\"."
 
-#: pcbnew/board_netlist_updater.cpp:715
+#: pcbnew/board_netlist_updater.cpp:722
 msgid "Update netlist"
 msgstr "Mise à jour netliste"
 
-#: pcbnew/board_netlist_updater.cpp:724
+#: pcbnew/board_netlist_updater.cpp:741
 #, c-format
 msgid "Total warnings: %d, errors: %d."
 msgstr "Total warnings: %d, erreurs: %d."
 
-#: pcbnew/board_netlist_updater.cpp:729
+#: pcbnew/board_netlist_updater.cpp:746
 msgid ""
 "Errors occurred during the netlist update. Unless you fix them your board "
 "will not be consistent with the schematics."
@@ -15700,7 +15854,7 @@ msgstr ""
 "Des erreurs se sont produites lors de la mise à jour de netliste. À moins "
 "que vous les fixiez, votre PCB ne sera pas identique au schéma."
 
-#: pcbnew/board_netlist_updater.cpp:735
+#: pcbnew/board_netlist_updater.cpp:752
 msgid "Netlist update successful!"
 msgstr "Mise à jour Netliste réussie!"
 
@@ -15747,17 +15901,17 @@ msgstr "Fournisseur et réf"
 msgid "This is the default net class."
 msgstr "Ceci est la Netclass par défaut."
 
-#: pcbnew/class_board.cpp:1024
+#: pcbnew/class_board.cpp:1032
 msgid "PCB"
 msgstr "PCB"
 
-#: pcbnew/class_board.cpp:1207 pcbnew/class_module.cpp:580
+#: pcbnew/class_board.cpp:1231 pcbnew/class_module.cpp:580
 #: pcbnew/netinfo_item.cpp:123 pcbnew/pcb_draw_panel_gal.cpp:360
 #: pcbnew/ratsnest.cpp:71 pcbnew/tools/pad_tool.cpp:75
 msgid "Pads"
 msgstr "Pads"
 
-#: pcbnew/class_board.cpp:1210
+#: pcbnew/class_board.cpp:1234
 #: pcbnew/dialogs/dialog_global_deletion_base.cpp:68
 #: pcbnew/dialogs/dialog_global_edit_tracks_and_vias_base.cpp:35
 #: pcbnew/dialogs/dialog_track_via_properties_base.cpp:154
@@ -15766,94 +15920,94 @@ msgstr "Pads"
 msgid "Vias"
 msgstr "Vias"
 
-#: pcbnew/class_board.cpp:1213 pcbnew/pcb_draw_panel_gal.cpp:366
+#: pcbnew/class_board.cpp:1237 pcbnew/pcb_draw_panel_gal.cpp:366
 msgid "Track Segments"
 msgstr "Segments de Piste"
 
-#: pcbnew/class_board.cpp:1216 pcbnew/pcb_draw_panel_gal.cpp:369
+#: pcbnew/class_board.cpp:1240 pcbnew/pcb_draw_panel_gal.cpp:369
 msgid "Nodes"
 msgstr "Nœuds"
 
-#: pcbnew/class_board.cpp:1219
+#: pcbnew/class_board.cpp:1243
 #: pcbnew/dialogs/dialog_select_net_from_list_base.h:54
 #: pcbnew/pcb_draw_panel_gal.cpp:372 pcbnew/ratsnest.cpp:74
 msgid "Nets"
 msgstr "Nets"
 
-#: pcbnew/class_board.cpp:1222 pcbnew/pcb_draw_panel_gal.cpp:375
+#: pcbnew/class_board.cpp:1246 pcbnew/pcb_draw_panel_gal.cpp:375
 msgid "Unrouted"
 msgstr "Non Routé"
 
-#: pcbnew/class_board.cpp:2478
+#: pcbnew/class_board.cpp:2502
 #, c-format
 msgid "Clearing component %s pin %s net."
 msgstr "Suppression du net composant \"%s\" pin \"%s\"."
 
-#: pcbnew/class_board.cpp:2500
+#: pcbnew/class_board.cpp:2524
 #, c-format
 msgid "Changing footprint %s pad %s net from %s to %s."
 msgstr "Changement empreinte \"%s\" pad \"%s\"  net de \"%s\" en \"%s\"."
 
-#: pcbnew/class_board.cpp:2579
+#: pcbnew/class_board.cpp:2603
 #, c-format
 msgid "Checking netlist symbol footprint \"%s:%s:%s\"."
 msgstr "Vérification de l'empreinte du composant en netliste \"%s:%s:%s\"."
 
-#: pcbnew/class_board.cpp:2603
+#: pcbnew/class_board.cpp:2627
 #, c-format
 msgid "Changing symbol %s footprint from %s to %s."
 msgstr "Changer empreinte du composant %s de %s en %s."
 
-#: pcbnew/class_board.cpp:2611
+#: pcbnew/class_board.cpp:2635
 #, c-format
 msgid "Cannot change symbol %s footprint due to missing footprint %s."
 msgstr ""
 "Impossible de changer le composant \"%s\" car l'empreinte \"%s\" est "
 "manquante."
 
-#: pcbnew/class_board.cpp:2658
+#: pcbnew/class_board.cpp:2682
 #, c-format
 msgid "Changing footprint %s reference to %s."
 msgstr "Change référence empreinte \"%s\" en \"%s\"."
 
-#: pcbnew/class_board.cpp:2670
+#: pcbnew/class_board.cpp:2694
 #, c-format
 msgid "Changing footprint %s value from %s to %s."
 msgstr "Changement empreinte \"%s\" valeur de \"%s\" en \"%s\"."
 
-#: pcbnew/class_board.cpp:2683
+#: pcbnew/class_board.cpp:2707
 #, c-format
 msgid "Changing component path \"%s:%s\" to \"%s\"."
 msgstr "Change le chemin des empreintes \"%s:%s\" en \"%s\"."
 
-#: pcbnew/class_board.cpp:2709
+#: pcbnew/class_board.cpp:2733
 #, c-format
 msgid "Adding new symbol %s footprint %s."
 msgstr "Ajout nouveau symbole \"%s\" empreinte \"%s\"."
 
-#: pcbnew/class_board.cpp:2716
+#: pcbnew/class_board.cpp:2740
 #, c-format
 msgid "Cannot add new symbol %s due to missing footprint %s."
 msgstr ""
 "Impossible d'ajouter le composant \"%s\" car l'empreinte \"%s\" est "
 "manquante."
 
-#: pcbnew/class_board.cpp:2763
+#: pcbnew/class_board.cpp:2787
 #, c-format
 msgid "Removing unused footprint %s."
 msgstr "Suppression empreinte inutilisée \"%s."
 
-#: pcbnew/class_board.cpp:2857
+#: pcbnew/class_board.cpp:2881
 #, c-format
 msgid "Symbol %s pad %s not found in footprint %s.\n"
 msgstr "Symbole \"%s\" pad \"%s\" non trouvé dans l'empreinte \"%s\"\n"
 
-#: pcbnew/class_board.cpp:2891
+#: pcbnew/class_board.cpp:2915
 #, c-format
 msgid "Updating copper zone from net %s to %s."
 msgstr "Mise à jour zone de cuivre du net \"%s\" en net \"%s\"."
 
-#: pcbnew/class_board.cpp:2898
+#: pcbnew/class_board.cpp:2922
 #, c-format
 msgid "Copper zone (net %s) has no pads connected."
 msgstr "Zone cuivre (net \"%s\") n'a pas de pad connecté."
@@ -15890,7 +16044,7 @@ msgstr "Courbe"
 msgid "Segment"
 msgstr "Segment"
 
-#: pcbnew/class_drawsegment.cpp:802
+#: pcbnew/class_drawsegment.cpp:803
 #, c-format
 msgid "Pcb Graphic %s, length %s on %s"
 msgstr "Graphique PCB %s, longueur %s sur %s"
@@ -16056,15 +16210,15 @@ msgstr "Pad de %s sur %s"
 msgid "Pad %s of %s on %s"
 msgstr "Pad %s de %s sur %s"
 
-#: pcbnew/class_pad.cpp:1414 pcbnew/dialogs/dialog_pad_properties_base.cpp:311
+#: pcbnew/class_pad.cpp:1426 pcbnew/dialogs/dialog_pad_properties_base.cpp:311
 msgid "All copper layers"
 msgstr "Toutes couches cuivre"
 
-#: pcbnew/class_pad.cpp:1428
+#: pcbnew/class_pad.cpp:1440
 msgid " and others"
 msgstr " et autres"
 
-#: pcbnew/class_pad.cpp:1439
+#: pcbnew/class_pad.cpp:1451
 msgid "no layers"
 msgstr "aucune couche"
 
@@ -16217,7 +16371,7 @@ msgstr "Piste %s %s sur couche %s, long.: %s"
 msgid "Zone Outline"
 msgstr "Contour de Zone"
 
-#: pcbnew/class_zone.cpp:813 pcbnew/class_zone.cpp:1043
+#: pcbnew/class_zone.cpp:813 pcbnew/class_zone.cpp:1055
 msgid "(Cutout)"
 msgstr "(Cutout)"
 
@@ -16273,11 +16427,11 @@ msgstr "Lignes de Hachure"
 msgid "Corner Count"
 msgstr "Nb Points"
 
-#: pcbnew/class_zone.cpp:1046
+#: pcbnew/class_zone.cpp:1058
 msgid "(Keepout)"
 msgstr "(Zone Interdite)"
 
-#: pcbnew/class_zone.cpp:1050
+#: pcbnew/class_zone.cpp:1062
 #, c-format
 msgid "Zone Outline %s on %s"
 msgstr "Contour de Zone %s sur %s"
@@ -16465,7 +16619,7 @@ msgstr ""
 "La largeur des freins thermique doit être plus grande que la largeur minimum."
 
 #: pcbnew/dialogs/dialog_copper_zones.cpp:327
-#: pcbnew/dialogs/dialog_non_copper_zones_properties.cpp:157
+#: pcbnew/dialogs/dialog_non_copper_zones_properties.cpp:160
 msgid "No layer selected."
 msgstr "Pas de couche sélectionnée."
 
@@ -16833,7 +16987,7 @@ msgid "Radius:"
 msgstr "Rayon:"
 
 #: pcbnew/dialogs/dialog_create_array_base.cpp:224
-#: pcbnew/dialogs/dialog_move_exact.cpp:174
+#: pcbnew/dialogs/dialog_move_exact.cpp:176
 #: pcbnew/dialogs/dialog_pad_basicshapes_properties.cpp:95
 #: pcbnew/dialogs/dialog_position_relative.cpp:134
 msgid "Angle:"
@@ -16892,29 +17046,29 @@ msgstr "Réseau Circulaire"
 msgid "Create Array"
 msgstr "Créer Matrice"
 
-#: pcbnew/dialogs/dialog_drc.cpp:78
+#: pcbnew/dialogs/dialog_drc.cpp:80
 msgid "Run DRC"
 msgstr "Exécuter DRC"
 
-#: pcbnew/dialogs/dialog_drc.cpp:79
+#: pcbnew/dialogs/dialog_drc.cpp:81
 msgid "List Unconnected"
 msgstr "Liste Non Connected"
 
-#: pcbnew/dialogs/dialog_drc.cpp:242 pcbnew/dialogs/dialog_drc.cpp:311
+#: pcbnew/dialogs/dialog_drc.cpp:250 pcbnew/dialogs/dialog_drc.cpp:319
 #, c-format
 msgid "Report file \"%s\" created"
 msgstr "Fichier rapport \"%s\" créé"
 
-#: pcbnew/dialogs/dialog_drc.cpp:243 pcbnew/dialogs/dialog_drc.cpp:312
+#: pcbnew/dialogs/dialog_drc.cpp:251 pcbnew/dialogs/dialog_drc.cpp:320
 msgid "Disk File Report Completed"
 msgstr "Fichier rapport terminé"
 
-#: pcbnew/dialogs/dialog_drc.cpp:248 pcbnew/dialogs/dialog_drc.cpp:317
+#: pcbnew/dialogs/dialog_drc.cpp:256 pcbnew/dialogs/dialog_drc.cpp:325
 #, c-format
 msgid "Unable to create report file \"%s\""
 msgstr "Impossible de créer le fichier rapport \"%s\""
 
-#: pcbnew/dialogs/dialog_drc.cpp:338
+#: pcbnew/dialogs/dialog_drc.cpp:346
 msgid "Save DRC Report File"
 msgstr "Sauver Fichier Rapport DRC"
 
@@ -17083,23 +17237,23 @@ msgstr ""
 "comme un connecteur de bord de carte (vieux PC ISA bus par exemple)"
 
 #: pcbnew/dialogs/dialog_edit_footprint_for_BoardEditor.cpp:445
-#: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor.cpp:356
+#: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor.cpp:365
 #, c-format
 msgid "Invalid filename: %s"
 msgstr "Nom fichier invalide:  %s"
 
 #: pcbnew/dialogs/dialog_edit_footprint_for_BoardEditor.cpp:596
-#: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor.cpp:539
+#: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor.cpp:549
 msgid "Text items must have some content."
 msgstr "Les éléments de texte doivent avoir du contenu."
 
 #: pcbnew/dialogs/dialog_edit_footprint_for_BoardEditor.cpp:741
-#: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor.cpp:645
+#: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor.cpp:664
 msgid "Modify module properties"
 msgstr "Modifier les propriétés de l'empreinte"
 
 #: pcbnew/dialogs/dialog_edit_footprint_for_BoardEditor.cpp:800
-#: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor.cpp:748
+#: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor.cpp:755
 msgid "Reference and value are mandatory."
 msgstr "Référence et valeur sont obligatoires."
 
@@ -17331,15 +17485,6 @@ msgstr ""
 "La marge finale est la somme de cette valeur et du rapport de marge\n"
 "Une valeur négative signifie que le masque est plus petit que le pad."
 
-#: pcbnew/dialogs/dialog_edit_footprint_for_BoardEditor_base.cpp:372
-#: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor_base.cpp:274
-#: pcbnew/dialogs/dialog_pad_properties_base.cpp:214
-#: pcbnew/dialogs/dialog_pad_properties_base.cpp:453
-#: pcbnew/dialogs/dialog_pns_length_tuning_settings_base.cpp:151
-#: pcbnew/dialogs/panel_setup_mask_and_paste_base.cpp:101
-msgid "%"
-msgstr "%"
-
 #: pcbnew/dialogs/dialog_edit_footprint_for_BoardEditor_base.cpp:379
 #: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor_base.cpp:281
 #: pcbnew/dialogs/dialog_pad_properties_base.cpp:466
@@ -17411,11 +17556,11 @@ msgstr "Activer les raccourcis clavier de déplacement et d'auto placement"
 msgid "Disable hotkey move commands and Auto Placement"
 msgstr "Désactiver les raccourcis clavier de déplacement et d'auto placement"
 
-#: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor.cpp:495
+#: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor.cpp:503
 msgid "Footprint must have a name."
 msgstr "L'Empreinte doit avoir un nom."
 
-#: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor.cpp:497
+#: pcbnew/dialogs/dialog_edit_footprint_for_fp_editor.cpp:508
 #, c-format
 msgid "Footprint name may not contain \"%s\"."
 msgstr "Le nom d'empreinte ne peut pas contenir \"%s\"."
@@ -17624,7 +17769,7 @@ msgstr "Ajuster automatiquement"
 #: pcbnew/dialogs/dialog_export_step_base.cpp:76
 #: pcbnew/dialogs/dialog_export_vrml_base.cpp:59
 #: pcbnew/dialogs/dialog_text_properties_base.cpp:61
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:101
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:92
 msgid "Units:"
 msgstr "Unités:"
 
@@ -17765,7 +17910,7 @@ msgstr ""
 msgid "Exported \"%s\"."
 msgstr "Exporté \"%s\"."
 
-#: pcbnew/dialogs/dialog_export_svg.cpp:289 pcbnew/dialogs/dialog_plot.cpp:844
+#: pcbnew/dialogs/dialog_export_svg.cpp:289 pcbnew/dialogs/dialog_plot.cpp:846
 #: pcbnew/exporters/gen_footprints_placefile.cpp:346
 #, c-format
 msgid "Unable to create file \"%s\"."
@@ -18858,38 +19003,46 @@ msgstr "Sélection Couche"
 msgid "Select Copper Layer Pair"
 msgstr "Sélection Paire de Couches"
 
-#: pcbnew/dialogs/dialog_move_exact.cpp:87
+#: pcbnew/dialogs/dialog_move_exact.cpp:89
 msgid "Rotate around item anchor"
 msgstr "Rotation autour de l'ancre de l'élément"
 
-#: pcbnew/dialogs/dialog_move_exact.cpp:90
+#: pcbnew/dialogs/dialog_move_exact.cpp:92
 msgid "Rotate around selection center"
 msgstr "Rotation autour du centre de sélection"
 
-#: pcbnew/dialogs/dialog_move_exact.cpp:93
+#: pcbnew/dialogs/dialog_move_exact.cpp:95
 #: pcbnew/dialogs/dialog_move_exact_base.cpp:69
 msgid "Rotate around local coordinates origin"
 msgstr "Rotation autour de l' origine des coordonnées locales"
 
-#: pcbnew/dialogs/dialog_move_exact.cpp:96
+#: pcbnew/dialogs/dialog_move_exact.cpp:98
 #: pcbnew/dialogs/dialog_move_exact_base.cpp:69
 msgid "Rotate around drill/place origin"
 msgstr "Rotation autour de l'origine axe auxiliaire"
 
-#: pcbnew/dialogs/dialog_move_exact.cpp:173
+#: pcbnew/dialogs/dialog_move_exact.cpp:175
 #: pcbnew/dialogs/dialog_position_relative.cpp:133
 msgid "Distance:"
 msgstr "Distance:"
 
-#: pcbnew/dialogs/dialog_move_exact.cpp:179
+#: pcbnew/dialogs/dialog_move_exact.cpp:181
 #: pcbnew/dialogs/dialog_move_exact_base.cpp:24
 msgid "Move X:"
 msgstr "Déplacement X:"
 
-#: pcbnew/dialogs/dialog_move_exact.cpp:180
+#: pcbnew/dialogs/dialog_move_exact.cpp:182
 #: pcbnew/dialogs/dialog_move_exact_base.cpp:38
 msgid "Move Y:"
 msgstr "Déplacement Y:"
+
+#: pcbnew/dialogs/dialog_move_exact.cpp:257
+msgid ""
+"Invalid movement values.  Movement would place selection outside of the "
+"maximum board area."
+msgstr ""
+"Valeurs de déplacement invalides.  Le mouvement placerait la sélection à "
+"l'extérieur de la zone maximale de travail."
 
 #: pcbnew/dialogs/dialog_move_exact_base.cpp:69
 msgid "Rotate around center of selection"
@@ -19665,7 +19818,7 @@ msgstr "Transformée Géométrique de Forme de Pad"
 msgid "Basic Shape Polygon"
 msgstr "Forme de Base Polygonale"
 
-#: pcbnew/dialogs/dialog_plot.cpp:54 pcbnew/dialogs/dialog_plot_base.h:138
+#: pcbnew/dialogs/dialog_plot.cpp:54 pcbnew/dialogs/dialog_plot_base.h:140
 msgid "Plot"
 msgstr "Tracer"
 
@@ -19673,23 +19826,23 @@ msgstr "Tracer"
 msgid "Generate Drill Files..."
 msgstr "Créer Fichiers de Perçage..."
 
-#: pcbnew/dialogs/dialog_plot.cpp:596
+#: pcbnew/dialogs/dialog_plot.cpp:598
 msgid "HPGL pen size constrained."
 msgstr "Taille plume HPGL limitée."
 
-#: pcbnew/dialogs/dialog_plot.cpp:607
+#: pcbnew/dialogs/dialog_plot.cpp:609
 msgid "Default line width constrained."
 msgstr "Épaisseur ligne par défaut limitée."
 
-#: pcbnew/dialogs/dialog_plot.cpp:620
+#: pcbnew/dialogs/dialog_plot.cpp:622
 msgid "X scale constrained."
 msgstr "Échelle X limitée."
 
-#: pcbnew/dialogs/dialog_plot.cpp:634
+#: pcbnew/dialogs/dialog_plot.cpp:636
 msgid "Y scale constrained."
 msgstr "Échelle Y limitée."
 
-#: pcbnew/dialogs/dialog_plot.cpp:647
+#: pcbnew/dialogs/dialog_plot.cpp:649
 #, c-format
 msgid ""
 "Width correction constrained. The reasonable width correction value must be "
@@ -19698,11 +19851,11 @@ msgstr ""
 "Correction d'épaisseur. La valeur raisonnable de correction doit être dans "
 "la plage  [%s; %s] (%s)  pour les règles actuelles de conception."
 
-#: pcbnew/dialogs/dialog_plot.cpp:720
+#: pcbnew/dialogs/dialog_plot.cpp:722
 msgid "No layer selected, Nothing to plot"
 msgstr "Pas de couche sélectionnée, Rien à tracer"
 
-#: pcbnew/dialogs/dialog_plot.cpp:839
+#: pcbnew/dialogs/dialog_plot.cpp:841
 #, c-format
 msgid "Plot file \"%s\" created."
 msgstr "Fichier de tracé \"%s\" créé."
@@ -19961,23 +20114,14 @@ msgid "DXF Options"
 msgstr "Options DXF"
 
 #: pcbnew/dialogs/dialog_plot_base.cpp:307
-msgid "Plot all layers in outline (polygon) mode"
-msgstr "Tracer toutes les couches en mode contour (polygon)"
+msgid "Plot graphic items using their contours"
+msgstr "Tracer des éléments graphiques en utilisant leurs contours"
 
 #: pcbnew/dialogs/dialog_plot_base.cpp:309
-msgid ""
-"DXF only:\n"
-"Check to plot all layers in polygon mode.\n"
-"Uncheck to plot in sketch mode layers that don't support polygons (*.SilkS, "
-"*_User, Edge.Cuts, Margin, *.CrtYd, *.Fab)\n"
-"and plot in polygon mode other layers (*.Cu, *.Adhes, *.Paste, *.Mask)"
+msgid "Uncheck to plot graphic items using their center lines"
 msgstr ""
-"DXF seulement:\n"
-"Activer pour tracer toutes les couches en mode polygone.\n"
-"Désactiver pour tracer en mode contour les couches qui ne supportent pas les "
-"polygones (*. Silks, * _User, Edge.Cuts, marge, *. CrtYd, *. Fab)\n"
-"et tracer en mode polygone  les autres couches (*. Cu, *. Adhes, *. Pâte, *. "
-"Masque)"
+"Désélecter pour tracer des éléments graphiques à l'aide de leurs lignes "
+"centrale"
 
 #: pcbnew/dialogs/dialog_plot_base.cpp:313
 msgid "Use Pcbnew font to plot texts"
@@ -19992,27 +20136,35 @@ msgstr ""
 "Désactiver pour tracer les textes sur une ligne comme textes éditable "
 "(utilisant la fonte DXF)"
 
-#: pcbnew/dialogs/dialog_plot_base.cpp:340
+#: pcbnew/dialogs/dialog_plot_base.cpp:321
+msgid "Export units:"
+msgstr "Unités pour exportation:"
+
+#: pcbnew/dialogs/dialog_plot_base.cpp:329
+msgid "The units to use for the exported DXF file"
+msgstr "Les unités à utiliser pour le fichier DXF exporté"
+
+#: pcbnew/dialogs/dialog_plot_base.cpp:358
 msgid "Run DRC..."
 msgstr "Exécuter DRC..."
 
-#: pcbnew/dialogs/dialog_plot_base.cpp:363
+#: pcbnew/dialogs/dialog_plot_base.cpp:381
 msgid "Select Fab Layers"
 msgstr "Sélection Couches pour Fabrication"
 
-#: pcbnew/dialogs/dialog_plot_base.cpp:367
+#: pcbnew/dialogs/dialog_plot_base.cpp:385
 msgid "Select all Copper Layers"
 msgstr "Sélection Toutes Couches Cuivre"
 
-#: pcbnew/dialogs/dialog_plot_base.cpp:371
+#: pcbnew/dialogs/dialog_plot_base.cpp:389
 msgid "Deselect all Copper Layers"
 msgstr "Désélection Toutes Couches Cuivre"
 
-#: pcbnew/dialogs/dialog_plot_base.cpp:375
+#: pcbnew/dialogs/dialog_plot_base.cpp:393
 msgid "Select all Layers"
 msgstr "Sélection Toutes Couches"
 
-#: pcbnew/dialogs/dialog_plot_base.cpp:379
+#: pcbnew/dialogs/dialog_plot_base.cpp:397
 msgid "Deselect all Layers"
 msgstr "Désélection Toutes Couches"
 
@@ -20037,19 +20189,19 @@ msgstr "Espacement via identique espacement piste"
 msgid "Differential Pair Dimensions"
 msgstr "Dimensions de la Paire Différentielle"
 
-#: pcbnew/dialogs/dialog_pns_length_tuning_settings.cpp:78
+#: pcbnew/dialogs/dialog_pns_length_tuning_settings.cpp:79
 msgid "Single Track Length Tuning"
 msgstr "Ajustage de la Longueur d'une Seule Piste"
 
-#: pcbnew/dialogs/dialog_pns_length_tuning_settings.cpp:84
+#: pcbnew/dialogs/dialog_pns_length_tuning_settings.cpp:85
 msgid "Differential Pair Length Tuning"
 msgstr "Ajustage de la Longueur de Paire"
 
-#: pcbnew/dialogs/dialog_pns_length_tuning_settings.cpp:90
+#: pcbnew/dialogs/dialog_pns_length_tuning_settings.cpp:91
 msgid "Differential Pair Skew Tuning"
 msgstr "Ajustage Décalage de Paire Différentielle"
 
-#: pcbnew/dialogs/dialog_pns_length_tuning_settings.cpp:92
+#: pcbnew/dialogs/dialog_pns_length_tuning_settings.cpp:93
 msgid "Target skew: "
 msgstr "Décalage cible: "
 
@@ -20113,7 +20265,7 @@ msgstr "arc"
 msgid "Miter radius (r):"
 msgstr "Rayon du raccord (r):"
 
-#: pcbnew/dialogs/dialog_pns_length_tuning_settings_base.h:75
+#: pcbnew/dialogs/dialog_pns_length_tuning_settings_base.h:74
 msgid "Trace Length Tuning"
 msgstr "Ajustage de Longueur de Piste"
 
@@ -20521,10 +20673,10 @@ msgstr ""
 #: pcbnew/dialogs/dialog_track_via_properties.cpp:321
 #, c-format
 msgid ""
-"This will change the net assigned to %d connected pads to %s.\n"
+"This will change the net assigned to %lu connected pads to %s.\n"
 "Do you wish to continue?"
 msgstr ""
-"Cela va changer le net assigné à %d pads connectés à %s.\n"
+"Cela va changer le net assigné à %lu pads connectés à %s.\n"
 "Souhaitez-vous continuer?"
 
 #: pcbnew/dialogs/dialog_track_via_properties.cpp:328
@@ -20639,7 +20791,7 @@ msgstr "Éditeur d'Options..."
 msgid "Edit options"
 msgstr "Editer options"
 
-#: pcbnew/dialogs/panel_fp_lib_table.cpp:440
+#: pcbnew/dialogs/panel_fp_lib_table.cpp:443
 #, c-format
 msgid "Duplicate Nicknames \"%s\"."
 msgstr "Noms Logiques \"%s\" dupliqués."
@@ -22203,17 +22355,17 @@ msgstr ""
 msgid "Unknown DRC error code %d"
 msgstr "Code d'erreur DRC inconnu %d"
 
-#: pcbnew/eagle_plugin.cpp:815
+#: pcbnew/eagle_plugin.cpp:822
 #, c-format
 msgid "<package> name: \"%s\" duplicated in eagle <library>: \"%s\""
 msgstr "nom <package>: \"%s\" dupliqué dans la <librairie> Eagle: \"%s\""
 
-#: pcbnew/eagle_plugin.cpp:893
+#: pcbnew/eagle_plugin.cpp:900
 #, c-format
 msgid "No \"%s\" package in library \"%s\""
 msgstr "Pas de boîtier \"%s\" en librairie \"%s\""
 
-#: pcbnew/eagle_plugin.cpp:2238
+#: pcbnew/eagle_plugin.cpp:2315
 #, c-format
 msgid "Unsupported Eagle layer '%s' (%d), converted to Dwgs.User layer"
 msgstr "Couche Eagle non supportée '%s' (%d), convertie en couche Dwgs.User"
@@ -22246,7 +22398,7 @@ msgstr "Addition de pistes"
 msgid "Add footprint"
 msgstr "Ajouter empreinte"
 
-#: pcbnew/edit.cpp:1445 pcbnew/tools/drawing_tool.cpp:694
+#: pcbnew/edit.cpp:1445 pcbnew/tools/drawing_tool.cpp:711
 msgid "Add zones"
 msgstr "Addition de zones"
 
@@ -22254,20 +22406,20 @@ msgstr "Addition de zones"
 msgid "Warning: zone display is OFF!!!"
 msgstr "Attention: affichage zones désactivé !!!"
 
-#: pcbnew/edit.cpp:1456 pcbnew/tools/drawing_tool.cpp:704
+#: pcbnew/edit.cpp:1456 pcbnew/tools/drawing_tool.cpp:721
 msgid "Add keepout"
 msgstr "Ajout zone interdite"
 
 #: pcbnew/edit.cpp:1460 pcbnew/menubar_pcb_editor.cpp:330
-#: pcbnew/tool_pcb_editor.cpp:502 pcbnew/tools/pcb_editor_control.cpp:627
+#: pcbnew/tool_pcb_editor.cpp:502 pcbnew/tools/pcb_editor_control.cpp:629
 msgid "Add layer alignment target"
 msgstr "Ajouter Mire de superposition"
 
-#: pcbnew/edit.cpp:1464 pcbnew/tools/pcb_editor_control.cpp:916
+#: pcbnew/edit.cpp:1464 pcbnew/tools/pcb_editor_control.cpp:920
 msgid "Adjust zero"
 msgstr "Ajuster zéro"
 
-#: pcbnew/edit.cpp:1468 pcbnew/tools/pcbnew_control.cpp:595
+#: pcbnew/edit.cpp:1468 pcbnew/tools/pcbnew_control.cpp:603
 msgid "Adjust grid origin"
 msgstr "Ajuster origine grille"
 
@@ -22279,18 +22431,18 @@ msgstr "Addition de lignes graphiques"
 
 #: pcbnew/edit.cpp:1476 pcbnew/menubar_footprint_editor.cpp:356
 #: pcbnew/menubar_pcb_editor.cpp:308 pcbnew/tool_footprint_editor.cpp:173
-#: pcbnew/tool_pcb_editor.cpp:489 pcbnew/tools/drawing_tool.cpp:305
+#: pcbnew/tool_pcb_editor.cpp:489 pcbnew/tools/drawing_tool.cpp:311
 msgid "Add graphic arc"
 msgstr "Addition de graphiques (Arc de Cercle)"
 
 #: pcbnew/edit.cpp:1480 pcbnew/menubar_footprint_editor.cpp:362
 #: pcbnew/menubar_pcb_editor.cpp:312 pcbnew/tool_footprint_editor.cpp:170
-#: pcbnew/tool_pcb_editor.cpp:486 pcbnew/tools/drawing_tool.cpp:271
+#: pcbnew/tool_pcb_editor.cpp:486 pcbnew/tools/drawing_tool.cpp:274
 msgid "Add graphic circle"
 msgstr "Addition de graphiques (Cercle)"
 
 #: pcbnew/edit.cpp:1492 pcbnew/menubar_pcb_editor.cpp:326
-#: pcbnew/tool_pcb_editor.cpp:499 pcbnew/tools/drawing_tool.cpp:518
+#: pcbnew/tool_pcb_editor.cpp:499 pcbnew/tools/drawing_tool.cpp:532
 msgid "Add dimension"
 msgstr "Ajout des cotes"
 
@@ -22450,16 +22602,16 @@ msgstr "sansnom"
 msgid "PCB file \"%s\" is already open."
 msgstr "Le fichier PCB \"%s\" est déjà ouvert."
 
-#: pcbnew/files.cpp:415
+#: pcbnew/files.cpp:413
 msgid "The current PCB has been modified.  Save changes?"
 msgstr "Le circuit imprimé a été modifié. Voulez vous sauver les changements?"
 
-#: pcbnew/files.cpp:431
+#: pcbnew/files.cpp:432
 #, c-format
 msgid "PCB \"%s\" does not exist.  Do you wish to create it?"
 msgstr "Le PCB \"%s\" n'existe pas. Voulez vous le créer?"
 
-#: pcbnew/files.cpp:499
+#: pcbnew/files.cpp:500
 #, c-format
 msgid ""
 "Error loading board file:\n"
@@ -22468,7 +22620,7 @@ msgstr ""
 "Erreur en chargement du PCB:\n"
 "%s"
 
-#: pcbnew/files.cpp:537
+#: pcbnew/files.cpp:536
 msgid ""
 "This file was created by an older version of Pcbnew.\n"
 "It will be stored in the new file format when you save this file again."
@@ -22476,17 +22628,17 @@ msgstr ""
 "Ce fichier a été créé par une version plus ancienne de Pcbnew.\n"
 "Il sera enregistré au nouveau format après la prochaine sauvegarde."
 
-#: pcbnew/files.cpp:624
+#: pcbnew/files.cpp:626
 #, c-format
 msgid "Warning: unable to create backup file \"%s\""
 msgstr "Attention: impossible de créer le  fichier backup \"%s\""
 
-#: pcbnew/files.cpp:651 pcbnew/files.cpp:742
+#: pcbnew/files.cpp:653 pcbnew/files.cpp:744
 #, c-format
 msgid "No access rights to write to file \"%s\""
 msgstr "Pas de droit d'écriture pour le fichier \"%s\""
 
-#: pcbnew/files.cpp:688 pcbnew/files.cpp:767
+#: pcbnew/files.cpp:690 pcbnew/files.cpp:769
 #, c-format
 msgid ""
 "Error saving board file \"%s\".\n"
@@ -22495,22 +22647,22 @@ msgstr ""
 "Erreur en sauvegarde du fichier PCB \"%s\".\n"
 "%s"
 
-#: pcbnew/files.cpp:694
+#: pcbnew/files.cpp:696
 #, c-format
 msgid "Failed to create \"%s\""
 msgstr "Impossible de créer le fichier \"%s\""
 
-#: pcbnew/files.cpp:720
+#: pcbnew/files.cpp:722
 #, c-format
 msgid "Backup file: \"%s\""
 msgstr "Fichier backup: \"%s\""
 
-#: pcbnew/files.cpp:722
+#: pcbnew/files.cpp:724
 #, c-format
 msgid "Wrote board file: \"%s\""
 msgstr "Écriture fichier CI: \"%s\""
 
-#: pcbnew/files.cpp:776
+#: pcbnew/files.cpp:778
 #, c-format
 msgid ""
 "Board copied to:\n"
@@ -22519,7 +22671,7 @@ msgstr ""
 "Pcb copié vers:\n"
 "\"%s\""
 
-#: pcbnew/files.cpp:886
+#: pcbnew/files.cpp:888
 #, c-format
 msgid ""
 "Error occurred saving project specific footprint library table:\n"
@@ -22665,7 +22817,7 @@ msgstr "Éditer Épaisseur des Éléments"
 msgid "Change Body Items Layer..."
 msgstr "Changer Couche des Éléments..."
 
-#: pcbnew/footprint_editor_utils.cpp:387 pcbnew/initpcb.cpp:103
+#: pcbnew/footprint_editor_utils.cpp:387 pcbnew/initpcb.cpp:106
 msgid "The current footprint has been modified.  Save changes?"
 msgstr "L'empreinte courante a été modifiée. Sauver les changements?"
 
@@ -22673,32 +22825,32 @@ msgstr "L'empreinte courante a été modifiée. Sauver les changements?"
 msgid "_copy"
 msgstr "_copy"
 
-#: pcbnew/footprint_editor_utils.cpp:965
+#: pcbnew/footprint_editor_utils.cpp:974
 msgid "Place anchor"
 msgstr "Place Ancre"
 
-#: pcbnew/footprint_editor_utils.cpp:969 pcbnew/tool_footprint_editor.cpp:192
+#: pcbnew/footprint_editor_utils.cpp:978 pcbnew/tool_footprint_editor.cpp:192
 msgid "Set grid origin"
 msgstr "Ajuster origine grille"
 
-#: pcbnew/footprint_editor_utils.cpp:975
+#: pcbnew/footprint_editor_utils.cpp:984
 #: pcbnew/menubar_footprint_editor.cpp:342 pcbnew/tool_footprint_editor.cpp:163
 msgid "Add pad"
 msgstr "Ajouter pastille"
 
-#: pcbnew/footprint_editor_utils.cpp:979
+#: pcbnew/footprint_editor_utils.cpp:988
 msgid "Pad properties"
 msgstr "Propriétés du Pad"
 
-#: pcbnew/footprint_editor_utils.cpp:1019
+#: pcbnew/footprint_editor_utils.cpp:1028
 msgid "Cannot delete REFERENCE!"
 msgstr "Ne peut effacer la RÉFÉRENCE!"
 
-#: pcbnew/footprint_editor_utils.cpp:1023
+#: pcbnew/footprint_editor_utils.cpp:1032
 msgid "Cannot delete VALUE!"
 msgstr "Ne peut effacer la VALEUR!"
 
-#: pcbnew/footprint_editor_utils.cpp:1107
+#: pcbnew/footprint_editor_utils.cpp:1116
 #, c-format
 msgid ""
 "The current configuration does not include the footprint library\n"
@@ -22709,11 +22861,11 @@ msgstr ""
 "\" %s\".\n"
 "Utilisez Gérer les Librairies d'Empreintes pour modifier la configuration."
 
-#: pcbnew/footprint_editor_utils.cpp:1110
+#: pcbnew/footprint_editor_utils.cpp:1119
 msgid "Library not found in footprint library table."
 msgstr "Librairie non trouvée dans la table des librairies d'empreintes."
 
-#: pcbnew/footprint_editor_utils.cpp:1118 pcbnew/footprint_viewer_frame.cpp:612
+#: pcbnew/footprint_editor_utils.cpp:1127 pcbnew/footprint_viewer_frame.cpp:612
 #, c-format
 msgid ""
 "The library with the nickname \"%s\" is not enabled\n"
@@ -22726,7 +22878,7 @@ msgstr ""
 " Utilisez gérer les bibliothèques d'empreintes pour modifier la "
 "configuration."
 
-#: pcbnew/footprint_editor_utils.cpp:1121 pcbnew/footprint_viewer_frame.cpp:615
+#: pcbnew/footprint_editor_utils.cpp:1130 pcbnew/footprint_viewer_frame.cpp:615
 msgid "Footprint library not enabled."
 msgstr "Librairie d'empreintes non activée."
 
@@ -22912,11 +23064,11 @@ msgstr "&Éditer Empreinte"
 msgid "E&xport Footprint..."
 msgstr "E&xport Empreinte..."
 
-#: pcbnew/footprint_viewer_frame.cpp:131 pcbnew/footprint_viewer_frame.cpp:737
+#: pcbnew/footprint_viewer_frame.cpp:130 pcbnew/footprint_viewer_frame.cpp:739
 msgid "Footprint Library Browser"
 msgstr "Examinateur de Librairies d'Empreintes"
 
-#: pcbnew/footprint_viewer_frame.cpp:435
+#: pcbnew/footprint_viewer_frame.cpp:434
 #, c-format
 msgid ""
 "Could not load footprint \"%s\" from library \"%s\".\n"
@@ -22943,7 +23095,7 @@ msgstr ""
 msgid "Footprint library not found."
 msgstr "Librairies d'empreintes non trouvée."
 
-#: pcbnew/footprint_viewer_frame.cpp:673 pcbnew/footprint_viewer_frame.cpp:689
+#: pcbnew/footprint_viewer_frame.cpp:675 pcbnew/footprint_viewer_frame.cpp:691
 #: pcbnew/footprint_wizard_frame.cpp:696 pcbnew/hotkeys.cpp:246
 #: pcbnew/pcb_base_frame.cpp:464
 msgid "3D Viewer"
@@ -23521,51 +23673,51 @@ msgid "No graphic items found in file to import."
 msgstr "Pas d'éléments graphiques trouvés dans le fichier à importer."
 
 #: pcbnew/import_gfx/dialog_import_gfx.cpp:466
-#: pcbnew/tools/drawing_tool.cpp:762
+#: pcbnew/tools/drawing_tool.cpp:779
 msgid "No graphic items found in file to import"
 msgstr "Pas d'éléments graphiques trouvés dans le fichier à importer"
 
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:45
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:40
 msgid "Placement:"
 msgstr "Placement:"
 
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:54
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:45
 msgid "Interactive placement"
 msgstr "Placement interactif"
 
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:61
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:52
 msgid "At"
 msgstr "A"
 
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:80
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:71
 msgid "DXF origin on PCB Grid, X Coordinate"
 msgstr "DXF origine sur la Ggrille PCB, Coordonnée X"
 
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:97
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:88
 msgid "DXF origin on PCB Grid, Y Coordinate"
 msgstr "DXF origine sur la Ggrille PCB, Coordonnée Y"
 
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:109
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:100
 msgid "Select PCB grid units"
 msgstr "Sélectionnez unités de grille PCB"
 
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:131
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:117
 msgid "Import parameters:"
 msgstr "Paramètres d'importation:"
 
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:149
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:131
 msgid "Line width (DXF import):"
 msgstr "Largeur de ligne (import DXF):"
 
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:162
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:144
 msgid "Graphic layer:"
 msgstr "Couche graphique:"
 
-#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:172
+#: pcbnew/import_gfx/dialog_import_gfx_base.cpp:154
 msgid "Import scale:"
 msgstr "Echelle d'importation:"
 
-#: pcbnew/import_gfx/dialog_import_gfx_base.h:84
+#: pcbnew/import_gfx/dialog_import_gfx_base.h:79
 msgid "Import Vector Graphics File"
 msgstr "Importer un Fichier Graphique Vectoriel"
 
@@ -23820,22 +23972,22 @@ msgid "File \"%s\" is empty or is not a legacy library"
 msgstr ""
 "Le fichier \"%s\" est vide ou n'est pas une librairie à l'ancien format"
 
-#: pcbnew/load_select_footprint.cpp:242
+#: pcbnew/load_select_footprint.cpp:248
 #, c-format
 msgid "Choose Footprint (%d items loaded)"
 msgstr "Sélection Empreinte (%d items chargés)"
 
-#: pcbnew/load_select_footprint.cpp:349
+#: pcbnew/load_select_footprint.cpp:355
 #, c-format
 msgid "Footprints [%u items]"
 msgstr "Empreintes [%u items]"
 
-#: pcbnew/load_select_footprint.cpp:415
+#: pcbnew/load_select_footprint.cpp:421
 #, c-format
 msgid "Footprint \"%s\" saved"
 msgstr "Empreinte \"%s\" sauvée"
 
-#: pcbnew/load_select_footprint.cpp:426
+#: pcbnew/load_select_footprint.cpp:432
 #, c-format
 msgid "Footprint library \"%s\" saved as \"%s\"."
 msgstr "Librairie d'empreintes \"%s\" sauvée sous \"%s\"."
@@ -23861,14 +24013,14 @@ msgid "Import a footprint from an existing footprint file"
 msgstr "Importer une empreinte à partir d'un fichier existant"
 
 #: pcbnew/menubar_footprint_editor.cpp:106
-msgid "Import Outlines from &DXF or SVG File..."
-msgstr "Importer Contours à partir d'un Fichier &DXF ou SVG..."
+msgid "Import Outlines from &DXF File..."
+msgstr "Importer Contours à partir d'un Fichier &DXF..."
 
 #: pcbnew/menubar_footprint_editor.cpp:107
-msgid "Import 2D Drawing DXF or SVG file to Footprint Editor on Drawings layer"
+msgid "Import 2D Drawing to Footprint Editor on Drawings layer"
 msgstr ""
-"Importer un fichier dessin 2D DXF ou SVG dans l'Editeur d'Empreintes, sur la "
-"couche de dessins"
+"Importer un fichier dessin 2D dans l'Editeur d'Empreintes, sur la couche de "
+"dessins"
 
 #: pcbnew/menubar_footprint_editor.cpp:111
 msgid "&Export Footprint..."
@@ -24036,7 +24188,7 @@ msgstr "&Polygone"
 
 #: pcbnew/menubar_footprint_editor.cpp:374 pcbnew/menubar_pcb_editor.cpp:320
 #: pcbnew/tool_footprint_editor.cpp:176 pcbnew/tool_pcb_editor.cpp:492
-#: pcbnew/tools/drawing_tool.cpp:728
+#: pcbnew/tools/drawing_tool.cpp:745
 msgid "Add graphic polygon"
 msgstr "Addition de polygones graphiques"
 
@@ -24916,7 +25068,7 @@ msgid "Delete All Drawings on Layer"
 msgstr "Supprimer Graphiques de la Couche"
 
 #: pcbnew/onrightclick.cpp:201 pcbnew/tools/zone_filler_tool.cpp:63
-#: pcbnew/tools/zone_filler_tool.cpp:181
+#: pcbnew/tools/zone_filler_tool.cpp:180
 msgid "Delete Zone Filling"
 msgstr "Supprimer Remplissage de Zone"
 
@@ -24958,7 +25110,7 @@ msgstr "Documentation des Modules"
 
 #: pcbnew/onrightclick.cpp:425 pcbnew/onrightclick.cpp:748
 #: pcbnew/onrightclick.cpp:942 pcbnew/tools/edit_tool.cpp:119
-#: pcbnew/tools/edit_tool.cpp:867
+#: pcbnew/tools/edit_tool.cpp:888
 msgid "Flip"
 msgstr "Change côté"
 
@@ -25116,7 +25268,7 @@ msgstr "Addition d'une Découpe"
 msgid "Duplicate Zone onto Layer..."
 msgstr "Dupliquer Zone sur Couche..."
 
-#: pcbnew/onrightclick.cpp:684 pcbnew/tools/zone_filler_tool.cpp:97
+#: pcbnew/onrightclick.cpp:684 pcbnew/tools/zone_filler_tool.cpp:103
 msgid "Fill Zone"
 msgstr "Remplir Zone"
 
@@ -25240,7 +25392,7 @@ msgstr "Afficher textes en mode plein"
 msgid "Show texts in sketch mode"
 msgstr "Afficher textes en mode contour"
 
-#: pcbnew/pcb_base_frame.cpp:1040
+#: pcbnew/pcb_base_frame.cpp:1078
 msgid "Edit user grid..."
 msgstr "Editer la grille utilisateur..."
 
@@ -25314,7 +25466,7 @@ msgstr "Afficher les textes des empreintes sur le dessus du circuit imprimé"
 
 #: pcbnew/pcb_layer_widget.cpp:73
 msgid "Footprint Text Back"
-msgstr "Textes su Empreintes Dessous"
+msgstr "Textes sur Empreintes Dessous"
 
 #: pcbnew/pcb_layer_widget.cpp:73
 msgid "Show footprint text on board's back"
@@ -25416,115 +25568,115 @@ msgstr "Autres éléments"
 msgid "Auxiliary items (rulers, assistants, axes, etc.)"
 msgstr "Éléments auxiliaires (assistants,axes, etc.)"
 
-#: pcbnew/pcb_layer_widget.cpp:169
+#: pcbnew/pcb_layer_widget.cpp:171
 msgid "Show All Copper Layers"
 msgstr "Montrer Toutes les Couches Cuivre"
 
-#: pcbnew/pcb_layer_widget.cpp:172
+#: pcbnew/pcb_layer_widget.cpp:174
 msgid "Hide All Copper Layers But Active"
 msgstr "Cacher Toutes les Couches Cuivre Sauf celle Active"
 
-#: pcbnew/pcb_layer_widget.cpp:175
+#: pcbnew/pcb_layer_widget.cpp:177
 msgid "Always Hide All Copper Layers But Active"
 msgstr "Toujours Cacher Toutes les Couches Cuivre Sauf celle Active"
 
-#: pcbnew/pcb_layer_widget.cpp:178
+#: pcbnew/pcb_layer_widget.cpp:180
 msgid "Hide All Copper Layers"
 msgstr "Cacher Toutes les Couches Cuivre"
 
-#: pcbnew/pcb_layer_widget.cpp:184
+#: pcbnew/pcb_layer_widget.cpp:186
 msgid "Show All Non Copper Layers"
 msgstr "Montrer Toutes les Couches Non Cuivre"
 
-#: pcbnew/pcb_layer_widget.cpp:187
+#: pcbnew/pcb_layer_widget.cpp:189
 msgid "Hide All Non Copper Layers"
 msgstr "Cacher Toutes les Couches Non Cuivre"
 
-#: pcbnew/pcb_layer_widget.cpp:199
+#: pcbnew/pcb_layer_widget.cpp:201
 msgid "Show All Front Layers"
 msgstr "Montrer Toutes les Couches vues par Dessus"
 
-#: pcbnew/pcb_layer_widget.cpp:202
+#: pcbnew/pcb_layer_widget.cpp:204
 msgid "Show All Back Layers"
 msgstr "Montrer Toutes les Couches vues par Dessous"
 
-#: pcbnew/pcb_layer_widget.cpp:504
+#: pcbnew/pcb_layer_widget.cpp:506
 msgid "Front copper layer"
 msgstr "Couche cuivre dessus"
 
-#: pcbnew/pcb_layer_widget.cpp:508
+#: pcbnew/pcb_layer_widget.cpp:510
 msgid "Back copper layer"
 msgstr "Couche cuivre dessous"
 
-#: pcbnew/pcb_layer_widget.cpp:512
+#: pcbnew/pcb_layer_widget.cpp:514
 msgid "Inner copper layer"
 msgstr "Couche cuivre interne"
 
-#: pcbnew/pcb_layer_widget.cpp:537
+#: pcbnew/pcb_layer_widget.cpp:539
 msgid "Adhesive on board's front"
 msgstr "Couche adhésive sur le dessus du circuit imprimé"
 
-#: pcbnew/pcb_layer_widget.cpp:538
+#: pcbnew/pcb_layer_widget.cpp:540
 msgid "Adhesive on board's back"
 msgstr "Couche adhésive sur le dessous du circuit imprimé"
 
-#: pcbnew/pcb_layer_widget.cpp:539
+#: pcbnew/pcb_layer_widget.cpp:541
 msgid "Solder paste on board's front"
 msgstr "Couche de pâte à souder sur dessus du circuit imprimé"
 
-#: pcbnew/pcb_layer_widget.cpp:540
+#: pcbnew/pcb_layer_widget.cpp:542
 msgid "Solder paste on board's back"
 msgstr "Couche de pâte à souder sur dessous du circuit imprimé"
 
-#: pcbnew/pcb_layer_widget.cpp:541
+#: pcbnew/pcb_layer_widget.cpp:543
 msgid "Silkscreen on board's front"
 msgstr "Sérigraphie sur le dessus du circuit imprimé"
 
-#: pcbnew/pcb_layer_widget.cpp:542
+#: pcbnew/pcb_layer_widget.cpp:544
 msgid "Silkscreen on board's back"
 msgstr "Sérigraphie sur le dessous du circuit imprimé"
 
-#: pcbnew/pcb_layer_widget.cpp:543
+#: pcbnew/pcb_layer_widget.cpp:545
 msgid "Solder mask on board's front"
 msgstr "Couche vernis épargne sur le dessus du circuit imprimé"
 
-#: pcbnew/pcb_layer_widget.cpp:544
+#: pcbnew/pcb_layer_widget.cpp:546
 msgid "Solder mask on board's back"
 msgstr "Couche vernis épargne sur le dessous du circuit imprimé"
 
-#: pcbnew/pcb_layer_widget.cpp:545
+#: pcbnew/pcb_layer_widget.cpp:547
 msgid "Explanatory drawings"
 msgstr "Couche dessins explicatifs"
 
-#: pcbnew/pcb_layer_widget.cpp:546
+#: pcbnew/pcb_layer_widget.cpp:548
 msgid "Explanatory comments"
 msgstr "Couche commentaires"
 
-#: pcbnew/pcb_layer_widget.cpp:547 pcbnew/pcb_layer_widget.cpp:548
+#: pcbnew/pcb_layer_widget.cpp:549 pcbnew/pcb_layer_widget.cpp:550
 msgid "User defined meaning"
 msgstr "Usage défini par l'utilisateur"
 
-#: pcbnew/pcb_layer_widget.cpp:549
+#: pcbnew/pcb_layer_widget.cpp:551
 msgid "Board's perimeter definition"
 msgstr "Couche de définition des contours du circuit imprimé"
 
-#: pcbnew/pcb_layer_widget.cpp:550
+#: pcbnew/pcb_layer_widget.cpp:552
 msgid "Board's edge setback outline"
 msgstr "Zone de sécurité (isolation) des contours du circuit"
 
-#: pcbnew/pcb_layer_widget.cpp:551
+#: pcbnew/pcb_layer_widget.cpp:553
 msgid "Footprint courtyards on board's front"
 msgstr "Zone d'occupation des empreintes sur le dessus du circuit imprimé"
 
-#: pcbnew/pcb_layer_widget.cpp:552
+#: pcbnew/pcb_layer_widget.cpp:554
 msgid "Footprint courtyards on board's back"
 msgstr "Zone d'occupation des empreintes sur le dessous du circuit imprimé"
 
-#: pcbnew/pcb_layer_widget.cpp:553
+#: pcbnew/pcb_layer_widget.cpp:555
 msgid "Footprint assembly on board's front"
 msgstr "Couche fabrication sur le dessus du circuit imprimé"
 
-#: pcbnew/pcb_layer_widget.cpp:554
+#: pcbnew/pcb_layer_widget.cpp:556
 msgid "Footprint assembly on board's back"
 msgstr "Couche fabrication sur le dessous du circuit imprimé"
 
@@ -25647,7 +25799,7 @@ msgstr ""
 "\"%s\"\n"
 "vous devez vérifier et l'éditer (exécuter le test DRC)."
 
-#: pcbnew/pcbnew.cpp:371
+#: pcbnew/pcbnew.cpp:374
 msgid ""
 "An error occurred attempting to load the global footprint library table.\n"
 "Please edit this global footprint library table in Preferences menu."
@@ -26383,7 +26535,7 @@ msgstr "Ajouter empreintes"
 msgid "Route tracks"
 msgstr "Route piste"
 
-#: pcbnew/tool_pcb_editor.cpp:471 pcbnew/tools/drawing_tool.cpp:1773
+#: pcbnew/tool_pcb_editor.cpp:471 pcbnew/tools/drawing_tool.cpp:1795
 msgid "Add vias"
 msgstr "Ajouter vias"
 
@@ -26524,7 +26676,7 @@ msgstr "Mode d'affichage contraste normal"
 msgid "High contrast display mode"
 msgstr "Mode d'affichage haut contraste"
 
-#: pcbnew/tools/drawing_tool.cpp:70 pcbnew/tools/drawing_tool.cpp:1087
+#: pcbnew/tools/drawing_tool.cpp:70 pcbnew/tools/drawing_tool.cpp:1107
 msgid "Draw a line"
 msgstr "Tracer une ligne"
 
@@ -26532,11 +26684,11 @@ msgstr "Tracer une ligne"
 msgid "Draw a graphic polygon"
 msgstr "Dessiner un polygone graphique"
 
-#: pcbnew/tools/drawing_tool.cpp:78 pcbnew/tools/drawing_tool.cpp:281
+#: pcbnew/tools/drawing_tool.cpp:78 pcbnew/tools/drawing_tool.cpp:287
 msgid "Draw a circle"
 msgstr "Tracer un cercle"
 
-#: pcbnew/tools/drawing_tool.cpp:82 pcbnew/tools/drawing_tool.cpp:315
+#: pcbnew/tools/drawing_tool.cpp:82 pcbnew/tools/drawing_tool.cpp:324
 msgid "Draw an arc"
 msgstr "Tracer un arc"
 
@@ -26568,7 +26720,7 @@ msgstr "Ajouter une zone de découpe à une zone existante"
 msgid "Add a zone with the same settings as an existing zone"
 msgstr "Ajouter une zone ayant les mêmes réglages qu'une zone existante"
 
-#: pcbnew/tools/drawing_tool.cpp:120 pcbnew/tools/drawing_tool.cpp:898
+#: pcbnew/tools/drawing_tool.cpp:120 pcbnew/tools/drawing_tool.cpp:915
 msgid "Place the footprint anchor"
 msgstr "Placer le point d'ancrage de l'empreinte"
 
@@ -26600,39 +26752,39 @@ msgstr "Supprimer le dernier point ajouté à l'élément courant"
 msgid "Close the outline of a zone in progress"
 msgstr "Fermer le contour de zone en cours"
 
-#: pcbnew/tools/drawing_tool.cpp:242
+#: pcbnew/tools/drawing_tool.cpp:245
 msgid "Draw a line segment"
 msgstr "Tracer une ligne"
 
-#: pcbnew/tools/drawing_tool.cpp:457
+#: pcbnew/tools/drawing_tool.cpp:471
 msgid "Place a text"
 msgstr "Placer un texte"
 
-#: pcbnew/tools/drawing_tool.cpp:630
+#: pcbnew/tools/drawing_tool.cpp:646
 msgid "Draw a dimension"
 msgstr "Tracer une cote"
 
-#: pcbnew/tools/drawing_tool.cpp:714
+#: pcbnew/tools/drawing_tool.cpp:731
 msgid "Add zone cutout"
 msgstr "Ajouter une découpe de zone"
 
-#: pcbnew/tools/drawing_tool.cpp:738
+#: pcbnew/tools/drawing_tool.cpp:755
 msgid "Add similar zone"
 msgstr "Ajouter zone similaire"
 
-#: pcbnew/tools/drawing_tool.cpp:797 pcbnew/tools/drawing_tool.cpp:875
+#: pcbnew/tools/drawing_tool.cpp:814 pcbnew/tools/drawing_tool.cpp:892
 msgid "Place a DXF_SVG drawing"
 msgstr "Placer un dessin DXF_SVG"
 
-#: pcbnew/tools/drawing_tool.cpp:918
+#: pcbnew/tools/drawing_tool.cpp:938
 msgid "Move the footprint reference anchor"
 msgstr "Déplacer l'ancre de référence de l'empreinte"
 
-#: pcbnew/tools/drawing_tool.cpp:1381 pcbnew/tools/point_editor.cpp:253
+#: pcbnew/tools/drawing_tool.cpp:1401 pcbnew/tools/point_editor.cpp:253
 msgid "Self-intersecting polygons are not allowed"
 msgstr "Les polygones auto intersectants ne sont pas autorisés."
 
-#: pcbnew/tools/drawing_tool.cpp:1775
+#: pcbnew/tools/drawing_tool.cpp:1797
 msgid "Place via"
 msgstr "Place via"
 
@@ -26725,32 +26877,32 @@ msgstr "Supprimer la sélection et la copier dans le Presse papier"
 msgid "pcbnew.InteractiveSelection tool is not available"
 msgstr "L'outil \"Pcbnew.InteractiveSelection\" n'est pas disponible"
 
-#: pcbnew/tools/edit_tool.cpp:624
+#: pcbnew/tools/edit_tool.cpp:645
 msgid "Edit track width/via size"
 msgstr "Editer la taille des pistes ou/et vias"
 
-#: pcbnew/tools/edit_tool.cpp:975
+#: pcbnew/tools/edit_tool.cpp:996
 msgid "Delete again to remove locked items"
 msgstr "Supprimer à nouveau pour supprimer les éléments verrouillés"
 
-#: pcbnew/tools/edit_tool.cpp:1056
+#: pcbnew/tools/edit_tool.cpp:1080
 msgid "Move exact"
 msgstr "Déplacer exactement"
 
-#: pcbnew/tools/edit_tool.cpp:1136
+#: pcbnew/tools/edit_tool.cpp:1160
 #, c-format
 msgid "Duplicated %d item(s)"
 msgstr "%d élément(s) dupliqué(s)"
 
-#: pcbnew/tools/edit_tool.cpp:1478
+#: pcbnew/tools/edit_tool.cpp:1504
 msgid "Select reference point for the copy..."
 msgstr "Sélectionnez le point de référence pour la copie..."
 
-#: pcbnew/tools/edit_tool.cpp:1483
+#: pcbnew/tools/edit_tool.cpp:1509
 msgid "Selection copied."
 msgstr "Sélection copiée."
 
-#: pcbnew/tools/edit_tool.cpp:1490
+#: pcbnew/tools/edit_tool.cpp:1516
 msgid "Copy cancelled."
 msgstr "Copie annulée."
 
@@ -26905,7 +27057,7 @@ msgid "Merge Zones"
 msgstr "Fusionner les Zones"
 
 #: pcbnew/tools/pcb_editor_control.cpp:92
-#: pcbnew/tools/pcb_editor_control.cpp:778
+#: pcbnew/tools/pcb_editor_control.cpp:782
 msgid "Merge zones"
 msgstr "Fusionner les zones"
 
@@ -26937,31 +27089,31 @@ msgstr "Déverrouiller"
 msgid "Locking"
 msgstr "Verrouillage"
 
-#: pcbnew/tools/pcb_editor_control.cpp:509
+#: pcbnew/tools/pcb_editor_control.cpp:511
 msgid "Place a module"
 msgstr "Placer une empreinte"
 
-#: pcbnew/tools/pcb_editor_control.cpp:661
+#: pcbnew/tools/pcb_editor_control.cpp:665
 msgid "Place a layer alignment target"
 msgstr "Placer une mire d'alignement"
 
-#: pcbnew/tools/pcb_editor_control.cpp:833
+#: pcbnew/tools/pcb_editor_control.cpp:837
 msgid "Duplicate zone"
 msgstr "Dupliquer Zone"
 
-#: pcbnew/tools/pcb_editor_control.cpp:1168
+#: pcbnew/tools/pcb_editor_control.cpp:1172
 msgid "Pick Components for Local Ratsnest"
 msgstr "Selection Composants pour le Chevelu Local"
 
-#: pcbnew/tools/pcbnew_control.cpp:208
+#: pcbnew/tools/pcbnew_control.cpp:212
 msgid "Paste content from clipboard"
 msgstr "Coller depuis le presse-papier"
 
-#: pcbnew/tools/pcbnew_control.cpp:768
+#: pcbnew/tools/pcbnew_control.cpp:776
 msgid "Invalid clipboard contents"
 msgstr "Contenu du presse-papier invalide"
 
-#: pcbnew/tools/pcbnew_control.cpp:951
+#: pcbnew/tools/pcbnew_control.cpp:959
 #, c-format
 msgid ""
 "Error loading board.\n"
@@ -26970,7 +27122,7 @@ msgstr ""
 "Erreur en chargement du PCB.\n"
 "%s"
 
-#: pcbnew/tools/pcbnew_control.cpp:989
+#: pcbnew/tools/pcbnew_control.cpp:1007
 msgid "Not available in OpenGL/Cairo canvases."
 msgstr "Non disponible en mode OpenGL / Cairo."
 
@@ -27090,19 +27242,15 @@ msgstr "Supprimer sommet"
 msgid "Drag a corner"
 msgstr "Déplacer un sommet"
 
-#: pcbnew/tools/point_editor.cpp:650
-msgid "Refill Zones"
-msgstr "Remplissage Zones"
-
-#: pcbnew/tools/point_editor.cpp:1056
+#: pcbnew/tools/point_editor.cpp:1042
 msgid "Add a zone corner"
 msgstr "Ajouter un sommet à la zone"
 
-#: pcbnew/tools/point_editor.cpp:1088
+#: pcbnew/tools/point_editor.cpp:1074
 msgid "Split segment"
 msgstr "Diviser le segment"
 
-#: pcbnew/tools/point_editor.cpp:1161
+#: pcbnew/tools/point_editor.cpp:1147
 msgid "Remove a zone/polygon corner"
 msgstr "Supprimer un sommet de la zone ou polygone"
 
@@ -27248,19 +27396,19 @@ msgstr "Supprimer tous les Remplissages"
 msgid "Unfill all zones"
 msgstr "Supprimer remplissage des zones"
 
-#: pcbnew/tools/zone_filler_tool.cpp:122
+#: pcbnew/tools/zone_filler_tool.cpp:125
 msgid "Fill All Zones"
 msgstr "Remplissage des Zones"
 
-#: pcbnew/tools/zone_filler_tool.cpp:153
+#: pcbnew/tools/zone_filler_tool.cpp:152
 msgid "Unfill Zone"
 msgstr "Supprimer Remplissage Zone"
 
-#: pcbnew/tools/zone_filler_tool.cpp:200
+#: pcbnew/tools/zone_filler_tool.cpp:199
 msgid "Unfill All Zones"
 msgstr "Supprimer Remplissage toutes Zones"
 
-#: pcbnew/tracks_cleaner.cpp:169 pcbnew/tracks_cleaner.cpp:739
+#: pcbnew/tracks_cleaner.cpp:166 pcbnew/tracks_cleaner.cpp:730
 msgid "Board cleanup"
 msgstr "Nettoyage du circuit imprimé"
 
@@ -27270,35 +27418,35 @@ msgstr ""
 "Opération d'annulation/rétablissement incomplète: certains éléments ne sont "
 "pas trouvés"
 
-#: pcbnew/zone_filler.cpp:116
+#: pcbnew/zone_filler.cpp:124
 msgid "Checking zone fills..."
 msgstr "Verification du remplissage de zones..."
 
-#: pcbnew/zone_filler.cpp:183
+#: pcbnew/zone_filler.cpp:191
 msgid "Removing insulated copper islands..."
 msgstr "Suppression des îlots de cuivre isolés..."
 
-#: pcbnew/zone_filler.cpp:237
+#: pcbnew/zone_filler.cpp:245
 msgid "Zone fills are out-of-date. Refill?"
 msgstr "Les remplissages des zones ne sont pas à jour. Re-remplir?"
 
-#: pcbnew/zone_filler.cpp:239
+#: pcbnew/zone_filler.cpp:247
 msgid "Refill"
 msgstr "Re-remplir"
 
-#: pcbnew/zone_filler.cpp:239
+#: pcbnew/zone_filler.cpp:247
 msgid "Continue without Refill"
 msgstr "Continuer sans re-remplir"
 
-#: pcbnew/zone_filler.cpp:260
+#: pcbnew/zone_filler.cpp:268
 msgid "Performing polygon fills..."
 msgstr "Exécution de remplissage des polygones..."
 
-#: pcbnew/zone_filler.cpp:307
+#: pcbnew/zone_filler.cpp:315
 msgid "Committing changes..."
 msgstr "Validation des modifications..."
 
-#: pcbnew/zone_filler.cpp:315
+#: pcbnew/zone_filler.cpp:323
 msgid "Fill Zone(s)"
 msgstr "Remplissage Zone(s)"
 
@@ -27350,6 +27498,32 @@ msgstr "Remplissage %d Zones"
 #: pcbnew/zones_by_polygon_fill_functions.cpp:119
 msgid "Checking Zones"
 msgstr "Vérification des Zones"
+
+#~ msgid "Refill Zones"
+#~ msgstr "Remplissage Zones"
+
+#~ msgid "Save changes?"
+#~ msgstr "Sauver les changements?"
+
+#~ msgid "Delete selections"
+#~ msgstr "Effacement des associations existantes"
+
+#~ msgid "Plot all layers in outline (polygon) mode"
+#~ msgstr "Tracer toutes les couches en mode contour (polygon)"
+
+#~ msgid ""
+#~ "DXF only:\n"
+#~ "Check to plot all layers in polygon mode.\n"
+#~ "Uncheck to plot in sketch mode layers that don't support polygons (*."
+#~ "SilkS, *_User, Edge.Cuts, Margin, *.CrtYd, *.Fab)\n"
+#~ "and plot in polygon mode other layers (*.Cu, *.Adhes, *.Paste, *.Mask)"
+#~ msgstr ""
+#~ "DXF seulement:\n"
+#~ "Activer pour tracer toutes les couches en mode polygone.\n"
+#~ "Désactiver pour tracer en mode contour les couches qui ne supportent pas "
+#~ "les polygones (*. Silks, * _User, Edge.Cuts, marge, *. CrtYd, *. Fab)\n"
+#~ "et tracer en mode polygone  les autres couches (*. Cu, *. Adhes, *. Pâte, "
+#~ "*. Masque)"
 
 #~ msgid "Check this option when the symbol is a power symbol"
 #~ msgstr "Activer cette option si le symbole est un symbole d'alimentation"

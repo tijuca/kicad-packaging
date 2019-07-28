@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2018 Jean-Pierre Charras, jp.charras at wanadoo.fr
- * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -68,7 +68,9 @@ class CVPCB_MAINFRAME : public KIWAY_PLAYER
     wxTextCtrl*               m_tcFilterString;
     wxStaticText*             m_statusLine1;
     wxStaticText*             m_statusLine2;
+    wxStaticText*             m_statusLine3;
     wxButton*                 m_saveAndContinue;
+    wxString                  m_clipboardBuffer;
 
 public:
     wxArrayString             m_ModuleLibNames;
@@ -121,6 +123,7 @@ public:
     void             OnCloseWindow( wxCloseEvent& Event );
     void             OnSize( wxSizeEvent& SizeEvent );
     void             OnKeyDown( wxKeyEvent& aEvent );
+    void             OnEscapeKey( wxCommandEvent& aEvent );
     void             ReCreateHToolbar();
     virtual void     ReCreateMenuBar() override;
     void             ShowChangedLanguage() override;
@@ -131,10 +134,34 @@ public:
     void             ToPreviousNA( wxCommandEvent& event );
 
     /**
-     * Function DelAssociations
-     * removes all component footprint associations already made
+     * Function DelAllAssociations
+     * Removes all component footprint associations already made
      */
-    void             DelAssociations( wxCommandEvent& event );
+    void DelAllAssociations( wxCommandEvent& event );
+
+    /**
+     * Function DelAssociation
+     * Removes association from selected footprints
+     */
+    void DelAssociation( wxCommandEvent& event );
+
+    /**
+     * Function CutAssociation
+     * Cuts the footprint name for the 1st selected component to the clipboard
+     */
+    void CutAssociation( wxCommandEvent& event );
+
+    /**
+     * Function CopyAssociation
+     * Copies the footprint name for the 1st selected component to the clipboard
+     */
+    void CopyAssociation( wxCommandEvent& event );
+
+    /**
+     * Function PasteAssociation
+     * Paste the footprint from the clipboard onto the selected components
+     */
+    void PasteAssociation( wxCommandEvent& event );
 
     void             OnConfigurePaths( wxCommandEvent& aEvent );
 

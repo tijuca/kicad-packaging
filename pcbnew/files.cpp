@@ -408,8 +408,6 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
         return false;
     }
 
-    m_file_checker.reset( lockFile.release() );
-
     if( GetScreen()->IsModify() && !GetBoard()->IsEmpty() )
     {
         if( !HandleUnsavedChanges( this, _( "The current PCB has been modified.  Save changes?" ),
@@ -418,6 +416,9 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
             return false;
         }
     }
+
+    // Release the lock file, until the new file is actually loaded
+    ReleaseFile();
 
     wxFileName pro = fullFileName;
     pro.SetExt( ProjectFileExtension );
@@ -503,6 +504,7 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
             return false;
         }
 
+
         // 6.0 TODO: some settings didn't make it into the board file in 5.1 so as not to
         // change the file format.  For 5.1 we must copy them across from the config-initialized
         // board.
@@ -518,9 +520,6 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
         std::copy( configBds.m_TextItalic,  configBds.m_TextItalic + 4,  bds.m_TextItalic );
         std::copy( configBds.m_TextUpright, configBds.m_TextUpright + 4, bds.m_TextUpright );
         bds.m_DiffPairDimensionsList            = configBds.m_DiffPairDimensionsList;
-
-        bds.SetElementVisibility( LAYER_GRID,     configBds.IsElementVisible( LAYER_GRID ) );
-        bds.SetElementVisibility( LAYER_RATSNEST, configBds.IsElementVisible( LAYER_RATSNEST ) );
 
         SetBoard( loadedBoard );
 
@@ -551,6 +550,9 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
 
         GetBoard()->SetFileName( fname );
     }
+
+    // Lock the file newly opened:
+    m_file_checker.reset( lockFile.release() );
 
     if( !converted )
         UpdateFileHistory( GetBoard()->GetFileName() );
