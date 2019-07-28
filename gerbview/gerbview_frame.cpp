@@ -89,9 +89,11 @@ GERBVIEW_FRAME::GERBVIEW_FRAME( KIWAY* aKiway, wxWindow* aParent ):
     m_SelNetnameBox = nullptr;
     m_SelAperAttributesBox = nullptr;
     m_displayMode   = 0;
+    m_AboutTitle = "GerbView";
 
     int fileHistorySize;
-    Pgm().CommonSettings()->Read( FILE_HISTORY_SIZE_KEY, &fileHistorySize, DEFAULT_FILE_HISTORY_SIZE );
+    Pgm().CommonSettings()->Read( FILE_HISTORY_SIZE_KEY, &fileHistorySize,
+                                  DEFAULT_FILE_HISTORY_SIZE );
     m_drillFileHistory.SetMaxFiles( fileHistorySize );
     m_zipFileHistory.SetMaxFiles( fileHistorySize );
     m_jobFileHistory.SetMaxFiles( fileHistorySize );
@@ -348,7 +350,9 @@ void GERBVIEW_FRAME::LoadSettings( wxConfigBase* aCfg )
     // was: wxGetApp().ReadCurrentSetupValues( GetConfigurationSettings() );
     wxConfigLoadSetups( aCfg, GetConfigurationSettings() );
 
-    aCfg->Read( cfgShowBorderAndTitleBlock, &m_showBorderAndTitleBlock, false );
+    bool tmp;
+    aCfg->Read( cfgShowBorderAndTitleBlock, &tmp, false );
+    SetElementVisibility( LAYER_WORKSHEET, tmp );
 
     PAGE_INFO pageInfo( wxT( "GERBER" ) );
     wxString pageType;
@@ -357,7 +361,6 @@ void GERBVIEW_FRAME::LoadSettings( wxConfigBase* aCfg )
     pageInfo.SetType( pageType );
     SetPageSettings( pageInfo );
 
-    bool tmp;
     aCfg->Read( cfgShowDCodes, &tmp, true );
     SetElementVisibility( LAYER_DCODES, tmp );
     aCfg->Read( cfgShowNegativeObjects, &tmp, false );
@@ -466,6 +469,7 @@ void GERBVIEW_FRAME::SetElementVisibility( int aLayerID, bool aNewState )
 
     case LAYER_WORKSHEET:
         m_showBorderAndTitleBlock = aNewState;
+        GetGalCanvas()->GetView()->SetLayerVisible( LAYER_WORKSHEET, aNewState );
         break;
 
     case LAYER_GERBVIEW_GRID:
@@ -889,6 +893,7 @@ void GERBVIEW_FRAME::SetVisibleElementColor( int aLayerID, COLOR4D aColor )
     }
 }
 
+
 COLOR4D GERBVIEW_FRAME::GetNegativeItemsColor()
 {
     if( IsElementVisible( LAYER_NEGATIVE_OBJECTS ) )
@@ -1038,6 +1043,42 @@ void GERBVIEW_FRAME::SetGridColor( COLOR4D aColor )
 }
 
 
+/*
+ * Display the grid status.
+ */
+void GERBVIEW_FRAME::DisplayGridMsg()
+{
+    wxString line;
+    wxString gridformatter;
+
+    switch( m_UserUnits )
+    {
+    case INCHES:
+        gridformatter = "grid X %.6f  Y %.6f";
+        break;
+
+    case MILLIMETRES:
+        gridformatter = "grid X %.6f  Y %.6f";
+        break;
+
+    default:
+        gridformatter = "grid X %f  Y %f";
+        break;
+    }
+
+    BASE_SCREEN* screen = GetScreen();
+    wxArrayString gridsList;
+
+    int icurr = screen->BuildGridsChoiceList( gridsList, m_UserUnits != INCHES );
+    GRID_TYPE& grid = screen->GetGrid( icurr );
+    double grid_x = To_User_Unit( m_UserUnits, grid.m_Size.x );
+    double grid_y = To_User_Unit( m_UserUnits, grid.m_Size.y );
+    line.Printf( gridformatter, grid_x, grid_y );
+
+    SetStatusText( line, 4 );
+}
+
+
 void GERBVIEW_FRAME::UpdateStatusBar()
 {
     EDA_DRAW_FRAME::UpdateStatusBar();
@@ -1122,6 +1163,8 @@ void GERBVIEW_FRAME::UpdateStatusBar()
         line.Printf( relformatter, dXpos, dYpos, hypot( dXpos, dYpos ) );
         SetStatusText( line, 3 );
     }
+
+    DisplayGridMsg();
 }
 
 

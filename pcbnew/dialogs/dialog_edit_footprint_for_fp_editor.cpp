@@ -263,6 +263,15 @@ bool DIALOG_FOOTPRINT_FP_EDITOR::TransferDataToWindow()
     else
         m_SolderPasteMarginRatioCtrl->SetValue( msg );
 
+    switch( m_footprint->GetZoneConnection() )
+    {
+    default:
+    case PAD_ZONE_CONN_INHERITED: m_ZoneConnectionChoice->SetSelection( 0 ); break;
+    case PAD_ZONE_CONN_FULL:      m_ZoneConnectionChoice->SetSelection( 1 ); break;
+    case PAD_ZONE_CONN_THERMAL:   m_ZoneConnectionChoice->SetSelection( 2 ); break;
+    case PAD_ZONE_CONN_NONE:      m_ZoneConnectionChoice->SetSelection( 3 ); break;
+    }
+
     // 3D Settings
 
     wxString default_path;
@@ -390,7 +399,7 @@ void DIALOG_FOOTPRINT_FP_EDITOR::OnRemove3DModel( wxCommandEvent&  )
 
     int idx = m_modelsGrid->GetGridCursorRow();
 
-    if( idx >= 0 )
+    if( idx >= 0 && m_modelsGrid->GetNumberRows() && !m_shapes3D_list.empty() )
     {
         m_shapes3D_list.erase( m_shapes3D_list.begin() + idx );
         m_modelsGrid->DeleteRows( idx );
@@ -489,14 +498,15 @@ void DIALOG_FOOTPRINT_FP_EDITOR::OnAdd3DRow( wxCommandEvent&  )
 
 bool DIALOG_FOOTPRINT_FP_EDITOR::checkFootprintName( const wxString& aFootprintName )
 {
-    if( aFootprintName.IsEmpty() || !MODULE::IsLibNameValid( aFootprintName ) )
+    if( aFootprintName.IsEmpty() )
     {
-        if( aFootprintName.IsEmpty() )
-            m_delayedErrorMessage = _( "Footprint must have a name." );
-        else
-            m_delayedErrorMessage.Printf( _( "Footprint name may not contain \"%s\"." ),
-                                          MODULE::StringLibNameInvalidChars( true ) );
-
+        m_delayedErrorMessage = _( "Footprint must have a name." );
+        return false;
+    }
+    else if( !MODULE::IsLibNameValid( aFootprintName ) )
+    {
+        m_delayedErrorMessage.Printf( _( "Footprint name may not contain \"%s\"." ),
+                                      MODULE::StringLibNameInvalidChars( true ) );
         return false;
     }
 
@@ -636,6 +646,15 @@ bool DIALOG_FOOTPRINT_FP_EDITOR::TransferDataFromWindow()
 
     m_footprint->SetLocalSolderPasteMarginRatio( dtmp / 100 );
 
+    switch( m_ZoneConnectionChoice->GetSelection() )
+    {
+    default:
+    case 0: m_footprint->SetZoneConnection( PAD_ZONE_CONN_INHERITED ); break;
+    case 1: m_footprint->SetZoneConnection( PAD_ZONE_CONN_FULL );      break;
+    case 2: m_footprint->SetZoneConnection( PAD_ZONE_CONN_THERMAL );   break;
+    case 3: m_footprint->SetZoneConnection( PAD_ZONE_CONN_NONE );      break;
+    }
+
     std::list<MODULE_3D_SETTINGS>* draw3D  = &m_footprint->Models();
     draw3D->clear();
     draw3D->insert( draw3D->end(), m_shapes3D_list.begin(), m_shapes3D_list.end() );
@@ -686,18 +705,6 @@ void DIALOG_FOOTPRINT_FP_EDITOR::OnFootprintNameText( wxCommandEvent& event )
         // Keep Name and Value of footprints in library in sync
         m_itemsGrid->SetCellValue( 1, TMC_TEXT, m_FootprintNameCtrl->GetValue() );
     }
-}
-
-
-void DIALOG_FOOTPRINT_FP_EDITOR::OnFootprintNameKillFocus( wxFocusEvent& event )
-{
-    if( !m_delayedFocusCtrl && !checkFootprintName( m_FootprintNameCtrl->GetValue() ) )
-    {
-        m_delayedFocusCtrl = m_FootprintNameCtrl;
-        m_delayedFocusPage = 0;
-    }
-
-    event.Skip();
 }
 
 
@@ -853,6 +860,8 @@ void DIALOG_FOOTPRINT_FP_EDITOR::OnUpdateUI( wxUpdateUIEvent& event )
         m_delayedFocusRow = -1;
         m_delayedFocusColumn = -1;
     }
+
+    m_button3DShapeRemove->Enable( m_modelsGrid->GetNumberRows() > 0 );
 }
 
 

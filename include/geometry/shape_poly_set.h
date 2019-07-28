@@ -538,14 +538,14 @@ class SHAPE_POLY_SET : public SHAPE
          * @return bool - true if the aPolygonIndex-th polygon is self intersecting, false
          *              otherwise.
          */
-        bool IsPolygonSelfIntersecting( int aPolygonIndex );
+        bool IsPolygonSelfIntersecting( int aPolygonIndex ) const;
 
         /**
          * Function IsSelfIntersecting
          * Checks whether any of the polygons in the set is self intersecting.
          * @return bool - true if any of the polygons is self intersecting, false otherwise.
          */
-        bool IsSelfIntersecting();
+        bool IsSelfIntersecting() const;
 
         ///> Returns the number of triangulated polygons
         unsigned int TriangulatedPolyCount() const { return m_triangulatedPolys.size(); }
@@ -762,10 +762,33 @@ class SHAPE_POLY_SET : public SHAPE
             return iter;
         }
 
+        ///> Returns an iterator object, for iterating between aFirst and aLast outline, with or
+        /// without holes (default: without)
+        CONST_SEGMENT_ITERATOR CIterateSegments( int aFirst, int aLast,
+                                                 bool aIterateHoles = false ) const
+        {
+            CONST_SEGMENT_ITERATOR iter;
+
+            iter.m_poly = const_cast<SHAPE_POLY_SET*>( this );
+            iter.m_currentPolygon = aFirst;
+            iter.m_lastPolygon = aLast < 0 ? OutlineCount() - 1 : aLast;
+            iter.m_currentContour = 0;
+            iter.m_currentSegment = 0;
+            iter.m_iterateHoles = aIterateHoles;
+
+            return iter;
+        }
+
         ///> Returns an iterator object, for iterating aPolygonIdx-th polygon edges
         SEGMENT_ITERATOR IterateSegments( int aPolygonIdx )
         {
             return IterateSegments( aPolygonIdx, aPolygonIdx );
+        }
+
+        ///> Returns an iterator object, for iterating aPolygonIdx-th polygon edges
+        CONST_SEGMENT_ITERATOR CIterateSegments( int aPolygonIdx ) const
+        {
+            return CIterateSegments( aPolygonIdx, aPolygonIdx );
         }
 
         ///> Returns an iterator object, for all outlines in the set (no holes)
@@ -784,6 +807,12 @@ class SHAPE_POLY_SET : public SHAPE
         SEGMENT_ITERATOR IterateSegmentsWithHoles( int aOutline )
         {
             return IterateSegments( aOutline, aOutline, true );
+        }
+
+        ///> Returns an iterator object, for the aOutline-th outline in the set (with holes)
+        CONST_SEGMENT_ITERATOR CIterateSegmentsWithHoles( int aOutline ) const
+        {
+            return CIterateSegments( aOutline, aOutline, true );
         }
 
         /** operations on polygons use a aFastMode param
@@ -826,11 +855,33 @@ class SHAPE_POLY_SET : public SHAPE
         void BooleanIntersection( const SHAPE_POLY_SET& a, const SHAPE_POLY_SET& b,
                                   POLYGON_MODE aFastMode );
 
-        ///> Performs outline inflation/deflation, using round corners.
-        void Inflate( int aFactor, int aCircleSegmentsCount );
+        /**
+         * Performs outline inflation/deflation, using (optionally) round corners.
+         * Polygons can have holes, but not linked holes with main outlines,
+         * if aFactor < 0.
+         * When aFactor is < 0 a bad shape can result from these extra-segments used to
+         * link holes to main outlines
+         * Use InflateWithLinkedHoles for these polygons, especially if aFactor < 0
+         *
+         * @param aFactor - number of units to offset edges
+         * @param aCircleSegmentsCount - number of segments per 360° to use in curve approx
+         * @param aPreseveCorners - If true, use square joints to keep angles preserved
+         */
+        void Inflate( int aFactor, int aCircleSegmentsCount, bool aPreseveCorners = false );
 
-        ///> Converts a set of polygons with holes to a singe outline with "slits"/"fractures" connecting the outer ring
-        ///> to the inner holes
+        void Inflate( int aFactor, bool aPreseveCorners )
+        {
+            Inflate( aFactor, 32, aPreseveCorners );
+        }
+
+        ///> Performs outline inflation/deflation, using round corners.
+        ///> Polygons can have holes, and/or linked holes with main outlines.
+        ///> The resulting polygons are laso polygons with linked holes to main outlines
+        ///> For aFastMode meaning, see function booleanOp
+        void InflateWithLinkedHoles( int aFactor, int aCircleSegmentsCount, POLYGON_MODE aFastMode );
+
+        ///> Converts a set of polygons with holes to a singe outline with "slits"/"fractures"
+        ///> connecting the outer ring to the inner holes
         ///> For aFastMode meaning, see function booleanOp
         void Fracture( POLYGON_MODE aFastMode );
 

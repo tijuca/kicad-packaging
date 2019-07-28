@@ -117,9 +117,47 @@ const VECTOR2D CAIRO_GAL_BASE::xform( const VECTOR2D& aP )
 
 const double CAIRO_GAL_BASE::angle_xform( const double aAngle )
 {
-    double world_angle = -std::atan2( currentWorld2Screen.xy, currentWorld2Screen.xx );
+    // calculate rotation angle due to the rotation transform
+    // and if flipped on X axis.
+    double world_rotation = -std::atan2( currentWorld2Screen.xy, currentWorld2Screen.xx );
 
-    return std::fmod( aAngle + world_angle, 2.0 * M_PI );
+    // When flipped on X axis, the rotation angle is M_PI - initial angle:
+    if( IsFlippedX() )
+        world_rotation = M_PI - world_rotation;
+
+    return std::fmod( aAngle + world_rotation, 2.0 * M_PI );
+}
+
+
+void CAIRO_GAL_BASE::arc_angles_xform_and_normalize( double& aStartAngle, double& aEndAngle )
+{
+    double startAngle = aStartAngle;
+    double endAngle = aEndAngle;
+
+    // When the view is flipped, the coordinates are flipped by the matrix transform
+    // However, arc angles need to be "flipped": the flipped angle is M_PI - initial angle.
+    if( IsFlippedX() )
+    {
+        startAngle = M_PI - startAngle;
+        endAngle = M_PI - endAngle;
+    }
+
+    // Normalize arc angles
+    SWAP( startAngle, >, endAngle );
+
+    // now rotate arc according to the rotation transform matrix
+    // Remark:
+    // We call angle_xform() to calculate angles according to the flip/rotation
+    // transform and normatize between -2M_PI and +2M_PI.
+    // Therefore, if aStartAngle = aEndAngle + 2*n*M_PI, the transform gives
+    // aEndAngle = aStartAngle
+    // So, if this is the case, force the aEndAngle value to draw a circle.
+    aStartAngle = angle_xform( startAngle );
+
+    if( std::abs( aEndAngle - aStartAngle ) >= 2*M_PI )     // arc is a full circle
+        aEndAngle = aStartAngle + 2*M_PI;
+    else
+        aEndAngle = angle_xform( endAngle );
 }
 
 
@@ -259,10 +297,11 @@ void CAIRO_GAL_BASE::DrawArc( const VECTOR2D& aCenterPoint, double aRadius, doub
 {
     syncLineWidth();
 
-    SWAP( aStartAngle, >, aEndAngle );
-    auto startAngleS = angle_xform( aStartAngle );
-    auto endAngleS = angle_xform( aEndAngle );
-    auto r = xform( aRadius );
+    // calculate start and end arc angles according to the rotation transform matrix
+    // and normalize:
+    arc_angles_xform_and_normalize( aStartAngle, aEndAngle );
+
+    double r = xform( aRadius );
 
     // N.B. This is backwards. We set this because we want to adjust the center
     // point that changes both endpoints.  In the worst case, this is twice as far.
@@ -278,7 +317,7 @@ void CAIRO_GAL_BASE::DrawArc( const VECTOR2D& aCenterPoint, double aRadius, doub
     if( isFillEnabled )
         cairo_move_to( currentContext, mid.x, mid.y );
 
-    cairo_arc( currentContext, mid.x, mid.y, r, startAngleS, endAngleS );
+    cairo_arc( currentContext, mid.x, mid.y, r, aStartAngle, aEndAngle );
 
     if( isFillEnabled )
         cairo_close_path( currentContext );
@@ -304,10 +343,14 @@ void CAIRO_GAL_BASE::DrawArcSegment( const VECTOR2D& aCenterPoint, double aRadiu
     }
 
     syncLineWidth();
-    SWAP( aStartAngle, >, aEndAngle );
-    auto startAngleS = angle_xform( aStartAngle );
-    auto endAngleS = angle_xform( aEndAngle );
-    auto r = xform( aRadius );
+
+    // calculate start and end arc angles according to the rotation transform matrix
+    // and normalize:
+    double startAngleS = aStartAngle;
+    double endAngleS = aEndAngle;
+    arc_angles_xform_and_normalize( startAngleS, endAngleS );
+
+    double r = xform( aRadius );
 
     // N.B. This is backwards. We set this because we want to adjust the center
     // point that changes both endpoints.  In the worst case, this is twice as far.
@@ -316,7 +359,7 @@ void CAIRO_GAL_BASE::DrawArcSegment( const VECTOR2D& aCenterPoint, double aRadiu
     lineWidthIsOdd = !( static_cast<int>( aRadius ) % 1 );
 
     auto mid = roundp( xform( aCenterPoint ) );
-    auto width = xform( aWidth / 2.0 );
+    double width = xform( aWidth / 2.0 );
     auto startPointS = VECTOR2D( r, 0.0 ).Rotate( startAngleS );
     auto endPointS = VECTOR2D( r, 0.0 ).Rotate( endAngleS );
 
@@ -1491,14 +1534,6 @@ void CAIRO_GAL_BASE::DrawGrid()
     VECTOR2D worldStartPoint = screenWorldMatrix * VECTOR2D( 0.0, 0.0 );
     VECTOR2D worldEndPoint   = screenWorldMatrix * VECTOR2D( screenSize );
 
-    double gridThreshold = KiROUND( computeMinGridSpacing() / worldScale );
-
-    if( gridStyle == GRID_STYLE::SMALL_CROSS )
-        gridThreshold *= 2.0;
-
-    int gridScreenSizeDense  = gridSize.x;
-    int gridScreenSizeCoarse = KiROUND( gridSize.x * static_cast<double>( gridTick ) );
-
     // Compute the line marker or point radius of the grid
     // Note: generic grids can't handle sub-pixel lines without
     // either losing fine/course distinction or having some dots
@@ -1516,21 +1551,27 @@ void CAIRO_GAL_BASE::DrawGrid()
     if( !gridVisibility )
         return;
 
+    VECTOR2D gridScreenSize( gridSize );
+
+    double gridThreshold = KiROUND( computeMinGridSpacing() / worldScale );
+
+    if( gridStyle == GRID_STYLE::SMALL_CROSS )
+        gridThreshold *= 2.0;
+
     // If we cannot display the grid density, scale down by a tick size and
     // try again.  Eventually, we get some representation of the grid
-    while( std::min( gridScreenSizeDense, gridScreenSizeCoarse ) <= gridThreshold )
+    while( std::min( gridScreenSize.x,  gridScreenSize.y ) <= gridThreshold )
     {
-        gridScreenSizeCoarse *= gridTick;
-        gridScreenSizeDense *= gridTick;
+        gridScreenSize = gridScreenSize * static_cast<double>( gridTick );
     }
 
     // Compute grid starting and ending indexes to draw grid points on the
     // visible screen area
     // Note: later any point coordinate will be offsetted by gridOrigin
-    int gridStartX = KiROUND( ( worldStartPoint.x - gridOrigin.x ) / gridScreenSizeDense );
-    int gridEndX = KiROUND( ( worldEndPoint.x - gridOrigin.x ) / gridScreenSizeDense );
-    int gridStartY = KiROUND( ( worldStartPoint.y - gridOrigin.y ) / gridScreenSizeDense );
-    int gridEndY = KiROUND( ( worldEndPoint.y - gridOrigin.y ) / gridScreenSizeDense );
+    int gridStartX = KiROUND( ( worldStartPoint.x - gridOrigin.x ) / gridScreenSize.x );
+    int gridEndX   = KiROUND( ( worldEndPoint.x - gridOrigin.x ) / gridScreenSize.x );
+    int gridStartY = KiROUND( ( worldStartPoint.y - gridOrigin.y ) / gridScreenSize.y );
+    int gridEndY   = KiROUND( ( worldEndPoint.y - gridOrigin.y ) / gridScreenSize.y );
 
     // Ensure start coordinate > end coordinate
 
@@ -1551,27 +1592,27 @@ void CAIRO_GAL_BASE::DrawGrid()
         // Vertical lines
         for( int j = gridStartY; j <= gridEndY; j++ )
         {
-            const double y = j * gridScreenSizeDense + gridOrigin.y;
+            const double y = j * gridScreenSize.y + gridOrigin.y;
 
-            if( axesEnabled && y == 0 )
+            if( axesEnabled && y == 0.0 )
                 continue;
 
             SetLineWidth( ( j % gridTick ) ? marker : doubleMarker );
-            drawGridLine( VECTOR2D( gridStartX * gridScreenSizeDense + gridOrigin.x, y ),
-                          VECTOR2D( gridEndX * gridScreenSizeDense + gridOrigin.x, y ) );
+            drawGridLine( VECTOR2D( gridStartX * gridScreenSize.x + gridOrigin.x, y ),
+                          VECTOR2D( gridEndX * gridScreenSize.x + gridOrigin.x, y ) );
         }
 
         // Horizontal lines
         for( int i = gridStartX; i <= gridEndX; i++ )
         {
-            const double x = i * gridScreenSizeDense + gridOrigin.x;
+            const double x = i * gridScreenSize.x + gridOrigin.x;
 
-            if( axesEnabled && x == 0 )
+            if( axesEnabled && x == 0.0 )
                 continue;
 
             SetLineWidth( ( i % gridTick ) ? marker : doubleMarker );
-            drawGridLine( VECTOR2D( x, gridStartY * gridScreenSizeDense + gridOrigin.y ),
-                          VECTOR2D( x, gridEndY * gridScreenSizeDense + gridOrigin.y ) );
+            drawGridLine( VECTOR2D( x, gridStartY * gridScreenSize.y + gridOrigin.y ),
+                          VECTOR2D( x, gridEndY * gridScreenSize.y + gridOrigin.y ) );
 
         }
     }
@@ -1585,8 +1626,8 @@ void CAIRO_GAL_BASE::DrawGrid()
             {
                 bool tickX = ( i % gridTick == 0 );
                 SetLineWidth( ( ( tickX && tickY ) ? doubleMarker : marker ) );
-                auto pos = VECTOR2D( i * gridScreenSizeDense + gridOrigin.x,
-                                     j * gridScreenSizeDense + gridOrigin.y );
+                auto pos = VECTOR2D( i * gridScreenSize.x + gridOrigin.x,
+                                     j * gridScreenSize.y + gridOrigin.y );
 
                 if( gridStyle == GRID_STYLE::SMALL_CROSS )
                     drawGridCross( pos );

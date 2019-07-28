@@ -451,20 +451,23 @@ void PlotStandardLayer( BOARD *aBoard, PLOTTER* aPlotter,
                 // inflate/deflate a custom shape is a bit complex.
                 // so build a similar pad shape, and inflate/deflate the polygonal shape
                 {
-                // we expect margin.x = margin.y for custom pads
-                if( margin.x < 0 )
-                    // be sure the anchor pad is not bigger than the deflated shape
-                    // because this anchor will be added to the pad shape when plotting
-                    // the pad
-                    pad->SetSize( padPlotsSize );
-
                 D_PAD dummy( *pad );
                 SHAPE_POLY_SET shape;
                 pad->MergePrimitivesAsPolygon( &shape, 64 );
-                shape.Inflate( margin.x, ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF );
+                // shape polygon can have holes linked to the main outline.
+                // So use InflateWithLinkedHoles(), not Inflate() that can create
+                // bad shapes if margin.x is < 0
+                shape.InflateWithLinkedHoles( margin.x, ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF,
+                                              SHAPE_POLY_SET::PM_FAST );
                 dummy.DeletePrimitivesList();
                 dummy.AddPrimitive( shape, 0 );
                 dummy.MergePrimitivesAsPolygon();
+
+                // Be sure the anchor pad is not bigger than the deflated shape
+                // because this anchor will be added to the pad shape when plotting
+                // the pad. So now the polygonal shape is built, we can clamp the anchor size
+                if( margin.x < 0 )  // we expect margin.x = margin.y for custom pads
+                    dummy.SetSize( padPlotsSize );
 
                 itemplotter.PlotPad( &dummy, color, plotMode );
                 }
@@ -1055,7 +1058,12 @@ PLOTTER* StartPlotBoard( BOARD *aBoard, PCB_PLOT_PARAMS *aPlotOpts,
     switch( aPlotOpts->GetFormat() )
     {
     case PLOT_FORMAT_DXF:
-        plotter = new DXF_PLOTTER();
+        DXF_PLOTTER* DXF_plotter;
+        DXF_plotter = new DXF_PLOTTER();
+        DXF_plotter->SetUnits(
+                static_cast<DXF_PLOTTER::DXF_UNITS>( aPlotOpts->GetDXFPlotUnits() ) );
+
+        plotter = DXF_plotter;
         break;
 
     case PLOT_FORMAT_POST:

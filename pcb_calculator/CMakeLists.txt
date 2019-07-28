@@ -104,6 +104,9 @@ add_dependencies( pcb_calculator pcb_calculator_kiface )
 
 # these 2 binaries are a matched set, keep them together
 if( APPLE )
+    include( ${CMAKE_MODULE_PATH}/KiCadVersion.cmake )
+    configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist @ONLY )
+
     set_target_properties( pcb_calculator PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist
         )
@@ -145,6 +148,7 @@ endif()
 # auto-generate pcb_calculator_datafile.h and pcb_calculator_datafile_keywords.cpp
 # for the storage data file format.
 make_lexer(
+    pcb_calculator_lexer_source_files
     ${CMAKE_CURRENT_SOURCE_DIR}/pcb_calculator_datafile.keywords
     ${CMAKE_CURRENT_SOURCE_DIR}/pcb_calculator_datafile_lexer.h
     ${CMAKE_CURRENT_SOURCE_DIR}/pcb_calculator_datafile_keywords.cpp
@@ -153,13 +157,6 @@ make_lexer(
     # Pass header file with dependency on *_lexer.h as extra_arg
     datafile_read_write.h
    )
-
-add_custom_target(
-    pcb_calculator_lexer_source_files ALL
-    DEPENDS
-        ${CMAKE_CURRENT_SOURCE_DIR}/pcb_calculator_datafile_lexer.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/pcb_calculator_datafile_keywords.cpp
-)
 
 #
 # Conversion of .html doc source files to .h files included in cpp sources

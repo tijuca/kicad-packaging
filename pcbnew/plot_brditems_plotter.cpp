@@ -767,6 +767,7 @@ void BRDITEMS_PLOTTER::PlotDrawSegment( DRAWSEGMENT* aSeg )
     case S_CURVE:
         {
             m_plotter->SetCurrentLineWidth( thickness, &gbr_metadata );
+            aSeg->RebuildBezierToSegmentsPointsList( aSeg->GetWidth() );
             const std::vector<wxPoint>& bezierPoints = aSeg->GetBezierPoints();
 
             for( unsigned i = 1; i < bezierPoints.size(); i++ )
@@ -779,7 +780,7 @@ void BRDITEMS_PLOTTER::PlotDrawSegment( DRAWSEGMENT* aSeg )
         {
             if( !aSeg->IsPolygonFilled() )
             {
-                for( auto it = aSeg->GetPolyShape().IterateSegments( 0 ); it; it++ )
+                for( auto it = aSeg->GetPolyShape().CIterateSegments( 0 ); it; it++ )
                 {
                     auto seg = it.Get();
                     m_plotter->ThickSegment( wxPoint( seg.A ), wxPoint( seg.B ),

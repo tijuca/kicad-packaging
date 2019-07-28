@@ -117,6 +117,7 @@ int COMMON_TOOLS::CursorControl( const TOOL_EVENT& aEvent )
     }
 
     getViewControls()->SetCursorPosition( cursor, true, true );
+    m_toolMgr->RunAction( ACTIONS::refreshPreview );
 
     return 0;
 }
@@ -232,13 +233,12 @@ int COMMON_TOOLS::ZoomFitScreen( const TOOL_EVENT& aEvent )
     EDA_BASE_FRAME* frame = getEditFrame<EDA_BASE_FRAME>();
 
     BOX2I bBox = model->ViewBBox();
+    BOX2I defaultBox = galCanvas->GetDefaultViewBBox();
     VECTOR2D scrollbarSize = VECTOR2D( galCanvas->GetSize() - galCanvas->GetClientSize() );
     VECTOR2D screenSize = view->ToWorld( galCanvas->GetClientSize(), false );
 
     if( bBox.GetWidth() == 0 || bBox.GetHeight() == 0 )
-    {
-        bBox = galCanvas->GetDefaultViewBBox();
-    }
+        bBox = defaultBox;
 
     VECTOR2D vsize = bBox.GetSize();
     double scale = view->GetScale() / std::max( fabs( vsize.x / screenSize.x ),

@@ -378,6 +378,7 @@ set( PCBNEW_SCRIPTING_PYTHON_HELPERS
 
 # auto-generate specctra_lexer.h and specctra_keywords.cpp
 make_lexer(
+    specctra_lexer_source_files
     ${CMAKE_CURRENT_SOURCE_DIR}/specctra_import_export/specctra.keywords
     ${CMAKE_CURRENT_SOURCE_DIR}/specctra_import_export/specctra_lexer.h
     ${CMAKE_CURRENT_SOURCE_DIR}/specctra_import_export/specctra_keywords.cpp
@@ -386,14 +387,6 @@ make_lexer(
     # Pass header file with dependency on *_lexer.h as extra_arg
     specctra_import_export/specctra.h
     )
-
-add_custom_target(
-    specctra_lexer_source_files ALL
-    DEPENDS
-        ${CMAKE_CURRENT_SOURCE_DIR}/specctra_import_export/specctra_lexer.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/specctra_import_export/specctra_keywords.cpp
-    )
-
 
 if( COMPILER_SUPPORTS_WSHADOW )
     # .cpp files are compiled with extra ${WSHADOW_FLAGS}, but not .cxx files
@@ -715,6 +708,9 @@ add_dependencies( pcbnew_kiface_objects specctra_lexer_source_files )
 
 # these 2 binaries are a matched set, keep them together:
 if( APPLE )
+    include( ${CMAKE_MODULE_PATH}/KiCadVersion.cmake )
+    configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist @ONLY )
+
     set_target_properties( pcbnew PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist
         )

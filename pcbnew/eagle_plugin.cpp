@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
- * Copyright (C) 2012-2017 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2012-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -448,7 +448,7 @@ void EAGLE_PLUGIN::loadLayerDefs( wxXmlNode* aLayers )
     }
 #endif
 
-    // Set the layer names and cu count iff we're loading a board.
+    // Set the layer names and cu count if we're loading a board.
     if( m_board )
     {
         m_board->SetCopperLayerCount( cu.size() );
@@ -495,6 +495,12 @@ void EAGLE_PLUGIN::loadPlain( wxXmlNode* aGraphics )
             if( layer != UNDEFINED_LAYER )
             {
                 DRAWSEGMENT* dseg = new DRAWSEGMENT( m_board );
+                int          width = w.width.ToPcbUnits();
+
+                // KiCad cannot handle zero or negative line widths
+                if( width <= 0 )
+                    width = m_board->GetDesignSettings().GetLineThickness( layer );
+
                 m_board->Add( dseg, ADD_APPEND );
 
                 if( !w.curve )
@@ -514,8 +520,9 @@ void EAGLE_PLUGIN::loadPlain( wxXmlNode* aGraphics )
 
                 dseg->SetTimeStamp( EagleTimeStamp( gr ) );
                 dseg->SetLayer( layer );
-                dseg->SetWidth( Millimeter2iu( DEFAULT_PCB_EDGE_THICKNESS ) );
+                dseg->SetWidth( width );
             }
+
             m_xpath->pop();
         }
         else if( grName == "text" )
@@ -559,7 +566,7 @@ void EAGLE_PLUGIN::loadPlain( wxXmlNode* aGraphics )
                         pcbtxt->SetTextAngle( sign * 90 * 10 );
                         align = ETEXT::TOP_RIGHT;
                     }
-                    else // Ok so text is not at 90,180 or 270 so do some funny stuf to get placement right
+                    else // Ok so text is not at 90,180 or 270 so do some funny stuff to get placement right
                     {
                         if( ( degrees > 0 ) &&  ( degrees < 90 ) )
                             pcbtxt->SetTextAngle( sign * t.rot->degrees * 10 );
@@ -724,7 +731,7 @@ void EAGLE_PLUGIN::loadPlain( wxXmlNode* aGraphics )
                 if( d.dimensionType )
                 {
                     // Eagle dimension graphic arms may have different lengths, but they look
-                    // incorrect in KiCad (the graphic is tilted). Make them even lenght in such case.
+                    // incorrect in KiCad (the graphic is tilted). Make them even length in such case.
                     if( *d.dimensionType == "horizontal" )
                     {
                         int newY = ( d.y1.ToPcbUnits() + d.y2.ToPcbUnits() ) / 2;
@@ -943,11 +950,11 @@ void EAGLE_PLUGIN::loadElements( wxXmlNode* aElements )
                 m->Reference().SetVisible( true );   // Only if place holder in package layout
         }
         else if( *e.smashed == true )
-        { // Smasted so set default to no show for NAME and VALUE
+        { // Smashed so set default to no show for NAME and VALUE
             m->Value().SetVisible( false );
             m->Reference().SetVisible( false );
 
-            // initalize these to default values incase the <attribute> elements are not present.
+            // initialize these to default values in case the <attribute> elements are not present.
             m_xpath->push( "attribute", "name" );
 
             // VALUE and NAME can have something like our text "effects" overrides
@@ -983,12 +990,21 @@ void EAGLE_PLUGIN::loadElements( wxXmlNode* aElements )
                         switch( *a.display )
                         {
                         case EATTR::VALUE :
-                            nameAttr->name = e.name;
-                            m->SetReference( e.name );
+                        {
+                            wxString reference = e.name;
+
+                            // EAGLE allows references to be single digits.  This breaks KiCad netlisting, which requires
+                            // parts to have non-digit + digit annotation.  If the reference begins with a number,
+                            // we prepend 'UNK' (unknown) for the symbol designator
+                            if( reference.find_first_not_of( "0123456789" ) == wxString::npos )
+                                reference.Prepend( "UNK" );
+
+                            nameAttr->name = reference;
+                            m->SetReference( reference );
                             if( refanceNamePresetInPackageLayout )
                                 m->Reference().SetVisible( true );
                             break;
-
+                        }
                         case EATTR::NAME :
                             if( refanceNamePresetInPackageLayout )
                             {
@@ -1015,7 +1031,7 @@ void EAGLE_PLUGIN::loadElements( wxXmlNode* aElements )
                         }
                     }
                     else
-                        // No display, so default is visable, and show value of NAME
+                        // No display, so default is visible, and show value of NAME
                         m->Reference().SetVisible( true );
                 }
                 else if( a.name == "VALUE" )
@@ -1128,12 +1144,15 @@ ZONE_CONTAINER* EAGLE_PLUGIN::loadPolygon( wxXmlNode* aPolyNode )
 
     vertices.push_back( vertices[0] );
 
+    SHAPE_POLY_SET polygon;
+    polygon.NewOutline();
+
     for( size_t i = 0; i < vertices.size() - 1; i++ )
     {
         EVERTEX v1 = vertices[i];
 
         // Append the corner
-        zone->AppendCorner( wxPoint( kicad_x( v1.x ), kicad_y( v1.y ) ), -1 );
+        polygon.Append( kicad_x( v1.x ), kicad_y( v1.y ) );
 
         if( v1.curve )
         {
@@ -1157,13 +1176,21 @@ ZONE_CONTAINER* EAGLE_PLUGIN::loadPolygon( wxXmlNode* aPolyNode )
                     fabs( a - end_angle ) > fabs( delta_angle );
                     a -= delta_angle )
             {
-                zone->AppendCorner(
-                        wxPoint( KiROUND( radius * cos( a ) ),
-                                    KiROUND( radius * sin( a ) ) ) + center,
-                        -1 );
+                polygon.Append( KiROUND( radius * cos( a ) ) + center.x,
+                        KiROUND( radius * sin( a ) ) + center.y );
             }
         }
     }
+
+    // Eagle traces the zone such that half of the pen width is outside the polygon.
+    // We trace the zone such that the copper is completely inside.
+    if( p.width.ToPcbUnits() > 0 )
+    {
+        polygon.Inflate( p.width.ToPcbUnits() / 2, true );
+        polygon.Fracture( SHAPE_POLY_SET::PM_STRICTLY_SIMPLE );
+    }
+
+    zone->AddPolygon( polygon.COutline( 0 ) );
 
     // If the pour is a cutout it needs to be set to a keepout
     if( p.pour == EPOLYGON::CUTOUT )
@@ -1174,19 +1201,19 @@ ZONE_CONTAINER* EAGLE_PLUGIN::loadPolygon( wxXmlNode* aPolyNode )
     }
 
     // if spacing is set the zone should be hatched
-    // However, use the default hatch step, p.spacing value has no meaning for Kicad
+    // However, use the default hatch step, p.spacing value has no meaning for KiCad
     // TODO: see if this parameter is related to a grid fill option.
     if( p.spacing )
         zone->SetHatch( ZONE_CONTAINER::DIAGONAL_EDGE, zone->GetDefaultHatchPitch(), true );
 
     // clearances, etc.
-    zone->SetArcSegmentCount( ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF );     // @todo: should be a constructor default?
-    zone->SetMinThickness( std::max<int>(
-            ZONE_THICKNESS_MIN_VALUE_MIL*IU_PER_MILS, p.width.ToPcbUnits() ) );
+    zone->SetArcSegmentCount( ARC_APPROX_SEGMENTS_COUNT_HIGH_DEF );
 
-    // FIXME: KiCad zones have very rounded corners compared to eagle.
-    //        This means that isolation amounts that work well in eagle
-    //        tend to make copper intrude in soldermask free areas around pads.
+    // We divide the thickness by half because we are tracing _inside_ the zone outline
+    // This means the radius of curvature will be twice the size for an equivalent EAGLE zone
+    zone->SetMinThickness(
+            std::max<int>( ZONE_THICKNESS_MIN_VALUE_MIL * IU_PER_MILS, p.width.ToPcbUnits() / 2 ) );
+
     if( p.isolate )
         zone->SetZoneClearance( p.isolate->ToPcbUnits() );
     else
@@ -1271,6 +1298,9 @@ void EAGLE_PLUGIN::orientModuleText( MODULE* m, const EELEMENT& e,
 
         int align = ETEXT::BOTTOM_LEFT;     // bottom-left is eagle default
 
+        if( a.align )
+            align = a.align;
+
         // The "rot" in a EATTR seems to be assumed to be zero if it is not
         // present, and this zero rotation becomes an override to the
         // package's text field.  If they did not want zero, they specify
@@ -1297,12 +1327,12 @@ void EAGLE_PLUGIN::orientModuleText( MODULE* m, const EELEMENT& e,
         {
             orient = 0 - m->GetOrientation() / 10;
             txt->SetTextAngle( sign * orient * 10 );
-            align = ETEXT::TOP_RIGHT;
+            align = -align;
         }
         else if( degrees == 270 )
         {
             orient = 90 - m->GetOrientation() / 10;
-            align = ETEXT::TOP_RIGHT;
+            align = -align;
             txt->SetTextAngle( sign * orient * 10 );
         }
         else
@@ -1320,6 +1350,26 @@ void EAGLE_PLUGIN::orientModuleText( MODULE* m, const EELEMENT& e,
 
         case ETEXT::BOTTOM_LEFT:
             txt->SetHorizJustify( GR_TEXT_HJUSTIFY_LEFT );
+            txt->SetVertJustify( GR_TEXT_VJUSTIFY_BOTTOM );
+            break;
+
+        case ETEXT::TOP_LEFT:
+            txt->SetHorizJustify( GR_TEXT_HJUSTIFY_LEFT );
+            txt->SetVertJustify( GR_TEXT_VJUSTIFY_TOP );
+            break;
+
+        case ETEXT::BOTTOM_RIGHT:
+            txt->SetHorizJustify( GR_TEXT_HJUSTIFY_RIGHT );
+            txt->SetVertJustify( GR_TEXT_VJUSTIFY_BOTTOM );
+            break;
+
+        case ETEXT::TOP_CENTER:
+            txt->SetHorizJustify( GR_TEXT_HJUSTIFY_CENTER );
+            txt->SetVertJustify( GR_TEXT_VJUSTIFY_TOP );
+            break;
+
+        case ETEXT::BOTTOM_CENTER:
+            txt->SetHorizJustify( GR_TEXT_HJUSTIFY_CENTER );
             txt->SetVertJustify( GR_TEXT_VJUSTIFY_BOTTOM );
             break;
 
@@ -1400,12 +1450,39 @@ void EAGLE_PLUGIN::packageWire( MODULE* aModule, wxXmlNode* aTree ) const
     wxPoint      end(   kicad_x( w.x2 ), kicad_y( w.y2 ) );
     int          width = w.width.ToPcbUnits();
 
+    // KiCad cannot handle zero or negative line widths which apparently have meaning in Eagle.
     if( width <= 0 )
     {
-        width = aModule->GetBoard()->GetDesignSettings().GetLineThickness( layer );
+        BOARD* board = aModule->GetBoard();
+
+        if( board )
+        {
+            width = board->GetDesignSettings().GetLineThickness( layer );
+        }
+        else
+        {
+            // When loading footprint libraries, there is no board so use the default KiCad
+            // line widths.
+            switch( layer )
+            {
+            case Edge_Cuts:
+                width = Millimeter2iu( DEFAULT_EDGE_WIDTH );
+                break;
+            case F_SilkS:
+            case B_SilkS:
+                width = Millimeter2iu( DEFAULT_SILK_LINE_WIDTH );
+                break;
+            case F_CrtYd:
+            case B_CrtYd:
+                width = Millimeter2iu( DEFAULT_COURTYARD_WIDTH );
+                break;
+            default:
+                width = Millimeter2iu( DEFAULT_LINE_WIDTH );
+            }
+        }
     }
 
-    // FIXME: the cap attribute is ignored because kicad can't create lines
+    // FIXME: the cap attribute is ignored because KiCad can't create lines
     //        with flat ends.
     EDGE_MODULE* dwg;
 
@@ -1444,7 +1521,7 @@ void EAGLE_PLUGIN::packagePad( MODULE* aModule, wxXmlNode* aTree ) const
     aModule->PadsList().PushBack( pad );
     transferPad( e, pad );
 
-    if( pad->GetName() == wxT( "1" ) && m_rules->psFirst != EPAD::UNDEF )
+    if( e.first && *e.first && m_rules->psFirst != EPAD::UNDEF )
         shape = m_rules->psFirst;
     else if( aModule->GetLayer() == F_Cu &&  m_rules->psTop != EPAD::UNDEF )
         shape = m_rules->psTop;
@@ -1675,8 +1752,6 @@ void EAGLE_PLUGIN::packagePolygon( MODULE* aModule, wxXmlNode* aTree ) const
     dwg->SetTimeStamp( EagleTimeStamp( aTree ) );
 
     std::vector<wxPoint> pts;
-    // TODO: I think there's no way to know a priori the number of children in wxXmlNode :()
-    // pts.reserve( aTree.size() );
 
     // Get the first vertex and iterate
     wxXmlNode* vertex = aTree->GetChildren();
@@ -2079,7 +2154,8 @@ void EAGLE_PLUGIN::loadSignals( wxXmlNode* aSignals )
                     else
                     {
                         double annulus = drillz * m_rules->rvViaOuter;  // eagle "restring"
-                        annulus = eagleClamp( m_rules->rlMinViaOuter, annulus, m_rules->rlMaxViaOuter );
+                        annulus = eagleClamp( m_rules->rlMinViaOuter, annulus,
+                                              m_rules->rlMaxViaOuter );
                         kidiam = KiROUND( drillz + 2 * annulus );
                         via->SetWidth( kidiam );
                     }
@@ -2091,7 +2167,8 @@ void EAGLE_PLUGIN::loadSignals( wxXmlNode* aSignals )
                     if( !v.diam || via->GetWidth() <= via->GetDrill() )
                     {
                         double annulus = eagleClamp( m_rules->rlMinViaOuter,
-                                (double)( via->GetWidth() / 2 - via->GetDrill() ), m_rules->rlMaxViaOuter );
+                                (double)( via->GetWidth() / 2 - via->GetDrill() ),
+                                m_rules->rlMaxViaOuter );
                         via->SetWidth( drillz + 2 * annulus );
                     }
 
@@ -2223,7 +2300,7 @@ PCB_LAYER_ID EAGLE_PLUGIN::kicad_layer( int aEagleLayer ) const
         case EAGLE_LAYER::TDOCU:         kiLayer = F_Fab;        break;
         case EAGLE_LAYER::BDOCU:         kiLayer = B_Fab;        break;
 
-        // thes layers are defined as user layers. put them on ECO layers
+        // these layers are defined as user layers. put them on ECO layers
         case EAGLE_LAYER::USERLAYER1:    kiLayer = Eco1_User;    break;
         case EAGLE_LAYER::USERLAYER2:    kiLayer = Eco2_User;    break;
 

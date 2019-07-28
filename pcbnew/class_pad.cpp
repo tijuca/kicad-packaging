@@ -496,7 +496,7 @@ void D_PAD::MirrorXPrimitives( int aX )
         {
         case S_POLYGON:         // polygon
             for( unsigned jj = 0; jj < primitive.m_Poly.size(); jj++ )
-                MIRROR( primitive.m_Poly[jj].x, aX );
+                MIRROR( primitive.m_Poly[jj].x, 0 );
             break;
 
         default:
@@ -510,7 +510,7 @@ void D_PAD::MirrorXPrimitives( int aX )
         SHAPE_LINE_CHAIN& poly = m_customShapeAsPolygon.Outline( cnt );
 
         for( int ii = 0; ii < poly.PointCount(); ++ii )
-            MIRROR( poly.Point( ii ).x, aX );
+            MIRROR( poly.Point( ii ).x, 0 );
     }
 }
 
@@ -1312,12 +1312,24 @@ void D_PAD::ViewGetLayers( int aLayers[], int& aCount ) const
     else if( IsOnLayer( F_Cu ) )
     {
         aLayers[aCount++] = LAYER_PAD_FR;
-        aLayers[aCount++] = LAYER_PAD_FR_NETNAMES;
+
+        // Is this a PTH pad that has only front copper?  If so, we need to also display the
+        // net name on the PTH netname layer so that it isn't blocked by the drill hole.
+        if( m_Attribute == PAD_ATTRIB_STANDARD )
+            aLayers[aCount++] = LAYER_PADS_NETNAMES;
+        else
+            aLayers[aCount++] = LAYER_PAD_FR_NETNAMES;
     }
     else if( IsOnLayer( B_Cu ) )
     {
         aLayers[aCount++] = LAYER_PAD_BK;
-        aLayers[aCount++] = LAYER_PAD_BK_NETNAMES;
+
+        // Is this a PTH pad that has only back copper?  If so, we need to also display the
+        // net name on the PTH netname layer so that it isn't blocked by the drill hole.
+        if( m_Attribute == PAD_ATTRIB_STANDARD )
+            aLayers[aCount++] = LAYER_PADS_NETNAMES;
+        else
+            aLayers[aCount++] = LAYER_PAD_BK_NETNAMES;
     }
 
     // Check non-copper layers. This list should include all the layers that the

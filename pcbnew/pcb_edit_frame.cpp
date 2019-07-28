@@ -164,7 +164,6 @@ BEGIN_EVENT_TABLE( PCB_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_MENU( ID_MENU_PCB_EDIT_TEXT_AND_GRAPHICS, PCB_EDIT_FRAME::OnEditTextAndGraphics )
 
     // Menu Help
-    EVT_MENU( wxID_HELP, EDA_DRAW_FRAME::GetKicadHelp )
     EVT_MENU( wxID_INDEX, EDA_DRAW_FRAME::GetKicadHelp )
     EVT_MENU( ID_HELP_GET_INVOLVED, EDA_DRAW_FRAME::GetKicadContribute )
     EVT_MENU( wxID_ABOUT, EDA_BASE_FRAME::GetKicadAbout )
@@ -312,6 +311,7 @@ PCB_EDIT_FRAME::PCB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     m_ZoneFillsDirty = true;
 
     m_rotationAngle = 900;
+    m_AboutTitle = "Pcbnew";
 
     // Create GAL canvas
     EDA_DRAW_PANEL_GAL* galCanvas = new PCB_DRAW_PANEL_GAL( this, -1, wxPoint( 0, 0 ),

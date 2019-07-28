@@ -746,7 +746,8 @@ public:
      */
     void DrawWorkSheet( wxDC* aDC, BASE_SCREEN* aScreen, int aLineWidth,
                          double aScale, const wxString &aFilename,
-                         const wxString &aSheetLayer = wxEmptyString );
+                         const wxString &aSheetLayer = wxEmptyString,
+                         COLOR4D aColor = COLOR4D::UNSPECIFIED );
 
     void            DisplayToolMsg( const wxString& msg );
     virtual void    RedrawActiveWindow( wxDC* DC, bool EraseBg ) = 0;
@@ -838,6 +839,11 @@ public:
      * Copy the current page or the current block to the clipboard.
      */
     void CopyToClipboard( wxCommandEvent& event );
+
+    /**
+     * Display current grid pane on the status bar.
+     */
+    void DisplayGridMsg();
 
     /* interprocess communication */
     void CreateServer( int service, bool local = true );

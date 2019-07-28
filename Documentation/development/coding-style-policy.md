@@ -76,25 +76,37 @@ to "true" for the KiCad repo:
     git config kicad.check-format true
 
 Without this config, the format checker will not run on commit, but you can
-still check files staged for commit manually:
-
-    tools/check_coding.sh --diff
+still check files staged for commit manually (see below).
 
 If the hook is enabled, when you commit a change, you will be told if you
-have caused any style violations (only in your changed code). You can fix your
-staged changes automatically with this tool:
+have caused any style violations (only in your changed code). You can then fix
+the errors, either manually, or with the tools below.
 
-    tools/check_coding.sh
-
-Or you can proceed anyway, if you are sure your style is correct:
+If you are warned about formatting errors, but you are sure your style is correct,
+you can still commit:
 
     git commit --no-verify
 
-The `check_coding.sh` tool has other modes:
+### Correcting Formatting Errors ## {#correcting-formatting-errors}
 
-* Make (or see only) changes to files modified in the previous commit:
+There is a Git aliases file that provides the right commands to show and correct
+formatting errors. Add to your repository config by running this command from
+the source directory:
+
+    git config --add include.path $(pwd)/helpers/git/format_alias
+
+Then you can use the following aliases:
+
+* `git check-format`: show any formatting warnings (but make no changes)
+* `git fix-format`: correct formatting (you will need to `git add` afterwards)
+
+These aliases use a script, `tools/check-coding.sh`, which takes care of only
+checking the formatting for files that should be formatted. This script has
+other uses:
+
+* Make (or see only) violations in files modified in the previous commit (useful
+when interactive-rebasing):
     * `check_coding.sh --amend [--diff]`
-
 
 # 2. Naming Conventions # {#naming_conventions}
 Before delving into anything as esoteric as indentation and formatting,
@@ -467,6 +479,20 @@ The case statement is to be indented to the same level as the switch.
     }
 ~~~~~~~~~~~~~
 
+It is permitted to place all cases on a single line each, if that makes the
+code more readable. This is often done for look-ups or translation functions. In
+this case, you will have to manually align for readability as appropriate and
+reject clang-format's suggested changes, if you use it:
+
+~~~~~~~~~~~~~{.cpp}
+    switch( m_orientation )
+    {
+    case PIN_RIGHT: m_orientation = PIN_UP;    break;
+    case PIN_UP:    m_orientation = PIN_LEFT;  break;
+    case PIN_LEFT:  m_orientation = PIN_DOWN;  break;
+    case PIN_DOWN:  m_orientation = PIN_RIGHT; break;
+    }
+~~~~~~~~~~~~~
 
 # 5. License Statement # {#license_statement}
 There is a the file copyright.h which you can copy into the top of
@@ -835,6 +861,6 @@ learn something new.
 
 [clang-format]: https://clang.llvm.org/docs/ClangFormat.html
 [cppstandard]:http://www.possibility.com/Cpp/CppCodingStandard.html
-[kernel]:http://git.kernel.org/cgit/linux/kernel/git/stable/linux-stable.git/tree/Documentation/CodingStyle
+[kernel]:https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/Documentation/process/coding-style.rst
 [overloading]:http://www.cs.caltech.edu/courses/cs11/material/cpp/donnie/cpp-ops.html
 [style]:http://en.wikipedia.org/wiki/Programming_style

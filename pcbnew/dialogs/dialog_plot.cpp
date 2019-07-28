@@ -157,7 +157,11 @@ void DIALOG_PLOT::init_Dialog()
     // Option to exclude pads from silkscreen layers
     m_excludePadsFromSilkscreen->SetValue( !m_plotOpts.GetPlotPadsOnSilkLayer() );
 
+    // Option to tent vias
     m_subtractMaskFromSilk->SetValue( m_plotOpts.GetSubtractMaskFromSilk() );
+
+    // Option to use aux origin
+    m_useAuxOriginCheckBox->SetValue( m_plotOpts.GetUseAuxOrigin() );
 
     // Option to plot page references:
     m_plotSheetRef->SetValue( m_plotOpts.GetPlotFrameRef() );
@@ -176,11 +180,14 @@ void DIALOG_PLOT::init_Dialog()
     // Plot mode
     setPlotModeChoiceSelection( m_plotOpts.GetPlotMode() );
 
-    // Plot outline mode
+    // DXF outline mode
     m_DXF_plotModeOpt->SetValue( m_plotOpts.GetDXFPlotPolygonMode() );
 
-    // Plot text mode
+    // DXF text mode
     m_DXF_plotTextStrokeFontOpt->SetValue( m_plotOpts.GetTextMode() == PLOTTEXTMODE_DEFAULT );
+
+    // DXF units selection
+    m_DXF_plotUnits->SetSelection( static_cast<int>( m_plotOpts.GetDXFPlotUnits() ) );
 
     // Plot mirror option
     m_plotMirrorOpt->SetValue( m_plotOpts.GetMirror() );
@@ -554,8 +561,8 @@ static bool setInt( int* aResult, int aValue, int aMin, int aMax )
 
 void DIALOG_PLOT::applyPlotSettings()
 {
-    REPORTER&   reporter = m_messagesPanel->Reporter();
-
+    REPORTER&       reporter = m_messagesPanel->Reporter();
+    int             sel;
     PCB_PLOT_PARAMS tempOptions;
 
     tempOptions.SetExcludeEdgeLayer( m_excludeEdgeLayerOpt->GetValue() );
@@ -567,11 +574,17 @@ void DIALOG_PLOT::applyPlotSettings()
     tempOptions.SetPlotReference( m_plotModuleRefOpt->GetValue() );
     tempOptions.SetPlotInvisibleText( m_plotInvisibleText->GetValue() );
     tempOptions.SetScaleSelection( m_scaleOpt->GetSelection() );
-    tempOptions.SetDrillMarksType( static_cast<PCB_PLOT_PARAMS::DrillMarksType>
-                                   ( m_drillShapeOpt->GetSelection() ) );
+
+    sel = m_drillShapeOpt->GetSelection();
+    tempOptions.SetDrillMarksType( static_cast<PCB_PLOT_PARAMS::DrillMarksType>( sel ) );
+
     tempOptions.SetMirror( m_plotMirrorOpt->GetValue() );
     tempOptions.SetPlotMode( m_plotModeOpt->GetSelection() == 1 ? SKETCH : FILLED );
     tempOptions.SetDXFPlotPolygonMode( m_DXF_plotModeOpt->GetValue() );
+
+    sel = m_DXF_plotUnits->GetSelection();
+    tempOptions.SetDXFPlotUnits( static_cast<DXF_PLOTTER::DXF_UNITS>( sel ) );
+
     tempOptions.SetPlotViaOnMaskLayer( m_plotNoViaOnMaskOpt->GetValue() );
 
     if( !m_DXF_plotTextStrokeFontOpt->IsEnabled() )     // Currently, only DXF supports this option

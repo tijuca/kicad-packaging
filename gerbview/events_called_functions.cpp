@@ -2,7 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2011-2014 Jean-Pierre Charras  jp.charras at wanadoo.fr
- * Copyright (C) 1992-2018 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 1992-2019 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -100,7 +100,6 @@ BEGIN_EVENT_TABLE( GERBVIEW_FRAME, EDA_DRAW_FRAME )
     EVT_MENU( ID_GERBVIEW_ERASE_CURR_LAYER, GERBVIEW_FRAME::Process_Special_Functions )
 
     // Menu Help
-    EVT_MENU( wxID_HELP, EDA_DRAW_FRAME::GetKicadHelp )
     EVT_MENU( wxID_INDEX, EDA_DRAW_FRAME::GetKicadHelp )
     EVT_MENU( ID_HELP_GET_INVOLVED, EDA_DRAW_FRAME::GetKicadContribute )
     EVT_MENU( wxID_ABOUT, EDA_DRAW_FRAME::GetKicadAbout )
@@ -354,6 +353,9 @@ void GERBVIEW_FRAME::OnSelectActiveDCode( wxCommandEvent& event )
 void GERBVIEW_FRAME::OnSelectActiveLayer( wxCommandEvent& event )
 {
     SetActiveLayer( event.GetSelection(), true );
+
+    // Rebuild the DCode list in toolbar (but not the Layer Box) after change
+    syncLayerBox( false );
 }
 
 
@@ -550,19 +552,15 @@ void GERBVIEW_FRAME::OnUpdateSwitchCanvas( wxUpdateUIEvent& aEvent )
 {
     wxMenuBar* menuBar = GetMenuBar();
     EDA_DRAW_PANEL_GAL* gal_canvas = GetGalCanvas();
-    EDA_DRAW_PANEL_GAL::GAL_TYPE canvasType = EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE;
-
-    if( IsGalCanvasActive() && gal_canvas )
-        canvasType = gal_canvas->GetBackend();
+    EDA_DRAW_PANEL_GAL::GAL_TYPE canvasType = gal_canvas->GetBackend();
 
     struct { int menuId; int galType; } menuList[] =
     {
-        { ID_MENU_CANVAS_LEGACY,    EDA_DRAW_PANEL_GAL::GAL_TYPE_NONE },
         { ID_MENU_CANVAS_OPENGL,    EDA_DRAW_PANEL_GAL::GAL_TYPE_OPENGL },
         { ID_MENU_CANVAS_CAIRO,     EDA_DRAW_PANEL_GAL::GAL_TYPE_CAIRO },
     };
 
-    for( auto ii: menuList )
+    for( auto ii : menuList )
     {
         wxMenuItem* item = menuBar->FindItem( ii.menuId );
         if( ii.galType == canvasType )

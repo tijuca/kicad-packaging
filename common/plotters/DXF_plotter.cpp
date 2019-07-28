@@ -121,6 +121,26 @@ static wxString getDXFColorName( COLOR4D aColor )
     return cname;
 }
 
+
+void DXF_PLOTTER::SetUnits( DXF_UNITS aUnit )
+{
+    m_plotUnits = aUnit;
+
+    switch( aUnit )
+    {
+    case DXF_UNIT_MILLIMETERS:
+        m_unitScalingFactor = 0.00254;
+        m_measurementDirective = 1;
+        break;
+
+    case DXF_UNIT_INCHES:
+    default:
+        m_unitScalingFactor = 0.0001;
+        m_measurementDirective = 0;
+    }
+}
+
+
 /**
  * Set the scale/position for the DXF plot
  * The DXF engine doesn't support line widths and mirroring. The output
@@ -139,14 +159,14 @@ void DXF_PLOTTER::SetViewport( const wxPoint& aOffset, double aIusPerDecimil,
     paperSize.y = 0;
 
     /* Like paper size DXF units are abstract too. Anyway there is a
-     * system variable (MEASUREMENT) which will be set to 1 to indicate
-     * metric units */
+     * system variable (MEASUREMENT) which will be set to 0 to indicate
+     * english units */
     m_IUsPerDecimil = aIusPerDecimil;
     iuPerDeviceUnit = 1.0 / aIusPerDecimil; // Gives a DXF in decimils
-    iuPerDeviceUnit *= 0.00254;             // ... now in mm
+    iuPerDeviceUnit *= GetUnitScaling();    // Get the scaling factor for the current units
 
     SetDefaultLineWidth( 0 );               // No line width on DXF
-    m_plotMirror = false;                     // No mirroring on DXF
+    m_plotMirror = false;                   // No mirroring on DXF
     m_currentColor = COLOR4D::BLACK;
 }
 
@@ -160,117 +180,118 @@ bool DXF_PLOTTER::StartPlot()
     // DXF HEADER - Boilerplate
     // Defines the minimum for drawing i.e. the angle system and the
     // 4 linetypes (CONTINUOUS, DOTDASH, DASHED and DOTTED)
-    fputs( "  0\n"
-           "SECTION\n"
-           "  2\n"
-           "HEADER\n"
-           "  9\n"
-           "$ANGBASE\n"
-           "  50\n"
-           "0.0\n"
-           "  9\n"
-           "$ANGDIR\n"
-           "  70\n"
-           "  1\n"
-           "  9\n"
-           "$MEASUREMENT\n"
-           "  70\n"
-           "0\n"
-           "  0\n"              // This means 'metric units'
-           "ENDSEC\n"
-           "  0\n"
-           "SECTION\n"
-           "  2\n"
-           "TABLES\n"
-           "  0\n"
-           "TABLE\n"
-           "  2\n"
-           "LTYPE\n"
-           "  70\n"
-           "4\n"
-           "  0\n"
-           "LTYPE\n"
-           "  5\n"
-           "40F\n"
-           "  2\n"
-           "CONTINUOUS\n"
-           "  70\n"
-           "0\n"
-           "  3\n"
-           "Solid line\n"
-           "  72\n"
-           "65\n"
-           "  73\n"
-           "0\n"
-           "  40\n"
-           "0.0\n"
-           "  0\n"
-           "LTYPE\n"
-           "  5\n"
-           "410\n"
-           "  2\n"
-           "DASHDOT\n"
-           " 70\n"
-           "0\n"
-           "  3\n"
-           "Dash Dot ____ _ ____ _\n"
-           " 72\n"
-           "65\n"
-           " 73\n"
-           "4\n"
-           " 40\n"
-           "2.0\n"
-           " 49\n"
-           "1.25\n"
-           " 49\n"
-           "-0.25\n"
-           " 49\n"
-           "0.25\n"
-           " 49\n"
-           "-0.25\n"
-           "  0\n"
-           "LTYPE\n"
-           "  5\n"
-           "411\n"
-           "  2\n"
-           "DASHED\n"
-           " 70\n"
-           "0\n"
-           "  3\n"
-           "Dashed __ __ __ __ __\n"
-           " 72\n"
-           "65\n"
-           " 73\n"
-           "2\n"
-           " 40\n"
-           "0.75\n"
-           " 49\n"
-           "0.5\n"
-           " 49\n"
-           "-0.25\n"
-           "  0\n"
-           "LTYPE\n"
-           "  5\n"
-           "43B\n"
-           "  2\n"
-           "DOTTED\n"
-           " 70\n"
-           "0\n"
-           "  3\n"
-           "Dotted .  .  .  .\n"
-           " 72\n"
-           "65\n"
-           " 73\n"
-           "2\n"
-           " 40\n"
-           "0.2\n"
-           " 49\n"
-           "0.0\n"
-           " 49\n"
-           "-0.2\n"
-           "  0\n"
-           "ENDTAB\n",
-            outputFile );
+    fprintf( outputFile,
+            "  0\n"
+            "SECTION\n"
+            "  2\n"
+            "HEADER\n"
+            "  9\n"
+            "$ANGBASE\n"
+            "  50\n"
+            "0.0\n"
+            "  9\n"
+            "$ANGDIR\n"
+            "  70\n"
+            "1\n"
+            "  9\n"
+            "$MEASUREMENT\n"
+            "  70\n"
+            "%u\n"
+            "  0\n"
+            "ENDSEC\n"
+            "  0\n"
+            "SECTION\n"
+            "  2\n"
+            "TABLES\n"
+            "  0\n"
+            "TABLE\n"
+            "  2\n"
+            "LTYPE\n"
+            "  70\n"
+            "4\n"
+            "  0\n"
+            "LTYPE\n"
+            "  5\n"
+            "40F\n"
+            "  2\n"
+            "CONTINUOUS\n"
+            "  70\n"
+            "0\n"
+            "  3\n"
+            "Solid line\n"
+            "  72\n"
+            "65\n"
+            "  73\n"
+            "0\n"
+            "  40\n"
+            "0.0\n"
+            "  0\n"
+            "LTYPE\n"
+            "  5\n"
+            "410\n"
+            "  2\n"
+            "DASHDOT\n"
+            " 70\n"
+            "0\n"
+            "  3\n"
+            "Dash Dot ____ _ ____ _\n"
+            " 72\n"
+            "65\n"
+            " 73\n"
+            "4\n"
+            " 40\n"
+            "2.0\n"
+            " 49\n"
+            "1.25\n"
+            " 49\n"
+            "-0.25\n"
+            " 49\n"
+            "0.25\n"
+            " 49\n"
+            "-0.25\n"
+            "  0\n"
+            "LTYPE\n"
+            "  5\n"
+            "411\n"
+            "  2\n"
+            "DASHED\n"
+            " 70\n"
+            "0\n"
+            "  3\n"
+            "Dashed __ __ __ __ __\n"
+            " 72\n"
+            "65\n"
+            " 73\n"
+            "2\n"
+            " 40\n"
+            "0.75\n"
+            " 49\n"
+            "0.5\n"
+            " 49\n"
+            "-0.25\n"
+            "  0\n"
+            "LTYPE\n"
+            "  5\n"
+            "43B\n"
+            "  2\n"
+            "DOTTED\n"
+            " 70\n"
+            "0\n"
+            "  3\n"
+            "Dotted .  .  .  .\n"
+            " 72\n"
+            "65\n"
+            " 73\n"
+            "2\n"
+            " 40\n"
+            "0.2\n"
+            " 49\n"
+            "0.0\n"
+            " 49\n"
+            "-0.2\n"
+            "  0\n"
+            "ENDTAB\n",
+            GetMeasurementDirective() );
 
     // Text styles table
     // Defines 4 text styles, one for each bold/italic combination
@@ -309,6 +330,11 @@ bool DXF_PLOTTER::StartPlot()
                  style_name[i], i < 2 ? 0 : DXF_OBLIQUE_ANGLE );
     }
 
+    EDA_COLOR_T numLayers = NBCOLORS;
+
+    // If printing in monochrome, only output the black layer
+    if( !GetColorMode() )
+        numLayers = static_cast<EDA_COLOR_T>( 1 );
 
     // Layer table - one layer per color
     fprintf( outputFile,
@@ -319,7 +345,7 @@ bool DXF_PLOTTER::StartPlot()
              "  2\n"
              "LAYER\n"
              "  70\n"
-             "%d\n", NBCOLORS );
+             "%d\n", numLayers );
 
     /* The layer/colors palette. The acad/DXF palette is divided in 3 zones:
 
@@ -328,7 +354,7 @@ bool DXF_PLOTTER::StartPlot()
        - Greys (251 - 255)
      */
 
-    for( EDA_COLOR_T i = BLACK; i < NBCOLORS; i = NextColor(i) )
+    for( EDA_COLOR_T i = BLACK; i < numLayers; i = NextColor(i) )
     {
         fprintf( outputFile,
                  "  0\n"
