@@ -1,3 +1,20 @@
+kicad (5.1.3+dfsg1-1) unstable; urgency=medium
+
+  * [eeaa4f0] d/control: fix language in long desc for kicad-doc-id
+     (Closes: #929688)
+  * [45c1c57] d/control: re-add architecture ppc64el
+     (Closes: #923713)
+  * [9832569] d/control: increase Standards-Version to 4.4.0
+    + No further changes needed.
+  * [c175651] New upstream version 5.1.3+dfsg1
+     (Closes: #926577, #927328, #931258)
+  * [bbcd6cc] rebuild patch queue from patch-queue branch
+    + added patch:
+      fixes/Workaround-failing-Eeschema-Chinese-PDF-generation.patch
+  * [274cdff] d/copyright: small update due removed file
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sun, 28 Jul 2019 19:23:17 -0300
+
 kicad (5.1.2+dfsg1-1) unstable; urgency=medium
 
   * [7bb2a89] d/copyright: correct the license for kicad.appstream.xml
