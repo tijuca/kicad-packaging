@@ -4,3 +4,4 @@ reproducibility/add-field-revdate-to-asciidoc-files-of-documentation.patch
 debian-hacks/Removing-hyphen-inside-KICAD_FULL_VERSION.patch
 fixes/spelling-fix-allows-to-allows-one-to.patch
 fixes/Fix-dblatex-options-within-cmake-file.patch
+fixes/Workaround-failing-Eeschema-Chinese-PDF-generation.patch
