@@ -381,11 +381,6 @@ Copyright: 2015, Jean-Pierre Charras, j-p.charras at wanadoo.fr
  1992-2016, KiCad Developers, see AUTHORS.txt for contributors.
 License: GPL-2+
 
-Files: common/incremental_text_ctrl.cpp
-Copyright: 2009-2016, Jean-Pierre Charras, jean-pierre.charras at wanadoo.fr
- 1992-2017, KiCad Developers, see AUTHORS.txt for contributors.
-License: GPL-2+
-
 Files: common/kicad_curl/*
 Copyright: 2016, SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
  2015, Mark Roszko <mark.roszko@gmail.com>
