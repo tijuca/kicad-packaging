@@ -704,6 +704,15 @@ Comment:
  .
  See: http://kicad-pcb.org/about/licenses/
 
+Files: dxflib_qcad/*
+Copyright: 2001 Robert J. Campbell Jr
+           2001-2013 RibbonSoft.
+License: GPL-2.0
+
+Files: dxflib_qcad/tinyspline_lib/*
+Copyright: 2016, Marcel Steinbeck
+License: Expat
+
 Files: eeschema/*
 Copyright: 2004, 2007-2018, Jean-Pierre Charras, jp.charras at wanadoo.fr
  1992-2018, KiCad Developers, see AUTHORS.txt for contributors.
