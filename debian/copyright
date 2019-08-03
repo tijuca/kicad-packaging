@@ -707,7 +707,7 @@ Comment:
 Files: dxflib_qcad/*
 Copyright: 2001 Robert J. Campbell Jr
            2001-2013 RibbonSoft.
-License: GPL-2.0
+License: GPL-2
 
 Files: dxflib_qcad/tinyspline_lib/*
 Copyright: 2016, Marcel Steinbeck
