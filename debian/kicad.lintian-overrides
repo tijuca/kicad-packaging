@@ -13,5 +13,6 @@ kicad: spelling-error-in-binary usr/lib/kicad/_eeschema.kiface Busses Buses
 kicad: spelling-error-in-binary usr/lib/kicad/_pcbnew.kiface aCount account
 # KiCad upstream has no dev package currently nor intend to create one
 kicad: non-dev-pkg-with-shlib-symlink usr/lib/x86_64-linux-gnu/libkicad_3dsg.so.2.0.0 usr/lib/x86_64-linux-gnu/libkicad_3dsg.so
+kicad: no-symbols-control-file usr/lib/x86_64-linux-gnu/libkicad_3dsg.so.2.0.0
 # Related to the above override, we have no dedicated library package
 kicad: package-name-doesnt-match-sonames libkicad-3dsg2.0.0
